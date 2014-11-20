@@ -1,14 +1,20 @@
 #!/bin/bash -e
 
-REPO_PATH="github.com/coreos-inc/rkt"
+ORG_PATH="github.com/coreos-inc"
+REPO_PATH="${ORG_PATH}/rkt"
 
-GOBIN=${PWD}/bin
+export GOPATH=${PWD}/Godeps/_workspace
+export GOBIN=${PWD}/bin
+
+rm $GOPATH/src/$REPO_PATH 2> /dev/null || true
+mkdir -p $GOPATH/src/$ORG_PATH
+ln -s ${PWD} $GOPATH/src/$REPO_PATH
 
 echo "Building rkt (stage0)..."
-godep go build -o $GOBIN/rkt ${REPO_PATH}/stage0
+go build -o $GOBIN/rkt ${REPO_PATH}/stage0
 
 echo "Building init (stage1)..."
-godep go build -o $GOBIN/init ${REPO_PATH}/stage1
+go build -o $GOBIN/init ${REPO_PATH}/stage1
 
 echo "Building metadatasvc..."
-godep go build -o $GOBIN/metadatasvc ${REPO_PATH}/metadatasvc
+go build -o $GOBIN/metadatasvc ${REPO_PATH}/metadatasvc
