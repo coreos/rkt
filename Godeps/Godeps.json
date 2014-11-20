@@ -6,18 +6,6 @@
 	],
 	"Deps": [
 		{
-			"ImportPath": "github.com/containers/standard/raf",
-			"Rev": "325663d727df1f808999c5759154a249e03411e6"
-		},
-		{
-			"ImportPath": "github.com/containers/standard/schema",
-			"Rev": "325663d727df1f808999c5759154a249e03411e6"
-		},
-		{
-			"ImportPath": "github.com/containers/standard/taf",
-			"Rev": "325663d727df1f808999c5759154a249e03411e6"
-		},
-		{
 			"ImportPath": "github.com/coreos/go-semver/semver",
 			"Rev": "6fe83ccda8fb9b7549c9ab4ba47f47858bc950aa"
 		},
