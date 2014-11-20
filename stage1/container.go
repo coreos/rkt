@@ -75,6 +75,8 @@ func (c *Container) appToSystemd(am *schema.AppManifest, id types.Hash) error {
 		&unit.UnitOption{"Service", "ExecStart", execStart},
 		&unit.UnitOption{"Service", "User", am.User},
 		&unit.UnitOption{"Service", "Group", am.Group},
+		// TODO(jonboulle): systemd >217 has "poweroff"
+		&unit.UnitOption{"Service", "FailureAction", "reboot"},
 	}
 
 	for _, eh := range am.EventHandlers {
