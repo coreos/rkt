@@ -24,6 +24,16 @@ func Stage1InitPath(root string) string {
 	return filepath.Join(root, stage1Init)
 }
 
+// Stage1TmpPath returns the path to a directory used as a shared
+// tmpfs among apps in a rocket container
+func Stage1TmpfsPath(root string) string {
+	s, err := filepath.Abs(root)
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(s, "/tmp")
+}
+
 // ContainerManifestPath returns the path in root to the Container Runtime Manifest
 func ContainerManifestPath(root string) string {
 	return filepath.Join(root, "container")

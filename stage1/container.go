@@ -137,7 +137,7 @@ func (c *Container) ContainerToSystemd() error {
 
 // appToNspawnArgs transforms the given app manifest, with the given associated
 // app image id, into a subset of applicable systemd-nspawn argument
-func (c *Container) appToNspawnArgs(am *schema.AppManifest, id types.Hash) ([]string, error) {
+func (c *Container) appToNspawnArgs(am *schema.AppManifest, id types.Hash, tmpdir string) ([]string, error) {
 	args := []string{}
 	name := am.Name.String()
 
@@ -146,6 +146,17 @@ func (c *Container) appToNspawnArgs(am *schema.AppManifest, id types.Hash) ([]st
 		for _, f := range v.Fulfills {
 			vols[f] = v
 		}
+	}
+	// TODO(jonboulle): check for conflicts
+	vols[types.ACLabel("tmp")] = types.Volume{
+		ReadOnly: false,
+		Source:   tmpdir,
+	}
+
+	mps := am.MountPoints
+	mps[types.ACLabel("tmp")] = schema.MountPoint{
+		ReadOnly: false,
+		Path:     "/tmp",
 	}
 
 	for key, mp := range am.MountPoints {
@@ -173,7 +184,7 @@ func (c *Container) appToNspawnArgs(am *schema.AppManifest, id types.Hash) ([]st
 
 // ContainerToNspawnArgs renders a prepared Container as a systemd-nspawn
 // argument list ready to be executed
-func (c *Container) ContainerToNspawnArgs() ([]string, error) {
+func (c *Container) ContainerToNspawnArgs(tmpdir string) ([]string, error) {
 	args := []string{
 		"--uuid=" + c.Manifest.UUID.String(),
 		"--directory=" + rkt.Stage1RootfsPath(c.Root),
@@ -181,7 +192,7 @@ func (c *Container) ContainerToNspawnArgs() ([]string, error) {
 
 	for _, am := range c.Apps {
 		id := c.Manifest.Apps[am.Name].ImageID
-		aa, err := c.appToNspawnArgs(am, id)
+		aa, err := c.appToNspawnArgs(am, id, tmpdir)
 		if err != nil {
 			return nil, fmt.Errorf("failed to construct args for app %q: %v", am.Name, err)
 		}
