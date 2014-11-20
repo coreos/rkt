@@ -75,6 +75,9 @@ func (c *Container) appToSystemd(am *schema.AppManifest, id types.Hash) error {
 		&unit.UnitOption{"Service", "ExecStart", execStart},
 		&unit.UnitOption{"Service", "User", am.User},
 		&unit.UnitOption{"Service", "Group", am.Group},
+		&unit.UnitOption{"Service", "Type", "oneshot"},
+		&unit.UnitOption{"Unit", "Requires", "shutdown.service"},
+		&unit.UnitOption{"Unit", "Before", "shutdown.service"},
 	}
 
 	for _, eh := range am.EventHandlers {
