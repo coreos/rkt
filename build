@@ -1,23 +1,14 @@
 #!/bin/bash -e
 
-ORG_PATH="github.com/coreos-inc"
-REPO_PATH="${ORG_PATH}/rkt"
+REPO_PATH="github.com/coreos-inc/rkt"
 
-if [ ! -h gopath/src/${REPO_PATH} ]; then
-	mkdir -p gopath/src/${ORG_PATH}
-	ln -s ../../../.. gopath/src/${REPO_PATH} || exit 255
-fi
-
-export GOBIN=${PWD}/bin
-export GOPATH=${GOPATH}:${PWD}/gopath
-
-eval $(go env)
+GOBIN=${PWD}/bin
 
 echo "Building rkt (stage0)..."
-go build -o $GOBIN/rkt ${REPO_PATH}/stage0
+godep go build -o $GOBIN/rkt ${REPO_PATH}/stage0
 
 echo "Building init (stage1)..."
-go build -o $GOBIN/init ${REPO_PATH}/stage1
+godep go build -o $GOBIN/init ${REPO_PATH}/stage1
 
 echo "Building metadatasvc..."
-go build -o $GOBIN/metadatasvc ${REPO_PATH}/metadatasvc
+godep go build -o $GOBIN/metadatasvc ${REPO_PATH}/metadatasvc

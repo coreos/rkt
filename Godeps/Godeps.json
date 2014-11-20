@@ -1,0 +1,66 @@
+{
+	"ImportPath": "github.com/coreos-inc/rkt",
+	"GoVersion": "go1.3",
+	"Packages": [
+		"github.com/coreos-inc/rkt/..."
+	],
+	"Deps": [
+		{
+			"ImportPath": "github.com/containers/standard/raf",
+			"Rev": "325663d727df1f808999c5759154a249e03411e6"
+		},
+		{
+			"ImportPath": "github.com/containers/standard/schema",
+			"Rev": "325663d727df1f808999c5759154a249e03411e6"
+		},
+		{
+			"ImportPath": "github.com/containers/standard/taf",
+			"Rev": "325663d727df1f808999c5759154a249e03411e6"
+		},
+		{
+			"ImportPath": "github.com/coreos/go-semver/semver",
+			"Rev": "6fe83ccda8fb9b7549c9ab4ba47f47858bc950aa"
+		},
+		{
+			"ImportPath": "github.com/coreos/go-systemd/dbus",
+			"Comment": "v2-41-g415a79c",
+			"Rev": "415a79c4bfa377b484b16c632347b3925a0f35ff"
+		},
+		{
+			"ImportPath": "github.com/coreos/go-systemd/unit",
+			"Comment": "v2-41-g415a79c",
+			"Rev": "415a79c4bfa377b484b16c632347b3925a0f35ff"
+		},
+		{
+			"ImportPath": "github.com/godbus/dbus",
+			"Comment": "0-13-g25a4b8c",
+			"Rev": "25a4b8ca48c64b3d631110fb74a210f56c401e0b"
+		},
+		{
+			"ImportPath": "github.com/gorilla/context",
+			"Rev": "14f550f51af52180c2eefed15e5fd18d63c0a64a"
+		},
+		{
+			"ImportPath": "github.com/gorilla/mux",
+			"Rev": "e444e69cbd2e2e3e0749a2f3c717cec491552bbf"
+		},
+		{
+			"ImportPath": "github.com/petar/GoLLRB/llrb",
+			"Rev": "53be0d36a84c2a886ca057d34b6aa4468df9ccb4"
+		},
+		{
+			"ImportPath": "github.com/peterbourgon/diskv",
+			"Rev": "fbec614921b11c91804b7ea07ad4e53647ad0d94"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/cast5",
+			"Comment": "null-234",
+			"Rev": "60a80aaa50ff0e8506f61b1fa35078a24941be50"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/openpgp",
+			"Comment": "null-234",
+			"Rev": "60a80aaa50ff0e8506f61b1fa35078a24941be50"
+		}
+	]
+}
