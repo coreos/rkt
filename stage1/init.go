@@ -47,7 +47,19 @@ func main() {
 		args = append(args, "--quiet") // silence most nspawn output (log_warning is currently not covered by this)
 	}
 
-	nsargs, err := c.ContainerToNspawnArgs()
+	// Set up a shared tmpdir for the container
+	tmp := rkt.Stage1TmpfsPath(c.Root)
+	if tmp == "" {
+		// should never happen
+		fmt.Fprintf(os.Stderr, "Failed to generate tmpdir path")
+		os.Exit(2)
+	}
+	if err := os.MkdirAll(tmp, 1777); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create tmpdir: %v\n", err)
+		os.Exit(2)
+	}
+
+	nsargs, err := c.ContainerToNspawnArgs(tmp)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to generate nspawn args: %v\n", err)
 		os.Exit(4)
