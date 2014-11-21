@@ -38,7 +38,7 @@ func runRun(args []string) (exit int) {
 		Debug:        globalFlags.Debug,
 		Stage1Init:   flagStage1Init,
 		Stage1Rootfs: flagStage1Rootfs,
-		Images:       args,
+		Images:       args[1:],
 		Volumes:      flagVolumes,
 	}
 	stage0.Run(cfg) // execs, never returns
