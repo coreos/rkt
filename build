@@ -3,15 +3,12 @@
 ORG_PATH="github.com/coreos-inc"
 REPO_PATH="${ORG_PATH}/rkt"
 
-if [ ! -h gopath/src/${REPO_PATH} ]; then
-	mkdir -p gopath/src/${ORG_PATH}
-	ln -s ../../../.. gopath/src/${REPO_PATH} || exit 255
-fi
-
+export GOPATH=${PWD}/Godeps/_workspace
 export GOBIN=${PWD}/bin
-export GOPATH=${GOPATH}:${PWD}/gopath
 
-eval $(go env)
+rm $GOPATH/src/$REPO_PATH 2> /dev/null || true
+mkdir -p $GOPATH/src/$ORG_PATH
+ln -s ${PWD} $GOPATH/src/$REPO_PATH
 
 echo "Building acfmt..."
 go build -o $GOBIN/acfmt ${REPO_PATH}/app-container/acfmt

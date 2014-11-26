@@ -1,2 +1,2 @@
 bin/
-gopath/
+Godeps/_workspace/src
