@@ -96,6 +96,11 @@ func main() {
 	env = append(env, "LD_PRELOAD="+filepath.Join(path.Stage1RootfsPath(c.Root), "fakesdboot.so"))
 	env = append(env, "LD_LIBRARY_PATH="+filepath.Join(path.Stage1RootfsPath(c.Root), "usr/lib"))
 
+	env = append(env, "LISTEN_FDS=1")
+	pid := fmt.Sprintf("%d", os.Getpid())
+	env = append(env, "LISTEN_PID="+pid)
+	fmt.Println(env)
+
 	if err := syscall.Exec(args[0], args, env); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to execute nspawn: %v\n", err)
 		os.Exit(5)
