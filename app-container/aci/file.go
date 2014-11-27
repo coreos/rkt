@@ -3,9 +3,9 @@ package aci
 import (
 	"bytes"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os/exec"
 )
 
@@ -15,56 +15,66 @@ const (
 	TypeGzip    = FileType("gz")
 	TypeBzip2   = FileType("bz2")
 	TypeXz      = FileType("xz")
+	TypeTar     = FileType("tar")
+	TypeText    = FileType("text")
 	TypeUnknown = FileType("unknown")
 
-	readLen = 6 // bytes to sniff
+	readLen = 512 // max bytes to sniff
 
 	hexHdrGzip  = "1f8b"
 	hexHdrBzip2 = "425a68"
 	hexHdrXz    = "fd377a585a00"
+	hexSigTar   = "7573746172"
+
+	tarOffset = 257
+
+	textMime = "text/plain; charset=utf-8"
 )
 
 var (
 	hdrGzip  []byte
 	hdrBzip2 []byte
 	hdrXz    []byte
+	sigTar   []byte
+	tarEnd   int
 )
 
-func init() {
-	var err error
-	hdrGzip, err = hex.DecodeString(hexHdrGzip)
+func mustDecodeHex(s string) []byte {
+	b, err := hex.DecodeString(s)
 	if err != nil {
 		panic(err)
 	}
-	hdrBzip2, err = hex.DecodeString(hexHdrBzip2)
-	if err != nil {
-		panic(err)
-	}
-	hdrXz, err = hex.DecodeString(hexHdrXz)
-	if err != nil {
-		panic(err)
-	}
+	return b
 }
 
-// DetectType attempts to detect the type of file that the given
-// reader represents by reading the first few bytes and comparing
-// it against known file signatures (magic numbers)
+func init() {
+	hdrGzip = mustDecodeHex(hexHdrGzip)
+	hdrBzip2 = mustDecodeHex(hexHdrBzip2)
+	hdrXz = mustDecodeHex(hexHdrXz)
+	sigTar = mustDecodeHex(hexSigTar)
+	tarEnd = tarOffset + len(sigTar)
+}
+
+// DetectFileType attempts to detect the type of file that the given reader
+// represents by comparing it against known file signatures (magic numbers)
 func DetectFileType(r io.Reader) (FileType, error) {
 	var b bytes.Buffer
 	n, err := io.CopyN(&b, r, readLen)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		return TypeUnknown, err
 	}
-	if n != readLen {
-		return TypeUnknown, fmt.Errorf("error reading first %d bytes", readLen)
-	}
+	bs := b.Bytes()
 	switch {
-	case bytes.HasPrefix(b.Bytes(), hdrGzip):
+	case bytes.HasPrefix(bs, hdrGzip):
 		return TypeGzip, nil
-	case bytes.HasPrefix(b.Bytes(), hdrBzip2):
+	case bytes.HasPrefix(bs, hdrBzip2):
 		return TypeBzip2, nil
-	case bytes.HasPrefix(b.Bytes(), hdrXz):
+	case bytes.HasPrefix(bs, hdrXz):
 		return TypeXz, nil
+	case n > int64(tarEnd) && bytes.Equal(bs[tarOffset:tarEnd], sigTar):
+		return TypeTar, nil
+	case http.DetectContentType(bs) == textMime:
+		return TypeText, nil
 	default:
 		return TypeUnknown, nil
 	}
