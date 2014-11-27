@@ -30,6 +30,7 @@ import (
 	"github.com/coreos/rocket/Godeps/_workspace/src/code.google.com/p/go-uuid/uuid"
 	"github.com/coreos/rocket/cas"
 	rktpath "github.com/coreos/rocket/path"
+	"github.com/coreos/rocket/pkg/lock"
 	ptar "github.com/coreos/rocket/pkg/tar"
 	"github.com/coreos/rocket/version"
 
@@ -76,7 +77,12 @@ func Setup(cfg Config) (string, error) {
 		return "", fmt.Errorf("error creating directory: %v", err)
 	}
 
-	if err := lockDir(dir); err != nil {
+	// Set up the container lock
+	l, err := lock.NewLock(dir)
+	if err == nil {
+		err = l.ExclusiveLock()
+	}
+	if err != nil {
 		return "", fmt.Errorf("error locking directory: %v", err)
 	}
 

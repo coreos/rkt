@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/appc/spec/schema/types"
@@ -106,18 +105,16 @@ func runRun(args []string) (exit int) {
 		return 1
 	}
 
-	// TODO(jonboulle): use rkt/path
-	cdir := filepath.Join(gdir, "containers")
 	cfg := stage0.Config{
 		Store:         ds,
-		ContainersDir: cdir,
+		ContainersDir: containersDir(gdir),
 		Debug:         globalFlags.Debug,
 		Stage1Init:    flagStage1Init,
 		Stage1Rootfs:  flagStage1Rootfs,
 		Images:        imgs,
 		Volumes:       flagVolumes,
 	}
-	cdir, err = stage0.Setup(cfg)
+	cdir, err := stage0.Setup(cfg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "run: error setting up stage0: %v\n", err)
 		return 1
