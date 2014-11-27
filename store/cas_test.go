@@ -1,4 +1,4 @@
-package downloadstore
+package store
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 )
 
 func TestObjectStore(t *testing.T) {
-	ds := NewDownloadStore()
+	ds := NewStore()
 	for _, valueStr := range []string{
 		"I am a manually placed object",
 	} {
@@ -34,7 +34,7 @@ func TestDownloading(t *testing.T) {
 		{Remote{ts.URL, []string{}, "12", "425656b85674825423ae7285e7837b60bc53401b"}, body, true},
 	}
 
-	ds := NewDownloadStore()
+	ds := NewStore()
 
 	for _, tt := range tests {
 		_, err := ds.stores[remoteType].Read(tt.r.Hash())

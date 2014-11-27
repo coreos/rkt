@@ -1,4 +1,4 @@
-package downloadstore
+package store
 
 import (
 	"fmt"
@@ -27,12 +27,12 @@ type Blob interface {
 	Type() int64
 }
 
-type DownloadStore struct {
+type Store struct {
 	stores []*diskv.Diskv
 }
 
-func NewDownloadStore(base string) *DownloadStore {
-	ds := &DownloadStore{}
+func NewStore(base string) *Store {
+	ds := &Store{}
 	ds.stores = make([]*diskv.Diskv, len(otmap))
 
 	for i, p := range otmap {
@@ -46,7 +46,7 @@ func NewDownloadStore(base string) *DownloadStore {
 	return ds
 }
 
-func (ds DownloadStore) Dump(hex bool) {
+func (ds Store) Dump(hex bool) {
 	for _, s := range ds.stores {
 		var keyCount int
 		for key := range s.Keys() {
@@ -68,15 +68,15 @@ func (ds DownloadStore) Dump(hex bool) {
 	}
 }
 
-func (ds DownloadStore) Store(b Blob) {
+func (ds Store) Store(b Blob) {
 	ds.stores[b.Type()].Write(b.Hash(), b.Marshal())
 }
 
-func (ds DownloadStore) ObjectStream(file string) (io.ReadCloser, error) {
+func (ds Store) ObjectStream(file string) (io.ReadCloser, error) {
 	return ds.stores[objectType].ReadStream(file, false)
 }
 
-func (ds DownloadStore) Get(b Blob) error {
+func (ds Store) Get(b Blob) error {
 	buf, err := ds.stores[b.Type()].Read(b.Hash())
 	if err != nil {
 		return err

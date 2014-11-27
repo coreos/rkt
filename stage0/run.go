@@ -26,7 +26,7 @@ import (
 	"github.com/coreos-inc/rkt/app-container/aci"
 	"github.com/coreos-inc/rkt/app-container/schema"
 	"github.com/coreos-inc/rkt/app-container/schema/types"
-	"github.com/coreos-inc/rkt/downloadstore"
+	"github.com/coreos-inc/rkt/store"
 	"github.com/coreos-inc/rkt/rkt"
 )
 
@@ -35,7 +35,7 @@ const (
 )
 
 type Config struct {
-	Store         *downloadstore.DownloadStore
+	Store         *store.Store
 	ContainersDir string // root directory for rocket containers
 	Stage1Init    string // binary to be execed as stage1
 	Stage1Rootfs  string // compressed bundle containing a rootfs for stage1
