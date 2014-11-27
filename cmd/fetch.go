@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/coreos-inc/rkt/downloadstore"
+	"github.com/coreos-inc/rkt/store"
 )
 
 const (
@@ -21,8 +21,8 @@ var (
 	}
 )
 
-func fetchURL(img string, ds *downloadstore.DownloadStore) (string, error) {
-	rem := downloadstore.NewRemote(img, []string{})
+func fetchURL(img string, ds *store.Store) (string, error) {
+	rem := store.NewRemote(img, []string{})
 	err := ds.Get(rem)
 	if err != nil && rem.File == "" {
 		rem, err = rem.Download(*ds)
@@ -44,7 +44,7 @@ func runFetch(args []string) (exit int) {
 		return 1
 	}
 
-	ds := downloadstore.NewDownloadStore(globalFlags.Dir)
+	ds := store.NewStore(globalFlags.Dir)
 
 	for _, img := range args {
 		hash, err := fetchURL(img, ds)

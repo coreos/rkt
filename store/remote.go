@@ -1,4 +1,4 @@
-package downloadstore
+package store
 
 import (
 	"bytes"
@@ -74,7 +74,7 @@ func decompress(rs io.Reader, typ aci.FileType) (io.Reader, error) {
 }
 
 // TODO: add locking
-func (r Remote) Download(ds DownloadStore) (*Remote, error) {
+func (r Remote) Download(ds Store) (*Remote, error) {
 	var b bytes.Buffer
 
 	res, err := http.Get(r.Name)
