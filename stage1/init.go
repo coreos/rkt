@@ -3,9 +3,13 @@ package main
 // this implements /init of stage1/host_nspawn-systemd
 
 import (
+	"flag"
 	"fmt"
+	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/coreos/rocket/path"
@@ -16,15 +20,34 @@ const (
 	nspawnBin = "/usr/bin/systemd-nspawn"
 )
 
-func main() {
-	root := "."
-	debug := len(os.Args) > 1 && os.Args[1] == "debug"
+var (
+	debug       bool
+	metadataSvc string
+	bridgeName  string
+	bridgeCIDR  string
+)
 
+func init() {
+	flag.BoolVar(&debug, "debug", false, "Run in debug mode")
+	flag.StringVar(&metadataSvc, "metadata-svc", "", "Launch specified metadata svc")
+	flag.StringVar(&bridgeName, "bridge", "rkt0", "Bridge name to create/connect to")
+	flag.StringVar(&bridgeCIDR, "bridge-cidr", "10.111.0.1/16", "Bridge address")
+}
+
+func main() {
+	flag.Parse()
+
+	root := "."
 	c, err := LoadContainer(root)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to load container: %v\n", err)
 		os.Exit(1)
 	}
+
+	c.MetadataSvcURL = rkt.MetadataSvcPubURL()
+	c.MachineName = fmt.Sprintf("%x", c.Manifest.UUID[:4])
+	c.Bridge = bridgeName
+	c.BridgeAddr = bridgeCIDR
 
 	if err = c.ContainerToSystemd(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to configure systemd: %v\n", err)
@@ -45,9 +68,8 @@ func main() {
 	}
 
 	args := []string{
-		ex,
-		"--boot",              // Launch systemd in the container
-		"--register", "false", // We cannot assume the host system is running a compatible systemd
+		"--boot",           // Launch systemd in the container
+		"--register=false", // We cannot assume the host system is running a compatible systemd
 	}
 
 	if !debug {
@@ -69,10 +91,63 @@ func main() {
 		args = append(args, "--show-status=0")   // silence systemd initialization status output
 	}
 
-	env := os.Environ()
-
-	if err := syscall.Exec(ex, args, env); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to execute nspawn: %v\n", err)
-		os.Exit(5)
+	if metadataSvc != "" {
+		if err = launchMetadataSvc(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to launch metadata svc: %v\n", err)
+			os.Exit(5)
+		}
 	}
+
+	ip, err := setupNetwork(c)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to setup network: %v\n", err)
+		os.Exit(6)
+	}
+	defer teardownNetwork(c, ip)
+
+	if err = registerContainer(c, ip); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to register container: %v\n", err)
+		os.Exit(7)
+	}
+	defer unregisterContainer(c)
+
+	cmd := exec.Command(ex, args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to execute nspawn: %v\n", err)
+		os.Exit(8)
+	}
+}
+
+func launchMetadataSvc() error {
+	fmt.Println("Launching metadatasvc: ", metadataSvc)
+
+	// use socket activation protocol to avoid race-condition of
+	// service becoming ready
+	// TODO(eyakubovich): remove hard-coded port
+	l, err := net.ListenTCP("tcp4", &net.TCPAddr{Port: rkt.MetadataSvcPrvPort})
+	if err != nil {
+		if err.(*net.OpError).Err.(*os.SyscallError).Err == syscall.EADDRINUSE {
+			// assume metadatasvc is already running
+			return nil
+		}
+		return err
+	}
+
+	defer l.Close()
+
+	lf, err := l.File()
+	if err != nil {
+		return err
+	}
+
+	// parse metadataSvc into exe and args
+	args := strings.Split(metadataSvc, " ")
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Env = append(os.Environ(), "LISTEN_FDS=1")
+	cmd.ExtraFiles = []*os.File{lf}
+
+	return cmd.Start()
 }

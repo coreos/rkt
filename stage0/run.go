@@ -40,13 +40,14 @@ const (
 )
 
 type Config struct {
-	Store         *cas.Store
-	ContainersDir string // root directory for rocket containers
-	Stage1Init    string // binary to be execed as stage1
-	Stage1Rootfs  string // compressed bundle containing a rootfs for stage1
-	Debug         bool
-	Images        []string          // application images
-	Volumes       map[string]string // map of volumes that rocket can provide to applications
+	Store            *cas.Store
+	ContainersDir    string // root directory for rocket containers
+	Stage1Init       string // binary to be execed as stage1
+	Stage1Rootfs     string // compressed bundle containing a rootfs for stage1
+	Debug            bool
+	Images           []string          // application images
+	Volumes          map[string]string // map of volumes that rocket can provide to applications
+	LocalMetadataSvc bool
 }
 
 func init() {
@@ -176,7 +177,7 @@ func Setup(cfg Config) (string, error) {
 
 // Run actually runs the container by exec()ing the stage1 init inside
 // the container filesystem.
-func Run(dir string, debug bool) {
+func Run(cfg Config, dir string) {
 	log.Printf("Pivoting to filesystem %s", dir)
 	if err := os.Chdir(dir); err != nil {
 		log.Fatalf("failed changing to dir: %v", err)
@@ -184,8 +185,15 @@ func Run(dir string, debug bool) {
 
 	log.Printf("Execing %s", initPath)
 	args := []string{initPath}
-	if debug {
-		args = append(args, "debug")
+	if cfg.Debug {
+		args = append(args, "--debug")
+	}
+	if cfg.LocalMetadataSvc {
+		rktExe, err := os.Readlink("/proc/self/exe")
+		if err != nil {
+			log.Fatalf("failed to readlink /proc/self/exe: %v", err)
+		}
+		args = append(args, fmt.Sprintf("--metadata-svc=%s metadatasvc --no-idle", rktExe))
 	}
 	if err := syscall.Exec(initPath, args, os.Environ()); err != nil {
 		log.Fatalf("error execing init: %v", err)
@@ -277,7 +285,7 @@ func setupImage(cfg Config, img string, h types.Hash, dir string) (*schema.AppMa
 	}
 	sum := sha256.Sum256(b)
 	if id := fmt.Sprintf("%x", sum); id != h.Val {
-		return nil, fmt.Errorf("image hash does not match expected")
+		return nil, fmt.Errorf("image hash (%v) does not match expected (%v)", id, h.Val)
 	}
 
 	ad := rktpath.AppImagePath(dir, h)

@@ -39,3 +39,9 @@ func ServiceFilePath(root string, imageID types.Hash) string {
 func WantLinkPath(root string, imageID types.Hash) string {
 	return filepath.Join(root, wantsDir, ServiceName(imageID))
 }
+
+// WantUnitLinkPath returns the systemd "want" symlink path for the
+// given unit
+func WantUnitLinkPath(root string, unit string) string {
+	return filepath.Join(root, wantsDir, unit)
+}

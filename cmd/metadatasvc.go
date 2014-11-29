@@ -3,50 +3,69 @@ package main
 import (
 	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/coreos/rocket/app-container/schema"
 	"github.com/coreos/rocket/app-container/schema/types"
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/gorilla/mux"
+
+	"github.com/coreos-inc/rkt/rkt"
+)
+
+var (
+	cmdMetadataSvc = &Command{
+		Name:    "metadatasvc",
+		Summary: "Run metadata service",
+		Usage:   "[--src-addr CIDR] [--listen-port PORT] [--no-idle]",
+		Run:     runMetadataSvc,
+	}
 )
 
 type metadata struct {
 	manifest schema.ContainerRuntimeManifest
 	apps     map[string]*schema.AppManifest
+	ip       string
 }
 
 var (
 	metadataByIP  = make(map[string]*metadata)
 	metadataByUID = make(map[types.UUID]*metadata)
-	hmacKey       [sha1.Size]byte
+	hmacKey       [sha256.Size]byte
+
+	listenPort    uint
+	srcAddrs      string
+	noIdle        bool
+
+	exitCh        chan bool
 )
 
 const (
-	myPort   = "4444"
-	metaIP   = "169.254.169.255"
-	metaPort = "80"
+	listenFdsStart = 3
 )
 
-func setupIPTables() error {
-	args := []string{"-t", "nat", "-A", "PREROUTING",
-		"-p", "tcp", "-d", metaIP, "--dport", metaPort,
-		"-j", "REDIRECT", "--to-port", myPort}
-
-	return exec.Command("iptables", args...).Run()
+func init() {
+	cmdMetadataSvc.Flags.StringVar(&srcAddrs, "src-addr", "0.0.0.0/0", "source address/range for iptables")
+	cmdMetadataSvc.Flags.UintVar(&listenPort, "listen-port", rkt.MetadataSvcPrvPort, "listen port")
+	cmdMetadataSvc.Flags.BoolVar(&noIdle, "no-idle", false, "exit when last container is unregistered")
 }
 
-func antiSpoof(brPort, ipAddr string) error {
-	args := []string{"-t", "filter", "-I", "INPUT", "-i", brPort, "-p", "IPV4", "!", "--ip-source", ipAddr, "-j", "DROP"}
-	return exec.Command("ebtables", args...).Run()
+func modifyIPTables(cmd, dstPort string) error {
+	args := []string{"-t", "nat", cmd, "PREROUTING",
+		"-p", "tcp", "-s", srcAddrs, "-d", rkt.MetadataSvcIP, "--dport", strconv.Itoa(rkt.MetadataSvcPubPort),
+		"-j", "REDIRECT", "--to-port", dstPort}
+
+	return exec.Command("iptables", args...).Run()
 }
 
 func queryValue(u *url.URL, key string) string {
@@ -58,6 +77,8 @@ func queryValue(u *url.URL, key string) string {
 }
 
 func handleRegisterContainer(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	remoteIP := strings.Split(r.RemoteAddr, ":")[0]
 	if _, ok := metadataByIP[remoteIP]; ok {
 		// not allowed from container IP
@@ -65,32 +86,21 @@ func handleRegisterContainer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	containerIP := queryValue(r.URL, "container_ip")
+	containerIP := queryValue(r.URL, "ip")
 	if containerIP == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		fmt.Print(w, "container_ip missing")
-		return
-	}
-	containerBrPort := queryValue(r.URL, "container_brport")
-	if containerBrPort == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Print(w, "container_brport missing")
+		fmt.Fprint(w, "ip missing")
 		return
 	}
 
 	m := &metadata{
 		apps: make(map[string]*schema.AppManifest),
+		ip:   containerIP,
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&m.manifest); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "JSON-decoding failed: %v", err)
-		return
-	}
-
-	if err := antiSpoof(containerBrPort, containerIP); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "failed to set anti-spoofing: %v", err)
 		return
 	}
 
@@ -100,7 +110,35 @@ func handleRegisterContainer(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func handleUnregisterContainer(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
+	uid, err := types.NewUUID(mux.Vars(r)["uid"])
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(w, "UUID is missing or malformed: %v", err)
+		return
+	}
+
+	m, ok := metadataByUID[*uid]
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, "Container with given UUID not found")
+		return
+	}
+
+	delete(metadataByUID, *uid)
+	delete(metadataByIP, m.ip)
+	w.WriteHeader(http.StatusOK)
+
+	if noIdle && len(metadataByUID) == 0 {
+		exitCh <-true
+	}
+}
+
 func handleRegisterApp(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	remoteIP := strings.Split(r.RemoteAddr, ":")[0]
 	if _, ok := metadataByIP[remoteIP]; ok {
 		// not allowed from container IP
@@ -164,6 +202,8 @@ func appGet(h func(w http.ResponseWriter, r *http.Request, m *metadata, am *sche
 }
 
 func handleContainerAnnotations(w http.ResponseWriter, r *http.Request, m *metadata) {
+	defer r.Body.Close()
+
 	w.Header().Add("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
 
@@ -173,6 +213,8 @@ func handleContainerAnnotations(w http.ResponseWriter, r *http.Request, m *metad
 }
 
 func handleContainerAnnotation(w http.ResponseWriter, r *http.Request, m *metadata) {
+	defer r.Body.Close()
+
 	k, err := types.NewACName(mux.Vars(r)["name"])
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
@@ -193,6 +235,8 @@ func handleContainerAnnotation(w http.ResponseWriter, r *http.Request, m *metada
 }
 
 func handleContainerManifest(w http.ResponseWriter, r *http.Request, m *metadata) {
+	defer r.Body.Close()
+
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
@@ -202,6 +246,8 @@ func handleContainerManifest(w http.ResponseWriter, r *http.Request, m *metadata
 }
 
 func handleContainerUID(w http.ResponseWriter, r *http.Request, m *metadata) {
+	defer r.Body.Close()
+
 	uid := m.manifest.UUID.String()
 
 	w.Header().Add("Content-Type", "text/plain")
@@ -226,6 +272,8 @@ func mergeAppAnnotations(am *schema.AppManifest, cm *schema.ContainerRuntimeMani
 }
 
 func handleAppAnnotations(w http.ResponseWriter, r *http.Request, m *metadata, am *schema.AppManifest) {
+	defer r.Body.Close()
+
 	w.Header().Add("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
 
@@ -235,6 +283,8 @@ func handleAppAnnotations(w http.ResponseWriter, r *http.Request, m *metadata, a
 }
 
 func handleAppAnnotation(w http.ResponseWriter, r *http.Request, m *metadata, am *schema.AppManifest) {
+	defer r.Body.Close()
+
 	k, err := types.NewACName(mux.Vars(r)["name"])
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
@@ -257,6 +307,8 @@ func handleAppAnnotation(w http.ResponseWriter, r *http.Request, m *metadata, am
 }
 
 func handleAppManifest(w http.ResponseWriter, r *http.Request, m *metadata, am *schema.AppManifest) {
+	defer r.Body.Close()
+
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
@@ -266,6 +318,8 @@ func handleAppManifest(w http.ResponseWriter, r *http.Request, m *metadata, am *
 }
 
 func handleAppID(w http.ResponseWriter, r *http.Request, m *metadata, am *schema.AppManifest) {
+	defer r.Body.Close()
+
 	w.Header().Add("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
 	a := m.manifest.Apps.Get(am.Name)
@@ -283,7 +337,7 @@ func initCrypto() error {
 }
 
 func digest(r io.Reader) ([]byte, error) {
-	digest := sha1.New()
+	digest := sha256.New()
 	if _, err := io.Copy(digest, r); err != nil {
 		return nil, err
 	}
@@ -291,6 +345,8 @@ func digest(r io.Reader) ([]byte, error) {
 }
 
 func handleContainerSign(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	remoteIP := strings.Split(r.RemoteAddr, ":")[0]
 	m, ok := metadataByIP[remoteIP]
 	if !ok {
@@ -308,7 +364,7 @@ func handleContainerSign(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// HMAC(UID:digest)
-	h := hmac.New(sha1.New, hmacKey[:])
+	h := hmac.New(sha256.New, hmacKey[:])
 	h.Write(m.manifest.UUID[:])
 	h.Write(d)
 
@@ -322,6 +378,8 @@ func handleContainerSign(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleContainerVerify(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	uid, err := types.NewUUID(r.FormValue("uid"))
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -336,10 +394,10 @@ func handleContainerVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	digest := sig[:sha1.Size]
-	sum := sig[sha1.Size:]
+	digest := sig[:sha256.Size]
+	sum := sig[sha256.Size:]
 
-	h := hmac.New(sha1.New, hmacKey[:])
+	h := hmac.New(sha256.New, hmacKey[:])
 	h.Write(uid[:])
 	h.Write(digest)
 
@@ -376,16 +434,10 @@ func logReq(h func(w http.ResponseWriter, r *http.Request)) func(w http.Response
 	}
 }
 
-func main() {
-	if err := setupIPTables(); err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	initCrypto()
-
+func makeHandlers() http.Handler {
 	r := mux.NewRouter()
 	r.HandleFunc("/containers/", logReq(handleRegisterContainer)).Methods("POST")
+	r.HandleFunc("/containers/{uid}", logReq(handleUnregisterContainer)).Methods("DELETE")
 	r.HandleFunc("/containers/{uid}/{app:.*}", logReq(handleRegisterApp)).Methods("PUT")
 
 	acRtr := r.Headers("Metadata-Flavor", "AppContainer header").
@@ -406,5 +458,74 @@ func main() {
 	acRtr.HandleFunc("/container/hmac/sign", logReq(handleContainerSign)).Methods("POST")
 	acRtr.HandleFunc("/container/hmac/verify", logReq(handleContainerVerify)).Methods("POST")
 
-	log.Fatal(http.ListenAndServe(":4444", r))
+	return r
+}
+
+func getListener() (net.Listener, error) {
+	s := os.Getenv("LISTEN_FDS")
+	if s != "" {
+		// socket activated
+		lfds, err := strconv.ParseInt(s, 10, 16)
+		if err != nil {
+			return nil, fmt.Errorf("Error parsing LISTEN_FDS env var: ", err)
+		}
+		if lfds < 1 {
+			return nil, fmt.Errorf("LISTEN_FDS < 1")
+		}
+
+		return net.FileListener(os.NewFile(uintptr(listenFdsStart), "listen"))
+	} else {
+		return net.Listen("tcp4", fmt.Sprintf(":%v", listenPort))
+	}
+}
+
+func cleanup(port string) {
+	if err := modifyIPTables("-D", port); err != nil {
+		fmt.Fprintf(os.Stdout, "Error cleaning up iptables: %v\n", err)
+	}
+}
+
+func runMetadataSvc(args []string) (exit int) {
+	l, err := getListener()
+	if err != nil {
+		fmt.Fprintf(os.Stdout, "Error getting listener: %v\n", err)
+		return
+	}
+
+	initCrypto()
+
+	port := strings.Split(l.Addr().String(), ":")[1]
+
+	if noIdle {
+		//TODO(eyakubovich): this is very racy
+		// It's possible for last container to get unregistered
+		// and svc gets flagged to shutdown. Then another container
+		// starts to launch, sees that port is in use and doesn't
+		// start metadata svc only for this one to exit a moment later
+		exitCh = make(chan bool, 1)
+		// wait for signal and exit
+		go func() {
+			<-exitCh
+			cleanup(port)
+			os.Exit(0)
+		}()
+	}
+
+	if err := modifyIPTables("-A", port); err != nil {
+		fmt.Fprintf(os.Stdout, "Error setting up iptables: %v\n", err)
+		return 1
+	}
+
+	srv := http.Server{
+		Handler: makeHandlers(),
+	}
+
+	if err = srv.Serve(l); err != nil {
+		fmt.Fprintf(os.Stdout, "Error serving HTTP: %v\n", err)
+		exit = 1
+	}
+
+	cleanup(port)
+
+	return
 }

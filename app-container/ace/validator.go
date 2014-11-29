@@ -22,9 +22,6 @@ In addition, we validate:
  - metadata service reachable at http://169.254.169.255
 
 TODO(jonboulle):
- - metadata service reachable at AC_METADATA_URL
-
-TODO(jonboulle):
  - should we validate Isolators? (e.g. MemoryLimit + malloc, or capabilities)
  - should we validate ports? (e.g. that they are available to bind to within the network namespace of the container)
 
@@ -49,9 +46,9 @@ import (
 )
 
 const (
-	standardPath    = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-	appNameEnv      = "AC_APP_NAME"
-	metadataURLBase = "http://169.254.169.255/acMetadata/v1"
+	standardPath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+	appNameEnv   = "AC_APP_NAME"
+	metadataEnv  = "AC_METADATA_URL"
 
 	// marker files to validate
 	prestartFile = "/prestart"
@@ -84,6 +81,8 @@ var (
 	// "Name"
 	an = "coreos.com/ace-validator-main-1.0.0"
 )
+
+var metadataURLBase string
 
 type results []error
 
@@ -179,7 +178,7 @@ func ValidateEnvironment(wenv map[string]string) (r results) {
 		k := parts[0]
 		_, ok := wenv[k]
 		switch {
-		case k == appNameEnv, k == "PATH", k == "TERM":
+		case k == appNameEnv, k == "PATH", k == "TERM", k == metadataEnv:
 		case !ok:
 			r = append(r, fmt.Errorf("unexpected environment variable %q set", k))
 		}
@@ -272,6 +271,9 @@ func validateContainerAnnotations(crm *schema.ContainerRuntimeManifest) results 
 	}
 
 	for _, key := range strings.Split(string(annots), "\n") {
+		if key == "" {
+			continue
+		}
 		val, err := metadataGet("/container/annotations/" + key)
 		if err != nil {
 			r = append(r, err)
@@ -286,7 +288,8 @@ func validateContainerAnnotations(crm *schema.ContainerRuntimeManifest) results 
 		actualAnnots[*lbl] = string(val)
 	}
 
-	if !reflect.DeepEqual(actualAnnots, crm.Annotations) {
+	// reflect.DeepEqual treats empty map and nil map as non-equeal
+	if len(actualAnnots)+len(crm.Annotations) > 0 && !reflect.DeepEqual(actualAnnots, crm.Annotations) {
 		r = append(r, fmt.Errorf("container annotations mismatch: %v vs %v", actualAnnots, crm.Annotations))
 	}
 
@@ -350,7 +353,8 @@ func validateAppAnnotations(crm *schema.ContainerRuntimeManifest, app *schema.Ap
 		actualAnnots[*lbl] = string(val)
 	}
 
-	if !reflect.DeepEqual(actualAnnots, expectedAnnots) {
+	// reflect.DeepEqual treats empty map and nil map as non-equeal
+	if len(actualAnnots)+len(expectedAnnots) > 0 && !reflect.DeepEqual(actualAnnots, expectedAnnots) {
 		err := fmt.Errorf("%v annotations mismatch: %v vs %v", app.Name, actualAnnots, expectedAnnots)
 		r = append(r, err)
 	}
@@ -411,6 +415,12 @@ func validateSigning(crm *schema.ContainerRuntimeManifest) results {
 
 func ValidateMetadataSvc() results {
 	r := results{}
+
+	m := os.Getenv(metadataEnv)
+	if m == "" {
+		return append(r, fmt.Errorf("%s not set", metadataEnv))
+	}
+	metadataURLBase = m + "/acMetadata/v1"
 
 	cm, err := metadataGet("/container/manifest")
 	if err != nil {

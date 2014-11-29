@@ -44,6 +44,3 @@ fi
 
 echo "Building rkt (stage0)..."
 go build -o $GOBIN/rkt ${REPO_PATH}/rkt
-
-echo "Building metadatasvc..."
-go build -o $GOBIN/metadatasvc ${REPO_PATH}/metadatasvc

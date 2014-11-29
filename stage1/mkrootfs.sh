@@ -47,7 +47,8 @@ EXTRAS="bin/bash
 	lib64/libdl.so
 	lib64/libdl.so.2
 	lib64/libdl-2.17.so
-	bin/sleep"
+	bin/sleep
+	bin/ip"
 
 # systemd and dependencies
 cat > "${FILELIST}" <<-EOF
