@@ -21,7 +21,7 @@ func setupNetwork(c *Container) (string, error) {
 	}
 
 	// if brIPNet=10.1.0.0/16, bridge will get 10.1.0.1
-	brIP := ipAdd(brIPNet.IP, 1)
+	brIPNet.IP = ipAdd(brIPNet.IP, 1)
 
 	// setup the rkt0 bridge
 	// ignore error b/c rkt0 might exist
@@ -29,7 +29,7 @@ func setupNetwork(c *Container) (string, error) {
 	err = exec.Command("brctl", "addbr", c.Bridge).Run()
 	if err == nil {
 		// setup br0 IP
-		err := exec.Command("ip", "addr", "add", brIP.String(), "dev", c.Bridge).Run()
+		err := exec.Command("ip", "addr", "add", brIPNet.String(), "dev", c.Bridge).Run()
 		if err != nil {
 			return "", fmt.Errorf("Failed to add IP addr to bridge: %v", err)
 		}
@@ -52,8 +52,7 @@ func setupNetwork(c *Container) (string, error) {
 	fmt.Println("Allocated IP: ", ip)
 
 	// write out network.service file
-	ones, _ := brIPNet.Mask.Size()
-	err = writeNetworkFile(c, ip, brIP, ones)
+	err = writeNetworkFile(c, ip, brIPNet)
 	if err != nil {
 		return "", fmt.Errorf("Failed to write network.service file: %v", err)
 	}
@@ -69,10 +68,11 @@ func setupNetwork(c *Container) (string, error) {
 	return ip.String(), nil
 }
 
-func writeNetworkFile(c *Container, ip, gw net.IP, size int) error {
+func writeNetworkFile(c *Container, ip net.IP, gw *net.IPNet) error {
+	size, _ := gw.Mask.Size()
 	cmd1 := fmt.Sprintf("/bin/ip addr add %v/%v dev host0", ip, size)
 	cmd2 := "/bin/ip link set host0 up"
-	cmd3 := fmt.Sprintf("/bin/ip route add default via %s dev host0", gw.String())
+	cmd3 := fmt.Sprintf("/bin/ip route add default via %s dev host0", gw.IP.String())
 
 	opts := []*unit.UnitOption{
 		&unit.UnitOption{"Unit", "Description", "Setup networking"},
@@ -115,7 +115,7 @@ func ipAdd(ip net.IP, val uint) net.IP {
 func pickIP(ipn *net.IPNet) (net.IP, error) {
 	ones, bits := ipn.Mask.Size()
 	zeros := bits - ones
-	rng := (1 << uint(zeros)) - 2
+	rng := (1 << uint(zeros)) - 2 // (reduce for gw, bcast)
 
 	n, err := rand.Int(rand.Reader, big.NewInt(int64(rng)))
 	if err != nil {
