@@ -35,14 +35,12 @@ func init() {
 	flag.StringVar(&bridgeCIDR, "bridge-cidr", "10.111.0.1/16", "Bridge address")
 }
 
-func main() {
-	flag.Parse()
-
+func stage1() int {
 	root := "."
 	c, err := LoadContainer(root)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to load container: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	c.MetadataSvcURL = metadata.MetadataSvcPubURL()
@@ -52,7 +50,7 @@ func main() {
 
 	if err = c.ContainerToSystemd(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to configure systemd: %v\n", err)
-		os.Exit(2)
+		return 2
 	}
 
 	// TODO(philips): compile a static version of systemd-nspawn with this
@@ -65,7 +63,7 @@ func main() {
 	ex := filepath.Join(path.Stage1RootfsPath(c.Root), nspawnBin)
 	if _, err := os.Stat(ex); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed locating nspawn: %v\n", err)
-		os.Exit(3)
+		return 3
 	}
 
 	args := []string{
@@ -80,7 +78,7 @@ func main() {
 	nsargs, err := c.ContainerToNspawnArgs()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to generate nspawn args: %v\n", err)
-		os.Exit(4)
+		return 4
 	}
 	args = append(args, nsargs...)
 
@@ -95,20 +93,20 @@ func main() {
 	if metadataSvc != "" {
 		if err = launchMetadataSvc(); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to launch metadata svc: %v\n", err)
-			os.Exit(5)
+			return 5
 		}
 	}
 
 	ip, err := setupNetwork(c)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to setup network: %v\n", err)
-		os.Exit(6)
+		return 6
 	}
 	defer teardownNetwork(c, ip)
 
 	if err = registerContainer(c, ip); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to register container: %v\n", err)
-		os.Exit(7)
+		return 7
 	}
 	defer unregisterContainer(c)
 
@@ -118,8 +116,16 @@ func main() {
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to execute nspawn: %v\n", err)
-		os.Exit(8)
+		return 8
 	}
+
+	return 0
+}
+
+func main() {
+	flag.Parse()
+	// move code into stage1() helper so defered fns get run
+	os.Exit(stage1())
 }
 
 func launchMetadataSvc() error {
