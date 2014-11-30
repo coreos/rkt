@@ -47,7 +47,7 @@ type Config struct {
 	Debug            bool
 	Images           []string          // application images
 	Volumes          map[string]string // map of volumes that rocket can provide to applications
-	LocalMetadataSvc bool
+	SpawnMetadataSvc bool
 }
 
 func init() {
@@ -188,7 +188,7 @@ func Run(cfg Config, dir string) {
 	if cfg.Debug {
 		args = append(args, "--debug")
 	}
-	if cfg.LocalMetadataSvc {
+	if cfg.SpawnMetadataSvc {
 		rktExe, err := os.Readlink("/proc/self/exe")
 		if err != nil {
 			log.Fatalf("failed to readlink /proc/self/exe: %v", err)

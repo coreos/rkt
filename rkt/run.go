@@ -19,7 +19,7 @@ var (
 	flagStage1Init       string
 	flagStage1Rootfs     string
 	flagVolumes          volumeMap
-	flagLocalMetadataSvc bool
+	flagSpawnMetadataSvc bool
 	cmdRun             = &Command{
 		Name:    "run",
 		Summary: "Run image(s) in an application container in rocket",
@@ -34,7 +34,7 @@ func init() {
 	cmdRun.Flags.StringVar(&flagStage1Init, "stage1-init", "", "path to stage1 binary override")
 	cmdRun.Flags.StringVar(&flagStage1Rootfs, "stage1-rootfs", "", "path to stage1 rootfs tarball override")
 	cmdRun.Flags.Var(&flagVolumes, "volume", "volumes to mount into the shared container environment")
-	cmdRun.Flags.BoolVar(&flagLocalMetadataSvc, "local-metadata-svc", false, "run a local metadata svc in a container")
+	cmdRun.Flags.BoolVar(&flagSpawnMetadataSvc, "spawn-metadata-svc", true, "launch metadata svc if not running")
 	flagVolumes = volumeMap{}
 }
 
@@ -112,7 +112,7 @@ func runRun(args []string) (exit int) {
 		Stage1Rootfs:     flagStage1Rootfs,
 		Images:           imgs,
 		Volumes:          flagVolumes,
-		LocalMetadataSvc: flagLocalMetadataSvc,
+		SpawnMetadataSvc: flagSpawnMetadataSvc,
 	}
 	cdir, err = stage0.Setup(cfg)
 	if err != nil {
