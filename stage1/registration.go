@@ -7,11 +7,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/coreos-inc/rkt/rkt"
+	"github.com/coreos/rocket/metadata"
+	rktpath "github.com/coreos/rocket/path"
 )
 
 func registerContainer(c *Container, ip string) error {
-	cmf, err := os.Open(rkt.ContainerManifestPath(c.Root))
+	cmf, err := os.Open(rktpath.ContainerManifestPath(c.Root))
 	if err != nil {
 		return fmt.Errorf("failed opening runtime manifest: %v\n", err)
 	}
@@ -24,7 +25,7 @@ func registerContainer(c *Container, ip string) error {
 
 	uid := c.Manifest.UUID.String()
 	for _, app := range c.Manifest.Apps {
-		ampath := rkt.AppManifestPath(c.Root, app.ImageID)
+		ampath := rktpath.AppManifestPath(c.Root, app.ImageID)
 		amf, err := os.Open(ampath)
 		if err != nil {
 			fmt.Errorf("failed reading app manifest %q: %v\n", ampath, err)
@@ -50,7 +51,7 @@ func registerApp(uuid, app string, r io.Reader) error {
 }
 
 func httpRequest(method, path string, body io.Reader) error {
-	uri := rkt.MetadataSvcPrvURL() + path
+	uri := metadata.MetadataSvcPrvURL() + path
 	req, err := http.NewRequest(method, uri, body)
 	if err != nil {
 		return err

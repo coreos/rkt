@@ -12,6 +12,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/coreos/rocket/metadata"
 	"github.com/coreos/rocket/path"
 )
 
@@ -44,7 +45,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	c.MetadataSvcURL = rkt.MetadataSvcPubURL()
+	c.MetadataSvcURL = metadata.MetadataSvcPubURL()
 	c.MachineName = fmt.Sprintf("%x", c.Manifest.UUID[:4])
 	c.Bridge = bridgeName
 	c.BridgeAddr = bridgeCIDR
@@ -127,7 +128,7 @@ func launchMetadataSvc() error {
 	// use socket activation protocol to avoid race-condition of
 	// service becoming ready
 	// TODO(eyakubovich): remove hard-coded port
-	l, err := net.ListenTCP("tcp4", &net.TCPAddr{Port: rkt.MetadataSvcPrvPort})
+	l, err := net.ListenTCP("tcp4", &net.TCPAddr{Port: metadata.MetadataSvcPrvPort})
 	if err != nil {
 		if err.(*net.OpError).Err.(*os.SyscallError).Err == syscall.EADDRINUSE {
 			// assume metadatasvc is already running
