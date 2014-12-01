@@ -16,11 +16,20 @@ import (
 	rktpath "github.com/coreos/rocket/path"
 )
 
+const (
+	metadataSvcBindSrc = "./bin/metadatasvc"
+	rktBindDst         = "/usr/bin/rkt"
+)
+
 // Container encapsulates a ContainerRuntimeManifest and AppManifests
 type Container struct {
-	Root     string // root directory where the container will be located
-	Manifest *schema.ContainerRuntimeManifest
-	Apps     map[string]*schema.AppManifest
+	Root           string // root directory where the container will be located
+	Manifest       *schema.ContainerRuntimeManifest
+	Apps           map[string]*schema.AppManifest
+	MetadataSvcURL string
+	MachineName    string
+	Bridge         string
+	BridgeAddr     string
 }
 
 // LoadContainer loads a Container Runtime Manifest (as prepared by stage0) and
@@ -96,6 +105,8 @@ func (c *Container) appToSystemd(am *schema.AppManifest, id types.Hash) error {
 
 	env := am.Environment
 	env["AC_APP_NAME"] = name
+	env["AC_METADATA_URL"] = c.MetadataSvcURL
+
 	for ek, ev := range env {
 		ee := fmt.Sprintf(`"%s=%s"`, ek, ev)
 		opts = append(opts, &unit.UnitOption{"Service", "Environment", ee})
@@ -185,6 +196,8 @@ func (c *Container) ContainerToNspawnArgs() ([]string, error) {
 	args := []string{
 		"--uuid=" + c.Manifest.UUID.String(),
 		"--directory=" + rktpath.Stage1RootfsPath(c.Root),
+		"--machine=" + c.MachineName,
+		"--network-bridge=" + c.Bridge,
 	}
 
 	for _, am := range c.Apps {

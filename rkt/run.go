@@ -15,10 +15,11 @@ import (
 )
 
 var (
-	flagStage1Init   string
-	flagStage1Rootfs string
-	flagVolumes      volumeMap
-	cmdRun           = &Command{
+	flagStage1Init       string
+	flagStage1Rootfs     string
+	flagVolumes          volumeMap
+	flagSpawnMetadataSvc bool
+	cmdRun             = &Command{
 		Name:    "run",
 		Summary: "Run image(s) in an application container in rocket",
 		Usage:   "[--volume LABEL:SOURCE] IMAGE...",
@@ -32,6 +33,7 @@ func init() {
 	cmdRun.Flags.StringVar(&flagStage1Init, "stage1-init", "", "path to stage1 binary override")
 	cmdRun.Flags.StringVar(&flagStage1Rootfs, "stage1-rootfs", "", "path to stage1 rootfs tarball override")
 	cmdRun.Flags.Var(&flagVolumes, "volume", "volumes to mount into the shared container environment")
+	cmdRun.Flags.BoolVar(&flagSpawnMetadataSvc, "spawn-metadata-svc", true, "launch metadata svc if not running")
 	flagVolumes = volumeMap{}
 }
 
@@ -96,20 +98,21 @@ func runRun(args []string) (exit int) {
 	// TODO(jonboulle): use rkt/path
 	cdir := filepath.Join(gdir, "containers")
 	cfg := stage0.Config{
-		Store:         ds,
-		ContainersDir: cdir,
-		Debug:         globalFlags.Debug,
-		Stage1Init:    flagStage1Init,
-		Stage1Rootfs:  flagStage1Rootfs,
-		Images:        imgs,
-		Volumes:       flagVolumes,
+		Store:            ds,
+		ContainersDir:    cdir,
+		Debug:            globalFlags.Debug,
+		Stage1Init:       flagStage1Init,
+		Stage1Rootfs:     flagStage1Rootfs,
+		Images:           imgs,
+		Volumes:          flagVolumes,
+		SpawnMetadataSvc: flagSpawnMetadataSvc,
 	}
 	cdir, err = stage0.Setup(cfg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "run: error setting up stage0: %v\n", err)
 		return 1
 	}
-	stage0.Run(cdir, cfg.Debug) // execs, never returns
+	stage0.Run(cfg, cdir) // execs, never returns
 	return 1
 }
 

@@ -50,6 +50,7 @@ func init() {
 		cmdFetch,
 		cmdStatus,
 		cmdRun,
+		cmdMetadataSvc,
 		cmdVersion,
 	}
 }
