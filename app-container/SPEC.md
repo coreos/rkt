@@ -299,7 +299,7 @@ Hence, the app container specification defines an HTTP-based metadata for provid
 ### Metadata Server
 
 The ACE must provide a Metadata server on the address given to the container via the `AC_METADATA_URL` environment variable.
-By convention, the default address will be `http://169.254.169.254`.
+By convention, the default address will be `http://169.254.169.255`.
 
 Clients querying any of these endpoints must specify the `Metadata-Flavor: AppContainer` header.
 
@@ -307,7 +307,7 @@ Clients querying any of these endpoints must specify the `Metadata-Flavor: AppCo
 
 Information about the container that this app is executing in.
 
-Retrievable at `http://169.254.169.254/acMetadata/v1/container`
+Retrievable at `http://169.254.169.255/acMetadata/v1/container`
 
 | Entry       | Description |
 |-------------|-------------|
@@ -320,7 +320,7 @@ Retrievable at `http://169.254.169.254/acMetadata/v1/container`
 Every running process will be able to introspect its App Name via the `AC_APP_NAME` environment variable. 
 This is necessary to query for the correct endpoint metadata.
 
-Retrievable at `http://169.254.169.254/acMetadata/v1/apps/${ac_app_name}/`
+Retrievable at `http://169.254.169.255/acMetadata/v1/apps/${ac_app_name}/`
 
 | Entry         | Description |
 |---------------|-------------|
@@ -333,7 +333,7 @@ Retrievable at `http://169.254.169.254/acMetadata/v1/apps/${ac_app_name}/`
 As a basic building block for building a secure identity system, the metadata service must provide an HMAC (described in [RFC2104](https://www.ietf.org/rfc/rfc2104.txt)) endpoint for use by the apps in the container.
 This gives a cryptographically verifiable identity to the container based on its container unique ID and the container HMAC key, which is held securely by the ACE.
 
-Accessible at `http://169.254.169.254/acMetadata/v1/container/hmac`
+Accessible at `http://169.254.169.255/acMetadata/v1/container/hmac`
 
 | Entry | Description |
 |-------|-------------|
