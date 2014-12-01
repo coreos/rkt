@@ -84,7 +84,7 @@ func runFetch(args []string) (exit int) {
 	for _, img := range args {
 		hash, err := fetchImage(img, ds)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "%v", err)
+			fmt.Fprintf(os.Stderr, "%v\n", err)
 			return 1
 		}
 		fmt.Println(hash)
