@@ -44,7 +44,12 @@ func fetchURL(img string, ds *cas.Store) (string, error) {
 func fetchImage(img string, ds *cas.Store) (string, error) {
 	// discover if it isn't a URL
 	u, err := url.Parse(img)
-	if err == nil && u.Scheme == "" {
+
+	if err != nil { // download if it isn't a URL
+		return "", fmt.Errorf("%s: not a valid URL or hash", img)
+	}
+
+	if u.Scheme == "" {
 		app, err := discovery.NewAppFromString(img)
 		if globalFlags.Debug && err != nil {
 			fmt.Printf("discovery: %s\n", err)
@@ -63,12 +68,10 @@ func fetchImage(img string, ds *cas.Store) (string, error) {
 		}
 	}
 
-	if err != nil { // download if it isn't a URL
-		return "", fmt.Errorf("%s: not a valid URL or hash", img)
-	}
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return "", fmt.Errorf("%s: rkt only supports http or https URLs", img)
 	}
+
 	return fetchURL(img, ds)
 }
 

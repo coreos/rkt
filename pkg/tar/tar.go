@@ -32,12 +32,13 @@ func ExtractTar(tr *tar.Reader, dir string) error {
 					f.Close()
 					return err
 				}
-				_, err = io.Copy(f, tr)
-				if err != nil {
+
+				if _, err = io.Copy(f, tr); err != nil {
 					f.Close()
 					return err
 				}
 				f.Close()
+
 			case typ == tar.TypeDir:
 				if err := os.MkdirAll(p, fi.Mode()); err != nil {
 					return err

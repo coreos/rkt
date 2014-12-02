@@ -9,6 +9,7 @@ import (
 
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/peterbourgon/diskv"
 	"github.com/coreos/rocket/app-container/aci"
+
 	pkgio "github.com/coreos/rocket/pkg/io"
 )
 
@@ -85,8 +86,8 @@ func (ds Store) WriteACI(tmpKey string, orig io.Reader) (string, error) {
 		return "", err
 	}
 	hash := sha256.New()
-	_, err = io.Copy(hash, dr)
-	if err != nil {
+
+	if _, err = io.Copy(hash, dr); err != nil {
 		return "", err
 	}
 
@@ -96,14 +97,15 @@ func (ds Store) WriteACI(tmpKey string, orig io.Reader) (string, error) {
 		return "", err
 	}
 	defer rs.Close()
+
 	dr, err = decompress(rs, typ)
 	if err != nil {
 		return "", err
 	}
 
 	key := fmt.Sprintf("sha256-%x", hash.Sum(nil))
-	err = ds.stores[blobType].WriteStream(key, dr, true)
-	if err != nil {
+
+	if err = ds.stores[blobType].WriteStream(key, dr, true); err != nil {
 		return "", err
 	}
 

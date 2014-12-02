@@ -32,8 +32,7 @@ func (r Remote) Marshal() []byte {
 }
 
 func (r *Remote) Unmarshal(data []byte) {
-	err := json.Unmarshal(data, r)
-	if err != nil {
+	if err := json.Unmarshal(data, r); err != nil {
 		panic(err)
 	}
 }
