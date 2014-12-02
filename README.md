@@ -1,16 +1,19 @@
 # Rocket - App Container runtime
 
-_Release early, release often: Rocket is currently a prototype and we are seeking your feedback via pull requests_
+_Release early, release often: Rocket is currently a prototype and we are
+seeking your feedback via pull requests_
 
-Rocket is a cli for running App Containers. The goal of rocket is to be composable, secure, and fast. 
+Rocket is a cli for running App Containers. The goal of rocket is to be
+composable, secure, and fast.
 
-[Read more about Rocket in the launch announcement](https://coreos.com/blog/rocket). 
+[Read more about Rocket in the launch announcement](https://coreos.com/blog/rocket).
 
 ![Rocket Logo](logos/rocket-horizontal-color.png)
 
 ## Trying out Rocket
 
-`rkt` is currently supported on amd64 Linux. We recommend booting up a fresh virtual machine to test out rocket. 
+`rkt` is currently supported on amd64 Linux. We recommend booting up a fresh
+virtual machine to test out rocket.
 
 To install the `rkt` binary:
 
@@ -21,13 +24,15 @@ cd rocket-v0.1.0
 ./rkt help
 ```
 
-Keep in mind while running through the examples that rkt needs to be run as root for most operations.
+Keep in mind while running through the examples that rkt needs to be run as root
+for most operations.
 
 ## Rocket basics
 
 ### Downloading an App Container Image (ACI)
 
-Rocket uses content addressable storage (CAS) for storing an ACI on disk. In this example, the image is downloaded and added to the CAS. 
+Rocket uses content addressable storage (CAS) for storing an ACI on disk. In
+this example, the image is downloaded and added to the CAS.
 
 ```
 $ rkt fetch https://github.com/coreos/etcd/releases/download/v0.5.0-alpha.4/etcd-v0.5.0-alpha.4-linux-amd64.aci
@@ -44,7 +49,8 @@ $ find /var/lib/rkt/cas/blob/
 /var/lib/rkt/cas/blob/sha256/70/sha256-701c24b2d275f0e291b807a464ae2390bcd8d7c5b4f2d7e47e6fd917cd5e5588
 ```
 
-Per the App Container [spec](app-container/SPEC.md#image-archives) the sha256 is of the tarball, which is reproducable with other tools:
+Per the App Container [spec](app-container/SPEC.md#image-archives) the SHA-256
+is of the tarball, which is reproducible with other tools:
 
 ```
 $ wget https://github.com/coreos/etcd/releases/download/v0.5.0-alpha.4/etcd-v0.5.0-alpha.4-linux-amd64.aci
@@ -56,16 +62,18 @@ $ sha256sum etcd-v0.5.0-alpha.4-linux-amd64.tar
 
 ### Launching an ACI
 
-To run an ACI, you can either use the sha256 hash, or the URL which you downloaded it from:
+To run an ACI, you can either use the SHA-256 hash, or the URL which you
+downloaded it from:
 
 ```
 $ rkt run https://github.com/coreos/etcd/releases/download/v0.5.0-alpha.4/etcd-v0.5.0-alpha.4-linux-amd64.aci
 Press ^] three times to kill container.
 ```
 
-rkt will do the appropriate etag checking on the URL to make sure it has the most up to date version of the image.
+rkt will do the appropriate ETag checking on the URL to make sure it has the
+most up to date version of the image.
 
-Or, you can explicitly choose an image to run based on the sha256:
+Or, you can explicitly choose an image to run based on the SHA-256:
 
 ```
 $ rkt run sha256-701c24b2d275f0e291b807a464ae2390bcd8d7c5b4f2d7e47e6fd917cd5e5588
@@ -77,7 +85,10 @@ These commands are interchangeable.
 
 ## App Container basics
 
-[App Container](app-container) is a [specification](app-container/SPEC.md) of an image format, runtime, and discovery protocol for running a container. We anticipate app container to be adopted by other runtimes outside of Rocket itself. Read more about it [here](app-container).
+[App Container](app-container) is a [specification](app-container/SPEC.md) of an
+image format, runtime, and discovery protocol for running a container. We
+anticipate app container to be adopted by other runtimes outside of Rocket
+itself. Read more about it [here](app-container).
 
 To validate the `rkt` with the App Container [validation ACIs](app-container/README.md) run:
 
@@ -89,7 +100,8 @@ $ rkt run -volume database:/tmp \
 
 ## Rocket internals
 
-Rocket is designed to be modular and pluggable by default. To do this we have a concept of "stages" of execution of the container. 
+Rocket is designed to be modular and pluggable by default. To do this we have a
+concept of "stages" of execution of the container.
 
 Execution with Rocket is divided into a number of distinct stages. The
 motivation for this is to separate the concerns of initial filesystem setup,
@@ -112,7 +124,7 @@ Given a run command such as:
 ```
 rkt run --volume bind:/opt/tenant1/database \
 	sha256-8a30f14877cd8065939e3912542a17d1a5fd9b4c \
-	sha256-abcd29837d89389s9d0898ds908ds890df890908 
+	sha256-abcd29837d89389s9d0898ds908ds890df890908
 ```
 
 a container manifest compliant with the ACE spec will be generated, and the
