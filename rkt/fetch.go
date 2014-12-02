@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/coreos/rocket/app-container/discovery"
 	"github.com/coreos/rocket/cas"
@@ -45,8 +46,12 @@ func fetchImage(img string, ds *cas.Store) (string, error) {
 	// discover if it isn't a URL
 	u, err := url.Parse(img)
 
-	if err != nil { // download if it isn't a URL
+	if err != nil {
 		return "", fmt.Errorf("%s: not a valid URL or hash", img)
+	}
+
+	if !strings.HasPrefix(u.Scheme, "http") {
+		return "", fmt.Errorf("%s: rkt only supports http or https URLs", img)
 	}
 
 	if u.Scheme == "" {
@@ -59,17 +64,15 @@ func fetchImage(img string, ds *cas.Store) (string, error) {
 			if err != nil {
 				return "", err
 			}
+
 			// TODO(philips): use all available mirrors
 			if globalFlags.Debug {
 				fmt.Printf("fetch: trying %v\n", ep.ACI)
 			}
+
 			img = ep.ACI[0]
 			u, err = url.Parse(img)
 		}
-	}
-
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return "", fmt.Errorf("%s: rkt only supports http or https URLs", img)
 	}
 
 	return fetchURL(img, ds)
