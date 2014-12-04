@@ -26,7 +26,7 @@ S1BINS=${PWD}/stage0
 S1INIT=${S1BINS}/stage1_init
 if [ $GOBIN/init -nt $S1INIT/bin.go ]; then
 	echo "Packaging init (stage1)..."
-	TMP=$(mktemp -d)
+	TMP=$(mktemp -d -t rocket-XXXXXX)
 	[ -d $S1INIT ] || mkdir -p $S1INIT
 	cp $GOBIN/init $TMP/s1init
 	go-bindata -o $S1INIT/bin.go -pkg="stage1_init" -prefix=$TMP $TMP

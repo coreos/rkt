@@ -440,5 +440,5 @@ mkdir "${BINDIR}"
 tar cf "${BINDIR}/s1rootfs.tar" -C "${ROOTDIR}" .
 OUTDIR=$(dirname "${OUTPUT}")
 [ -d "$OUTDIR" ] || mkdir -p "${OUTDIR}"
-go-bindata -o "${OUTPUT}" -prefix $(realpath "${BINDIR}") -pkg=stage1_rootfs "${BINDIR}"
+go-bindata -o "${OUTPUT}" -prefix "${PWD}${BINDIR}" -pkg=stage1_rootfs "${BINDIR}"
 rm -Rf "${WORK}"
