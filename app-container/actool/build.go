@@ -13,11 +13,12 @@ import (
 )
 
 var (
-	buildFilesetName string
-	buildAppManifest string
-	buildRootfs      bool
-	buildOverwrite   bool
-	cmdBuild         = &Command{
+	buildFilesetName     string
+	buildAppManifest     string
+	buildFilesetManifest string
+	buildRootfs          bool
+	buildOverwrite       bool
+	cmdBuild             = &Command{
 		Name:        "build",
 		Description: "Build a Fileset ACI from the target directory",
 		Summary:     "Build a Fileset ACI from the target directory",
@@ -31,6 +32,8 @@ func init() {
 		"Build a Fileset Image, by this name (e.g. example.com/reduce-worker)")
 	cmdBuild.Flags.StringVar(&buildAppManifest, "app-manifest", "",
 		"Build an App Image with this App Manifest")
+	cmdBuild.Flags.StringVar(&buildFilesetManifest, "fileset-manifest", "",
+		"Build an App Image with this Fileset Manifest (optional)")
 	cmdBuild.Flags.BoolVar(&buildRootfs, "rootfs", true,
 		"Whether the supplied directory is a rootfs. If false, it will be assume the supplied directory already contains a rootfs/ subdirectory.")
 	cmdBuild.Flags.BoolVar(&buildOverwrite, "overwrite", false, "Overwrite target file if it already exists")
@@ -137,11 +140,12 @@ func runBuild(args []string) (exit int) {
 
 	var aw aci.ArchiveWriter
 	if buildFilesetName != "" {
-		aw, err = aci.NewFilesetWriter(buildFilesetName, tr)
+		fsm, err := schema.NewFilesetManifest(buildFilesetName)
 		if err != nil {
-			stderr("build: Unable to create FilesetWriter: %v", err)
+			stderr("build: Unable to create Fileset Manifest: %v", err)
 			return 1
 		}
+		aw = aci.NewAppWriter(nil, fsm, tr)
 	} else {
 		b, err := ioutil.ReadFile(buildAppManifest)
 		if err != nil {
@@ -153,7 +157,24 @@ func runBuild(args []string) (exit int) {
 			stderr("build: Unable to load App Manifest: %v", err)
 			return 1
 		}
-		aw = aci.NewAppWriter(am, tr)
+
+		if buildFilesetManifest != "" {
+			//TODO(elcct): clean this up
+			fsm, err := schema.NewFilesetManifest(buildFilesetManifest)
+			if err != nil {
+				stderr("build: Unable to create Fileset Manifest: %v", err)
+				return 1
+			}
+			b, err = ioutil.ReadFile(buildFilesetManifest)
+			if err := fsm.UnmarshalJSON(b); err != nil {
+				stderr("build: Unable to load Fileset Manifest: %v", err)
+				return 1
+			}
+			aw = aci.NewAppWriter(&am, fsm, tr)
+		} else {
+			aw = aci.NewAppWriter(&am, nil, tr)
+		}
+
 	}
 
 	err = filepath.Walk(root, buildWalker(root, aw, buildRootfs))
