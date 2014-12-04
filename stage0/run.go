@@ -14,7 +14,7 @@ import (
 	"bytes"
 	"compress/bzip2"
 	"compress/gzip"
-	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -274,7 +274,7 @@ func setupImage(cfg Config, img types.Hash, dir string) (*schema.ImageManifest, 
 
 	rs, err := cfg.Store.ReadStream(img.String())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error reading stream: %v", err)
 	}
 
 	ad := rktpath.AppImagePath(dir, img)
@@ -283,7 +283,7 @@ func setupImage(cfg Config, img types.Hash, dir string) (*schema.ImageManifest, 
 		return nil, fmt.Errorf("error creating image directory: %v", err)
 	}
 
-	hash := sha256.New()
+	hash := sha512.New()
 	r := io.TeeReader(rs, hash)
 
 	if err := ptar.ExtractTar(tar.NewReader(r), ad); err != nil {

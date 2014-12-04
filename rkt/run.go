@@ -46,6 +46,15 @@ func findImages(args []string, ds *cas.Store) (out []types.Hash, err error) {
 		// check if it is a valid hash, if so let it pass through
 		h, err := types.NewHash(img)
 		if err == nil {
+			fullKey, err := ds.ResolveKey(img)
+			if err != nil {
+				return nil, fmt.Errorf("Could not resolve key: %v", err)
+			}
+			h, err = types.NewHash(fullKey)
+			if err != nil {
+				// should never happen
+				panic(err)
+			}
 			out[i] = *h
 			continue
 		}
@@ -53,7 +62,7 @@ func findImages(args []string, ds *cas.Store) (out []types.Hash, err error) {
 		// import the local file if it exists
 		file, err := os.Open(img)
 		if err == nil {
-			tmp := types.NewHashSHA256([]byte(img)).String()
+			tmp := types.NewHashSHA512([]byte(img)).String()
 			key, err := ds.WriteACI(tmp, file)
 			file.Close()
 			if err != nil {

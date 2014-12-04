@@ -3,12 +3,14 @@ package cas
 import (
 	"bufio"
 	"bytes"
-	"crypto/sha256"
+	"crypto/sha512"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 
 	"github.com/appc/spec/aci"
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/peterbourgon/diskv"
@@ -59,6 +61,31 @@ func (ds Store) tmpFile() (*os.File, error) {
 	return ioutil.TempFile(dir, "")
 }
 
+// ResolveKey resolves a key of prefixed format sha512-0c45e8c0ab2 to a full key
+// by using the cas store for resolution.
+//
+// If the key is already of proper length, just returns the key.
+func (ds Store) ResolveKey(keyPrefix string) (string, error) {
+	if strings.HasPrefix(keyPrefix, "sha512-") && len(keyPrefix) == 128+7 {
+		return keyPrefix, nil
+	}
+
+	cancel := make(chan struct{})
+	var key string
+	keyCount := 0
+	for key = range ds.stores[blobType].KeysPrefix(keyPrefix, cancel) {
+		keyCount += 1
+		if keyCount > 1 {
+			close(cancel)
+			runtime.Gosched() // allow walker to detect cancel
+		}
+	}
+	if keyCount != 1 {
+		return keyPrefix, fmt.Errorf("Ambiguous key: '%v'", keyPrefix)
+	}
+	return key, nil
+}
+
 func (ds Store) ReadStream(key string) (io.ReadCloser, error) {
 	return ds.stores[blobType].ReadStream(key, false)
 }
@@ -88,7 +115,7 @@ func (ds Store) WriteACI(tmpKey string, orig io.Reader) (string, error) {
 
 	// Write the uncompressed image (tar) to a temporary file on disk, and
 	// tee so we can generate the hash
-	hash := sha256.New()
+	hash := sha512.New()
 	tr := io.TeeReader(dr, hash)
 	fh, err := ds.tmpFile()
 	if err != nil {
@@ -100,7 +127,7 @@ func (ds Store) WriteACI(tmpKey string, orig io.Reader) (string, error) {
 	fh.Close()
 
 	// Import the decompressed tar to the store using the hash as the key
-	key := fmt.Sprintf("sha256-%x", hash.Sum(nil))
+	key := fmt.Sprintf("sha512-%x", hash.Sum(nil))
 	err = ds.stores[blobType].Import(fh.Name(), key, true)
 	if err != nil {
 		return "", err
