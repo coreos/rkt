@@ -1,7 +1,7 @@
 # Getting Started with Rocket
 
 The following guide will show you how to build and run a self-contained Go app
-using rocket, the reference implementation of the [App Container 
+using rocket, the reference implementation of the [App Container
 Specification](https://github.com/coreos/rocket/tree/master/app-container).
 
 ## Create a hello go application
@@ -41,6 +41,7 @@ Edit: manifest.json
     "acVersion": "1.0.0",
     "acKind": "AppManifest",
     "name": "coreos.com/hello-1.0.0",
+		"version": "1.0.0",
     "os": "linux",
     "arch": "amd64",
     "exec": [
