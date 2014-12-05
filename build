@@ -37,7 +37,7 @@ if [ stage1/mkrootfs.sh -nt $S1ROOTFS/bin.go ]; then
 	echo "Generating and packaging rootfs (stage1)..."
 	[ -d "${S1ROOTFS}" ] || mkdir -p "${S1ROOTFS}"
 	pushd stage1
-	OUTPUT=$S1ROOTFS/bin.go ./mkrootfs.sh
+	OUTPUT=$S1ROOTFS/bin.go stage1/mkrootfs.sh
 	popd
 fi
 
