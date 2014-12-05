@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/coreos/rocket",
-	"GoVersion": "go1.3.1",
+	"GoVersion": "go1.3.3",
 	"Packages": [
 		"./..."
 	],
@@ -26,6 +26,10 @@
 		{
 			"ImportPath": "github.com/gorilla/mux",
 			"Rev": "e444e69cbd2e2e3e0749a2f3c717cec491552bbf"
+		},
+		{
+			"ImportPath": "github.com/mitchellh/ioprogress",
+			"Rev": "b0a0b6773359ef5016d5ecc4522150e43a189a53"
 		},
 		{
 			"ImportPath": "github.com/petar/GoLLRB/llrb",

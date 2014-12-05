@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"time"
 
+	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/mitchellh/ioprogress"
 	"github.com/coreos/rocket/app-container/schema/types"
 )
 
@@ -51,12 +54,32 @@ func (r Remote) Download(ds Store) (*Remote, error) {
 	}
 	defer res.Body.Close()
 
+	prefix := "Downloading aci"
+	fmtBytesSize := 18
+	barSize := int64(80 - len(prefix) - fmtBytesSize)
+	bar := ioprogress.DrawTextFormatBar(barSize)
+	fmtfunc := func(progress, total int64) string {
+		return fmt.Sprintf(
+			"%s: %s %s",
+			prefix,
+			bar(progress, total),
+			ioprogress.DrawTextFormatBytes(progress, total),
+		)
+	}
+
+	reader := &ioprogress.Reader{
+		Reader:       res.Body,
+		Size:         res.ContentLength,
+		DrawFunc:     ioprogress.DrawTerminalf(os.Stdout, fmtfunc),
+		DrawInterval: time.Second,
+	}
+
 	// TODO(jonboulle): handle http more robustly (redirects?)
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("bad HTTP status code: %d", res.StatusCode)
 	}
 
-	key, err := ds.WriteACI(r.Hash(), res.Body)
+	key, err := ds.WriteACI(r.Hash(), reader)
 	if err != nil {
 		return nil, err
 	}
