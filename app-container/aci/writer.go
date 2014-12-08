@@ -21,43 +21,31 @@ type ArchiveWriter interface {
 
 type appArchiveWriter struct {
 	*tar.Writer
-	am *schema.AppManifest
-}
-
-type fsArchiveWriter struct {
-	appArchiveWriter
+	am  *schema.AppManifest
 	fsm *schema.FilesetManifest
 }
 
 // NewAppWriter creates a new ArchiveWriter which will generate an App
 // Container Image based on the given manifest and write it to the given
 // tar.Writer
-func NewAppWriter(am schema.AppManifest, w *tar.Writer) ArchiveWriter {
+func NewAppWriter(am *schema.AppManifest, fsm *schema.FilesetManifest, w *tar.Writer) ArchiveWriter {
 	aw := &appArchiveWriter{
 		w,
-		&am,
+		am,
+		fsm,
 	}
 	return aw
 }
 
-// NewFilesetWriter creates a new ArchiveWriter which will generate a Fileset
-// ACI by the given name and write it to the given tar.Writer.
-func NewFilesetWriter(name string, w *tar.Writer) (ArchiveWriter, error) {
-	fsm, err := schema.NewFilesetManifest(name)
-	if err != nil {
-		return nil, err
-	}
-	aw := &fsArchiveWriter{
-		appArchiveWriter{
-			w,
-			nil,
-		},
-		fsm,
-	}
-	return aw, nil
-}
-
 func (aw *appArchiveWriter) AddFile(path string, hdr *tar.Header, r io.Reader) error {
+	if aw.am == nil {
+		//We are building fileset
+		relpath := strings.TrimPrefix(path, "rootfs")
+		if relpath != "/" {
+			aw.fsm.Files = append(aw.fsm.Files, relpath)
+		}
+	}
+
 	err := aw.Writer.WriteHeader(hdr)
 	if err != nil {
 		return err
@@ -71,14 +59,6 @@ func (aw *appArchiveWriter) AddFile(path string, hdr *tar.Header, r io.Reader) e
 	}
 
 	return nil
-}
-
-func (aw *fsArchiveWriter) AddFile(path string, hdr *tar.Header, r io.Reader) error {
-	relpath := strings.TrimPrefix(path, "rootfs")
-	if relpath != "/" {
-		aw.fsm.Files = append(aw.fsm.Files, relpath)
-	}
-	return aw.appArchiveWriter.AddFile(path, hdr, r)
 }
 
 func (aw *appArchiveWriter) addFileNow(path string, contents []byte) error {
@@ -108,14 +88,16 @@ func (aw *appArchiveWriter) addManifest(name string, m json.Marshaler) error {
 }
 
 func (aw *appArchiveWriter) Close() error {
-	if err := aw.addManifest("app", aw.am); err != nil {
-		return err
+	if aw.am != nil {
+		if err := aw.addManifest("app", aw.am); err != nil {
+			return err
+		}
 	}
-	return aw.Writer.Close()
-}
-func (aw *fsArchiveWriter) Close() error {
-	if err := aw.addManifest("fileset", aw.fsm); err != nil {
-		return err
+	if aw.fsm != nil {
+		if err := aw.addManifest("fileset", aw.fsm); err != nil {
+			return err
+		}
 	}
+
 	return aw.Writer.Close()
 }
