@@ -451,7 +451,7 @@ JSON Schema for the App Image Manifest
             "root": "/"
         }
     ],
-    "path_whitelist": [
+    "pathWhitelist": [
         "/etc/ca/example.com/crt",
         "/usr/bin/map-reduce-worker",
         "/opt/libs/reduce-toolkit.so",
@@ -489,7 +489,7 @@ JSON Schema for the App Image Manifest
     * **name** name of the dependent app image (required).
     * **hash** content hash of the dependency (optional). If provided, the retrieved dependency must match the hash. This can be used to produce deterministic, repeatable builds of an AppImage that has dependencies.
     * **labels* are optional, and should be a list of label objects of the same form as in the top level AppImageManifest. See [Dependency Matching](#dependency-matching) for how these are used.
-* **path_whitelist** (optional, list of strings). This is the complete whitelist of paths that should exist in the rootfs after assembly (i.e. unpacking the files in this image and overlaying its dependencies, in order). Paths that end in slash will ensure the directory is present but empty. This field is only required if the app has dependencies and you wish to remove files from the rootfs before running the container; an empty value means that all files in this image and any dependencies will be available in the rootfs.
+* **pathWhitelist** (optional, list of strings). This is the complete whitelist of paths that should exist in the rootfs after assembly (i.e. unpacking the files in this image and overlaying its dependencies, in order). Paths that end in slash will ensure the directory is present but empty. This field is only required if the app has dependencies and you wish to remove files from the rootfs before running the container; an empty value means that all files in this image and any dependencies will be available in the rootfs.
 * **annotations** key/value store that can be used by systems outside of the ACE (ACE can override). The key is restricted to the [AC Name](#ac-name-type) formatting. If you are defining new annotations, please consider submitting them to the specification. If you intend for your field to remain special to your application please be a good citizen and prefix an appropriate namespace to your key names. Recognized annotations include:
     * **created** is the date on which this container was built (string, must be in [RFC3339](https://www.ietf.org/rfc/rfc3339.txt) format)
     * **authors** contact details of the people or organization responsible for the containers (freeform string)
