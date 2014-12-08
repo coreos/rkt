@@ -26,13 +26,13 @@ To provide context to the specs outlined below we will walk through an example.
 A user wants to launch a container running two processes.
 The two processes the user wants to run are the apps named `example.com/reduce-worker-register` and `example.com/reduce-worker`.
 First, the executor will check the cache and find that it doesn't have images available for these apps.
-So, it will make an HTTPS request to example.com and using the <meta> tags there finds that the containers can be found at:
+So, it will make an HTTPS request to example.com and using the `<meta>` tags there finds that the containers can be found at:
 
 	https://storage-mirror.example.com/reduce-worker-register.aci
 	https://storage-mirror.example.com/reduce-worker.aci
 
-The executor downloads these two images and puts them into its local on-disk cache. 
-Then the executor extracts two fresh copies of the images to create instances of the "on-disk app format" and reads the two app manifests to figure out what binaries will need to be executed. 
+The executor downloads these two images and puts them into its local on-disk cache.
+Then the executor extracts two fresh copies of the images to create instances of the "on-disk app format" and reads the two app manifests to figure out what binaries will need to be executed.
 
 Based on user input the executor now sets up the necessary cgroups, network interfaces, etc and forks the `register` and `reduce-worker` processes in their shared namespaces inside the container.
 
@@ -65,7 +65,8 @@ The ACI archive format aims for flexibility and relies on very boring technologi
 This set of formats makes it easy to build, host and secure a container using technologies that are battle tested.
 
 Images archives MUST be a tar formatted file.
-The image may be optionally compressed with gzip, bzip2 or xz. After compression images may also be encrypted with AES symmetric encryption.
+The image may be optionally compressed with gzip, bzip2 or xz.
+After compression images may also be encrypted with AES symmetric encryption.
 
 ```
 tar cvvf reduce-worker.tar app rootfs
@@ -79,9 +80,9 @@ Optional encryption:
 gpg --output reduce-worker.aci --digest-algo sha256 --cipher-algo AES256 --symmetric reduce-worker.aci
 ```
 
-All files in the image must maintain all of their original properties including: timestamps, Unix modes and xattrs.
+All files in the image must maintain all of their original properties including: timestamps, Unix modes and extended attributes (xattrs).
 
-An image is addressed and verified against the hash of its uncompressed tar file.
+An image is addressed and verified against the hash of its uncompressed tar file, the _image ID_.
 The default digest format is sha256, but all hash IDs in this format are prefixed by the algorithm used (e.g. sha256-a83...).
 
 ```
@@ -354,7 +355,7 @@ The schema validator will ensure that the keys conform to these constraints.
 
 ## Manifest Schemas
 
-### Image Manifest Schema
+### App Image Manifest Schema
 
 JSON Schema for the App Image Manifest
 
@@ -476,7 +477,7 @@ JSON Schema for the App Image Manifest
     * **arch** (currently, the only supported value is "amd64"). Together with "os", this can be considered to describe the syscall ABI this image requires.
 * **app** is optional. If present, this defines the default parameters that can be used to execute this image as an application.
     * **exec** the executable to launch and any flags (array of strings, must be non-empty; ACE can append or override)
-    * **user**, **group** are required, and indicate either the GID/UID or the username/group name the app should run as inside the container (freeform string). If the user or group field begins with a "/", the owner and group of the file found at that absolute path inside the rootfs is used as the GID/UID of the process.
+    * **user**, **group** are required, and indicate either the UID/GID or the username/group name the app should run as inside the container (freeform string). If the user or group field begins with a "/", the owner and group of the file found at that absolute path inside the rootfs is used as the UID/GID of the process.
     * **eventHandlers** are optional, and should be a list of eventHandler objects. eventHandlers allow the app to have several hooks based on lifecycle events. For example, you may want to execute a script before the main process starts up to download a dataset or backup onto the filesystem. An eventHandler is a simple object with two fields - an **exec** (array of strings, ACE can append or override), and a **name**, which should be one of:
         * **pre-start** - will be executed and must exit before the long running main **exec** binary is launched
         * **post-stop** - if the main **exec** process is killed then this is ran. This can be used to cleanup resources in the case of clean application shutdown, but cannot be relied upon in the face of machine failure.stopped
