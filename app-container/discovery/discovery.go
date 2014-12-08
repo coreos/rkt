@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"fmt"
 	"io"
 	"strings"
 
@@ -79,13 +80,28 @@ func renderTemplate(tpl string, kvs ...string) string {
 }
 
 func DiscoverEndpoints(app App, insecure bool) (*Endpoints, error) {
-	_, body, err := httpsOrHTTP(app.Name.String(), insecure)
-	if err != nil {
-		return nil, err
-	}
-	defer body.Close()
+	var meta []acMeta
 
-	meta := extractACMeta(body)
+	// TODO(philips): make a more intelligent algorithm checking for if we
+	// got actual useful metadata and if the URL can be fetched.
+	parts := strings.Split(app.Name.String(), "/")
+	for i := 0; i < len(parts); i++ {
+		end := len(parts) - i
+		_, body, err := httpsOrHTTP(strings.Join(parts[:end], "/"), insecure)
+		if err != nil {
+			return nil, err
+		}
+
+		meta = extractACMeta(body)
+		body.Close()
+		if len(meta) > 0 {
+			break
+		}
+	}
+
+	if len(meta) == 0 {
+		return nil, fmt.Errorf("no discovery tags found")
+	}
 
 	tplVars := []string{"{os}", app.Labels["os"], "{arch}", app.Labels["arch"],
 		"{name}", app.Name.String(), "{version}", app.Labels["version"]}
