@@ -23,9 +23,8 @@ for typ in main sidekick; do
 			touch -a -m -d 1415660606 ${path}
 		done
 		../actool build --overwrite --app-manifest app rootfs/ ../ace-validator-${typ}.aci
-		HASH=sha256-$(sha256sum ../ace-validator-${typ}.aci|awk '{print $1}')
-		gzip -f ../ace-validator-${typ}.aci
-		mv ../ace-validator-${typ}.aci.gz ../ace-validator-${typ}.aci
+		# TODO(jonboulle): create uncompressed instead, then gzip?
+		HASH=sha256-$(gzip -d -f ../ace-validator-${typ}.aci -c | sha256sum - | awk '{print $1}')
 		gpg --cipher-algo AES256 --output ace-validator-${typ}.sig --detach-sig ../ace-validator-${typ}.aci
 		mv ace-validator-${typ}.sig ../
 	popd >/dev/null

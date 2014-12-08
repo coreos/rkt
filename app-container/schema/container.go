@@ -53,12 +53,12 @@ func (cm *ContainerRuntimeManifest) assertValid() error {
 	return nil
 }
 
-type AppList []App
+type AppList []RuntimeApp
 
 // Get retrieves an app by the specified name from the AppList; if there is
-// no such app, nil is returned. The returned *App MUST be considered
+// no such app, nil is returned. The returned *RuntimeApp MUST be considered
 // read-only.
-func (al AppList) Get(name types.ACName) *App {
+func (al AppList) Get(name types.ACName) *RuntimeApp {
 	for _, a := range al {
 		if name.Equals(a.Name) {
 			aa := a
@@ -68,8 +68,8 @@ func (al AppList) Get(name types.ACName) *App {
 	return nil
 }
 
-// App describes an application referenced in a ContainerRuntimeManifest
-type App struct {
+// RuntimeApp describes an application referenced in a ContainerRuntimeManifest
+type RuntimeApp struct {
 	Name        types.ACName            `json:"name"`
 	ImageID     types.Hash              `json:"imageID"`
 	Isolators   []types.Isolator        `json:"isolators"`

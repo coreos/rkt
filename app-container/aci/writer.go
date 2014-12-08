@@ -5,15 +5,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"strings"
 	"time"
 
 	"github.com/coreos/rocket/app-container/schema"
 )
 
 // ArchiveWriter writes App Container Images. Users wanting to create an ACI or
-// Fileset ACI should create an ArchiveWriter and add files to it; the ACI will
-// be written to the underlying tar.Writer
+// should create an ArchiveWriter and add files to it; the ACI will be written
+// to the underlying tar.Writer
 type ArchiveWriter interface {
 	AddFile(path string, hdr *tar.Header, r io.Reader) error
 	Close() error
@@ -21,40 +20,18 @@ type ArchiveWriter interface {
 
 type appArchiveWriter struct {
 	*tar.Writer
-	am *schema.AppManifest
-}
-
-type fsArchiveWriter struct {
-	appArchiveWriter
-	fsm *schema.FilesetManifest
+	am *schema.AppImageManifest
 }
 
 // NewAppWriter creates a new ArchiveWriter which will generate an App
 // Container Image based on the given manifest and write it to the given
 // tar.Writer
-func NewAppWriter(am schema.AppManifest, w *tar.Writer) ArchiveWriter {
+func NewAppWriter(am schema.AppImageManifest, w *tar.Writer) ArchiveWriter {
 	aw := &appArchiveWriter{
 		w,
 		&am,
 	}
 	return aw
-}
-
-// NewFilesetWriter creates a new ArchiveWriter which will generate a Fileset
-// ACI by the given name and write it to the given tar.Writer.
-func NewFilesetWriter(name string, w *tar.Writer) (ArchiveWriter, error) {
-	fsm, err := schema.NewFilesetManifest(name)
-	if err != nil {
-		return nil, err
-	}
-	aw := &fsArchiveWriter{
-		appArchiveWriter{
-			w,
-			nil,
-		},
-		fsm,
-	}
-	return aw, nil
 }
 
 func (aw *appArchiveWriter) AddFile(path string, hdr *tar.Header, r io.Reader) error {
@@ -71,14 +48,6 @@ func (aw *appArchiveWriter) AddFile(path string, hdr *tar.Header, r io.Reader) e
 	}
 
 	return nil
-}
-
-func (aw *fsArchiveWriter) AddFile(path string, hdr *tar.Header, r io.Reader) error {
-	relpath := strings.TrimPrefix(path, "rootfs")
-	if relpath != "/" {
-		aw.fsm.Files = append(aw.fsm.Files, relpath)
-	}
-	return aw.appArchiveWriter.AddFile(path, hdr, r)
 }
 
 func (aw *appArchiveWriter) addFileNow(path string, contents []byte) error {
@@ -109,12 +78,6 @@ func (aw *appArchiveWriter) addManifest(name string, m json.Marshaler) error {
 
 func (aw *appArchiveWriter) Close() error {
 	if err := aw.addManifest("app", aw.am); err != nil {
-		return err
-	}
-	return aw.Writer.Close()
-}
-func (aw *fsArchiveWriter) Close() error {
-	if err := aw.addManifest("fileset", aw.fsm); err != nil {
 		return err
 	}
 	return aw.Writer.Close()

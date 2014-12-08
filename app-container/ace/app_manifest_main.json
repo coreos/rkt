@@ -1,56 +1,60 @@
 {
     "acVersion": "1.0.0",
-    "acKind": "AppManifest",
+    "acKind": "AppImageManifest",
     "name": "coreos.com/ace-validator-main",
-    "version": "1.0.0",
-    "os": "linux",
-    "arch": "amd64",
-    "exec": [
-        "/ace-validator", "main"
+    "labels": [
+        { "name": "version", "val": "1.0.0" },
+        { "name": "os", "val": "linux" },
+        { "name": "arch", "val": "amd64" }
     ],
-    "eventHandlers": [
-        {
-            "name": "pre-start",
-            "exec": [
-                "/ace-validator", "prestart"
-            ]
+    "app": {
+        "exec": [
+            "/ace-validator", "main"
+        ],
+        "eventHandlers": [
+            {
+                "name": "pre-start",
+                "exec": [
+                    "/ace-validator", "prestart"
+                ]
+            },
+            {
+                "name": "post-stop",
+                "exec": [
+                    "/ace-validator", "poststop"
+                ]
+            }
+        ],
+        "user": "0",
+        "group": "0",
+        "environment": {
+            "IN_ACE_VALIDATOR": "correct"
         },
-        {
-            "name": "post-stop",
-            "exec": [
-                "/ace-validator", "poststop"
-            ]
-        }
-    ],
-    "user": "0",
-    "group": "0",
-    "environment": {
-        "IN_ACE_VALIDATOR": "correct"
+        "mountPoints": [
+            {
+                "name": "database",
+                "path": "/db",
+                "readOnly": false
+            }
+        ],
+        "ports": [
+            {
+                "name": "www",
+                "protocol": "tcp",
+                "port": 80
+            }
+        ],
+        "isolators": [
+            {
+                "name": "private-network",
+                "val": "true"
+            },
+            {
+                "name": "memory/limit",
+                "val": "1G"
+            }
+        ]
     },
-    "mountPoints": [
-        {
-            "name": "database",
-            "path": "/db",
-            "readOnly": false
-        }
-    ],
-    "ports": [
-        {
-            "name": "www",
-            "protocol": "tcp",
-            "port": 80
-        }
-    ],
-    "isolators": [
-        {
-            "name": "private-network",
-            "val": "true"
-        },
-        {
-            "name": "memory/limit",
-            "val": "1G"
-        }
-    ],
     "annotations": {
         "created": "2014-10-27T19:32:27.67021798Z",
         "authors": "Carly Container <carly@example.com>, Nat Network <nat@example.com>",

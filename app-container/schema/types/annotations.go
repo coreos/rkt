@@ -10,15 +10,6 @@ type Annotations map[ACName]string
 
 type annotations Annotations
 
-/*
-struct {
-	Created       Date     `json:"created"`
-	Authors       []string `json:"authors"`
-	Homepage      URL      `json:"homepage"`
-	Documentation URL      `json:"documentation"`
-}
-*/
-
 func (a Annotations) assertValid() error {
 	if c, ok := a["created"]; ok {
 		if _, err := NewDate(c); err != nil {

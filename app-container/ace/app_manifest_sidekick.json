@@ -1,20 +1,24 @@
 {
     "acVersion": "1.0.0",
-    "acKind": "AppManifest",
+    "acKind": "AppImageManifest",
     "name": "coreos.com/ace-validator-sidekick",
-    "version": "1.0.0",
-    "os": "linux",
-    "arch": "amd64",
-    "exec": [
-        "/ace-validator", "sidekick"
+    "labels": [
+        { "name": "version", "val": "1.0.0" },
+        { "name": "os", "val": "linux" },
+        { "name": "arch", "val": "amd64" }
     ],
-    "user": "0",
-    "group": "0",
-    "mountPoints": [
-        {
-            "name": "database",
-            "path": "/db",
-            "readOnly": false
-        }
-    ]
+    "app": {
+        "exec": [
+            "/ace-validator", "sidekick"
+        ],
+        "user": "0",
+        "group": "0",
+        "mountPoints": [
+            {
+                "name": "database",
+                "path": "/db",
+                "readOnly": false
+            }
+        ]
+    }
 }
