@@ -5,7 +5,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/coreos/rocket/app-container/discovery"
 	"github.com/coreos/rocket/cas"
