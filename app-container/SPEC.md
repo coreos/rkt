@@ -93,11 +93,17 @@ Implementations of the app container spec will need to provide a mechanism for u
 
 Example application container image builder: **TODO** link to actool
 
-### App Manifest
+### App Image Manifest
 
-The [app manifest](#app-manifest-schema) is a JSON file that includes all of the details to execute a main process from the rootfs.
-Execution details include mount points that should exist, the user, the command args, default cgroup settings and more.
-The manifest also defines binaries to execute in response to lifecycle events of the main process such as *pre-start* and *post-stop*.
+The [app image manifest](#app-image-manifest-schema) is a JSON file that includes details about the contents of the app image, and optionally information about how to execute a process inside the app image's rootfs.
+If included, execution details include mount points that should exist, the user, the command args, default cgroup settings and more.
+The manifest may also define binaries to execute in response to lifecycle events of the main process such as *pre-start* and *post-stop*.
+
+App manifests MAY specify dependencies, which describe how to assemble the final rootfs from a collection of other images. 
+As an example, you might have an app that needs special certificates layered into its filesystem.
+In this case, you can reference the name "example.com/trusted-certificate-authority" as a dependency in the app image manifest.
+The dependencies are applied in order and each app image dependency can overwrite files from the previous dependency.
+An optional path whitelist can be used to omit certain files from dependencies being included in the final assembled rootfs.
 
 Image Format TODO
 
@@ -107,23 +113,6 @@ Image Format TODO
 * Define the lifecycle of the container as all exit or first to exit
 * Define security requirements for a container. In particular is any isolation of users required between containers? What user does each application run under and can this be root (i.e. "real" root in the host).
 * Define how apps are supposed to communicate; can they/do they 'see' each other (a section in the apps perspective would help)?
-
-### Fileset Images
-
-An app container image MAY contain a second optional manifest, the [Fileset manifest](#fileset-manifest), to describe how to assemble the final rootfs from a collection of other images. 
-Such an image may not contain an app manifest, in which case they are simply a "fileset".
-
-```
-/fileset
-/rootfs
-/rootfs/usr/bin/data-downloader
-/rootfs/usr/bin/reduce-worker
-```
-
-As an example, you might have an app that needs special certificates layered into its filesystem.
-In this case, you can reference the name "example.com/trusted-certificate-authority" as a dependency in the fileset manifest.
-The dependencies are applied in order and each fileset can overwrite files from the previous fileset.
-Optionally, filesets can be applied to a subtree, such as `/etc/ssl` for the trusted-certificate-authority.
 
 
 ## App Container Executor
@@ -142,7 +131,7 @@ The "*executor*" perspective consists of the steps that the container executor m
 
 #### Filesystem Setup
 
-Every execution of an app container should start from a clean copy of the app fileset. 
+Every execution of an app container should start from a clean copy of the app image. 
 The simplest implementation will take an application container image and extract it into a new directory:
 
 ```
@@ -286,7 +275,7 @@ keys: https://example.com/pubkeys.gpg
 ```
 
 This mechanism is only used for discovery of contents URLs.
-Anything implementing this spec should enforce any signing rules set in place by the operator and ensure the app manifest provided by the fetched app fileset image are all prefixed from the same domain.
+Anything implementing this spec should enforce any signing rules set in place by the operator and ensure the app manifest provided by the fetched app image are all prefixed from the same domain.
 
 Discovery URLs that require interpolation are [RFC6570](https://tools.ietf.org/html/rfc6570) URI templates.
 
@@ -365,110 +354,163 @@ The schema validator will ensure that the keys conform to these constraints.
 
 ## Manifest Schemas
 
-### App Manifest Schema
+### Image Manifest Schema
 
 JSON Schema for the App Image Manifest
 
 ```
 {
+    "acKind": "AppImageManifest",
     "acVersion": "0.1.0",
-    "acKind": "AppManifest",
     "name": "example.com/reduce-worker",
-    "version": "1.0.0",
-    "os": "linux",
-    "arch": "amd64",
-    "exec": [
-        "/usr/bin/reduce-worker"
-    ],
-
-    "user": "100",
-    "group": "300",
-    "eventHandlers": [
+    "labels": [
         {
-            "name": "pre-start",
-            "exec": [
-                "/usr/bin/data-downloader"
-            ]
+            "name": "version",
+            "val": "1.0.0"
         },
-
         {
-            "name": "post-stop",
-            "exec": [
-                "/usr/bin/deregister-worker"
-            ]
+            "name": "arch",
+            "val": "amd64"
+        },
+        {
+            "name": "os",
+            "val": "linux"
         }
     ],
-
-    "environment": {
-        "REDUCE_WORKER_DEBUG": "true"
+    "app": {
+        "exec": [
+            "/usr/bin/reduce-worker"
+        ],
+        "user": "100",
+        "group": "300",
+        "eventHandlers": [
+            {
+                "exec": [
+                    "/usr/bin/data-downloader"
+                ],
+                "name": "pre-start"
+            },
+            {
+                "exec": [
+                    "/usr/bin/deregister-worker"
+                ],
+                "name": "post-stop"
+            }
+        ],
+        "environment": {
+            "REDUCE_WORKER_DEBUG": "true"
+        },
+        "isolators": [
+            {
+                "name": "private-network",
+                "val": "true"
+            },
+            {
+                "name": "cpu/shares",
+                "val": "20"
+            },
+            {
+                "name": "memory/limit",
+                "val": "1G"
+            },
+            {
+                "name": "capabilities/bounding-set",
+                "val": "CAP_NET_BIND_SERVICECAP_SYS_ADMIN"
+            }
+        ],
+        "mountPoints": [
+            {
+                "name": "database",
+                "path": "/var/lib/db",
+                "readOnly": false
+            }
+        ],
+        "ports": [
+            {
+                "name": "health",
+                "port": 4000,
+                "protocol": "tcp",
+                "socketActivated": true
+            }
+        ]
     },
-
-    "mountPoints": [
+    "dependencies": [
         {
-            "name": "database",
-            "path": "/var/lib/db",
-            "readOnly": false
+            "hash": "sha256-...",
+            "labels": [
+                {
+                    "name": "os",
+                    "val": "linux"
+                },
+                {
+                    "name": "env",
+                    "val": "canary"
+                }
+            ],
+            "name": "example.com/reduce-worker-base",
+            "root": "/"
         }
     ],
-
-    "ports": [
-        {
-            "name": "health",
-            "protocol": "tcp",
-            "port": 4000,
-            "socketActivated": true
-        }
+    "path_whitelist": [
+        "/etc/ca/example.com/crt",
+        "/usr/bin/map-reduce-worker",
+        "/opt/libs/reduce-toolkit.so",
+        "/etc/reduce-worker.conf",
+        "/etc/systemd/system/"
     ],
-
-    "isolators": [
-        {
-            "name": "private-network",
-            "val": "true"
-        },
-        {
-            "name": "cpu/shares",
-            "val": "20"
-        },
-        {
-            "name": "memory/limit",
-            "val": "1G"
-        },
-        {
-            "name": "capabilities/bounding-set",
-            "val": "CAP_NET_BIND_SERVICECAP_SYS_ADMIN"
-        }
-    ],
-
-     "annotations": {
-        "created": "2014-10-27T19:32:27.67021798Z",
+    "annotations": {
         "authors": "Carly Container <carly@example.com>, Nat Network <[nat@example.com](mailto:nat@example.com)>",
-        "homepage": "https://example.com",
-        "documentation": "https://example.com/docs"
+        "created": "2014-10-27T19:32:27.67021798Z",
+        "documentation": "https://example.com/docs",
+        "homepage": "https://example.com"
     }
 }
 ```
 
+* **acKind** is required and must be set to "AppImageManifest"
 * **acVersion** is required and represents the version of the schema specification that the manifest implements (string, must be in [semver](http://semver.org/) format)
-* **acKind** is required and must be set to "AppManifest"
 * **name** is required, and will be used as a human readable index to the container image. (string, restricted to the AC Name formatting)
-* **version** is required (string, restricted to the AC Name formatting). When combined with "name", this should be unique for every build of an app (on a given "os"/"arch" combination).
-* **os** is required (string; currently, the only supported value is "linux"). Together with "arch", this can be considered to describe the syscall ABI this image requires.
-* **arch** is required (string; currently, the only supported value is "amd64"). Together with "os", this can be considered to describe the syscall ABI this image requires.
-* **exec** the executable to launch and any flags (array of strings, must be non-empty; ACE can append or override)
-* **user/group** are required, and indicate either the GID/UID or the username/group name the app should run as inside of the container (freeform string). If the user or group field begins with a "/" the owner and group of the file found at that absolute path is used as the GID/UID of the process.
-* **eventHandlers** are optional, and should be a list of eventHandler objects. eventHandlers allow the app to have several hooks based on lifecycle events. For example, you may want to execute a script before the main process starts up to download a dataset or backup onto the filesystem. An eventHandler is a simple object with two fields - an **exec** (array of strings, ACE can append or override), and a **name**, which should be one of:
-    * **pre-start** - will be executed and must exit before the long running main **exec** binary is launched
-    * **post-stop** - if the main **exec** process is killed then this is ran. This can be used to cleanup resources in the case of clean application shutdown, but cannot be relied upon in the face of machine failure.stopped
-* **environment** the app's preferred environment variables (map of freeform strings) (ACE can append)
-* **mountPoints** are the locations where a container is expecting external data to mounted. The name indicates an executor-defined label to look up a mount point, and the path stipulates where it should actually be mounted inside the rootfs. The name is restricted to the AC Name Type formatting. "readOnly" should be a boolean indicating whether or not the mount point should be read-only (defaults to "false" if unsupplied).
-* **ports** are the protocols and port numbers that the container will be listening on once started. The key is restricted to the AC Name formatting. This information is primarily informational to help the user find ports that are not well known. It could also optionally be used to limit the inbound connections to the container via firewall rules to only ports that are explicitly exposed.
-    * **socketActivated** if this is set to true then the application expects to be [socket activated](http://www.freedesktop.org/software/systemd/man/sd_listen_fds.html) on these ports. The ACE must pass file descriptors using the [socket activation protocol](http://www.freedesktop.org/software/systemd/man/sd_listen_fds.html) that are listening on these ports when starting this container. If multiple apps in the same container are using socket activation then the ACE must match the sockets to the correct apps using getsockopt() and getsockname().
-* **isolators** is a list of well-known and optional isolation steps that should be applied to the app. **name** is restricted to the [AC Name](#ac-name-type) formatting and **val** can be a freeform string. Any isolators specified in the App Manifest can be overridden at runtime via the Container Runtime Manifest. The executor can either ignore isolator keys it does not understand or error. In practice this means there might be certain isolators (for example, an AppArmor policy) that an executor doesn't understand so it will simply skip that entry.
+* **labels** are optional, and should be a list of label objects (where the *name* is restricted to the AC Name formatting and *val* is an arbitrary string). Labels are used during image discovery and dependency resolution. Several well-known labels are defined:
+    * **version** when combined with "name", this should be unique for every build of an app (on a given "os"/"arch" combination).
+    * **os** (currently, the only supported value is "linux"). Together with "arch", this can be considered to describe the syscall ABI this image requires.
+    * **arch** (currently, the only supported value is "amd64"). Together with "os", this can be considered to describe the syscall ABI this image requires.
+* **app** is optional. If present, this defines the default parameters that can be used to execute this image as an application.
+    * **exec** the executable to launch and any flags (array of strings, must be non-empty; ACE can append or override)
+    * **user**, **group** are required, and indicate either the GID/UID or the username/group name the app should run as inside the container (freeform string). If the user or group field begins with a "/", the owner and group of the file found at that absolute path inside the rootfs is used as the GID/UID of the process.
+    * **eventHandlers** are optional, and should be a list of eventHandler objects. eventHandlers allow the app to have several hooks based on lifecycle events. For example, you may want to execute a script before the main process starts up to download a dataset or backup onto the filesystem. An eventHandler is a simple object with two fields - an **exec** (array of strings, ACE can append or override), and a **name**, which should be one of:
+        * **pre-start** - will be executed and must exit before the long running main **exec** binary is launched
+        * **post-stop** - if the main **exec** process is killed then this is ran. This can be used to cleanup resources in the case of clean application shutdown, but cannot be relied upon in the face of machine failure.stopped
+    * **environment** the app's preferred environment variables (map of freeform strings) (ACE can append)
+    * **mountPoints** are the locations where a container is expecting external data to mounted. The name indicates an executor-defined label to look up a mount point, and the path stipulates where it should actually be mounted inside the rootfs. The name is restricted to the AC Name Type formatting. "readOnly" should be a boolean indicating whether or not the mount point should be read-only (defaults to "false" if unsupplied).
+    * **ports** are the protocols and port numbers that the container will be listening on once started. The key is restricted to the AC Name formatting. This information is primarily informational to help the user find ports that are not well known. It could also optionally be used to limit the inbound connections to the container via firewall rules to only ports that are explicitly exposed.
+        * **socketActivated** if this is set to true then the application expects to be [socket activated](http://www.freedesktop.org/software/systemd/man/sd_listen_fds.html) on these ports. The ACE must pass file descriptors using the [socket activation protocol](http://www.freedesktop.org/software/systemd/man/sd_listen_fds.html) that are listening on these ports when starting this container. If multiple apps in the same container are using socket activation then the ACE must match the sockets to the correct apps using getsockopt() and getsockname().
+    * **isolators** is a list of well-known and optional isolation steps that should be applied to the app. **name** is restricted to the [AC Name](#ac-name-type) formatting and **val** can be a freeform string. Any isolators specified in the App Manifest can be overridden at runtime via the Container Runtime Manifest. The executor can either ignore isolator keys it does not understand or error. In practice this means there might be certain isolators (for example, an AppArmor policy) that an executor doesn't understand so it will simply skip that entry.
+* **dependencies** list of dependent application images that need to be placed down into the rootfs before the files from this image (if any). The ordering is significant. See [Dependency Matching](#dependency-matching) for how dependencies should be retrieved.
+    * **name** name of the dependent app image (required).
+    * **hash** content hash of the dependency (optional). If provided, the retrieved dependency must match the hash. This can be used to produce deterministic, repeatable builds of an AppImage that has dependencies.
+    * **labels* are optional, and should be a list of label objects of the same form as in the top level AppImageManifest. See [Dependency Matching](#dependency-matching) for how these are used.
+* **path_whitelist** (optional, list of strings). This is the complete whitelist of paths that should exist in the rootfs after assembly (i.e. unpacking the files in this image and overlaying its dependencies, in order). Paths that end in slash will ensure the directory is present but empty. This field is only required if the app has dependencies and you wish to remove files from the rootfs before running the container; an empty value means that all files in this image and any dependencies will be available in the rootfs.
 * **annotations** key/value store that can be used by systems outside of the ACE (ACE can override). The key is restricted to the [AC Name](#ac-name-type) formatting. If you are defining new annotations, please consider submitting them to the specification. If you intend for your field to remain special to your application please be a good citizen and prefix an appropriate namespace to your key names. Recognized annotations include:
     * **created** is the date on which this container was built (string, must be in [RFC3339](https://www.ietf.org/rfc/rfc3339.txt) format)
     * **authors** contact details of the people or organization responsible for the containers (freeform string)
     * **homepage** URL to find more information on the container (string, must be a URL with scheme HTTP or HTTPS)
     * **documentation** URL to get documentation on this container (string, must be a URL with scheme HTTP or HTTPS)
+
+#### Dependency Matching
+
+Dependency matching is based on a combination of the three different fields of the dependency - **name**, **hash**, and **labels**.
+First, the image discovery mechanism is used to locate a dependency.
+If any labels are specified in the dependency, they are passed to the image discovery mechanism, and should be used when locating the image.
+
+If the image discovery process successfully returns an image, it will be compared as follows
+If the dependency specification has a hash, it will be compared against the image returned, and must match.
+Otherwise, the labels in the dependency specification are compared against the labels in the retrieved app image (i.e. in its AppImageManifest), and must match.
+A label is considered to match if it meets one of three criteria:
+- It is present in the dependency specification and present in the dependency's AppImageManifest with the same value.
+- It is absent from the dependency specification and present in the dependency's AppImageManifest, with any value.
+This facilitates "wildcard" matching and a variety of common usage patterns, like "noarch" or "latest" dependencies.
+For example, an AppImage containing a set of bash scripts might omit both "os" and "arch", and hence could be used as a dependency by a variety of different AppImages.
+Alternatively, an AppImage might specify a dependency with no hash and no "version" label, and the image discovery mechanism could always retrieve the latest version of an AppImage
 
 ### Container Runtime Manifest Schema
 
@@ -543,46 +585,3 @@ JSON Schema for the Container Runtime Manifest
     * **fulfills** the MountPoints of the containers that this volume can fulfill (string, restricted to AC Name formatting)
 * **isolators** the list of isolators that will apply to all apps in this container (name is restricted to the AC Name formatting and the value can be a freeform string)
 * **annotations** arbitrary metadata the executor should make available to applications via the metadata service (key is restricted to the AC Name formatting and the value can be a freeform string)
-
-### Fileset Manifest
-
-JSON Schema for the Fileset Manifest
-
-```
-{
-    "acVersion": "0.1.0",
-    "acKind": "FilesetManifest",
-    "name": "example.com/reduce-worker",
-    "dependencies": [
-        {
-            "hash": "sha256-...",
-            "name": "example.com/reduce-worker-base",
-            "root": "/"
-        },
-        {
-            "hash": "sha256-...",
-            "name": "example.com/reduce-worker-libs",
-            "root": "/opt/libs"
-        },
-        {
-            "hash": "sha256-...",
-            "name": "example.com/trusted-certificate-authority",
-            "root": "/etc/ca"
-        }
-    ],
-    "files": [
-        "/etc/ca/example.com/crt",
-        "/usr/bin/map-reduce-worker",
-        "/opt/libs/reduce-toolkit.so",
-        "/etc/reduce-worker.conf"
-    ]
-}
-```
-
-* **acVersion** is required and represents the version of the schema spec (string, must be in [semver](http://semver.org/) format)
-* **acKind** is required and must be set to "FilesetManifest"
-* **dependencies** list of filesets that need to be placed down into the rootfs before the files from this fileset. The ordering is significant.
-    * **hash** content hash of the fileset
-    * **name** name of the app
-    * **root** the place in this filesets hierarchy that the dependent rootfs should be placed
-* **files** whitelist of files that should exist on-disk for this fileset. This is only required if you have dependent filesets and want to remove files from those filesets before running the container.
