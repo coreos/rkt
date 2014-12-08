@@ -50,10 +50,10 @@ This file layout must be followed for the app to be executed by an Executor.
 ### Image Layout
 
 The on-disk layout of an app container is straightforward.
-It includes a *rootfs* with all of the files that will exist in the root of the app and an *app manifest* describing how to execute the app.
+It includes a *rootfs* with all of the files that will exist in the root of the app and an *app image manifest* describing the contents of the image and how to execute the app.
 
 ```
-/app
+/manifest
 /rootfs
 /rootfs/usr/bin/data-downloader
 /rootfs/usr/bin/reduce-worker
@@ -64,8 +64,8 @@ It includes a *rootfs* with all of the files that will exist in the root of the 
 The ACI archive format aims for flexibility and relies on very boring technologies: HTTP, gpg, tar and gzip.
 This set of formats makes it easy to build, host and secure a container using technologies that are battle tested.
 
-Images archives MUST be a tar formatted file. 
-The image may be optionally compressed with gzip, bzip2 or xz. After compression images may also be encrypted with AES symmetric encryption. 
+Images archives MUST be a tar formatted file.
+The image may be optionally compressed with gzip, bzip2 or xz. After compression images may also be encrypted with AES symmetric encryption.
 
 ```
 tar cvvf reduce-worker.tar app rootfs
@@ -88,7 +88,7 @@ The default digest format is sha256, but all hash IDs in this format are prefixe
 echo sha256-$(sha256sum reduce-worker.tar |awk '{print $1}')
 ```
 
-**Note**: the key distribution mechanism is not defined here. 
+**Note**: the key distribution mechanism is not defined here.
 Implementations of the app container spec will need to provide a mechanism for users to configure the list of signing keys to trust or use the key discovery described in "App Container Image Discovery".
 
 Example application container image builder: **TODO** link to actool
