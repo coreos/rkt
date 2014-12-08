@@ -50,7 +50,7 @@ func fetchImage(img string, ds *cas.Store) (string, error) {
 		return "", fmt.Errorf("%s: not a valid URL or hash", img)
 	}
 
-	if !strings.HasPrefix(u.Scheme, "http") {
+	if re {
 		return "", fmt.Errorf("%s: rkt only supports http or https URLs", img)
 	}
 
@@ -59,20 +59,20 @@ func fetchImage(img string, ds *cas.Store) (string, error) {
 		if globalFlags.Debug && err != nil {
 			fmt.Printf("discovery: %s\n", err)
 		}
-		if err == nil {
-			ep, err := discovery.DiscoverEndpoints(*app, true)
-			if err != nil {
-				return "", err
-			}
 
-			// TODO(philips): use all available mirrors
-			if globalFlags.Debug {
-				fmt.Printf("fetch: trying %v\n", ep.ACI)
-			}
-
-			img = ep.ACI[0]
-			u, err = url.Parse(img)
+		ep, err := discovery.DiscoverEndpoints(*app, true)
+		if err != nil {
+			return "", err
 		}
+
+		// TODO(philips): use all available mirrors
+		if globalFlags.Debug {
+			fmt.Printf("fetch: trying %v\n", ep.ACI)
+		}
+
+		img = ep.ACI[0]
+		return fetchImage(img, ds)
+
 	}
 
 	return fetchURL(img, ds)
