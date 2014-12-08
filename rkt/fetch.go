@@ -50,7 +50,7 @@ func fetchImage(img string, ds *cas.Store) (string, error) {
 		return "", fmt.Errorf("%s: not a valid URL or hash", img)
 	}
 
-	if re {
+	if u.Scheme == "http" || u.Scheme == "https" {
 		return "", fmt.Errorf("%s: rkt only supports http or https URLs", img)
 	}
 
