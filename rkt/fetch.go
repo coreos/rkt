@@ -49,11 +49,10 @@ func fetchImage(img string, ds *cas.Store) (string, error) {
 		return "", fmt.Errorf("%s: not a valid URL or hash", img)
 	}
 
-	if u.Scheme == "http" || u.Scheme == "https" {
-		return "", fmt.Errorf("%s: rkt only supports http or https URLs", img)
-	}
-
-	if u.Scheme == "" {
+	switch u.Scheme {
+	case "http", "https":
+		return fetchURL(img, ds)
+	case "":
 		app, err := discovery.NewAppFromString(img)
 		if globalFlags.Debug && err != nil {
 			fmt.Printf("discovery: %s\n", err)
@@ -71,10 +70,10 @@ func fetchImage(img string, ds *cas.Store) (string, error) {
 
 		img = ep.ACI[0]
 		return fetchImage(img, ds)
+	default:
+		return "", fmt.Errorf("%s: rkt only supports http or https URLs", img)
 
 	}
-
-	return fetchURL(img, ds)
 }
 
 func runFetch(args []string) (exit int) {
