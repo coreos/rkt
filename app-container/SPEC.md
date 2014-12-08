@@ -16,7 +16,7 @@ To achieve these goals this specification is split out into a number of smaller 
 
     * The [Metadata Server](#app-container-metadata-service) defines how a container can introspect and get a cryptographically verifiable identity from the execution environment.
 
-3. The **[App Container Image Discovery](#app-container-image-discovery)** defines: how to take a name like example.com/reduce-worker-1.0.0 and translate that into a downloadable image.
+3. The **[App Container Image Discovery](#app-container-image-discovery)** defines: how to take a name like example.com/reduce-worker and translate that into a downloadable image.
 
 
 ## Example Use Case
@@ -24,12 +24,12 @@ To achieve these goals this specification is split out into a number of smaller 
 To provide context to the specs outlined below we will walk through an example.
 
 A user wants to launch a container running two processes.
-The two processes the user wants to run are the apps named `example.com/reduce-worker-register-1.0.0` and `example.com/reduce-worker-1.0.0`.
+The two processes the user wants to run are the apps named `example.com/reduce-worker-register` and `example.com/reduce-worker`.
 First, the executor will check the cache and find that it doesn't have images available for these apps.
 So, it will make an HTTPS request to example.com and using the <meta> tags there finds that the containers can be found at:
 
-	https://storage-mirror.example.com/reduce-worker-register-1.0.0.aci
-	https://storage-mirror.example.com/reduce-worker-1.0.0.aci
+	https://storage-mirror.example.com/reduce-worker-register.aci
+	https://storage-mirror.example.com/reduce-worker.aci
 
 The executor downloads these two images and puts them into its local on-disk cache. 
 Then the executor extracts two fresh copies of the images to create instances of the "on-disk app format" and reads the two app manifests to figure out what binaries will need to be executed. 
@@ -121,9 +121,9 @@ Such an image may not contain an app manifest, in which case they are simply a "
 ```
 
 As an example, you might have an app that needs special certificates layered into its filesystem.
-In this case, you can reference the name "example.com/trusted-certificate-authority-1.0.0" as a dependency in the fileset manifest.
+In this case, you can reference the name "example.com/trusted-certificate-authority" as a dependency in the fileset manifest.
 The dependencies are applied in order and each fileset can overwrite files from the previous fileset.
-Optionally, filesets can be applied to a subtree, such as `/etc/ssl` for the trusted-certificate-authority-1.0.0.
+Optionally, filesets can be applied to a subtree, such as `/etc/ssl` for the trusted-certificate-authority.
 
 
 ## App Container Executor
@@ -157,7 +157,8 @@ These details are orthogonal to the runtime environment.
 #### Container Runtime Manifest
 
 A container executes one or more apps with shared PID namespace, network namespace, mount namespace, IPC namespace and UTS namespace.
-Each app will start pivoted (i.e. chrooted) into its own unique read-write rootfs before execution. The definition of the container is a list of apps that should be launched together.
+Each app will start pivoted (i.e. chrooted) into its own unique read-write rootfs before execution. 
+The definition of the container is a list of apps that should be launched together, along with isolators that should apply to the entire container.
 This is codified in a [Container Runtime Manifest](#container-runtime-manifest-schema).
 
 This example container will use a set of three apps:
@@ -171,7 +172,7 @@ This example container will use a set of three apps:
 #### Volume Setup
 
 Volumes that are specified in the Container Runtime Manifest are mounted into each of the apps via a bind mount.
-For example say that the worker-backup and reduce-worker both have a MountPoint named "work". 
+For example say that the worker-backup and reduce-worker both have a MountPoint named "work".
 In this case, the container executor will bind mount the host's `/opt/tenant1/database` directory into the Path of each of the matching "work" MountPoints of the two containers.
 
 #### Network Setup
@@ -191,7 +192,7 @@ Note that logging mechanisms other than stdout and stderr are not required by th
 #### Execution Environment
 
 * **Working directory** always the root of the application image
-* **PATH** /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+* **PATH** `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`
 * **USER, LOGNAME** username of the user executing this app
 * **HOME** home directory of the user
 * **SHELL** login shell of the user
@@ -224,8 +225,9 @@ Additional isolators will be added to this specification over time.
 ## App Container Image Discovery
 
 An app name has a URL-like structure, for example `example.com/reduce-worker`.
-However, there is no scheme on this app name so we can't directly resolve it to an app container image.
-App Container Image Discovery prescribes a discovery process to retrieve an image based on the app name
+However, there is no scheme on this app name so we can't directly resolve it to an app container image URL.
+Furthermore, attributes other than the name may be required to unambiguously identify an app (version, OS and architecture).
+App Container Image Discovery prescribes a discovery process to retrieve an image based on the app name and these attributes.
 
 ### Simple Discovery
 
@@ -298,8 +300,7 @@ For a variety of reasons, it is desirable to not write files to the filesystem i
 * The container can be run on top of a cryptographically secured read-only filesystem
 * Metadata is a proven system for virtual machines
 
-config-drives are one means of providing metadata to containers/virtual machines, but make assumptions about filesystems which are not appropriate for all environments.
-Hence, the app container specification defines an HTTP-based metadata for providing metadata to containers.
+The app container specification defines an HTTP-based metadata service for providing metadata to containers.
 
 ### Metadata Server
 
@@ -450,7 +451,7 @@ JSON Schema for the App Image Manifest
 * **acVersion** is required and represents the version of the schema specification that the manifest implements (string, must be in [semver](http://semver.org/) format)
 * **acKind** is required and must be set to "AppManifest"
 * **name** is required, and will be used as a human readable index to the container image. (string, restricted to the AC Name formatting)
-* **version** is required (string, restricted to the AC Name formatting). When combined with "name", this should be unique for every build of an app.
+* **version** is required (string, restricted to the AC Name formatting). When combined with "name", this should be unique for every build of an app (on a given "os"/"arch" combination).
 * **os** is required (string; currently, the only supported value is "linux"). Together with "arch", this can be considered to describe the syscall ABI this image requires.
 * **arch** is required (string; currently, the only supported value is "amd64"). Together with "os", this can be considered to describe the syscall ABI this image requires.
 * **exec** the executable to launch and any flags (array of strings, must be non-empty; ACE can append or override)
@@ -471,6 +472,8 @@ JSON Schema for the App Image Manifest
 
 ### Container Runtime Manifest Schema
 
+JSON Schema for the Container Runtime Manifest
+
 ```
 {
 
@@ -479,11 +482,11 @@ JSON Schema for the App Image Manifest
     "uuid": "6733C088-A507-4694-AABF-EDBE4FC5266F",
     "apps": [
         {
-            "app": "example.com/reduce-worker-1.0.0",
+            "app": "example.com/reduce-worker",
             "imageID": "sha256-277205b3ae3eb3a8e042a62ae46934b470e431ac"
         },
         {
-            "app": "example.com/worker-backup-1.0.0",
+            "app": "example.com/worker-backup",
             "imageID": "sha256-3e86b59982e49066c5d813af1c2e2579cbf573de",
             "isolators": [
                 {"name": "memory/limit" "val": "1G"}
@@ -493,7 +496,7 @@ JSON Schema for the App Image Manifest
             }
         },
         {
-            "app": "example.com/reduce-worker-register-1.0.0",
+            "app": "example.com/reduce-worker-register",
             "imageID": "sha256-86298e1fdb95ec9a45b5935504e26ec29b8feffa"
         }
     ],
@@ -543,25 +546,27 @@ JSON Schema for the App Image Manifest
 
 ### Fileset Manifest
 
+JSON Schema for the Fileset Manifest
+
 ```
 {
     "acVersion": "0.1.0",
     "acKind": "FilesetManifest",
-    "name": "example.com/reduce-worker-0.4.0",
+    "name": "example.com/reduce-worker",
     "dependencies": [
         {
             "hash": "sha256-...",
-            "name": "example.com/reduce-worker-base-1.0.0",
+            "name": "example.com/reduce-worker-base",
             "root": "/"
         },
         {
             "hash": "sha256-...",
-            "name": "example.com/reduce-worker-libs-1.0.0",
+            "name": "example.com/reduce-worker-libs",
             "root": "/opt/libs"
         },
         {
             "hash": "sha256-...",
-            "name": "example.com/trusted-certificate-authority-1.0.0",
+            "name": "example.com/trusted-certificate-authority",
             "root": "/etc/ca"
         }
     ],
