@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/coreos/rocket/Godeps/_workspace/src/golang.org/x/crypto/openpgp/errors"
-	"github.com/coreos/rocket/Godeps/_workspace/src/golang.org/x/crypto/openpgp/s2k"
+	"golang.org/x/crypto/openpgp/errors"
+	"golang.org/x/crypto/openpgp/s2k"
 )
 
 // SignatureV3 represents older version 3 signatures. These signatures are less secure

@@ -10,7 +10,7 @@ import (
 	"io"
 	"strings"
 
-	a "github.com/coreos/rocket/Godeps/_workspace/src/golang.org/x/net/html/atom"
+	a "golang.org/x/net/html/atom"
 )
 
 // A parser implements the HTML5 parsing algorithm:

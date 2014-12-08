@@ -18,7 +18,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/coreos/rocket/Godeps/_workspace/src/golang.org/x/net/html/atom"
+	"golang.org/x/net/html/atom"
 )
 
 // readParseTest reads a single test case from r.

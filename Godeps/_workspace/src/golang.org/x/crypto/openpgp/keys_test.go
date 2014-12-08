@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/rocket/Godeps/_workspace/src/golang.org/x/crypto/openpgp/packet"
+	"golang.org/x/crypto/openpgp/packet"
 )
 
 func TestKeyExpiry(t *testing.T) {

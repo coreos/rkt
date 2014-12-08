@@ -12,7 +12,7 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/coreos/rocket/Godeps/_workspace/src/golang.org/x/crypto/openpgp/errors"
+	"golang.org/x/crypto/openpgp/errors"
 )
 
 // Config collects configuration parameters for s2k key-stretching

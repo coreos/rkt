@@ -10,6 +10,8 @@ import (
 	"github.com/coreos/rocket/app-container/aci"
 	"github.com/coreos/rocket/app-container/schema"
 	"github.com/coreos/rocket/pkg/tarheader"
+
+	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/ghodss/yaml"
 )
 
 var (
@@ -150,14 +152,28 @@ func runBuild(args []string) (exit int) {
 			return 1
 		}
 	} else {
+		var am schema.AppManifest
+		var umerr error
+		amext := filepath.Ext(buildAppManifest)
 		b, err := ioutil.ReadFile(buildAppManifest)
 		if err != nil {
 			stderr("build: Unable to read App Manifest: %v", err)
 			return 1
 		}
-		var am schema.AppManifest
-		if err := am.UnmarshalJSON(b); err != nil {
-			stderr("build: Unable to load App Manifest: %v", err)
+
+		if amext == ".yml" {
+		   	 j, err := yaml.YAMLToJSON(b)
+		   	 if err != nil {
+				stderr("build: Unable to parse App Manifest YAML: %v", err)
+				return 1
+			}
+			umerr = am.UnmarshalJSON(j)
+		} else {
+			umerr = am.UnmarshalJSON(b)
+		}
+
+		if umerr != nil {
+			stderr("build: Unable to load App Manifest: %v", umerr)
 			return 1
 		}
 		aw = aci.NewAppWriter(am, tr)

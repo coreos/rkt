@@ -7,8 +7,8 @@ package packet
 import (
 	"crypto/rsa"
 	"encoding/binary"
-	"github.com/coreos/rocket/Godeps/_workspace/src/golang.org/x/crypto/openpgp/elgamal"
-	"github.com/coreos/rocket/Godeps/_workspace/src/golang.org/x/crypto/openpgp/errors"
+	"golang.org/x/crypto/openpgp/elgamal"
+	"golang.org/x/crypto/openpgp/errors"
 	"io"
 	"math/big"
 	"strconv"

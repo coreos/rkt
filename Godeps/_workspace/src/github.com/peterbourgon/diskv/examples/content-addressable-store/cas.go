@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/peterbourgon/diskv"
+	"github.com/peterbourgon/diskv"
 )
 
 const transformBlockSize = 2 // grouping of chars per directory depth

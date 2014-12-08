@@ -10,7 +10,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/coreos/rocket/Godeps/_workspace/src/golang.org/x/net/html"
+	"golang.org/x/net/html"
 )
 
 func ExampleParse() {

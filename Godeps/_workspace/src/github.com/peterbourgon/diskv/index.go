@@ -1,7 +1,7 @@
 package diskv
 
 import (
-	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/petar/GoLLRB/llrb"
+	"github.com/petar/GoLLRB/llrb"
 	"sync"
 )
 

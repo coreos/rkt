@@ -5,7 +5,7 @@
 package html
 
 import (
-	"github.com/coreos/rocket/Godeps/_workspace/src/golang.org/x/net/html/atom"
+	"golang.org/x/net/html/atom"
 )
 
 // A NodeType is the type of a Node.
