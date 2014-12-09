@@ -12,12 +12,14 @@ const (
 )
 
 type ImageManifest struct {
-	ACKind      types.ACKind      `json:"acKind"`
-	ACVersion   types.SemVer      `json:"acVersion"`
-	Name        types.ACName      `json:"name"`
-	Labels      types.Labels      `json:"labels"`
-	App         types.App         `json:"app"`
-	Annotations types.Annotations `json:"annotations"`
+	ACKind        types.ACKind       `json:"acKind"`
+	ACVersion     types.SemVer       `json:"acVersion"`
+	Name          types.ACName       `json:"name"`
+	Labels        types.Labels       `json:"labels"`
+	App           types.App          `json:"app"`
+	Annotations   types.Annotations  `json:"annotations"`
+	Dependencies  types.Dependencies `json:"dependencies"`
+	PathWhitelist []string           `json:"pathWhitelist"`
 }
 
 // appManifest is a model to facilitate extra validation during the
