@@ -44,32 +44,39 @@ func fetchURL(img string, ds *cas.Store) (string, error) {
 func fetchImage(img string, ds *cas.Store) (string, error) {
 	// discover if it isn't a URL
 	u, err := url.Parse(img)
-	if err == nil && u.Scheme == "" {
-		app, err := discovery.NewAppFromString(img)
-		if globalFlags.Debug && err != nil {
-			fmt.Printf("discovery: %s\n", err)
-		}
-		if err == nil {
-			ep, err := discovery.DiscoverEndpoints(*app, true)
-			if err != nil {
-				return "", err
-			}
-			// TODO(philips): use all available mirrors
-			if globalFlags.Debug {
-				fmt.Printf("fetch: trying %v\n", ep.ACI)
-			}
-			img = ep.ACI[0]
-			u, err = url.Parse(img)
-		}
-	}
 
-	if err != nil { // download if it isn't a URL
+	if err != nil {
 		return "", fmt.Errorf("%s: not a valid URL or hash", img)
 	}
-	if u.Scheme != "http" && u.Scheme != "https" {
+
+	switch u.Scheme {
+	case "http", "https":
+		return fetchURL(img, ds)
+	case "":
+		app, err := discovery.NewAppFromString(img)
+		if err != nil {
+			if globalFlags.Debug {
+				fmt.Printf("discovery: %s\n", err)
+			}
+			return "", err
+		}
+
+		ep, err := discovery.DiscoverEndpoints(*app, true)
+		if err != nil {
+			return "", err
+		}
+
+		// TODO(philips): use all available mirrors
+		if globalFlags.Debug {
+			fmt.Printf("fetch: trying %v\n", ep.ACI)
+		}
+
+		img = ep.ACI[0]
+		return fetchImage(img, ds)
+	default:
 		return "", fmt.Errorf("%s: rkt only supports http or https URLs", img)
+
 	}
-	return fetchURL(img, ds)
 }
 
 func runFetch(args []string) (exit int) {
