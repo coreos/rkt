@@ -97,20 +97,22 @@ Tar:
 		default:
 			return err
 		}
-		switch hdr.Name {
+		name := filepath.Clean(hdr.Name)
+		switch name {
+		case ".":
 		case "app":
 			_, err := io.Copy(&im, tr)
 			if err != nil {
 				return err
 			}
 			imOK = true
-		case "rootfs/":
+		case "rootfs":
 			if !hdr.FileInfo().IsDir() {
 				return fmt.Errorf("rootfs is not a directory")
 			}
 			rfsOK = true
 		default:
-			flist = append(flist, hdr.Name)
+			flist = append(flist, name)
 		}
 	}
 	return validate(imOK, &im, rfsOK, flist)
