@@ -6,7 +6,7 @@ The "App Container" defines an image format, image discovery mechanism and execu
 * Ensure images are cryptographically verifiable and highly-cacheable
 * Design for composability and independent implementations
 * Use common technologies for crypto, archive, compression and transport
-* Use the DNS namespace to name and discover container images
+* Use the DNS namespace to name and discover app container images
 
 To achieve these goals this specification is split out into a number of smaller sections.
 
@@ -23,7 +23,7 @@ To achieve these goals this specification is split out into a number of smaller 
 
 To provide context to the specs outlined below we will walk through an example.
 
-A user wants to launch a container running two processes.
+A user wants to launch a container running two processes in sub-containers.
 The two processes the user wants to run are the apps named `example.com/reduce-worker-register` and `example.com/reduce-worker`.
 First, the executor will check the cache and find that it doesn't have images available for these apps.
 So, it will make an HTTPS request to example.com and using the `<meta>` tags there finds that the containers can be found at:
@@ -34,9 +34,10 @@ So, it will make an HTTPS request to example.com and using the `<meta>` tags the
 The executor downloads these two images and puts them into its local on-disk cache.
 Then the executor extracts two fresh copies of the images to create instances of the "on-disk app format" and reads the two app manifests to figure out what binaries will need to be executed.
 
-Based on user input the executor now sets up the necessary cgroups, network interfaces, etc and forks the `register` and `reduce-worker` processes in their shared namespaces inside the container.
+Based on user input the executor creates a root-container with the new PID/network/etc namespaces.
+And it will create a sub-container for the `register` and `reduce-worker` apps with the correct app-specific isolators setup.
 
-At some point, the container will get some notification that it needs to stop. 
+At some point later, the executor will get some notification that it needs to stop the root-container.
 The executor will send `SIGTERM` to the processes and after they have exited the `post-stop` event handlers for each app will run.
 
 Now, let's dive into the pieces that took us from two URLs to a running container on our system.
@@ -146,12 +147,18 @@ These details are orthogonal to the runtime environment.
 
 #### Container Runtime Manifest
 
-A container executes one or more apps with shared PID namespace, network namespace, mount namespace, IPC namespace and UTS namespace.
-Each app will start pivoted (i.e. chrooted) into its own unique read-write rootfs before execution. 
-The definition of the container is a list of apps that should be launched together, along with isolators that should apply to the entire container.
-This is codified in a [Container Runtime Manifest](#container-runtime-manifest-schema).
+The executor starts at least two containers: the root-container and then a container for each app defined in the manifest.
+The app sub-containers share a PID namespace, network namespace, mount namespace, IPC namespace and UTS namespace.
+Each app will start pivoted (i.e. chrooted) into its own unique read-write rootfs before execution.
 
-This example container will use a set of three apps:
+The root-container has a list of apps that should be launched, along with isolators that should apply.
+Isolation applied to the root-container constrains all of the applications in aggregate and then each app can have its own constraints.
+For example a user might want to give 2GB to the root-container and guarantee 1.5GB to a particular app sub-container.
+Other app sub-containers under the root will share the 500MB that remains.
+
+These relationships are codified in a [Container Runtime Manifest](#container-runtime-manifest-schema).
+
+This example root-container will have three app sub-containers:
 
 | Name                               | Version | Image hash                                      |
 |------------------------------------|---------|-------------------------------------------------|
