@@ -7,8 +7,8 @@ import (
 	"io"
 	"path/filepath"
 
+	"github.com/appc/spec/aci"
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/peterbourgon/diskv"
-	"github.com/coreos/rocket/app-container/aci"
 	pkgio "github.com/coreos/rocket/pkg/io"
 )
 

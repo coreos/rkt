@@ -24,10 +24,10 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/appc/spec/aci"
+	"github.com/appc/spec/schema"
+	"github.com/appc/spec/schema/types"
 	"github.com/coreos/rocket/Godeps/_workspace/src/code.google.com/p/go-uuid/uuid"
-	"github.com/coreos/rocket/app-container/aci"
-	"github.com/coreos/rocket/app-container/schema"
-	"github.com/coreos/rocket/app-container/schema/types"
 	"github.com/coreos/rocket/cas"
 	rktpath "github.com/coreos/rocket/path"
 	ptar "github.com/coreos/rocket/pkg/tar"
