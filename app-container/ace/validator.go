@@ -307,7 +307,7 @@ func validateContainerMetadata(crm *schema.ContainerRuntimeManifest) results {
 	return append(r, validateContainerAnnotations(crm)...)
 }
 
-func validateAppAnnotations(crm *schema.ContainerRuntimeManifest, app *schema.AppImageManifest) results {
+func validateAppAnnotations(crm *schema.ContainerRuntimeManifest, app *schema.ImageManifest) results {
 	r := results{}
 
 	// build a map of expected annotations by merging app.Annotations
@@ -367,7 +367,7 @@ func validateAppMetadata(crm *schema.ContainerRuntimeManifest, a schema.RuntimeA
 		return append(r, err)
 	}
 
-	app := &schema.AppImageManifest{}
+	app := &schema.ImageManifest{}
 	if err = json.Unmarshal(am, app); err != nil {
 		return append(r, fmt.Errorf("failed to JSON-decode %q manifest: %v", string(appName), err))
 	}

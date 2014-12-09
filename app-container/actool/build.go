@@ -13,10 +13,10 @@ import (
 )
 
 var (
-	buildAppImageManifest string
-	buildRootfs           bool
-	buildOverwrite        bool
-	cmdBuild              = &Command{
+	buildImageManifest string
+	buildRootfs        bool
+	buildOverwrite     bool
+	cmdBuild           = &Command{
 		Name:        "build",
 		Description: "Build an ACI from the target directory",
 		Summary:     "Build an ACI from the target directory",
@@ -26,7 +26,7 @@ var (
 )
 
 func init() {
-	cmdBuild.Flags.StringVar(&buildAppImageManifest, "app-manifest", "",
+	cmdBuild.Flags.StringVar(&buildImageManifest, "app-manifest", "",
 		"Build an App Image with this App Manifest")
 	cmdBuild.Flags.BoolVar(&buildRootfs, "rootfs", true,
 		"Whether the supplied directory is a rootfs. If false, it will be assume the supplied directory already contains a rootfs/ subdirectory.")
@@ -97,7 +97,7 @@ func runBuild(args []string) (exit int) {
 		stderr("build: Must provide directory and output file")
 		return 1
 	}
-	if buildAppImageManifest == "" {
+	if buildImageManifest == "" {
 		stderr("build: must specify --app-manifest")
 		return 1
 	}
@@ -136,12 +136,12 @@ func runBuild(args []string) (exit int) {
 		}
 	}()
 
-	b, err := ioutil.ReadFile(buildAppImageManifest)
+	b, err := ioutil.ReadFile(buildImageManifest)
 	if err != nil {
 		stderr("build: Unable to read App Manifest: %v", err)
 		return 1
 	}
-	var am schema.AppImageManifest
+	var am schema.ImageManifest
 	if err := am.UnmarshalJSON(b); err != nil {
 		stderr("build: Unable to load App Manifest: %v", err)
 		return 1

@@ -120,8 +120,8 @@ func runValidate(args []string) (exit int) {
 				return 1
 			}
 			switch k.ACKind {
-			case "AppImageManifest":
-				m := schema.AppImageManifest{}
+			case "ImageManifest":
+				m := schema.ImageManifest{}
 				err = m.UnmarshalJSON(b)
 			case "ContainerRuntimeManifest":
 				m := schema.ContainerRuntimeManifest{}

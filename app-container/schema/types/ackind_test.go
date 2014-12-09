@@ -30,7 +30,7 @@ func TestACKindMarshalBad(t *testing.T) {
 
 func TestACKindMarshalGood(t *testing.T) {
 	for i, in := range []string{
-		"AppImageManifest",
+		"ImageManifest",
 		"ContainerRuntimeManifest",
 	} {
 		a := ACKind(in)

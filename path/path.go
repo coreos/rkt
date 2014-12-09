@@ -50,8 +50,8 @@ func RelAppRootfsPath(imageID types.Hash) string {
 	return filepath.Join(RelAppImagePath(imageID), "rootfs")
 }
 
-// AppImageManifestPath returns the path to the app's manifest file inside the expanded ACI.
+// ImageManifestPath returns the path to the app's manifest file inside the expanded ACI.
 // id should be the app image ID.
-func AppImageManifestPath(root string, imageID types.Hash) string {
+func ImageManifestPath(root string, imageID types.Hash) string {
 	return filepath.Join(AppImagePath(root, imageID), "app")
 }

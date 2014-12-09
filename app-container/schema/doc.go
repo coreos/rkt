@@ -5,7 +5,7 @@ package schema
    Package schema provides definitions for the JSON schema of the different
    manifests in the App Container Standard. The manifests are canonically
    represented in their respective structs:
-     - `AppImageManifest`
+     - `ImageManifest`
      - `ContainerRuntimeManifest`
 
    Validation is performed through serialization: if a blob of JSON data will

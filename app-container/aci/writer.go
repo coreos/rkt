@@ -20,13 +20,13 @@ type ArchiveWriter interface {
 
 type appArchiveWriter struct {
 	*tar.Writer
-	am *schema.AppImageManifest
+	am *schema.ImageManifest
 }
 
 // NewAppWriter creates a new ArchiveWriter which will generate an App
 // Container Image based on the given manifest and write it to the given
 // tar.Writer
-func NewAppWriter(am schema.AppImageManifest, w *tar.Writer) ArchiveWriter {
+func NewAppWriter(am schema.ImageManifest, w *tar.Writer) ArchiveWriter {
 	aw := &appArchiveWriter{
 		w,
 		&am,

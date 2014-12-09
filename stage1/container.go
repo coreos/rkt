@@ -18,11 +18,11 @@ import (
 	rktpath "github.com/coreos/rocket/path"
 )
 
-// Container encapsulates a ContainerRuntimeManifest and AppImageManifests
+// Container encapsulates a ContainerRuntimeManifest and ImageManifests
 type Container struct {
 	Root     string // root directory where the container will be located
 	Manifest *schema.ContainerRuntimeManifest
-	Apps     map[string]*schema.AppImageManifest
+	Apps     map[string]*schema.ImageManifest
 }
 
 // LoadContainer loads a Container Runtime Manifest (as prepared by stage0) and
@@ -30,7 +30,7 @@ type Container struct {
 func LoadContainer(root string) (*Container, error) {
 	c := &Container{
 		Root: root,
-		Apps: make(map[string]*schema.AppImageManifest),
+		Apps: make(map[string]*schema.ImageManifest),
 	}
 
 	buf, err := ioutil.ReadFile(rktpath.ContainerManifestPath(c.Root))
@@ -45,13 +45,13 @@ func LoadContainer(root string) (*Container, error) {
 	c.Manifest = cm
 
 	for _, app := range c.Manifest.Apps {
-		ampath := rktpath.AppImageManifestPath(c.Root, app.ImageID)
+		ampath := rktpath.ImageManifestPath(c.Root, app.ImageID)
 		buf, err := ioutil.ReadFile(ampath)
 		if err != nil {
 			return nil, fmt.Errorf("failed reading app manifest %q: %v", ampath, err)
 		}
 
-		am := &schema.AppImageManifest{}
+		am := &schema.ImageManifest{}
 		if err = json.Unmarshal(buf, am); err != nil {
 			return nil, fmt.Errorf("failed unmarshalling app manifest %q: %v", ampath, err)
 		}
@@ -66,7 +66,7 @@ func LoadContainer(root string) (*Container, error) {
 }
 
 // appToSystemd transforms the provided app manifest into systemd units
-func (c *Container) appToSystemd(am *schema.AppImageManifest, id types.Hash) error {
+func (c *Container) appToSystemd(am *schema.ImageManifest, id types.Hash) error {
 	name := am.Name.String()
 	app := am.App
 	execStart := strings.Join(app.Exec, " ")
@@ -185,7 +185,7 @@ func (c *Container) ContainerToSystemd() error {
 
 // appToNspawnArgs transforms the given app manifest, with the given associated
 // app image id, into a subset of applicable systemd-nspawn argument
-func (c *Container) appToNspawnArgs(am *schema.AppImageManifest, id types.Hash) ([]string, error) {
+func (c *Container) appToNspawnArgs(am *schema.ImageManifest, id types.Hash) ([]string, error) {
 	args := []string{}
 	name := am.Name.String()
 

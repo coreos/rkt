@@ -250,8 +250,8 @@ func unpackBuiltinRootfs(dir string) error {
 // setupImage attempts to load the image by the given hash from the store,
 // verifies that the image matches the given hash and extracts the image
 // into a directory in the given dir.
-// It returns the AppImageManifest that the image contains
-func setupImage(cfg Config, img types.Hash, dir string) (*schema.AppImageManifest, error) {
+// It returns the ImageManifest that the image contains
+func setupImage(cfg Config, img types.Hash, dir string) (*schema.ImageManifest, error) {
 	log.Println("Loading image", img.String())
 
 	rs, err := cfg.Store.ReadStream(img.String())
@@ -289,7 +289,7 @@ func setupImage(cfg Config, img types.Hash, dir string) (*schema.AppImageManifes
 		return nil, fmt.Errorf("error creating tmp directory: %v", err)
 	}
 
-	mpath := rktpath.AppImageManifestPath(dir, img)
+	mpath := rktpath.ImageManifestPath(dir, img)
 	f, err := os.Open(mpath)
 	if err != nil {
 		return nil, fmt.Errorf("error opening app manifest: %v", err)
@@ -298,7 +298,7 @@ func setupImage(cfg Config, img types.Hash, dir string) (*schema.AppImageManifes
 	if err != nil {
 		return nil, fmt.Errorf("error reading app manifest: %v", err)
 	}
-	var am schema.AppImageManifest
+	var am schema.ImageManifest
 	if err := json.Unmarshal(b, &am); err != nil {
 		return nil, fmt.Errorf("error unmarshaling app manifest: %v", err)
 	}

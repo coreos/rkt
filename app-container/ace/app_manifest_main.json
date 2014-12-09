@@ -1,6 +1,6 @@
 {
     "acVersion": "1.0.0",
-    "acKind": "AppImageManifest",
+    "acKind": "ImageManifest",
     "name": "coreos.com/ace-validator-main",
     "labels": [
         { "name": "version", "val": "1.0.0" },

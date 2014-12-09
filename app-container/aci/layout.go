@@ -125,7 +125,7 @@ func validate(amOK bool, am io.Reader, rfsOK bool, files []string) error {
 		if err != nil {
 			return fmt.Errorf("error reading app manifest: %v", err)
 		}
-		var a schema.AppImageManifest
+		var a schema.ImageManifest
 		if err := a.UnmarshalJSON(b); err != nil {
 			return fmt.Errorf("app manifest validation failed: %v", err)
 		}
@@ -138,14 +138,14 @@ func validate(amOK bool, am io.Reader, rfsOK bool, files []string) error {
 	return nil
 }
 
-// validateAppImageManifest ensures that the given io.Reader represents a valid
-// AppImageManifest.
-func validateAppImageManifest(r io.Reader) error {
+// validateImageManifest ensures that the given io.Reader represents a valid
+// ImageManifest.
+func validateImageManifest(r io.Reader) error {
 	b, err := ioutil.ReadAll(r)
 	if err != nil {
 		return fmt.Errorf("error reading app manifest: %v", err)
 	}
-	var am schema.AppImageManifest
+	var am schema.ImageManifest
 	if err = json.Unmarshal(b, &am); err != nil {
 		return fmt.Errorf("error unmarshaling app manifest: %v", err)
 	}

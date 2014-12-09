@@ -361,7 +361,7 @@ JSON Schema for the App Image Manifest
 
 ```
 {
-    "acKind": "AppImageManifest",
+    "acKind": "ImageManifest",
     "acVersion": "0.1.0",
     "name": "example.com/reduce-worker",
     "labels": [
@@ -468,7 +468,7 @@ JSON Schema for the App Image Manifest
 }
 ```
 
-* **acKind** is required and must be set to "AppImageManifest"
+* **acKind** is required and must be set to "ImageManifest"
 * **acVersion** is required and represents the version of the schema specification that the manifest implements (string, must be in [semver](http://semver.org/) format)
 * **name** is required, and will be used as a human readable index to the container image. (string, restricted to the AC Name formatting)
 * **labels** are optional, and should be a list of label objects (where the *name* is restricted to the AC Name formatting and *val* is an arbitrary string). Labels are used during image discovery and dependency resolution. Several well-known labels are defined:
@@ -489,7 +489,7 @@ JSON Schema for the App Image Manifest
 * **dependencies** list of dependent application images that need to be placed down into the rootfs before the files from this image (if any). The ordering is significant. See [Dependency Matching](#dependency-matching) for how dependencies should be retrieved.
     * **name** name of the dependent app image (required).
     * **hash** content hash of the dependency (optional). If provided, the retrieved dependency must match the hash. This can be used to produce deterministic, repeatable builds of an AppImage that has dependencies.
-    * **labels* are optional, and should be a list of label objects of the same form as in the top level AppImageManifest. See [Dependency Matching](#dependency-matching) for how these are used.
+    * **labels* are optional, and should be a list of label objects of the same form as in the top level ImageManifest. See [Dependency Matching](#dependency-matching) for how these are used.
 * **pathWhitelist** (optional, list of strings). This is the complete whitelist of paths that should exist in the rootfs after assembly (i.e. unpacking the files in this image and overlaying its dependencies, in order). Paths that end in slash will ensure the directory is present but empty. This field is only required if the app has dependencies and you wish to remove files from the rootfs before running the container; an empty value means that all files in this image and any dependencies will be available in the rootfs.
 * **annotations** key/value store that can be used by systems outside of the ACE (ACE can override). The key is restricted to the [AC Name](#ac-name-type) formatting. If you are defining new annotations, please consider submitting them to the specification. If you intend for your field to remain special to your application please be a good citizen and prefix an appropriate namespace to your key names. Recognized annotations include:
     * **created** is the date on which this container was built (string, must be in [RFC3339](https://www.ietf.org/rfc/rfc3339.txt) format)
@@ -505,10 +505,10 @@ If any labels are specified in the dependency, they are passed to the image disc
 
 If the image discovery process successfully returns an image, it will be compared as follows
 If the dependency specification has a hash, it will be compared against the image returned, and must match.
-Otherwise, the labels in the dependency specification are compared against the labels in the retrieved app image (i.e. in its AppImageManifest), and must match.
+Otherwise, the labels in the dependency specification are compared against the labels in the retrieved app image (i.e. in its ImageManifest), and must match.
 A label is considered to match if it meets one of three criteria:
-- It is present in the dependency specification and present in the dependency's AppImageManifest with the same value.
-- It is absent from the dependency specification and present in the dependency's AppImageManifest, with any value.
+- It is present in the dependency specification and present in the dependency's ImageManifest with the same value.
+- It is absent from the dependency specification and present in the dependency's ImageManifest, with any value.
 This facilitates "wildcard" matching and a variety of common usage patterns, like "noarch" or "latest" dependencies.
 For example, an AppImage containing a set of bash scripts might omit both "os" and "arch", and hence could be used as a dependency by a variety of different AppImages.
 Alternatively, an AppImage might specify a dependency with no hash and no "version" label, and the image discovery mechanism could always retrieve the latest version of an AppImage
