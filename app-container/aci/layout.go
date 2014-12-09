@@ -47,19 +47,22 @@ func ValidateLayout(dir string) error {
 		return fmt.Errorf("given path %q is not a directory", dir)
 	}
 	var flist []string
-	var amOK, rfsOK bool
-	var am io.Reader
+	var imOK, rfsOK bool
+	var im io.Reader
 	walkLayout := func(fpath string, fi os.FileInfo, err error) error {
-		rpath := strings.TrimPrefix(fpath, dir)
+		rpath, err := filepath.Rel(dir, fpath)
+		if err != nil {
+			return err
+		}
 		name := filepath.Base(rpath)
 		switch name {
 		case ".":
 		case "app":
-			am, err = os.Open(fpath)
+			im, err = os.Open(fpath)
 			if err != nil {
 				return err
 			}
-			amOK = true
+			imOK = true
 		case "rootfs":
 			if !fi.IsDir() {
 				return errors.New("rootfs is not a directory")
@@ -73,7 +76,7 @@ func ValidateLayout(dir string) error {
 	if err := filepath.Walk(dir, walkLayout); err != nil {
 		return err
 	}
-	return validate(amOK, am, rfsOK, flist)
+	return validate(imOK, im, rfsOK, flist)
 }
 
 // ValidateLayout takes a *tar.Reader and validates that the layout of the
@@ -82,8 +85,8 @@ func ValidateLayout(dir string) error {
 // the validation, it will abort and return the first one.
 func ValidateArchive(tr *tar.Reader) error {
 	var flist []string
-	var amOK, rfsOK bool
-	var am bytes.Buffer
+	var imOK, rfsOK bool
+	var im bytes.Buffer
 Tar:
 	for {
 		hdr, err := tr.Next()
@@ -96,11 +99,11 @@ Tar:
 		}
 		switch hdr.Name {
 		case "app":
-			_, err := io.Copy(&am, tr)
+			_, err := io.Copy(&im, tr)
 			if err != nil {
 				return err
 			}
-			amOK = true
+			imOK = true
 		case "rootfs/":
 			if !hdr.FileInfo().IsDir() {
 				return fmt.Errorf("rootfs is not a directory")
@@ -110,25 +113,23 @@ Tar:
 			flist = append(flist, hdr.Name)
 		}
 	}
-	return validate(amOK, &am, rfsOK, flist)
+	return validate(imOK, &im, rfsOK, flist)
 }
 
-func validate(amOK bool, am io.Reader, rfsOK bool, files []string) error {
-	if !amOK {
+func validate(imOK bool, im io.Reader, rfsOK bool, files []string) error {
+	if !imOK {
 		return ErrNoManifest
 	}
-	if amOK {
-		if !rfsOK {
-			return ErrNoRootFS
-		}
-		b, err := ioutil.ReadAll(am)
-		if err != nil {
-			return fmt.Errorf("error reading app manifest: %v", err)
-		}
-		var a schema.ImageManifest
-		if err := a.UnmarshalJSON(b); err != nil {
-			return fmt.Errorf("app manifest validation failed: %v", err)
-		}
+	if !rfsOK {
+		return ErrNoRootFS
+	}
+	b, err := ioutil.ReadAll(im)
+	if err != nil {
+		return fmt.Errorf("error reading app manifest: %v", err)
+	}
+	var a schema.ImageManifest
+	if err := a.UnmarshalJSON(b); err != nil {
+		return fmt.Errorf("app manifest validation failed: %v", err)
 	}
 	for _, f := range files {
 		if !strings.HasPrefix(f, "rootfs") {
@@ -145,8 +146,8 @@ func validateImageManifest(r io.Reader) error {
 	if err != nil {
 		return fmt.Errorf("error reading app manifest: %v", err)
 	}
-	var am schema.ImageManifest
-	if err = json.Unmarshal(b, &am); err != nil {
+	var im schema.ImageManifest
+	if err = json.Unmarshal(b, &im); err != nil {
 		return fmt.Errorf("error unmarshaling app manifest: %v", err)
 	}
 	return nil
