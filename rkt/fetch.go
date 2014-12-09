@@ -54,8 +54,11 @@ func fetchImage(img string, ds *cas.Store) (string, error) {
 		return fetchURL(img, ds)
 	case "":
 		app, err := discovery.NewAppFromString(img)
-		if globalFlags.Debug && err != nil {
-			fmt.Printf("discovery: %s\n", err)
+		if err != nil {
+			if globalFlags.Debug {
+				fmt.Printf("discovery: %s\n", err)
+			}
+			return "", err
 		}
 
 		ep, err := discovery.DiscoverEndpoints(*app, true)
