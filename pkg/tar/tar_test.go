@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -70,6 +71,7 @@ func TestExtractTarInsecureSymlink(t *testing.T) {
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
+
 		defer os.Remove(testTarPath)
 		containerTar, err := os.Open(testTarPath)
 		if err != nil {
@@ -89,5 +91,56 @@ func TestExtractTarInsecureSymlink(t *testing.T) {
 		if _, ok := err.(insecureLinkError); !ok {
 			t.Errorf("expected insecureSymlinkError error")
 		}
+	}
+}
+
+func TestExtractTarFolders(t *testing.T) {
+	entries := []*testTarEntry{
+		{
+			contents: "foo",
+			header: &tar.Header{
+				Name: "deep/folder/foo.txt",
+				Size: 3,
+			},
+		},
+		{
+			contents: "bar",
+			header: &tar.Header{
+				Name: "deep/folder/bar.txt",
+				Size: 3,
+			},
+		},
+	}
+
+	testTarPath, err := newTestTar(entries)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	defer os.Remove(testTarPath)
+	containerTar, err := os.Open(testTarPath)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	tr := tar.NewReader(containerTar)
+	tmpdir, err := ioutil.TempDir("", "rocket-temp-dir")
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	os.RemoveAll(tmpdir)
+	err = os.MkdirAll(tmpdir, 0755)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	err = ExtractTar(tr, tmpdir)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	matches, err := filepath.Glob(filepath.Join(tmpdir, "deep/folder/*.txt"))
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if len(matches) != 2 {
+		t.Errorf("unexpected number of files found: %d, wanted 2", len(matches))
 	}
 }
