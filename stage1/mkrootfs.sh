@@ -394,23 +394,36 @@ EOF
 chmod 755 "${ROOTDIR}/reaper.sh"
 
 # LD_PRELOAD shim to trick the sd_booted() "/run/systemd/system" check in systemd-nspawn
-gcc -shared -fPIC -x c -pipe -Wl,--no-as-needed -ldl -o ${ROOTDIR}/fakesdboot.so - <<'EOF'
+# XXX abused further for lockfd retention
+gcc -shared -fPIC -x c -pipe -Wl,--no-as-needed -ldl -lc -o ${ROOTDIR}/fakesdboot.so - <<'EOF'
 #define _GNU_SOURCE
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <string.h>
 #include <dlfcn.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 
 /* hack to make systemd-nspawn execute on non-sysd systems:
- * intercept lstat() so lstat of /run/systemd/system always succeeds and returns a directory
+ * - intercept lstat() so lstat of /run/systemd/system always succeeds and returns a directory
+ * - intercept close() to prevent nspawn closing the rkt lock, set it to CLOEXEC instead
  */
 
+#define ENV_LOCKFD	"RKT_LOCK_FD"
+
 static int (*libc_lxstat)(int, const char *, struct stat *);
+static int (*libc_close)(int);
+static int lock_fd = -1;
 
 static __attribute__((constructor)) void wrapper_init(void)
 {
+	char *env;
+	if(env = getenv(ENV_LOCKFD))
+		lock_fd = atoi(env);
 	libc_lxstat = dlsym(RTLD_NEXT, "__lxstat");
+	libc_close = dlsym(RTLD_NEXT, "close");
 }
 
 int __lxstat(int ver, const char *path, struct stat *stat)
@@ -423,6 +436,14 @@ int __lxstat(int ver, const char *path, struct stat *stat)
 	}
 
 	return ret;
+}
+
+int close(int fd)
+{
+	if(lock_fd != -1 && fd == lock_fd)
+		return fcntl(fd, F_SETFD, FD_CLOEXEC);
+
+	return libc_close(fd);
 }
 EOF
 

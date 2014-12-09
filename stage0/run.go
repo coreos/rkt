@@ -38,7 +38,8 @@ import (
 )
 
 const (
-	initPath = "stage1/init"
+	initPath  = "stage1/init"
+	envLockFd = "RKT_LOCK_FD"
 )
 
 type Config struct {
@@ -73,6 +74,10 @@ func Setup(cfg Config) (string, error) {
 
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return "", fmt.Errorf("error creating directory: %v", err)
+	}
+
+	if err := lockDir(dir); err != nil {
+		return "", fmt.Errorf("error locking directory: %v", err)
 	}
 
 	log.Printf("Unpacking stage1 rootfs")
@@ -187,6 +192,19 @@ func Run(dir string, debug bool) {
 	if err := syscall.Exec(initPath, args, os.Environ()); err != nil {
 		log.Fatalf("error execing init: %v", err)
 	}
+}
+
+func lockDir(dir string) error {
+	fd, err := syscall.Open(dir, syscall.O_DIRECTORY, 0)
+	if err != nil {
+		return fmt.Errorf("error opening directory: %v", err)
+	}
+
+	if err := syscall.Flock(fd, syscall.LOCK_NB|syscall.LOCK_EX); err != nil {
+		return fmt.Errorf("error acquiring lock on dir %q: %v", dir, err)
+	}
+
+	return os.Setenv(envLockFd, fmt.Sprintf("%v", fd))
 }
 
 func untarRootfs(r io.Reader, dir string) error {
