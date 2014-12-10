@@ -38,22 +38,35 @@ Edit: manifest.json
 
 ```
 {
-    "acVersion": "1.0.0",
-    "acKind": "AppManifest",
+    "acKind": "ImageManifest",
+    "acVersion": "0.1.0",
     "name": "coreos.com/hello-1.0.0",
-    "version": "1.0.0",
-    "os": "linux",
-    "arch": "amd64",
-    "exec": [
-        "/bin/hello"
+    "labels": [
+        {
+            "name": "version",
+            "val": "1.0.0"
+        },
+        {
+            "name": "arch",
+            "val": "amd64"
+        },
+        {
+            "name": "os",
+            "val": "linux"
+        }
     ],
-    "ports": [
+    "app": {
+        "exec": [
+            "/bin/hello"
+        ],
+        "ports": [
         {
             "name": "www",
             "protocol": "tcp",
             "port": 5000
         }
-    ],
+        ]
+    },
     "annotations": {
         "authors": "Kelsey Hightower <kelsey.hightower@gmail.com>"
     }
