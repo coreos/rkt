@@ -1,6 +1,7 @@
 package cas
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/sha256"
 	"fmt"
@@ -9,7 +10,6 @@ import (
 
 	"github.com/appc/spec/aci"
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/peterbourgon/diskv"
-	pkgio "github.com/coreos/rocket/pkg/io"
 )
 
 // TODO(philips): use a database for the secondary indexes like remoteType and
@@ -54,55 +54,40 @@ func (ds Store) WriteStream(key string, r io.Reader) error {
 }
 
 func (ds Store) WriteACI(tmpKey string, orig io.Reader) (string, error) {
-	// We initially write the ACI into the store using a temporary key,
-	// teeing a header so we can detect the filetype for decompression
-	hdr := &bytes.Buffer{}
-	hw := &pkgio.LimitedWriter{
-		W: hdr,
-		N: 512,
+	// Peek at the first 512 bytes of the reader to detect filetype
+	br := bufio.NewReaderSize(orig, 512)
+	hd, err := br.Peek(512)
+	switch err {
+	case nil:
+	case io.EOF: // We may have still peeked enough to guess some types, so fall through
+	default:
+		return "", err
 	}
-	tr := io.TeeReader(orig, hw)
-
-	err := ds.stores[tmpType].WriteStream(tmpKey, tr, true)
+	typ, err := aci.DetectFileType(bytes.NewBuffer(hd))
+	if err != nil {
+		return "", err
+	}
+	dr, err := decompress(br, typ)
+	if err != nil {
+		return "", err
+	}
+	// Write the uncompressed image (tar) into the store, and tee so we can generate the hash
+	hash := sha256.New()
+	tr := io.TeeReader(dr, hash)
+	err = ds.stores[tmpType].WriteStream(tmpKey, tr, true)
 	if err != nil {
 		return "", err
 	}
 
-	// Now detect the filetype so we can choose the appropriate decompressor
-	typ, err := aci.DetectFileType(hdr)
-	if err != nil {
-		return "", err
-	}
-	// Read the image back out of the store to generate the hash of the decompressed tar
+	// Store the decompressed tar using the hash as the real key
 	rs, err := ds.stores[tmpType].ReadStream(tmpKey, false)
 	if err != nil {
 		return "", err
 	}
 	defer rs.Close()
 
-	dr, err := decompress(rs, typ)
-	if err != nil {
-		return "", err
-	}
-	hash := sha256.New()
-	_, err = io.Copy(hash, dr)
-	if err != nil {
-		return "", err
-	}
-
-	// Store the decompressed tar using the hash as the real key
-	rs, err = ds.stores[tmpType].ReadStream(tmpKey, false)
-	if err != nil {
-		return "", err
-	}
-	defer rs.Close()
-	dr, err = decompress(rs, typ)
-	if err != nil {
-		return "", err
-	}
-
 	key := fmt.Sprintf("sha256-%x", hash.Sum(nil))
-	err = ds.stores[blobType].WriteStream(key, dr, true)
+	err = ds.stores[blobType].WriteStream(key, rs, true)
 	if err != nil {
 		return "", err
 	}
