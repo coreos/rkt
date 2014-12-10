@@ -12,6 +12,8 @@ before_install:
 install:
  - go get code.google.com/p/go.tools/cmd/cover
  - go get code.google.com/p/go.tools/cmd/vet
+ - go get github.com/appc/spec/schema
+ - go get github.com/appc/spec/schema/types
  - go get github.com/jteeuwen/go-bindata/...
 
 script:

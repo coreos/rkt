@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/coreos/rocket/app-container/discovery"
+	"github.com/appc/spec/discovery"
 	"github.com/coreos/rocket/cas"
 )
 

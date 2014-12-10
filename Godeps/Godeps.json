@@ -38,21 +38,6 @@
 		{
 			"ImportPath": "github.com/peterbourgon/diskv",
 			"Rev": "fbec614921b11c91804b7ea07ad4e53647ad0d94"
-		},
-		{
-			"ImportPath": "golang.org/x/crypto/cast5",
-			"Comment": "null-236",
-			"Rev": "69e2a90ed92d03812364aeb947b7068dc42e561e"
-		},
-		{
-			"ImportPath": "golang.org/x/crypto/openpgp",
-			"Comment": "null-236",
-			"Rev": "69e2a90ed92d03812364aeb947b7068dc42e561e"
-		},
-		{
-			"ImportPath": "golang.org/x/net/html",
-			"Comment": "null-223",
-			"Rev": "5dedbdc181629d2f3557caf2667e60eb82c5e6d7"
 		}
 	]
 }

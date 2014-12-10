@@ -14,8 +14,8 @@ contribution. See the [DCO](DCO) file for details.
 
 # Email and Chat
 
-The project currently uses the general CoreOS email list and IRC channel:
-- Email: [coreos-dev](https://groups.google.com/forum/#!forum/coreos-dev)
+The project has a mailing list and currently uses the general CoreOS IRC channel:
+- Email: [rocket-dev](https://groups.google.com/forum/#!forum/rocket-dev)
 - IRC: #[coreos](irc://irc.freenode.org:6667/#coreos) IRC channel on freenode.org
 
 Please avoid emailing maintainers found in the MAINTAINERS file directly. They

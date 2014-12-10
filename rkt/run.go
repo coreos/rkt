@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/coreos/rocket/app-container/schema/types"
+	"github.com/appc/spec/schema/types"
 	"github.com/coreos/rocket/cas"
 	"github.com/coreos/rocket/stage0"
 )

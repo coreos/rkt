@@ -2,7 +2,7 @@
 
 The following guide will show you how to build and run a self-contained Go app
 using rocket, the reference implementation of the [App Container
-Specification](https://github.com/coreos/rocket/tree/master/app-container).
+Specification](https://github.com/appc/spec).
 
 ## Create a hello go application
 

@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/appc/spec/schema/types"
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/mitchellh/ioprogress"
-	"github.com/coreos/rocket/app-container/schema/types"
 )
 
 func NewRemote(name string, mirrors []string) *Remote {
