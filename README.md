@@ -42,8 +42,8 @@ These files are now written to disk:
 $ find /var/lib/rkt/cas/blob/
 /var/lib/rkt/cas/blob/
 /var/lib/rkt/cas/blob/sha256
-/var/lib/rkt/cas/blob/sha256/70
-/var/lib/rkt/cas/blob/sha256/70/sha256-f9215c18b86f406c7cec4c7b45fd8752b5bfd1a492507d647821c2ce593fbf31
+/var/lib/rkt/cas/blob/sha256/f9
+/var/lib/rkt/cas/blob/sha256/f9/sha256-f9215c18b86f406c7cec4c7b45fd8752b5bfd1a492507d647821c2ce593fbf31
 ```
 
 Per the App Container [spec](app-container/SPEC.md#image-archives) the SHA-256 is of the tarball, which is reproducible with other tools:
