@@ -1,4 +1,4 @@
-_SUBDIRS=usr shim
+_SUBDIRS=usr shim enter
 SUBDIRS=$(_SUBDIRS) aggregate
 export CFLAGS=-Wall -Os
 
