@@ -47,6 +47,13 @@ func ExtractTar(tr *tar.Reader, dir string) error {
 				if err := os.MkdirAll(p, fi.Mode()); err != nil {
 					return err
 				}
+				dir, err := os.Open(p)
+				if err != nil {
+					return err
+				}
+				if err := dir.Chmod(fi.Mode()); err != nil {
+					return err
+				}
 			case typ == tar.TypeLink:
 				dest := filepath.Join(dir, hdr.Linkname)
 				if !strings.HasPrefix(dest, dir) {
