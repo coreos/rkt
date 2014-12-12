@@ -16,28 +16,16 @@ vagrant up --provider virtualbox
 vagrant ssh
 sudo su
 
-curl -L https://github.com/coreos/rocket/releases/download/v0.1.0/rocket-v0.1.0.tar.gz -o rocket-v0.1.0.tar.gz
-tar xzvf rocket-v0.1.0.tar.gz
-cd rocket-v0.1.0
+curl -L https://github.com/coreos/rocket/releases/download/v0.1.1/rocket-v0.1.1.tar.gz -o rocket-v0.1.1.tar.gz
+tar xzvf rocket-v0.1.1.tar.gz
+cd rocket-v0.1.1
 ./rkt fetch https://github.com/coreos/etcd/releases/download/v0.5.0-alpha.4/etcd-v0.5.0-alpha.4-linux-amd64.aci
 
 ```
 
-## Attempt to Run the ACI and Install seccomp
+## Run the ACI
 
-With the default Trusty configuration, you may encounter an error about a missing package for [seccomp](http://sourceforge.net/projects/libseccomp/). 
-
-```
-./rkt run https://github.com/coreos/etcd/releases/download/v0.5.0-alpha.4/etcd-v0.5.0-alpha.4-linux-amd64.aci
-stage1/usr/bin/systemd-nspawn: error while loading shared libraries: libseccomp.so.2: cannot open shared object file: No such file or directory
-
-```
-
-To address the issue, use apt-get to install libseccomp-dev
-
-`apt-get install libseccomp-dev`
-
-Now try running the container again and you should see output like this:
+Now try running the container and you should see output like this:
 
 ```
 ./rkt run https://github.com/coreos/etcd/releases/download/v0.5.0-alpha.4/etcd-v0.5.0-alpha.4-linux-amd64.aci
