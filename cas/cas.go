@@ -122,7 +122,7 @@ func (ds Store) ReadIndex(i Index) error {
 func (ds Store) Dump(hex bool) {
 	for _, s := range ds.stores {
 		var keyCount int
-		for key := range s.Keys() {
+		for key := range s.Keys(nil) {
 			val, err := s.Read(key)
 			if err != nil {
 				panic(fmt.Sprintf("key %s had no value", key))

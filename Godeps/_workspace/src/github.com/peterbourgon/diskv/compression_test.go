@@ -16,7 +16,6 @@ func init() {
 func testCompressionWith(t *testing.T, c Compression, name string) {
 	d := New(Options{
 		BasePath:     "compression-test",
-		Transform:    func(string) []string { return []string{""} },
 		CacheSizeMax: 0,
 		Compression:  c,
 	})

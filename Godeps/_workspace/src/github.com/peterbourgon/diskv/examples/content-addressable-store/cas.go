@@ -43,7 +43,7 @@ func main() {
 	}
 
 	var keyCount int
-	for key := range d.Keys() {
+	for key := range d.Keys(nil) {
 		val, err := d.Read(key)
 		if err != nil {
 			panic(fmt.Sprintf("key %s had no value", key))
