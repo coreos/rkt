@@ -36,9 +36,8 @@ func NewStore(base string) *Store {
 
 	for i, p := range otmap {
 		ds.stores[i] = diskv.New(diskv.Options{
-			BasePath:     filepath.Join(base, "cas", p),
-			Transform:    blockTransform,
-			CacheSizeMax: 1024 * 1024, // 1MB
+			BasePath:  filepath.Join(base, "cas", p),
+			Transform: blockTransform,
 		})
 	}
 
