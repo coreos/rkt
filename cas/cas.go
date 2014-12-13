@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"path/filepath"
 
 	"github.com/appc/spec/aci"
@@ -17,7 +18,6 @@ import (
 const (
 	blobType int64 = iota
 	remoteType
-	tmpType
 )
 
 var otmap = [...]string{
@@ -27,12 +27,15 @@ var otmap = [...]string{
 }
 
 type Store struct {
+	base   string
 	stores []*diskv.Diskv
 }
 
 func NewStore(base string) *Store {
-	ds := &Store{}
-	ds.stores = make([]*diskv.Diskv, len(otmap))
+	ds := &Store{
+		base:   base,
+		stores: make([]*diskv.Diskv, len(otmap)),
+	}
 
 	for i, p := range otmap {
 		ds.stores[i] = diskv.New(diskv.Options{
@@ -70,28 +73,26 @@ func (ds Store) WriteACI(tmpKey string, orig io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// Write the uncompressed image (tar) into the store, and tee so we can generate the hash
+
+	// Write the uncompressed image (tar) to a temporary file on disk, and
+	// tee so we can generate the hash
 	hash := sha256.New()
 	tr := io.TeeReader(dr, hash)
-	err = ds.stores[tmpType].WriteStream(tmpKey, tr, true)
+	fh, err := ioutil.TempFile(ds.base, "tmp-")
 	if err != nil {
 		return "", err
 	}
-
-	// Store the decompressed tar using the hash as the real key
-	rs, err := ds.stores[tmpType].ReadStream(tmpKey, false)
-	if err != nil {
+	if _, err := io.Copy(fh, tr); err != nil {
 		return "", err
 	}
-	defer rs.Close()
+	fh.Close()
 
+	// Import the decompressed tar to the store using the hash as the key
 	key := fmt.Sprintf("sha256-%x", hash.Sum(nil))
-	err = ds.stores[blobType].WriteStream(key, rs, true)
+	err = ds.stores[blobType].Import(fh.Name(), key, true)
 	if err != nil {
 		return "", err
 	}
-
-	ds.stores[tmpType].Erase(tmpKey)
 
 	return key, nil
 }
