@@ -90,6 +90,10 @@ func getFlags(flagset *flag.FlagSet) (flags []*flag.Flag) {
 	return
 }
 
-func containersDir(rktDir string) string {
-	return filepath.Join(rktDir, "containers")
+func containersDir() string {
+	return filepath.Join(globalFlags.Dir, "containers")
+}
+
+func garbageDir() string {
+	return filepath.Join(globalFlags.Dir, "garbage")
 }

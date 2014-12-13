@@ -199,14 +199,17 @@ func Run(dir string, debug bool) {
 func lockDir(dir string) error {
 	l, err := lock.NewLock(dir)
 	if err == nil {
-		err = l.ExclusiveLockNB()
+		err = l.TryExclusiveLock()
 	}
 
 	if err != nil {
 		return fmt.Errorf("error acquiring lock on dir %q: %v", dir, err)
 	}
 	// We need the fd number for stage1 and leave the file open / lock held til process exit
-	fd, _ := l.FD()
+	fd, err := l.Fd()
+	if err != nil {
+		panic(err)
+	}
 	return os.Setenv(envLockFd, fmt.Sprintf("%v", fd))
 }
 

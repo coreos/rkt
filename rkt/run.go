@@ -87,11 +87,10 @@ func runRun(args []string) (exit int) {
 		fmt.Fprintf(os.Stderr, "run: Must provide at least one image\n")
 		return 1
 	}
-	gdir := globalFlags.Dir
-	if gdir == "" {
+	if globalFlags.Dir == "" {
 		log.Printf("dir unset - using temporary directory")
 		var err error
-		gdir, err = ioutil.TempDir("", "rkt")
+		globalFlags.Dir, err = ioutil.TempDir("", "rkt")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error creating temporary directory: %v\n", err)
 			return 1
@@ -107,7 +106,7 @@ func runRun(args []string) (exit int) {
 
 	cfg := stage0.Config{
 		Store:         ds,
-		ContainersDir: containersDir(gdir),
+		ContainersDir: containersDir(),
 		Debug:         globalFlags.Debug,
 		Stage1Init:    flagStage1Init,
 		Stage1Rootfs:  flagStage1Rootfs,
