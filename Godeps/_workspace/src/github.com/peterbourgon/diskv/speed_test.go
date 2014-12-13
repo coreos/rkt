@@ -88,15 +88,15 @@ func benchWrite(b *testing.B, size int, withIndex bool) {
 	b.StopTimer()
 }
 
-func BenchmarkWrite_32B_NoIndex(b *testing.B) {
+func BenchmarkWrite__32B_NoIndex(b *testing.B) {
 	benchWrite(b, 32, false)
 }
 
-func BenchmarkWrite_1KB_NoIndex(b *testing.B) {
+func BenchmarkWrite__1KB_NoIndex(b *testing.B) {
 	benchWrite(b, 1024, false)
 }
 
-func BenchmarkWrite_4KB_NoIndex(b *testing.B) {
+func BenchmarkWrite__4KB_NoIndex(b *testing.B) {
 	benchWrite(b, 4096, false)
 }
 
@@ -104,15 +104,15 @@ func BenchmarkWrite_10KB_NoIndex(b *testing.B) {
 	benchWrite(b, 10240, false)
 }
 
-func BenchmarkWrite_32B_WithIndex(b *testing.B) {
+func BenchmarkWrite__32B_WithIndex(b *testing.B) {
 	benchWrite(b, 32, true)
 }
 
-func BenchmarkWrite_1KB_WithIndex(b *testing.B) {
+func BenchmarkWrite__1KB_WithIndex(b *testing.B) {
 	benchWrite(b, 1024, true)
 }
 
-func BenchmarkWrite_4KB_WithIndex(b *testing.B) {
+func BenchmarkWrite__4KB_WithIndex(b *testing.B) {
 	benchWrite(b, 4096, true)
 }
 
@@ -120,15 +120,15 @@ func BenchmarkWrite_10KB_WithIndex(b *testing.B) {
 	benchWrite(b, 10240, true)
 }
 
-func BenchmarkRead_32B_NoCache(b *testing.B) {
+func BenchmarkRead__32B_NoCache(b *testing.B) {
 	benchRead(b, 32, 0)
 }
 
-func BenchmarkRead_1KB_NoCache(b *testing.B) {
+func BenchmarkRead__1KB_NoCache(b *testing.B) {
 	benchRead(b, 1024, 0)
 }
 
-func BenchmarkRead_4KB_NoCache(b *testing.B) {
+func BenchmarkRead__4KB_NoCache(b *testing.B) {
 	benchRead(b, 4096, 0)
 }
 
@@ -136,15 +136,15 @@ func BenchmarkRead_10KB_NoCache(b *testing.B) {
 	benchRead(b, 10240, 0)
 }
 
-func BenchmarkRead_32B_WithCache(b *testing.B) {
+func BenchmarkRead__32B_WithCache(b *testing.B) {
 	benchRead(b, 32, keyCount*32*2)
 }
 
-func BenchmarkRead_1KB_WithCache(b *testing.B) {
+func BenchmarkRead__1KB_WithCache(b *testing.B) {
 	benchRead(b, 1024, keyCount*1024*2)
 }
 
-func BenchmarkRead_4KB_WithCache(b *testing.B) {
+func BenchmarkRead__4KB_WithCache(b *testing.B) {
 	benchRead(b, 4096, keyCount*4096*2)
 }
 

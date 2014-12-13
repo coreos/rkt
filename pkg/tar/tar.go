@@ -27,11 +27,14 @@ func ExtractTar(tr *tar.Reader, dir string) error {
 			p := filepath.Join(dir, hdr.Name)
 			fi := hdr.FileInfo()
 			typ := hdr.Typeflag
+
+			// Create parent dir if it doesn't exists
+			if err := os.MkdirAll(filepath.Dir(p), DEFAULT_DIR_MODE); err != nil {
+				return err
+			}
+
 			switch {
 			case typ == tar.TypeReg || typ == tar.TypeRegA:
-				if err := os.MkdirAll(filepath.Dir(p), DEFAULT_DIR_MODE); err != nil {
-					return err
-				}
 				f, err := os.OpenFile(p, os.O_CREATE|os.O_RDWR, fi.Mode())
 				if err != nil {
 					f.Close()

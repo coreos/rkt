@@ -6,6 +6,8 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"github.com/appc/spec/aci"
@@ -17,7 +19,8 @@ import (
 const (
 	blobType int64 = iota
 	remoteType
-	tmpType
+
+	defaultPathPerm os.FileMode = 0777
 )
 
 var otmap = [...]string{
@@ -27,22 +30,33 @@ var otmap = [...]string{
 }
 
 type Store struct {
+	base   string
 	stores []*diskv.Diskv
 }
 
 func NewStore(base string) *Store {
-	ds := &Store{}
-	ds.stores = make([]*diskv.Diskv, len(otmap))
+	ds := &Store{
+		base:   base,
+		stores: make([]*diskv.Diskv, len(otmap)),
+	}
 
 	for i, p := range otmap {
 		ds.stores[i] = diskv.New(diskv.Options{
-			BasePath:     filepath.Join(base, "cas", p),
-			Transform:    blockTransform,
-			CacheSizeMax: 1024 * 1024, // 1MB
+			BasePath:  filepath.Join(base, "cas", p),
+			Transform: blockTransform,
 		})
 	}
 
 	return ds
+}
+
+// tmpFile creates a temporary file in $basepath/tmp
+func (ds Store) tmpFile() (*os.File, error) {
+	dir := filepath.Join(ds.base, "tmp")
+	if err := os.MkdirAll(dir, defaultPathPerm); err != nil {
+		return nil, err
+	}
+	return ioutil.TempFile(dir, "")
 }
 
 func (ds Store) ReadStream(key string) (io.ReadCloser, error) {
@@ -71,28 +85,26 @@ func (ds Store) WriteACI(tmpKey string, orig io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// Write the uncompressed image (tar) into the store, and tee so we can generate the hash
+
+	// Write the uncompressed image (tar) to a temporary file on disk, and
+	// tee so we can generate the hash
 	hash := sha256.New()
 	tr := io.TeeReader(dr, hash)
-	err = ds.stores[tmpType].WriteStream(tmpKey, tr, true)
+	fh, err := ds.tmpFile()
 	if err != nil {
 		return "", err
 	}
-
-	// Store the decompressed tar using the hash as the real key
-	rs, err := ds.stores[tmpType].ReadStream(tmpKey, false)
-	if err != nil {
+	if _, err := io.Copy(fh, tr); err != nil {
 		return "", err
 	}
-	defer rs.Close()
+	fh.Close()
 
+	// Import the decompressed tar to the store using the hash as the key
 	key := fmt.Sprintf("sha256-%x", hash.Sum(nil))
-	err = ds.stores[blobType].WriteStream(key, rs, true)
+	err = ds.stores[blobType].Import(fh.Name(), key, true)
 	if err != nil {
 		return "", err
 	}
-
-	ds.stores[tmpType].Erase(tmpKey)
 
 	return key, nil
 }
@@ -122,7 +134,7 @@ func (ds Store) ReadIndex(i Index) error {
 func (ds Store) Dump(hex bool) {
 	for _, s := range ds.stores {
 		var keyCount int
-		for key := range s.Keys() {
+		for key := range s.Keys(nil) {
 			val, err := s.Read(key)
 			if err != nil {
 				panic(fmt.Sprintf("key %s had no value", key))

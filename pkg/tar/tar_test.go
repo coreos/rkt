@@ -117,6 +117,41 @@ func TestExtractTarFolders(t *testing.T) {
 				Size: 3,
 			},
 		},
+		{
+			header: &tar.Header{
+				Name:     "deep/folder2/symlink.txt",
+				Typeflag: tar.TypeSymlink,
+				Linkname: "deep/folder/foo.txt",
+			},
+		},
+		{
+			header: &tar.Header{
+				Name:     "deep/folder2/",
+				Typeflag: tar.TypeDir,
+				Mode:     int64(0747),
+			},
+		},
+		{
+			contents: "bar",
+			header: &tar.Header{
+				Name: "deep/folder2/bar.txt",
+				Size: 3,
+			},
+		},
+		{
+			header: &tar.Header{
+				Name:     "deep/deep/folder",
+				Typeflag: tar.TypeDir,
+				Mode:     int64(0755),
+			},
+		},
+		{
+			header: &tar.Header{
+				Name:     "deep/deep/",
+				Typeflag: tar.TypeDir,
+				Mode:     int64(0747),
+			},
+		},
 	}
 
 	testTarPath, err := newTestTar(entries)
@@ -149,7 +184,19 @@ func TestExtractTarFolders(t *testing.T) {
 	if len(matches) != 2 {
 		t.Errorf("unexpected number of files found: %d, wanted 2", len(matches))
 	}
+	matches, err = filepath.Glob(filepath.Join(tmpdir, "deep/folder2/*.txt"))
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if len(matches) != 2 {
+		t.Errorf("unexpected number of files found: %d, wanted 2", len(matches))
+	}
+
 	dirInfo, err := os.Lstat(filepath.Join(tmpdir, "deep/folder"))
+	if dirInfo.Mode().Perm() != os.FileMode(0747) {
+		t.Errorf("unexpected dir mode: %s", dirInfo.Mode())
+	}
+	dirInfo, err = os.Lstat(filepath.Join(tmpdir, "deep/deep"))
 	if dirInfo.Mode().Perm() != os.FileMode(0747) {
 		t.Errorf("unexpected dir mode: %s", dirInfo.Mode())
 	}
