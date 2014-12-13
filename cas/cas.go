@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"github.com/appc/spec/aci"
@@ -18,6 +19,8 @@ import (
 const (
 	blobType int64 = iota
 	remoteType
+
+	defaultPathPerm os.FileMode = 0777
 )
 
 var otmap = [...]string{
@@ -45,6 +48,15 @@ func NewStore(base string) *Store {
 	}
 
 	return ds
+}
+
+// tmpFile creates a temporary file in $basepath/tmp
+func (ds Store) tmpFile() (*os.File, error) {
+	dir := filepath.Join(ds.base, "tmp")
+	if err := os.MkdirAll(dir, defaultPathPerm); err != nil {
+		return nil, err
+	}
+	return ioutil.TempFile(dir, "")
 }
 
 func (ds Store) ReadStream(key string) (io.ReadCloser, error) {
@@ -78,7 +90,7 @@ func (ds Store) WriteACI(tmpKey string, orig io.Reader) (string, error) {
 	// tee so we can generate the hash
 	hash := sha256.New()
 	tr := io.TeeReader(dr, hash)
-	fh, err := ioutil.TempFile(ds.base, "tmp-")
+	fh, err := ds.tmpFile()
 	if err != nil {
 		return "", err
 	}
