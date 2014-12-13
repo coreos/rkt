@@ -201,8 +201,8 @@ mkdir -p "${ROOTDIR}"
 cd "${WORK}"
 gzip -cd "${CACHED_IMG}" | cpio --extract "${USRFS}"
 
-# extra stuff for stage1 which will come/go as things mature (reaper in bash for now)
-EXTRAS="bin/bash
+# extra stuff for stage1 which will come/go as things mature (reaper in sh for now)
+EXTRAS="bin/sh
 	lib64/libreadline.so
 	lib64/libreadline.so.6
 	lib64/libreadline.so.6.2
@@ -372,7 +372,7 @@ install -d -m 0755 "${ROOTDIR}/usr/lib/systemd/system/sockets.target.wants"
 
 # simple reaper script for collecting the exit statuses of the apps
 cat > "${ROOTDIR}/reaper.sh" <<-'EOF'
-#!/usr/bin/bash
+#!/usr/bin/sh
 shopt -s nullglob
 
 SYSCTL=/usr/bin/systemctl
