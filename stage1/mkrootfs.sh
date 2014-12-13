@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/sh
 
 # Derive a minimal rootfs for hosting systemd from a coreos release pxe image
 # This is only done when we need to update ../cmd/s1rootfs.go
@@ -6,7 +6,7 @@
 IMG_RELEASE="444.5.0"
 IMG_URL="http://stable.release.core-os.net/amd64-usr/${IMG_RELEASE}/coreos_production_pxe_image.cpio.gz"
 
-function req() {
+req() {
 	what=$1
 
 	which "${what}" >/dev/null || { echo "${what} required"; exit 1; }
@@ -133,17 +133,20 @@ FMem+FWqt7aA3/YFCPgyLp7818VhfM70bqIxLi0/BJHp6ltGN5EH+q7Ewz210VAB
 ju5IO7bjgCqTFeR3YYUN87l8ofdARx3shApXS6TkVcwaTv5eqzdFO9fZeRqHj4L9
 Pg==
 =LY4G
------END PGP PUBLIC KEY BLOCK-----
-"
+-----END PGP PUBLIC KEY BLOCK-----"
 
 # gpg verify a file using the provided key
-function gpg_verify() {
+gpg_verify() {
 	sigfile=$1	#signature file (assumed to be suffixed form of file to verify)
 	key=$2		#signing key
 	keyid=$3	#signing key signature
 
 	gpghome=$(mktemp -d)
-	gpg --homedir="${gpghome}" --batch --quiet --import <<<"${key}"
+  keyfile="${PWD}/mkfsroot.gpg.key"
+  echo "${key}" > "${keyfile}"
+	gpg --homedir="${gpghome}" --batch --quiet --import "${keyfile}"
+  rm -f "${keyfile}"
+	##### gpg --homedir="${gpghome}" --batch --quiet --import <<<"${key}"
 	gpg --homedir="${gpghome}" --batch --trusted-key "${keyid}" --verify "${sigfile}"
 	RES=$?
 
@@ -153,7 +156,7 @@ function gpg_verify() {
 }
 
 # maintain an gpg-verified url cache, assumes signature available @ $url.sig
-function cache_url() {
+cache_url() {
 	cache=$1
 	url=$2
 	key=$3
@@ -165,7 +168,8 @@ function cache_url() {
 	mkdir -p $(dirname "${cache}")
 
 	# verify the cached copy if it exists
-	if ! gpg_verify "${sigfile}" "${key}" "${keyid}"; then
+  GPG_VERIFY_EXITCODE=$(gpg_verify "${sigfile}" "${key}" "${keyid}" ; echo $?)
+  if [ $GPG_VERIFY_EXITCODE -ne 0 ]; then
 
 		# refresh the cache on failure, and verify it again
 		curl --location --output "${cache}" "${url}"
@@ -194,7 +198,7 @@ cache_url "${CACHED_IMG}" "${IMG_URL}" "${GPG_KEY}" "${GPG_LONG_ID}"
 mkdir -p "${ROOTDIR}"
 
 # derive $USRFS from $CACHED_IMG
-pushd "${WORK}"
+cd "${WORK}"
 gzip -cd "${CACHED_IMG}" | cpio --extract "${USRFS}"
 
 # extra stuff for stage1 which will come/go as things mature (reaper in bash for now)
@@ -323,55 +327,45 @@ EOF
 
 unsquashfs -d "${USR}" -ef "${FILELIST}" "${USRFS}" 
 
-popd
+cd -
 
 # populate usr/lib/systemd/system with the necessary static stuff
 install -d -m 0755 "${ROOTDIR}/usr/lib/systemd/system"
 
-function putunit {
+putunit() {
 	path="${ROOTDIR}/usr/lib/systemd/system/$1"
-	cat > "${path}"
+	echo "$2" > "${path}"
 }
 
-putunit default.target <<EOF
-[Unit]
+putunit default.target "[Unit]
 Description=Rocket apps target
-DefaultDependencies=false
-EOF
+DefaultDependencies=false"
 
-putunit sockets.target <<EOF
-[Unit]
+putunit sockets.target "[Unit]
 Description=Sockets
-DefaultDependencies=false
-EOF
+DefaultDependencies=false"
 
-putunit local-fs.target <<EOF
-[Unit]
+putunit local-fs.target "[Unit]
 Description=Hook into early systemd for socket-activated systemd instances
 DefaultDependencies=false
-Requires=sockets.target
-EOF
+Requires=sockets.target"
 
-putunit exit-watcher.service <<EOF
-[Unit]
+putunit exit-watcher.service "[Unit]
 Description=Graceful exit watcher
 StopWhenUnneeded=true
 DefaultDependencies=false
 
 [Service]
 ExecStart=/usr/bin/sleep 9999999999d 
-ExecStopPost=/usr/bin/systemctl isolate reaper.service
-EOF
+ExecStopPost=/usr/bin/systemctl isolate reaper.service"
 
-putunit reaper.service <<EOF
-[Unit]
+putunit reaper.service "[Unit]
 Description=Rocket apps reaper
 AllowIsolate=true
 DefaultDependencies=false
 
 [Service]
-ExecStart=/reaper.sh
-EOF
+ExecStart=/reaper.sh"
 
 install -d -m 0755 "${ROOTDIR}/usr/lib/systemd/system/default.target.wants"
 install -d -m 0755 "${ROOTDIR}/usr/lib/systemd/system/sockets.target.wants"
@@ -505,3 +499,4 @@ OUTDIR=$(dirname "${OUTPUT}")
 [ -d "$OUTDIR" ] || mkdir -p "${OUTDIR}"
 go-bindata -o "${OUTPUT}" -prefix "${PWD}/${BINDIR}" -pkg=stage1_rootfs "${BINDIR}"
 rm -Rf "${WORK}"
+

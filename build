@@ -1,41 +1,66 @@
-#!/bin/bash -e
+#!/bin/sh
+
+go_get_deps(){
+  go get github.com/appc/spec/aci
+  go get github.com/appc/spec/schema
+  go get github.com/appc/spec/schema/types
+  go get github.com/jteeuwen/go-bindata/...
+}
+
+setup_linux_gnu(){
+    echo "Building init (stage1)..."
+    go build -o $GOBIN/init ${REPO_PATH}/stage1
+
+    S1BINS=${PWD}/stage0
+    S1INIT=${S1BINS}/stage1_init
+    if [ -e $S1INIT/bin.go ]; then
+      $GOBIN/init -nt $S1INIT/bin.go
+    else
+        echo "Packaging init (stage0)..."
+        TMP=$(mktemp -d -t rocket-XXXXXX)
+        [ -d $S1INIT ] || mkdir -p $S1INIT
+        cp $GOBIN/init $TMP/s1init
+        go-bindata -o $S1INIT/bin.go -pkg="stage1_init" -prefix=$TMP $TMP
+    fi
+
+
+    S1ROOTFS=${S1BINS}/stage1_rootfs
+    stage1/mkrootfs.sh -nt $S1ROOTFS/bin.go
+    MKROOTFS_EXITCODE=$?
+    if [ $MKROOTFS_EXITCODE -eq 0 ]; then
+        echo "Generating and packaging rootfs (stage1)..."
+        [ -d "${S1ROOTFS}" ] || mkdir -p "${S1ROOTFS}"
+        cd stage1
+        OUTPUT=$S1ROOTFS/bin.go ./mkrootfs.sh
+        cd -
+    fi
+}
+
+############################################ main()
+
+if [ ! -h gopath/src/${REPO_PATH} ]; then
+    mkdir -p gopath/src/${ORG_PATH}
+    ln -s ../../../.. gopath/src/${REPO_PATH} || exit 255
+fi
 
 ORG_PATH="github.com/coreos"
 REPO_PATH="${ORG_PATH}/rocket"
 
-if [ ! -h gopath/src/${REPO_PATH} ]; then
-	mkdir -p gopath/src/${ORG_PATH}
-	ln -s ../../../.. gopath/src/${REPO_PATH} || exit 255
-fi
-
 export GOBIN=${PWD}/bin
 export GOPATH=${GOPATH}:${PWD}/gopath
 
+go_get_deps
+
 eval $(go env)
+export PATH=${PWD}/bin:$PATH
 
-if [[ "$OSTYPE" == "linux-gnu" ]]; then
-	echo "Building init (stage1)..."
-	go build -o $GOBIN/init ${REPO_PATH}/stage1
-
-	S1BINS=${PWD}/stage0
-	S1INIT=${S1BINS}/stage1_init
-	if [ $GOBIN/init -nt $S1INIT/bin.go ]; then
-		echo "Packaging init (stage1)..."
-		TMP=$(mktemp -d -t rocket-XXXXXX)
-		[ -d $S1INIT ] || mkdir -p $S1INIT
-		cp $GOBIN/init $TMP/s1init
-		go-bindata -o $S1INIT/bin.go -pkg="stage1_init" -prefix=$TMP $TMP
-	fi
-
-	S1ROOTFS=${S1BINS}/stage1_rootfs
-	if [ stage1/mkrootfs.sh -nt $S1ROOTFS/bin.go ]; then
-		echo "Generating and packaging rootfs (stage1)..."
-		[ -d "${S1ROOTFS}" ] || mkdir -p "${S1ROOTFS}"
-		pushd stage1
-		OUTPUT=$S1ROOTFS/bin.go ./mkrootfs.sh
-		popd
-	fi
-fi
+OSTYPE=$(uname -o)
+case "$OSTYPE" in
+  "GNU/Linux")
+    echo "Running setup for GNU/Linux"
+    setup_linux_gnu
+    ;;
+esac
 
 echo "Building rkt (stage0)..."
 go build -o $GOBIN/rkt ${REPO_PATH}/rkt
