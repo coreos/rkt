@@ -38,7 +38,7 @@ setup_linux_gnu(){
 
 ############################################ main()
 
-if [ ! -h gopath/src/${REPO_PATH} ]; then
+if [ ! -e gopath/src/${REPO_PATH} ]; then
     mkdir -p gopath/src/${ORG_PATH}
     ln -sf ../../../.. gopath/src/${REPO_PATH} || exit 255
 fi
