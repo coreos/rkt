@@ -14,7 +14,7 @@ import (
 
 // blockTransform creates a path slice from the given string to use as a
 // directory prefix. The string must be in hash format:
-//    "sha256-abcdefgh"... -> []{"sha256", "ab"}
+//    "sha512-abcdefgh"... -> []{"sha512", "ab"}
 // Right now it just copies the default of git which is a two byte prefix. We
 // will likely want to add re-sharding later.
 func blockTransform(s string) []string {
