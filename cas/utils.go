@@ -19,6 +19,9 @@ import (
 // will likely want to add re-sharding later.
 func blockTransform(s string) []string {
 	// TODO(philips): use spec/types.Hash after export typ field
+	if s == "" {
+		return []string{}
+	}
 	parts := strings.SplitN(s, "-", 2)
 	if len(parts) != 2 {
 		panic(fmt.Errorf("blockTransform should never receive non-hash, got %v", s))

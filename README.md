@@ -33,7 +33,7 @@ Rocket uses content addressable storage (CAS) for storing an ACI on disk. In thi
 
 ```
 [~/rocket-v0.1.1]$ sudo ./rkt fetch https://github.com/coreos/etcd/releases/download/v0.5.0-alpha.4/etcd-v0.5.0-alpha.4-linux-amd64.aci
-sha256-f9215c18b86f406c7cec4c7b45fd8752b5bfd1a492507d647821c2ce593fbf31
+sha512-0c45e8c0ab2b3cdb9ec6649073d5c6c43f4f1ed9ebd97b2ebfc2290c21ee88ae
 ```
 
 These files are now written to disk:
@@ -41,19 +41,19 @@ These files are now written to disk:
 ```
 [~]$ find /var/lib/rkt/cas/blob/
 /var/lib/rkt/cas/blob/
-/var/lib/rkt/cas/blob/sha256
-/var/lib/rkt/cas/blob/sha256/f9
-/var/lib/rkt/cas/blob/sha256/f9/sha256-f9215c18b86f406c7cec4c7b45fd8752b5bfd1a492507d647821c2ce593fbf31
+/var/lib/rkt/cas/blob/sha512
+/var/lib/rkt/cas/blob/sha512/0c
+/var/lib/rkt/cas/blob/sha512/0c/sha512-0c45e8c0ab2b3cdb9ec6649073d5c6c43f4f1ed9ebd97b2ebfc2290c21ee88ae63bff32c23690f7c96b666ffc353f38c3f2977c4f019176b12c74f9683e91141
 ```
 
-Per the [App Container Specification](https://github.com/appc/spec/blob/master/SPEC.md#image-archives), the SHA-256 hash is of the tarball and can be reproduced with other tools:
+Per the [App Container Specification](https://github.com/appc/spec/blob/master/SPEC.md#image-archives), the SHA-512 hash is of the tarball and can be reproduced with other tools:
 
 ```
 [~]$ wget https://github.com/coreos/etcd/releases/download/v0.5.0-alpha.4/etcd-v0.5.0-alpha.4-linux-amd64.aci
 ...
 [~]$ gzip -dc etcd-v0.5.0-alpha.4-linux-amd64.aci > etcd-v0.5.0-alpha.4-linux-amd64.tar
-[~]$ sha256sum etcd-v0.5.0-alpha.4-linux-amd64.tar
-f9215c18b86f406c7cec4c7b45fd8752b5bfd1a492507d647821c2ce593fbf31  etcd-v0.5.0-alpha.4-linux-amd64.tar
+[~]$ sha512sum etcd-v0.5.0-alpha.4-linux-amd64.tar
+d2e68c48db4302affefd90dce8a4e74eef001cd1ea5daf91163e6f549650b2df  etcd-v0.5.0-alpha.4-linux-amd64.tar
 ```
 
 ### Launching an ACI
@@ -115,8 +115,8 @@ Given a run command such as:
 
 ```
 [~/rocket-v0.1.1]$ sudo ./rkt run --volume bind:/opt/tenant1/database \
-	sha256-8a30f14877cd8065939e3912542a17d1a5fd9b4c \
-	sha256-abcd29837d89389s9d0898ds908ds890df890908
+	sha512-8a30f14877cd8065939e3912542a17d1a5fd9b4c \
+	sha512-abcd29837d89389s9d0898ds908ds890df890908
 ```
 
 a container manifest compliant with the ACE spec will be generated, and the filesystem created by stage0 should be:
@@ -126,8 +126,8 @@ a container manifest compliant with the ACE spec will be generated, and the file
 /stage1
 /stage1/init
 /stage1/opt
-/stage1/opt/stage2/sha256-8a30f14877cd8065939e3912542a17d1a5fd9b4c
-/stage1/opt/stage2/sha256-abcd29837d89389s9d0898ds908ds890df890908
+/stage1/opt/stage2/sha512-648db489d57363b29f1597d4312b212928a48e9a7ee2baec7a237629cce5a6744632d047708c9486dec6b105b8a2d298b622daa5654c1b21af36bfc9534417d7
+/stage1/opt/stage2/sha512-0c45e8c0ab2b3cdb9ec6649073d5c6c43f4f1ed9ebd97b2ebfc2290c21ee88ae63bff32c23690f7c96b666ffc353f38c3f2977c4f019176b12c74f9683e91141
 ```
 
 where:

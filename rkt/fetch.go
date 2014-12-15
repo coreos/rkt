@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/appc/spec/discovery"
+	"github.com/appc/spec/schema/types"
 	"github.com/coreos/rocket/cas"
 )
 
@@ -91,7 +92,8 @@ func runFetch(args []string) (exit int) {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
 			return 1
 		}
-		fmt.Println(hash)
+		shortHash := types.ShortHash(hash)
+		fmt.Println(shortHash)
 	}
 
 	return

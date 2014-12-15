@@ -39,7 +39,7 @@ func (r *Remote) Unmarshal(data []byte) {
 }
 
 func (r Remote) Hash() string {
-	return types.NewHashSHA256([]byte(r.Name)).String()
+	return types.NewHashSHA512([]byte(r.Name)).String()
 }
 
 func (r Remote) Type() int64 {

@@ -23,7 +23,7 @@ func TestBlobStore(t *testing.T) {
 	for _, valueStr := range []string{
 		"I am a manually placed object",
 	} {
-		ds.stores[blobType].Write(types.NewHashSHA256([]byte(valueStr)).String(), []byte(valueStr))
+		ds.stores[blobType].Write(types.NewHashSHA512([]byte(valueStr)).String(), []byte(valueStr))
 	}
 
 	ds.Dump(false)
