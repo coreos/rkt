@@ -1,15 +1,17 @@
 package cas
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"os"
 	"path/filepath"
 
+	"github.com/appc/spec/aci"
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/peterbourgon/diskv"
-	"github.com/coreos/rocket/app-container/aci"
-	pkgio "github.com/coreos/rocket/pkg/io"
 )
 
 // TODO(philips): use a database for the secondary indexes like remoteType and
@@ -17,7 +19,8 @@ import (
 const (
 	blobType int64 = iota
 	remoteType
-	tmpType
+
+	defaultPathPerm os.FileMode = 0777
 )
 
 var otmap = [...]string{
@@ -27,22 +30,33 @@ var otmap = [...]string{
 }
 
 type Store struct {
+	base   string
 	stores []*diskv.Diskv
 }
 
 func NewStore(base string) *Store {
-	ds := &Store{}
-	ds.stores = make([]*diskv.Diskv, len(otmap))
+	ds := &Store{
+		base:   base,
+		stores: make([]*diskv.Diskv, len(otmap)),
+	}
 
 	for i, p := range otmap {
 		ds.stores[i] = diskv.New(diskv.Options{
-			BasePath:     filepath.Join(base, "cas", p),
-			Transform:    blockTransform,
-			CacheSizeMax: 1024 * 1024, // 1MB
+			BasePath:  filepath.Join(base, "cas", p),
+			Transform: blockTransform,
 		})
 	}
 
 	return ds
+}
+
+// tmpFile creates a temporary file in $basepath/tmp
+func (ds Store) tmpFile() (*os.File, error) {
+	dir := filepath.Join(ds.base, "tmp")
+	if err := os.MkdirAll(dir, defaultPathPerm); err != nil {
+		return nil, err
+	}
+	return ioutil.TempFile(dir, "")
 }
 
 func (ds Store) ReadStream(key string) (io.ReadCloser, error) {
@@ -54,60 +68,43 @@ func (ds Store) WriteStream(key string, r io.Reader) error {
 }
 
 func (ds Store) WriteACI(tmpKey string, orig io.Reader) (string, error) {
-	// We initially write the ACI into the store using a temporary key,
-	// teeing a header so we can detect the filetype for decompression
-	hdr := &bytes.Buffer{}
-	hw := &pkgio.LimitedWriter{
-		W: hdr,
-		N: 512,
+	// Peek at the first 512 bytes of the reader to detect filetype
+	br := bufio.NewReaderSize(orig, 512)
+	hd, err := br.Peek(512)
+	switch err {
+	case nil:
+	case io.EOF: // We may have still peeked enough to guess some types, so fall through
+	default:
+		return "", err
 	}
-	tr := io.TeeReader(orig, hw)
-
-	err := ds.stores[tmpType].WriteStream(tmpKey, tr, true)
+	typ, err := aci.DetectFileType(bytes.NewBuffer(hd))
+	if err != nil {
+		return "", err
+	}
+	dr, err := decompress(br, typ)
 	if err != nil {
 		return "", err
 	}
 
-	// Now detect the filetype so we can choose the appropriate decompressor
-	typ, err := aci.DetectFileType(hdr)
-	if err != nil {
-		return "", err
-	}
-	// Read the image back out of the store to generate the hash of the decompressed tar
-	rs, err := ds.stores[tmpType].ReadStream(tmpKey, false)
-	if err != nil {
-		return "", err
-	}
-	defer rs.Close()
-
-	dr, err := decompress(rs, typ)
-	if err != nil {
-		return "", err
-	}
+	// Write the uncompressed image (tar) to a temporary file on disk, and
+	// tee so we can generate the hash
 	hash := sha256.New()
-	_, err = io.Copy(hash, dr)
+	tr := io.TeeReader(dr, hash)
+	fh, err := ds.tmpFile()
 	if err != nil {
 		return "", err
 	}
+	if _, err := io.Copy(fh, tr); err != nil {
+		return "", err
+	}
+	fh.Close()
 
-	// Store the decompressed tar using the hash as the real key
-	rs, err = ds.stores[tmpType].ReadStream(tmpKey, false)
-	if err != nil {
-		return "", err
-	}
-	defer rs.Close()
-	dr, err = decompress(rs, typ)
-	if err != nil {
-		return "", err
-	}
-
+	// Import the decompressed tar to the store using the hash as the key
 	key := fmt.Sprintf("sha256-%x", hash.Sum(nil))
-	err = ds.stores[blobType].WriteStream(key, dr, true)
+	err = ds.stores[blobType].Import(fh.Name(), key, true)
 	if err != nil {
 		return "", err
 	}
-
-	ds.stores[tmpType].Erase(tmpKey)
 
 	return key, nil
 }
@@ -137,7 +134,7 @@ func (ds Store) ReadIndex(i Index) error {
 func (ds Store) Dump(hex bool) {
 	for _, s := range ds.stores {
 		var keyCount int
-		for key := range s.Keys() {
+		for key := range s.Keys(nil) {
 			val, err := s.Read(key)
 			if err != nil {
 				panic(fmt.Sprintf("key %s had no value", key))

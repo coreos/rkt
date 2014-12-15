@@ -6,7 +6,7 @@
 #
 # Run tests for one package
 #
-# PKG=./app-container/discovery ./test
+# PKG=./cas ./test
 # PKG=cas ./test
 
 # Invoke ./cover for HTML output
@@ -14,8 +14,8 @@ COVER=${COVER:-"-cover"}
 
 source ./build
 
-TESTABLE_AND_FORMATTABLE="app-container/discovery app-container/schema/types cas pkg/tar"
-FORMATTABLE="$TESTABLE_AND_FORMATTABLE app-container/ace app-container/aci app-container/actool app-container/schema metadatasvc path pkg/io pkg/proc pkg/tarheader rkt stage0/run.go stage1 version"
+TESTABLE_AND_FORMATTABLE="cas pkg/tar"
+FORMATTABLE="$TESTABLE_AND_FORMATTABLE metadatasvc path pkg/io pkg/proc rkt stage0/run.go stage1 version"
 
 # user has not provided PKG override
 if [ -z "$PKG" ]; then
@@ -39,12 +39,6 @@ TEST=${split[@]/#/${REPO_PATH}/}
 
 echo "Running tests..."
 go test -timeout 60s ${COVER} $@ ${TEST} --race
-
-echo "Validating app manifest..."
-bin/actool validate app-container/examples/app.json
-
-echo "Validating container runtime manifest..."
-bin/actool validate app-container/examples/container.json
 
 echo "Checking gofmt..."
 fmtRes=$(gofmt -l $FMT)

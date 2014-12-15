@@ -8,7 +8,8 @@ package path
 import (
 	"path/filepath"
 
-	"github.com/coreos/rocket/app-container/schema/types"
+	"github.com/appc/spec/aci"
+	"github.com/appc/spec/schema/types"
 )
 
 const (
@@ -35,7 +36,7 @@ func AppImagePath(root string, imageID types.Hash) string {
 // AppRootfsPath returns the path to an app's rootfs.
 // imageID should be the app image ID.
 func AppRootfsPath(root string, imageID types.Hash) string {
-	return filepath.Join(AppImagePath(root, imageID), "rootfs")
+	return filepath.Join(AppImagePath(root, imageID), aci.RootfsDir)
 }
 
 // RelAppImagePath returns the path of an application image relative to the
@@ -47,11 +48,11 @@ func RelAppImagePath(imageID types.Hash) string {
 // RelAppImagePath returns the path of an application's rootfs relative to the
 // stage1 chroot
 func RelAppRootfsPath(imageID types.Hash) string {
-	return filepath.Join(RelAppImagePath(imageID), "rootfs")
+	return filepath.Join(RelAppImagePath(imageID), aci.RootfsDir)
 }
 
-// AppManifestPath returns the path to the app's manifest file inside the expanded ACI.
+// ImageManifestPath returns the path to the app's manifest file inside the expanded ACI.
 // id should be the app image ID.
-func AppManifestPath(root string, imageID types.Hash) string {
-	return filepath.Join(AppImagePath(root, imageID), "app")
+func ImageManifestPath(root string, imageID types.Hash) string {
+	return filepath.Join(AppImagePath(root, imageID), aci.ManifestFile)
 }

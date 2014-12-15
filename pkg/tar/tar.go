@@ -10,6 +10,8 @@ import (
 	"syscall"
 )
 
+const DEFAULT_DIR_MODE os.FileMode = 0755
+
 type insecureLinkError error
 
 // ExtractTar extracts a tarball (from a tar.Reader) into the given directory
@@ -25,6 +27,12 @@ func ExtractTar(tr *tar.Reader, dir string) error {
 			p := filepath.Join(dir, hdr.Name)
 			fi := hdr.FileInfo()
 			typ := hdr.Typeflag
+
+			// Create parent dir if it doesn't exists
+			if err := os.MkdirAll(filepath.Dir(p), DEFAULT_DIR_MODE); err != nil {
+				return err
+			}
+
 			switch {
 			case typ == tar.TypeReg || typ == tar.TypeRegA:
 				f, err := os.OpenFile(p, os.O_CREATE|os.O_RDWR, fi.Mode())
@@ -40,6 +48,13 @@ func ExtractTar(tr *tar.Reader, dir string) error {
 				f.Close()
 			case typ == tar.TypeDir:
 				if err := os.MkdirAll(p, fi.Mode()); err != nil {
+					return err
+				}
+				dir, err := os.Open(p)
+				if err != nil {
+					return err
+				}
+				if err := dir.Chmod(fi.Mode()); err != nil {
 					return err
 				}
 			case typ == tar.TypeLink:

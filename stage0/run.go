@@ -24,10 +24,10 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/appc/spec/aci"
+	"github.com/appc/spec/schema"
+	"github.com/appc/spec/schema/types"
 	"github.com/coreos/rocket/Godeps/_workspace/src/code.google.com/p/go-uuid/uuid"
-	"github.com/coreos/rocket/app-container/aci"
-	"github.com/coreos/rocket/app-container/schema"
-	"github.com/coreos/rocket/app-container/schema/types"
 	"github.com/coreos/rocket/cas"
 	rktpath "github.com/coreos/rocket/path"
 	ptar "github.com/coreos/rocket/pkg/tar"
@@ -38,7 +38,8 @@ import (
 )
 
 const (
-	initPath = "stage1/init"
+	initPath  = "stage1/init"
+	envLockFd = "RKT_LOCK_FD"
 )
 
 type Config struct {
@@ -73,6 +74,10 @@ func Setup(cfg Config) (string, error) {
 
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return "", fmt.Errorf("error creating directory: %v", err)
+	}
+
+	if err := lockDir(dir); err != nil {
+		return "", fmt.Errorf("error locking directory: %v", err)
 	}
 
 	log.Printf("Unpacking stage1 rootfs")
@@ -133,10 +138,10 @@ func Setup(cfg Config) (string, error) {
 		if cm.Apps.Get(am.Name) != nil {
 			return "", fmt.Errorf("error: multiple apps with name %s", am.Name)
 		}
-		a := schema.App{
+		a := schema.RuntimeApp{
 			Name:        am.Name,
 			ImageID:     img,
-			Isolators:   am.Isolators,
+			Isolators:   am.App.Isolators,
 			Annotations: am.Annotations,
 		}
 		cm.Apps = append(cm.Apps, a)
@@ -187,6 +192,19 @@ func Run(dir string, debug bool) {
 	if err := syscall.Exec(initPath, args, os.Environ()); err != nil {
 		log.Fatalf("error execing init: %v", err)
 	}
+}
+
+func lockDir(dir string) error {
+	fd, err := syscall.Open(dir, syscall.O_DIRECTORY, 0)
+	if err != nil {
+		return fmt.Errorf("error opening directory: %v", err)
+	}
+
+	if err := syscall.Flock(fd, syscall.LOCK_NB|syscall.LOCK_EX); err != nil {
+		return fmt.Errorf("error acquiring lock on dir %q: %v", dir, err)
+	}
+
+	return os.Setenv(envLockFd, fmt.Sprintf("%v", fd))
 }
 
 func untarRootfs(r io.Reader, dir string) error {
@@ -250,8 +268,8 @@ func unpackBuiltinRootfs(dir string) error {
 // setupImage attempts to load the image by the given hash from the store,
 // verifies that the image matches the given hash and extracts the image
 // into a directory in the given dir.
-// It returns the AppManifest that the image contains
-func setupImage(cfg Config, img types.Hash, dir string) (*schema.AppManifest, error) {
+// It returns the ImageManifest that the image contains
+func setupImage(cfg Config, img types.Hash, dir string) (*schema.ImageManifest, error) {
 	log.Println("Loading image", img.String())
 
 	rs, err := cfg.Store.ReadStream(img.String())
@@ -289,7 +307,7 @@ func setupImage(cfg Config, img types.Hash, dir string) (*schema.AppManifest, er
 		return nil, fmt.Errorf("error creating tmp directory: %v", err)
 	}
 
-	mpath := rktpath.AppManifestPath(dir, img)
+	mpath := rktpath.ImageManifestPath(dir, img)
 	f, err := os.Open(mpath)
 	if err != nil {
 		return nil, fmt.Errorf("error opening app manifest: %v", err)
@@ -298,7 +316,7 @@ func setupImage(cfg Config, img types.Hash, dir string) (*schema.AppManifest, er
 	if err != nil {
 		return nil, fmt.Errorf("error reading app manifest: %v", err)
 	}
-	var am schema.AppManifest
+	var am schema.ImageManifest
 	if err := json.Unmarshal(b, &am); err != nil {
 		return nil, fmt.Errorf("error unmarshaling app manifest: %v", err)
 	}

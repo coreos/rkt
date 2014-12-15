@@ -14,14 +14,14 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/appc/spec/schema"
+	"github.com/appc/spec/schema/types"
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/gorilla/mux"
-	"github.com/coreos/rocket/app-container/schema"
-	"github.com/coreos/rocket/app-container/schema/types"
 )
 
 type metadata struct {
 	manifest schema.ContainerRuntimeManifest
-	apps     map[string]*schema.AppManifest
+	apps     map[string]*schema.ImageManifest
 }
 
 var (
@@ -79,7 +79,7 @@ func handleRegisterContainer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	m := &metadata{
-		apps: make(map[string]*schema.AppManifest),
+		apps: make(map[string]*schema.ImageManifest),
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&m.manifest); err != nil {
@@ -124,7 +124,7 @@ func handleRegisterApp(w http.ResponseWriter, r *http.Request) {
 
 	an := mux.Vars(r)["app"]
 
-	app := &schema.AppManifest{}
+	app := &schema.ImageManifest{}
 	if err := json.NewDecoder(r.Body).Decode(&app); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "JSON-decoding failed: %v", err)
@@ -150,7 +150,7 @@ func containerGet(h func(w http.ResponseWriter, r *http.Request, m *metadata)) f
 	}
 }
 
-func appGet(h func(w http.ResponseWriter, r *http.Request, m *metadata, am *schema.AppManifest)) func(http.ResponseWriter, *http.Request) {
+func appGet(h func(w http.ResponseWriter, r *http.Request, m *metadata, am *schema.ImageManifest)) func(http.ResponseWriter, *http.Request) {
 	return containerGet(func(w http.ResponseWriter, r *http.Request, m *metadata) {
 		appname := mux.Vars(r)["app"]
 
@@ -209,7 +209,7 @@ func handleContainerUID(w http.ResponseWriter, r *http.Request, m *metadata) {
 	w.Write([]byte(uid))
 }
 
-func mergeAppAnnotations(am *schema.AppManifest, cm *schema.ContainerRuntimeManifest) types.Annotations {
+func mergeAppAnnotations(am *schema.ImageManifest, cm *schema.ContainerRuntimeManifest) types.Annotations {
 	merged := make(types.Annotations)
 
 	for k, v := range am.Annotations {
@@ -225,7 +225,7 @@ func mergeAppAnnotations(am *schema.AppManifest, cm *schema.ContainerRuntimeMani
 	return merged
 }
 
-func handleAppAnnotations(w http.ResponseWriter, r *http.Request, m *metadata, am *schema.AppManifest) {
+func handleAppAnnotations(w http.ResponseWriter, r *http.Request, m *metadata, am *schema.ImageManifest) {
 	w.Header().Add("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
 
@@ -234,7 +234,7 @@ func handleAppAnnotations(w http.ResponseWriter, r *http.Request, m *metadata, a
 	}
 }
 
-func handleAppAnnotation(w http.ResponseWriter, r *http.Request, m *metadata, am *schema.AppManifest) {
+func handleAppAnnotation(w http.ResponseWriter, r *http.Request, m *metadata, am *schema.ImageManifest) {
 	k, err := types.NewACName(mux.Vars(r)["name"])
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
@@ -256,7 +256,7 @@ func handleAppAnnotation(w http.ResponseWriter, r *http.Request, m *metadata, am
 	w.Write([]byte(v))
 }
 
-func handleAppManifest(w http.ResponseWriter, r *http.Request, m *metadata, am *schema.AppManifest) {
+func handleImageManifest(w http.ResponseWriter, r *http.Request, m *metadata, am *schema.ImageManifest) {
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
@@ -265,7 +265,7 @@ func handleAppManifest(w http.ResponseWriter, r *http.Request, m *metadata, am *
 	}
 }
 
-func handleAppID(w http.ResponseWriter, r *http.Request, m *metadata, am *schema.AppManifest) {
+func handleAppID(w http.ResponseWriter, r *http.Request, m *metadata, am *schema.ImageManifest) {
 	w.Header().Add("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
 	a := m.manifest.Apps.Get(am.Name)
@@ -401,7 +401,7 @@ func main() {
 
 	mr.HandleFunc("/apps/{app:.*}/annotations/", logReq(appGet(handleAppAnnotations)))
 	mr.HandleFunc("/apps/{app:.*}/annotations/{name}", logReq(appGet(handleAppAnnotation)))
-	mr.HandleFunc("/apps/{app:.*}/image/manifest", logReq(appGet(handleAppManifest)))
+	mr.HandleFunc("/apps/{app:.*}/image/manifest", logReq(appGet(handleImageManifest)))
 	mr.HandleFunc("/apps/{app:.*}/image/id", logReq(appGet(handleAppID)))
 
 	acRtr.HandleFunc("/container/hmac/sign", logReq(handleContainerSign)).Methods("POST")

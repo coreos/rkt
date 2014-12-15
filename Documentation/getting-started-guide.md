@@ -1,8 +1,7 @@
 # Getting Started with Rocket
 
-The following guide will show you how to build and run a self-contained Go app
-using rocket, the reference implementation of the [App Container
-Specification](https://github.com/coreos/rocket/tree/master/app-container).
+The following guide will show you how to build and run a self-contained Go app using
+rocket, the reference implementation of the [App Container Specification](https://github.com/appc/spec).
 
 ## Create a hello go application
 
@@ -38,52 +37,66 @@ Edit: manifest.json
 
 ```
 {
-    "acVersion": "1.0.0",
-    "acKind": "AppManifest",
-    "name": "coreos.com/hello-1.0.0",
-    "version": "1.0.0",
-    "os": "linux",
-    "arch": "amd64",
-    "exec": [
-        "/bin/hello"
+    "acKind": "ImageManifest",
+    "acVersion": "0.1.1",
+    "name": "coreos.com/hello",
+    "labels": [
+        {
+            "name": "version",
+            "val": "1.0.0"
+        },
+        {
+            "name": "arch",
+            "val": "amd64"
+        },
+        {
+            "name": "os",
+            "val": "linux"
+        }
     ],
-    "ports": [
+    "app": {
+        "exec": [
+            "/bin/hello"
+        ],
+        "ports": [
         {
             "name": "www",
             "protocol": "tcp",
             "port": 5000
         }
-    ],
+        ]
+    },
     "annotations": {
         "authors": "Kelsey Hightower <kelsey.hightower@gmail.com>"
     }
 }
 ```
 
-### Validate the application manifest
+### Validate the image manifest
 
 ```
 $ actool validate manifest.json
-manifest.json: valid AppManifest
+manifest.json: valid ImageManifest
 ```
 
-## Create the rootfs
+## Create the layout and the rootfs
 
 ```
-$ mkdir rootfs
-$ mkdir rootfs/bin
+$ mkdir hello-layout/
+$ mkdir hello-layout/rootfs
+$ mkdir hello-layout/rootfs/bin
 ```
 
 Copy the hello binary
 
 ```
-$ cp hello rootfs/bin/
+$ cp hello hello-layout/rootfs/bin/
 ```
 
 ## Build the application image
 
 ```
-$ actool build --app-manifest manifest.json rootfs hello.aci
+$ actool build hello-layout/ hello.aci
 ```
 
 ### Validate the application image

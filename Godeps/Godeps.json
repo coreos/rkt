@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/coreos/rocket",
-	"GoVersion": "go1.3.1",
+	"GoVersion": "go1.3.3",
 	"Packages": [
 		"./..."
 	],
@@ -28,27 +28,16 @@
 			"Rev": "e444e69cbd2e2e3e0749a2f3c717cec491552bbf"
 		},
 		{
+			"ImportPath": "github.com/mitchellh/ioprogress",
+			"Rev": "b0a0b6773359ef5016d5ecc4522150e43a189a53"
+		},
+		{
 			"ImportPath": "github.com/petar/GoLLRB/llrb",
 			"Rev": "53be0d36a84c2a886ca057d34b6aa4468df9ccb4"
 		},
 		{
 			"ImportPath": "github.com/peterbourgon/diskv",
-			"Rev": "fbec614921b11c91804b7ea07ad4e53647ad0d94"
-		},
-		{
-			"ImportPath": "golang.org/x/crypto/cast5",
-			"Comment": "null-236",
-			"Rev": "69e2a90ed92d03812364aeb947b7068dc42e561e"
-		},
-		{
-			"ImportPath": "golang.org/x/crypto/openpgp",
-			"Comment": "null-236",
-			"Rev": "69e2a90ed92d03812364aeb947b7068dc42e561e"
-		},
-		{
-			"ImportPath": "golang.org/x/net/html",
-			"Comment": "null-223",
-			"Rev": "5dedbdc181629d2f3557caf2667e60eb82c5e6d7"
+			"Rev": "508f5671a72eeaef05cf8c24abe7fbc1c07faf69"
 		}
 	]
 }

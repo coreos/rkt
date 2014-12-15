@@ -12,17 +12,17 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/appc/spec/schema"
+	"github.com/appc/spec/schema/types"
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/coreos/go-systemd/unit"
-	"github.com/coreos/rocket/app-container/schema"
-	"github.com/coreos/rocket/app-container/schema/types"
 	rktpath "github.com/coreos/rocket/path"
 )
 
-// Container encapsulates a ContainerRuntimeManifest and AppManifests
+// Container encapsulates a ContainerRuntimeManifest and ImageManifests
 type Container struct {
 	Root     string // root directory where the container will be located
 	Manifest *schema.ContainerRuntimeManifest
-	Apps     map[string]*schema.AppManifest
+	Apps     map[string]*schema.ImageManifest
 }
 
 // LoadContainer loads a Container Runtime Manifest (as prepared by stage0) and
@@ -30,7 +30,7 @@ type Container struct {
 func LoadContainer(root string) (*Container, error) {
 	c := &Container{
 		Root: root,
-		Apps: make(map[string]*schema.AppManifest),
+		Apps: make(map[string]*schema.ImageManifest),
 	}
 
 	buf, err := ioutil.ReadFile(rktpath.ContainerManifestPath(c.Root))
@@ -45,13 +45,13 @@ func LoadContainer(root string) (*Container, error) {
 	c.Manifest = cm
 
 	for _, app := range c.Manifest.Apps {
-		ampath := rktpath.AppManifestPath(c.Root, app.ImageID)
+		ampath := rktpath.ImageManifestPath(c.Root, app.ImageID)
 		buf, err := ioutil.ReadFile(ampath)
 		if err != nil {
 			return nil, fmt.Errorf("failed reading app manifest %q: %v", ampath, err)
 		}
 
-		am := &schema.AppManifest{}
+		am := &schema.ImageManifest{}
 		if err = json.Unmarshal(buf, am); err != nil {
 			return nil, fmt.Errorf("failed unmarshalling app manifest %q: %v", ampath, err)
 		}
@@ -66,9 +66,10 @@ func LoadContainer(root string) (*Container, error) {
 }
 
 // appToSystemd transforms the provided app manifest into systemd units
-func (c *Container) appToSystemd(am *schema.AppManifest, id types.Hash) error {
+func (c *Container) appToSystemd(am *schema.ImageManifest, id types.Hash) error {
 	name := am.Name.String()
-	execStart := strings.Join(am.Exec, " ")
+	app := am.App
+	execStart := strings.Join(app.Exec, " ")
 	opts := []*unit.UnitOption{
 		&unit.UnitOption{"Unit", "Description", name},
 		&unit.UnitOption{"Unit", "DefaultDependencies", "false"},
@@ -78,11 +79,11 @@ func (c *Container) appToSystemd(am *schema.AppManifest, id types.Hash) error {
 		&unit.UnitOption{"Service", "Restart", "no"},
 		&unit.UnitOption{"Service", "RootDirectory", rktpath.RelAppRootfsPath(id)},
 		&unit.UnitOption{"Service", "ExecStart", execStart},
-		&unit.UnitOption{"Service", "User", am.User},
-		&unit.UnitOption{"Service", "Group", am.Group},
+		&unit.UnitOption{"Service", "User", app.User},
+		&unit.UnitOption{"Service", "Group", app.Group},
 	}
 
-	for _, eh := range am.EventHandlers {
+	for _, eh := range app.EventHandlers {
 		var typ string
 		switch eh.Name {
 		case "pre-start":
@@ -96,7 +97,7 @@ func (c *Container) appToSystemd(am *schema.AppManifest, id types.Hash) error {
 		opts = append(opts, &unit.UnitOption{"Service", typ, exec})
 	}
 
-	env := am.Environment
+	env := app.Environment
 	env["AC_APP_NAME"] = name
 	for ek, ev := range env {
 		ee := fmt.Sprintf(`"%s=%s"`, ek, ev)
@@ -104,7 +105,7 @@ func (c *Container) appToSystemd(am *schema.AppManifest, id types.Hash) error {
 	}
 
 	saPorts := []types.Port{}
-	for _, p := range am.Ports {
+	for _, p := range app.Ports {
 		if p.SocketActivated {
 			saPorts = append(saPorts, p)
 		}
@@ -184,7 +185,7 @@ func (c *Container) ContainerToSystemd() error {
 
 // appToNspawnArgs transforms the given app manifest, with the given associated
 // app image id, into a subset of applicable systemd-nspawn argument
-func (c *Container) appToNspawnArgs(am *schema.AppManifest, id types.Hash) ([]string, error) {
+func (c *Container) appToNspawnArgs(am *schema.ImageManifest, id types.Hash) ([]string, error) {
 	args := []string{}
 	name := am.Name.String()
 
@@ -195,7 +196,7 @@ func (c *Container) appToNspawnArgs(am *schema.AppManifest, id types.Hash) ([]st
 		}
 	}
 
-	for _, mp := range am.MountPoints {
+	for _, mp := range am.App.MountPoints {
 		key := mp.Name
 		vol, ok := vols[key]
 		if !ok {

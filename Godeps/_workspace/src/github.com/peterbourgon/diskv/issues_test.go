@@ -3,6 +3,7 @@ package diskv
 import (
 	"bytes"
 	"io/ioutil"
+	"sync"
 	"testing"
 	"time"
 )
@@ -71,4 +72,50 @@ func TestIssue2B(t *testing.T) {
 		t.Fatal("ReadStream('abc') should return error")
 	}
 	t.Logf("ReadStream('abc') returned error: %v", err)
+}
+
+// Ensure ReadStream with direct=true isn't racy.
+func TestIssue17(t *testing.T) {
+	var (
+		basePath = "test-data"
+	)
+
+	dWrite := New(Options{
+		BasePath:     basePath,
+		CacheSizeMax: 0,
+	})
+	defer dWrite.EraseAll()
+
+	dRead := New(Options{
+		BasePath:     basePath,
+		CacheSizeMax: 50,
+	})
+
+	cases := map[string]string{
+		"a": `1234567890`,
+		"b": `2345678901`,
+		"c": `3456789012`,
+		"d": `4567890123`,
+		"e": `5678901234`,
+	}
+
+	for k, v := range cases {
+		if err := dWrite.Write(k, []byte(v)); err != nil {
+			t.Fatalf("during write: %s", err)
+		}
+		dRead.Read(k) // ensure it's added to cache
+	}
+
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	for k, v := range cases {
+		wg.Add(1)
+		go func(k, v string) {
+			<-start
+			dRead.ReadStream(k, true)
+			wg.Done()
+		}(k, v)
+	}
+	close(start)
+	wg.Wait()
 }

@@ -33,8 +33,8 @@ func (s llrbString) Less(i llrb.Item) bool {
 // using Petar Maymounkov's LLRB tree.
 type LLRBIndex struct {
 	sync.RWMutex
-	less LessFunction
-	tree *llrb.LLRB
+	LessFunction
+	*llrb.LLRB
 }
 
 // Initialize populates the LLRB tree with data from the keys channel,
@@ -42,28 +42,28 @@ type LLRBIndex struct {
 func (i *LLRBIndex) Initialize(less LessFunction, keys <-chan string) {
 	i.Lock()
 	defer i.Unlock()
-	i.less = less
-	i.tree = rebuild(less, keys)
+	i.LessFunction = less
+	i.LLRB = rebuild(less, keys)
 }
 
 // Insert inserts the given key (only) into the LLRB tree.
 func (i *LLRBIndex) Insert(key string) {
 	i.Lock()
 	defer i.Unlock()
-	if i.tree == nil || i.less == nil {
+	if i.LLRB == nil || i.LessFunction == nil {
 		panic("uninitialized index")
 	}
-	i.tree.ReplaceOrInsert(llrbString{s: key, l: i.less})
+	i.LLRB.ReplaceOrInsert(llrbString{s: key, l: i.LessFunction})
 }
 
 // Delete removes the given key (only) from the LLRB tree.
 func (i *LLRBIndex) Delete(key string) {
 	i.Lock()
 	defer i.Unlock()
-	if i.tree == nil || i.less == nil {
+	if i.LLRB == nil || i.LessFunction == nil {
 		panic("uninitialized index")
 	}
-	i.tree.Delete(llrbString{s: key, l: i.less})
+	i.LLRB.Delete(llrbString{s: key, l: i.LessFunction})
 }
 
 // Keys yields a maximum of n keys in order. If the passed 'from' key is empty,
@@ -74,19 +74,19 @@ func (i *LLRBIndex) Keys(from string, n int) []string {
 	i.RLock()
 	defer i.RUnlock()
 
-	if i.tree == nil || i.less == nil {
+	if i.LLRB == nil || i.LessFunction == nil {
 		panic("uninitialized index")
 	}
 
-	if i.tree.Len() <= 0 {
+	if i.LLRB.Len() <= 0 {
 		return []string{}
 	}
 
-	llrbFrom := llrbString{s: from, l: i.less}
+	llrbFrom := llrbString{s: from, l: i.LessFunction}
 	skipFirst := true
-	if len(from) <= 0 || !i.tree.Has(llrbFrom) {
+	if len(from) <= 0 || !i.LLRB.Has(llrbFrom) {
 		// no such key, so start at the top
-		llrbFrom = i.tree.Min().(llrbString)
+		llrbFrom = i.LLRB.Min().(llrbString)
 		skipFirst = false
 	}
 
@@ -95,7 +95,7 @@ func (i *LLRBIndex) Keys(from string, n int) []string {
 		keys = append(keys, i.(llrbString).s)
 		return len(keys) < n
 	}
-	i.tree.AscendGreaterOrEqual(llrbFrom, iterator)
+	i.LLRB.AscendGreaterOrEqual(llrbFrom, iterator)
 
 	if skipFirst && len(keys) > 0 {
 		keys = keys[1:]
