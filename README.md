@@ -33,7 +33,7 @@ Rocket uses content addressable storage (CAS) for storing an ACI on disk. In thi
 
 ```
 [~/rocket-v0.1.1]$ sudo ./rkt fetch https://github.com/coreos/etcd/releases/download/v0.5.0-alpha.4/etcd-v0.5.0-alpha.4-linux-amd64.aci
-sha256-f9215c18b86f406c7cec4c7b45fd8752b5bfd1a492507d647821c2ce593fbf31
+sha256-6635e9cbe18c6f51e8c70c143948df111b5626db39198182fbeb9277beb606db
 ```
 
 These files are now written to disk:
@@ -42,8 +42,8 @@ These files are now written to disk:
 [~]$ find /var/lib/rkt/cas/blob/
 /var/lib/rkt/cas/blob/
 /var/lib/rkt/cas/blob/sha256
-/var/lib/rkt/cas/blob/sha256/f9
-/var/lib/rkt/cas/blob/sha256/f9/sha256-f9215c18b86f406c7cec4c7b45fd8752b5bfd1a492507d647821c2ce593fbf31
+/var/lib/rkt/cas/blob/sha256/66
+/var/lib/rkt/cas/blob/sha256/66/sha256-6635e9cbe18c6f51e8c70c143948df111b5626db39198182fbeb9277beb606db
 ```
 
 Per the [App Container Specification](https://github.com/appc/spec/blob/master/SPEC.md#image-archives), the SHA-256 hash is of the tarball and can be reproduced with other tools:
@@ -53,7 +53,7 @@ Per the [App Container Specification](https://github.com/appc/spec/blob/master/S
 ...
 [~]$ gzip -dc etcd-v0.5.0-alpha.4-linux-amd64.aci > etcd-v0.5.0-alpha.4-linux-amd64.tar
 [~]$ sha256sum etcd-v0.5.0-alpha.4-linux-amd64.tar
-f9215c18b86f406c7cec4c7b45fd8752b5bfd1a492507d647821c2ce593fbf31  etcd-v0.5.0-alpha.4-linux-amd64.tar
+6635e9cbe18c6f51e8c70c143948df111b5626db39198182fbeb9277beb606db  etcd-v0.5.0-alpha.4-linux-amd64.tar
 ```
 
 ### Launching an ACI
@@ -62,7 +62,7 @@ An ACI can be run by pointing `rkt` at either the ACI's hash or URL.
 
 ```
 # Example of running via ACI hash
-[~/rocket-v0.1.1]$ sudo ./rkt run sha256-f9215c18b86f406c7cec4c7b45fd8752b5bfd1a492507d647821c2ce593fbf31
+[~/rocket-v0.1.1]$ sudo ./rkt run sha256-6635e9cbe18c6f51e8c70c143948df111b5626db39198182fbeb9277beb606db
 ...
 Press ^] three times to kill container
 ```
