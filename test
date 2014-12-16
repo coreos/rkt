@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/sh
 #
 # Run all rocket tests
 # ./test
@@ -12,7 +12,7 @@
 # Invoke ./cover for HTML output
 COVER=${COVER:-"-cover"}
 
-source ./build
+. ./build
 
 TESTABLE_AND_FORMATTABLE="cas pkg/tar"
 FORMATTABLE="$TESTABLE_AND_FORMATTABLE metadatasvc path pkg/io pkg/proc rkt stage0/run.go stage1 version"
@@ -25,17 +25,13 @@ if [ -z "$PKG" ]; then
 # user has provided PKG override
 else
 	# strip out leading dotslashes and trailing slashes from PKG=./foo/
-	TEST=${PKG/#./}
-	TEST=${TEST/#\//}
-	TEST=${TEST/%\//}
+  TEST=$(echo " $PKG" | sed -E 's:\s+\./: :g')
 
 	# only run gofmt on packages provided by user
 	FMT="$TEST"
 fi
 
-# split TEST into an array and prepend REPO_PATH to each local package
-split=(${TEST// / })
-TEST=${split[@]/#/${REPO_PATH}/}
+TEST=$(echo " $TEST" | sed -E 's:\s+: '$REPO_PATH'/:g')
 
 echo "Running tests..."
 go test -timeout 60s ${COVER} $@ ${TEST} --race
