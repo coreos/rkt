@@ -179,10 +179,11 @@ func Setup(cfg Config) (string, error) {
 // Run actually runs the container by exec()ing the stage1 init inside
 // the container filesystem.
 func Run(dir string, debug bool) {
-	args := []string{}
+	args := []string{"run"}
 	if debug {
 		args = append(args, "debug")
 	}
+	args = append(args, "--")
 	execInit1(dir, args)
 }
 

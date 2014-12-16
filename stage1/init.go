@@ -49,10 +49,8 @@ func mirrorLocalZoneInfo(root string) {
 	_, _ = io.Copy(dest, src)
 }
 
-func main() {
+func run(debug bool, opt_args []string) {
 	root := "."
-	debug := len(os.Args) > 1 && os.Args[1] == "debug"
-
 	c, err := LoadContainer(root)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to load container: %v\n", err)
@@ -99,5 +97,34 @@ func main() {
 	if err := syscall.Exec(args[0], args, env); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to execute nspawn: %v\n", err)
 		os.Exit(5)
+	}
+}
+
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Fprintf(os.Stderr, "Expected at least action parameter (run)\n")
+		os.Exit(1)
+	}
+	action := os.Args[1];
+	no_interp_index := 2
+	debug := false
+	if len(os.Args) > 2 && os.Args[2] == "debug" {
+		debug = true
+		no_interp_index = 3
+	}
+
+	if len(os.Args) > no_interp_index && os.Args[no_interp_index] != "--" {
+		fmt.Fprintf(os.Stderr, "Expected '--' followed by optional parameters\n")
+		os.Exit(1)
+	}
+	opt_args := []string{}
+	if len(os.Args) > no_interp_index + 1 {
+		opt_args = os.Args[no_interp_index + 1:]
+	}
+	switch action {
+	case "run":
+		run(debug, opt_args)
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown action: %s\n", action)
 	}
 }
