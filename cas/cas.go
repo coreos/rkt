@@ -3,7 +3,7 @@ package cas
 import (
 	"bufio"
 	"bytes"
-	"crypto/sha256"
+	"crypto/sha512"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -88,7 +88,7 @@ func (ds Store) WriteACI(tmpKey string, orig io.Reader) (string, error) {
 
 	// Write the uncompressed image (tar) to a temporary file on disk, and
 	// tee so we can generate the hash
-	hash := sha256.New()
+	hash := sha512.New()
 	tr := io.TeeReader(dr, hash)
 	fh, err := ds.tmpFile()
 	if err != nil {
@@ -100,7 +100,7 @@ func (ds Store) WriteACI(tmpKey string, orig io.Reader) (string, error) {
 	fh.Close()
 
 	// Import the decompressed tar to the store using the hash as the key
-	key := fmt.Sprintf("sha256-%x", hash.Sum(nil))
+	key := fmt.Sprintf("sha512-%x", hash.Sum(nil))
 	err = ds.stores[blobType].Import(fh.Name(), key, true)
 	if err != nil {
 		return "", err

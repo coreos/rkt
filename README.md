@@ -33,7 +33,7 @@ Rocket uses content addressable storage (CAS) for storing an ACI on disk. In thi
 
 ```
 [~/rocket-v0.1.1]$ sudo ./rkt fetch https://github.com/coreos/etcd/releases/download/v0.5.0-alpha.4/etcd-v0.5.0-alpha.4-linux-amd64.aci
-sha256-6635e9cbe18c6f51e8c70c143948df111b5626db39198182fbeb9277beb606db
+sha512-2ce5635af92c1ab8e2b0457c7a8b401417532d75098d58dc81e42c74cf47cc4e671c6b63058576ad0859f80adafeeca56dec0a980179a45c3b5d063a91a9101a
 ```
 
 These files are now written to disk:
@@ -41,19 +41,19 @@ These files are now written to disk:
 ```
 [~]$ find /var/lib/rkt/cas/blob/
 /var/lib/rkt/cas/blob/
-/var/lib/rkt/cas/blob/sha256
-/var/lib/rkt/cas/blob/sha256/66
-/var/lib/rkt/cas/blob/sha256/66/sha256-6635e9cbe18c6f51e8c70c143948df111b5626db39198182fbeb9277beb606db
+/var/lib/rkt/cas/blob/sha512
+/var/lib/rkt/cas/blob/sha512/2c
+/var/lib/rkt/cas/blob/sha512/2c/sha512-2ce5635af92c1ab8e2b0457c7a8b401417532d75098d58dc81e42c74cf47cc4e671c6b63058576ad0859f80adafeeca56dec0a980179a45c3b5d063a91a9101a
 ```
 
-Per the [App Container Specification](https://github.com/appc/spec/blob/master/SPEC.md#image-archives), the SHA-256 hash is of the tarball and can be reproduced with other tools:
+Per the [App Container Specification](https://github.com/appc/spec/blob/master/SPEC.md#image-archives), the SHA-512 hash is of the tarball and can be reproduced with other tools:
 
 ```
 [~]$ wget https://github.com/coreos/etcd/releases/download/v0.5.0-alpha.4/etcd-v0.5.0-alpha.4-linux-amd64.aci
 ...
 [~]$ gzip -dc etcd-v0.5.0-alpha.4-linux-amd64.aci > etcd-v0.5.0-alpha.4-linux-amd64.tar
-[~]$ sha256sum etcd-v0.5.0-alpha.4-linux-amd64.tar
-6635e9cbe18c6f51e8c70c143948df111b5626db39198182fbeb9277beb606db  etcd-v0.5.0-alpha.4-linux-amd64.tar
+[~]$ sha512sum etcd-v0.5.0-alpha.4-linux-amd64.tar
+2ce5635af92c1ab8e2b0457c7a8b401417532d75098d58dc81e42c74cf47cc4e671c6b63058576ad0859f80adafeeca56dec0a980179a45c3b5d063a91a9101a  etcd-v0.5.0-alpha.4-linux-amd64.tar
 ```
 
 ### Launching an ACI
@@ -62,7 +62,7 @@ An ACI can be run by pointing `rkt` at either the ACI's hash or URL.
 
 ```
 # Example of running via ACI hash
-[~/rocket-v0.1.1]$ sudo ./rkt run sha256-6635e9cbe18c6f51e8c70c143948df111b5626db39198182fbeb9277beb606db
+[~/rocket-v0.1.1]$ sudo ./rkt run sha512-2ce5635af92c1ab8e2b0457c7a8b401417532d75098d58dc81e42c74cf47cc4e671c6b63058576ad0859f80adafeeca56dec0a980179a45c3b5d063a91a9101a
 ...
 Press ^] three times to kill container
 ```
@@ -114,9 +114,9 @@ The first step of the process, stage 0, is the actual `rkt` binary itself. This 
 Given a run command such as:
 
 ```
-[~/rocket-v0.1.1]$ sudo ./rkt run --volume bind:/opt/tenant1/database \
-	sha256-8a30f14877cd8065939e3912542a17d1a5fd9b4c \
-	sha256-abcd29837d89389s9d0898ds908ds890df890908
+[~/rocket-v0.1.1]$ sudo ./rkt run --volume database:/opt/tenant1/database \
+	sha512-7d185af14e190ffb90ea87dad8f516ad204057e791214928dca6fbbf16303fcc1f07280defb442a67f9f109a3f770de79388797c8a74280873434b033db42582 \
+	sha512-6084c5645c61ee5469801244ee00690571b835bbfb6e1ea18d00656e94604700953e394afc017b5eff45ea275a79249282e8cc80fa979378a332675a970fbac2
 ```
 
 a container manifest compliant with the ACE spec will be generated, and the filesystem created by stage0 should be:
@@ -126,8 +126,8 @@ a container manifest compliant with the ACE spec will be generated, and the file
 /stage1
 /stage1/init
 /stage1/opt
-/stage1/opt/stage2/sha256-8a30f14877cd8065939e3912542a17d1a5fd9b4c
-/stage1/opt/stage2/sha256-abcd29837d89389s9d0898ds908ds890df890908
+/stage1/opt/stage2/sha512-7d185af14e190ffb90ea87dad8f516ad204057e791214928dca6fbbf16303fcc1f07280defb442a67f9f109a3f770de79388797c8a74280873434b033db42582
+/stage1/opt/stage2/sha512-6084c5645c61ee5469801244ee00690571b835bbfb6e1ea18d00656e94604700953e394afc017b5eff45ea275a79249282e8cc80fa979378a332675a970fbac2
 ```
 
 where:
