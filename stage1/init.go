@@ -111,9 +111,20 @@ func run(debug bool, opt_args []string) {
 	executeNspawn(c.Root, args)
 }
 
+func enter(debug bool, opt_args []string) {
+	c, args := initialSetupAndArgs(debug)
+
+	args = append(args, c.ContainerToNspawnForEnterArgs()...)
+	// Binary to execute
+	args = append(args, "--")
+	args = append(args, opt_args...)
+
+	executeNspawn(c.Root, args)
+}
+
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "Expected at least action parameter (run)\n")
+		fmt.Fprintf(os.Stderr, "Expected at least action parameter (run or enter)\n")
 		os.Exit(1)
 	}
 	action := os.Args[1];
@@ -135,6 +146,8 @@ func main() {
 	switch action {
 	case "run":
 		run(debug, opt_args)
+	case "enter":
+		enter(debug, opt_args)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown action: %s\n", action)
 	}

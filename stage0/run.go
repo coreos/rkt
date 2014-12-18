@@ -187,6 +187,16 @@ func Run(dir string, debug bool) {
 	execInit1(dir, args)
 }
 
+func Enter(dir string, cmds []string, debug bool) {
+	args := []string{"enter"}
+	if debug {
+		args = append(args, "debug")
+	}
+	args = append(args, "--")
+	args = append(args, cmds...)
+	execInit1(dir, args)
+}
+
 func execInit1(dir string, args []string) {
 	log.Printf("Pivoting to filesystem %s", dir)
 	if err := os.Chdir(dir); err != nil {
