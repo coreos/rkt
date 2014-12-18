@@ -5,8 +5,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,41 +41,11 @@ func init() {
 func findImages(args []string, ds *cas.Store) (out []types.Hash, err error) {
 	out = make([]types.Hash, len(args))
 	for i, img := range args {
-		// check if it is a valid hash, if so let it pass through
-		h, err := types.NewHash(img)
-		if err == nil {
-			out[i] = *h
-			continue
-		}
-
-		// import the local file if it exists
-		file, err := os.Open(img)
-		if err == nil {
-			tmp := types.NewHashSHA256([]byte(img)).String()
-			key, err := ds.WriteACI(tmp, file)
-			file.Close()
-			if err != nil {
-				return nil, fmt.Errorf("%s: %v", img, err)
-			}
-			h, err := types.NewHash(key)
-			if err != nil {
-				// should never happen
-				panic(err)
-			}
-			out[i] = *h
-			continue
-		}
-
-		key, err := fetchImage(img, ds)
-		if err != nil {
+		h, err := findImage(img, ds)
+		if (err != nil) {
 			return nil, err
 		}
-		h, err = types.NewHash(key)
-		if err != nil {
-			// should never happen
-			panic(err)
-		}
-		out[i] = *h
+		out[i] = h
 	}
 
 	return out, nil
@@ -88,18 +56,12 @@ func runRun(args []string) (exit int) {
 		fmt.Fprintf(os.Stderr, "run: Must provide at least one image\n")
 		return 1
 	}
-	gdir := globalFlags.Dir
-	if gdir == "" {
-		log.Printf("dir unset - using temporary directory")
-		var err error
-		gdir, err = ioutil.TempDir("", "rkt")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error creating temporary directory: %v\n", err)
-			return 1
-		}
+	gdir, err := getDir()
+	if err != nil {
+		return 1
 	}
 
-	ds := cas.NewStore(globalFlags.Dir)
+	ds := cas.NewStore(gdir)
 	imgs, err := findImages(args, ds)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)

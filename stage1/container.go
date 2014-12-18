@@ -220,11 +220,15 @@ func (c *Container) appToNspawnArgs(am *schema.ImageManifest, id types.Hash) ([]
 	return args, nil
 }
 
+func (c *Container) containerUUIDNspawnArg() (string) {
+	return "--uuid=" + c.Manifest.UUID.String()
+}
+
 // ContainerToNspawnArgs renders a prepared Container as a systemd-nspawn
 // argument list ready to be executed
 func (c *Container) ContainerToNspawnArgs() ([]string, error) {
 	args := []string{
-		"--uuid=" + c.Manifest.UUID.String(),
+		c.containerUUIDNspawnArg(),
 		"--directory=" + rktpath.Stage1RootfsPath(c.Root),
 	}
 
