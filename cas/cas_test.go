@@ -243,3 +243,149 @@ func TestGetImageManifest(t *testing.T) {
 		t.Fatalf("expected non-nil error!")
 	}
 }
+
+// Test an image with 1 dep. The parent provides a dir not provided by the image.
+func TestGetAci(t *testing.T) {
+	type test struct {
+		name     types.ACName
+		labels   types.Labels
+		expected int // the aci index to expect or -1 if not result expected,
+	}
+
+	type acidef struct {
+		imj    string
+		latest bool
+	}
+
+	dir, err := ioutil.TempDir("", tstprefix)
+	if err != nil {
+		t.Fatalf("error creating tempdir: %v", err)
+	}
+	defer os.RemoveAll(dir)
+	ds, err := NewStore(dir)
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+
+	tests := []struct {
+		acidefs []acidef
+		tests   []test
+	}{
+		{
+			[]acidef{
+				{
+					`{
+						"acKind": "ImageManifest",
+						"acVersion": "0.1.1",
+						"name": "example.com/test01"
+					}`,
+					false,
+				},
+				{
+					`{
+						"acKind": "ImageManifest",
+						"acVersion": "0.1.1",
+						"name": "example.com/test02",
+						"labels": [
+							{
+								"name": "version",
+								"value": "1.0.0"
+							}
+						]
+					}`,
+					true,
+				},
+				{
+					`{
+						"acKind": "ImageManifest",
+						"acVersion": "0.1.1",
+						"name": "example.com/test02",
+						"labels": [
+							{
+								"name": "version",
+								"value": "2.0.0"
+							}
+						]
+					}`,
+					false,
+				},
+			},
+			[]test{
+				{
+					"example.com/unexistentaci",
+					types.Labels{},
+					-1,
+				},
+				{
+					"example.com/test01",
+					types.Labels{},
+					0,
+				},
+				{
+					"example.com/test02",
+					types.Labels{
+						{
+							Name:  "version",
+							Value: "1.0.0",
+						},
+					},
+					1,
+				},
+				{
+					"example.com/test02",
+					types.Labels{
+						{
+							Name:  "version",
+							Value: "2.0.0",
+						},
+					},
+					2,
+				},
+				{
+					"example.com/test02",
+					types.Labels{},
+					1,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		keys := []string{}
+		// Create ACIs
+		for _, ad := range tt.acidefs {
+			aci, err := aci.NewACI(dir, ad.imj, nil)
+			if err != nil {
+				t.Fatalf("error creating test tar: %v", err)
+			}
+
+			// Rewind the ACI
+			if _, err := aci.Seek(0, 0); err != nil {
+				t.Fatalf("unexpected error %v", err)
+			}
+
+			key, err := ds.WriteACI(aci, ad.latest)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			keys = append(keys, key)
+		}
+
+		for _, test := range tt.tests {
+			key, err := ds.GetACI(test.name, test.labels)
+			if test.expected == -1 {
+				if err == nil {
+					t.Fatalf("Expected no key for appName %s, got %s", test.name, key)
+				}
+
+			} else {
+				if err != nil {
+					t.Fatalf("unexpected error on GetACI for name %s, labels: %v: %v", test.name, test.labels, err)
+				}
+				if keys[test.expected] != key {
+					t.Errorf("expected key: %s, got %s. GetACI with name: %s, labels: %v", key, keys[test.expected], test.name, test.labels)
+				}
+			}
+		}
+	}
+}

@@ -30,6 +30,7 @@ import (
 
 	"github.com/appc/spec/aci"
 	"github.com/appc/spec/schema"
+	"github.com/appc/spec/schema/types"
 
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/peterbourgon/diskv"
 )
@@ -254,6 +255,76 @@ func (ds Store) GetImageManifest(key string) (*schema.ImageManifest, error) {
 		return nil, fmt.Errorf("error unmashalling imagemanifest: %v", err)
 	}
 	return im, nil
+}
+
+// Get the best ACI that matches app name and the provided labels. It returns
+// the blob store key of the given ACI.
+// If there are multiple matching ACIs choose the latest one (defined as the
+// last one imported in the store).
+// If no version label is requested, ACIs marked as latest in the ACIInfo are
+// preferred.
+func (ds Store) GetACI(name types.ACName, labels types.Labels) (string, error) {
+	var curaciinfo *ACIInfo
+	versionRequested := false
+	if _, ok := labels.Get("version"); ok {
+		versionRequested = true
+	}
+
+	var aciinfos []*ACIInfo
+	err := ds.db.Do(func(tx *sql.Tx) error {
+		var err error
+		aciinfos, _, err = GetACIInfosWithAppName(tx, name.String())
+		return err
+	})
+	if err != nil {
+		return "", err
+	}
+
+nextKey:
+	for _, aciinfo := range aciinfos {
+		im, err := ds.GetImageManifest(aciinfo.BlobKey)
+		if err != nil {
+			return "", fmt.Errorf("error getting image manifest: %v", err)
+		}
+
+		// The image manifest must have all the requested labels
+		for _, l := range labels {
+			ok := false
+			for _, rl := range im.Labels {
+				if l.Name == rl.Name && l.Value == rl.Value {
+					ok = true
+					break
+				}
+			}
+			if !ok {
+				continue nextKey
+			}
+		}
+
+		if curaciinfo != nil {
+			// If no version is requested prefer the acis marked as latest
+			if !versionRequested {
+				if !curaciinfo.Latest && aciinfo.Latest {
+					curaciinfo = aciinfo
+					continue nextKey
+				}
+				if curaciinfo.Latest && !aciinfo.Latest {
+					continue nextKey
+				}
+			}
+			// If multiple matching image manifests are found, choose the latest imported in the cas.
+			if aciinfo.ImportTime.After(curaciinfo.ImportTime) {
+				curaciinfo = aciinfo
+			}
+		} else {
+			curaciinfo = aciinfo
+		}
+	}
+
+	if curaciinfo != nil {
+		return curaciinfo.BlobKey, nil
+	}
+	return "", fmt.Errorf("aci not found")
 }
 
 func (ds Store) Dump(hex bool) {
