@@ -196,7 +196,7 @@ func (ds Store) WriteACI(r io.Reader, latest bool) (string, error) {
 	}
 
 	// Import the uncompressed image into the store at the real key
-	key := HashToKey(h)
+	key := ds.HashToKey(h)
 	if err = ds.stores[blobType].Import(fh.Name(), key, true); err != nil {
 		return "", fmt.Errorf("error importing image: %v", err)
 	}
@@ -352,7 +352,7 @@ func (ds Store) Dump(hex bool) {
 // HashToKey takes a hash.Hash (which currently _MUST_ represent a full SHA512),
 // calculates its sum, and returns a string which should be used as the key to
 // store the data matching the hash.
-func HashToKey(h hash.Hash) string {
+func (ds Store) HashToKey(h hash.Hash) string {
 	s := h.Sum(nil)
 	return keyToString(s)
 }

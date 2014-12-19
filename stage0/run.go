@@ -288,7 +288,7 @@ func expandImage(cfg Config, img types.Hash, dest string) error {
 	}
 
 	// TODO(jonboulle): clean this up, leaky abstraction with the store.
-	if g := cas.HashToKey(hash); g != img.String() {
+	if g := cfg.Store.HashToKey(hash); g != img.String() {
 		return fmt.Errorf("image hash does not match expected (%v != %v)", g, img.String())
 	}
 
