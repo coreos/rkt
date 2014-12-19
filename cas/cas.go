@@ -28,6 +28,8 @@ import (
 	"time"
 
 	"github.com/appc/spec/aci"
+	"github.com/appc/spec/schema"
+	"github.com/appc/spec/schema/types"
 
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/peterbourgon/diskv"
 )
@@ -237,6 +239,101 @@ func (ds Store) ReadIndex(i Index) error {
 	}
 
 	return nil
+}
+
+// Get the best ACI that matches app name and the provided labels. It returns
+// the blob store key of the given ACI.
+// If there are multiple matching ACIs choose the latest one (defined as the
+// last one imported in the store).
+// If no version label is requested, ACIs marked as latest in the ACIInfo are
+// preferred.
+func (ds Store) GetACI(name types.ACName, labels types.Labels) (string, error) {
+	startACIInfoKey := ShortSHA512(name.String())
+
+	ACIInfoKeys := []string{}
+	finished := false
+	for {
+		if finished {
+			break
+		}
+		nextACIInfoKeys := ds.stores[appIndexType].Index.Keys(startACIInfoKey, 10)
+		if len(nextACIInfoKeys) == 0 {
+			break
+		}
+		for _, ACIInfoKey := range nextACIInfoKeys {
+			if strings.HasPrefix(ACIInfoKey, startACIInfoKey) {
+				ACIInfoKeys = append(ACIInfoKeys, ACIInfoKey)
+			} else {
+				finished = true
+			}
+		}
+		startACIInfoKey = nextACIInfoKeys[len(nextACIInfoKeys)-1]
+	}
+
+	var curaciinfo *ACIInfo
+	versionRequested := false
+	if _, ok := labels.Get("version"); ok {
+		versionRequested = true
+	}
+
+nextKey:
+	for _, key := range ACIInfoKeys {
+		buf, err := ds.stores[appIndexType].Read(key)
+		if err != nil {
+			return "", fmt.Errorf("cannot get AppIndex for key %s: %v", key, err)
+		}
+
+		appindex := &AppIndex{}
+		err = appindex.Unmarshal(buf)
+		if err != nil {
+			return "", fmt.Errorf("cannot unmarshal AppIndex for key %s: %v", key, err)
+		}
+
+		// Get the ACIInfo for this Key
+		aciinfo := NewACIInfo(&schema.ImageManifest{}, appindex.ACIInfoKey, false, time.Time{})
+		err = ds.ReadIndex(aciinfo)
+		if err != nil {
+			return "", fmt.Errorf("cannot get ACIInfo for key %s: %v", appindex.ACIInfoKey, err)
+		}
+
+		// The image manifest must have all the requested labels
+		for _, l := range labels {
+			ok := false
+			for _, rl := range aciinfo.Im.Labels {
+				if l.Name == rl.Name && l.Value == rl.Value {
+					ok = true
+					break
+				}
+			}
+			if !ok {
+				continue nextKey
+			}
+		}
+
+		if curaciinfo != nil {
+			// If no version is requested prefer the acis marked as latest
+			if !versionRequested {
+				if !curaciinfo.Latest && aciinfo.Latest {
+					curaciinfo = aciinfo
+					continue nextKey
+				}
+				if curaciinfo.Latest && !aciinfo.Latest {
+					continue nextKey
+				}
+			}
+			// If multiple matching image manifests are found, choose the latest imported in the cas.
+			if aciinfo.Time.After(curaciinfo.Time) {
+				curaciinfo = aciinfo
+			}
+		} else {
+			curaciinfo = aciinfo
+		}
+	}
+
+	if curaciinfo != nil {
+		return curaciinfo.BlobKey, nil
+	}
+	return "", fmt.Errorf("aci not found")
 }
 
 func (ds Store) Dump(hex bool) {
