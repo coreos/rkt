@@ -15,8 +15,9 @@
 package cas
 
 import (
+	"archive/tar"
 	"bytes"
-	"encoding/base64"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -24,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/appc/spec/schema/types"
+	"github.com/coreos/rocket/pkg/util"
 )
 
 const tstprefix = "cas-test"
@@ -50,8 +52,38 @@ func TestDownloading(t *testing.T) {
 		t.Fatalf("error creating tempdir: %v", err)
 	}
 	defer os.RemoveAll(dir)
-	// TODO(philips): construct a real tarball using go, this is a base64 tarball with an empty file
-	body, _ := base64.StdEncoding.DecodeString("H4sIAIWbdlQAA+3PPQrCQBiE4ZU0NnoDcTstv8T9OYaNF7AwGFAIJlqn9wba5Cp6EG9gbWtiII1oF0R4n2bYZVhm81WWq46JiDNG1+mdfaVEzblhrQ4jM7M2tE5ESxhZb5SWrofV9lm+3FVT0nWySdLsY6+qxfGXd5qf6Db/xPjYV8X5sFDB/dIbVBfX8jHfDn3ZNgofnG6jiZr+bCMAAAAAAAAAAAAAAAAA4N0T/slETwAoAAA=")
+
+	imj := `{
+			"acKind": "ImageManifest",
+			"acVersion": "0.1.1",
+			"name": "example.com/test01"
+		}`
+
+	entries := []*util.ACIEntry{
+		// An empty file
+		{
+			Contents: "hello",
+			Header: &tar.Header{
+				Name: "rootfs/file01.txt",
+				Size: 5,
+			},
+		},
+	}
+
+	aci, err := util.NewACI(dir, imj, entries)
+	if err != nil {
+		t.Fatalf("error creating test tar: %v", err)
+	}
+
+	// Rewind the ACI
+	if _, err := aci.Seek(0, 0); err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+	body, err := ioutil.ReadAll(aci)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	fmt.Printf("body: %s\n", body)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write(body)
 	}))
@@ -62,8 +94,9 @@ func TestDownloading(t *testing.T) {
 		body []byte
 		hit  bool
 	}{
-		{Remote{ts.URL, "", "12", "96609004016e9625763c7153b74120c309c8cb1bd794345bf6fa2e60ac001cd7"}, body, false},
-		{Remote{ts.URL, "", "12", "96609004016e9625763c7153b74120c309c8cb1bd794345bf6fa2e60ac001cd7"}, body, true},
+		// The Blob entry isn't used
+		{Remote{ts.URL, "", "12", ""}, body, false},
+		{Remote{ts.URL, "", "12", ""}, body, true},
 	}
 
 	ds := NewStore(dir)
