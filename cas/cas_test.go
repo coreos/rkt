@@ -109,7 +109,11 @@ func TestDownloading(t *testing.T) {
 		if tt.hit == true && err != nil {
 			panic("expected a hit got a miss")
 		}
-		ds.stores[remoteType].Write(tt.r.Hash(), tt.r.Marshal())
+		rj, err := tt.r.Marshal()
+		if err != nil {
+			panic(err)
+		}
+		ds.stores[remoteType].Write(tt.r.Hash(), rj)
 		_, aciFile, err := tt.r.Download(*ds, nil)
 		if err != nil {
 			t.Fatalf("error downloading aci: %v", err)
