@@ -169,13 +169,18 @@ func (ds Store) WriteACI(r io.Reader) (string, error) {
 
 type Index interface {
 	Hash() string
-	Marshal() []byte
-	Unmarshal([]byte)
+	Marshal() ([]byte, error)
+	Unmarshal([]byte) error
 	Type() int64
 }
 
-func (ds Store) WriteIndex(i Index) {
-	ds.stores[i.Type()].Write(i.Hash(), i.Marshal())
+func (ds Store) WriteIndex(i Index) error {
+	m, err := i.Marshal()
+	if err != nil {
+		return err
+	}
+	ds.stores[i.Type()].Write(i.Hash(), m)
+	return nil
 }
 
 func (ds Store) ReadIndex(i Index) error {
@@ -184,7 +189,9 @@ func (ds Store) ReadIndex(i Index) error {
 		return err
 	}
 
-	i.Unmarshal(buf)
+	if err = i.Unmarshal(buf); err != nil {
+		return err
+	}
 
 	return nil
 }

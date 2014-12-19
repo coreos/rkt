@@ -47,16 +47,12 @@ type Remote struct {
 	BlobKey string
 }
 
-func (r Remote) Marshal() []byte {
-	m, _ := json.Marshal(r)
-	return m
+func (r Remote) Marshal() ([]byte, error) {
+	return json.Marshal(r)
 }
 
-func (r *Remote) Unmarshal(data []byte) {
-	err := json.Unmarshal(data, r)
-	if err != nil {
-		panic(err)
-	}
+func (r *Remote) Unmarshal(data []byte) error {
+	return json.Unmarshal(data, r)
 }
 
 func (r Remote) Hash() string {
