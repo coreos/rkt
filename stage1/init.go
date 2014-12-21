@@ -49,10 +49,8 @@ func mirrorLocalZoneInfo(root string) {
 	_, _ = io.Copy(dest, src)
 }
 
-func main() {
+func initialSetupAndArgs(debug bool) (*Container, []string) {
 	root := "."
-	debug := len(os.Args) > 1 && os.Args[1] == "debug"
-
 	c, err := LoadContainer(root)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to load container: %v\n", err)
@@ -61,15 +59,9 @@ func main() {
 
 	mirrorLocalZoneInfo(c.Root)
 
-	if err = c.ContainerToSystemd(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to configure systemd: %v\n", err)
-		os.Exit(2)
-	}
-
 	args := []string{
 		filepath.Join(path.Stage1RootfsPath(c.Root), interpBin),
 		filepath.Join(path.Stage1RootfsPath(c.Root), nspawnBin),
-		"--boot",              // Launch systemd in the container
 		"--register", "false", // We cannot assume the host system is running systemd
 	}
 
@@ -77,6 +69,30 @@ func main() {
 		args = append(args, "--quiet") // silence most nspawn output (log_warning is currently not covered by this)
 	}
 
+	return c, args
+}
+
+func executeNspawn(root string, args []string) {
+	env := os.Environ()
+	env = append(env, "LD_PRELOAD="+filepath.Join(path.Stage1RootfsPath(root), "fakesdboot.so"))
+	env = append(env, "LD_LIBRARY_PATH="+filepath.Join(path.Stage1RootfsPath(root), "usr/lib"))
+
+	if err := syscall.Exec(args[0], args, env); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to execute nspawn: %v\n", err)
+		os.Exit(5)
+	}
+}
+
+func run(debug bool, opt_args []string) {
+	c, args := initialSetupAndArgs(debug)
+
+	if err := c.ContainerToSystemd(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to configure systemd: %v\n", err)
+		os.Exit(2)
+	}
+
+	// Launch systemd in the container
+	args = append(args, "--boot")
 	nsargs, err := c.ContainerToNspawnArgs()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to generate nspawn args: %v\n", err)
@@ -92,12 +108,47 @@ func main() {
 		args = append(args, "--show-status=0")   // silence systemd initialization status output
 	}
 
-	env := os.Environ()
-	env = append(env, "LD_PRELOAD="+filepath.Join(path.Stage1RootfsPath(c.Root), "fakesdboot.so"))
-	env = append(env, "LD_LIBRARY_PATH="+filepath.Join(path.Stage1RootfsPath(c.Root), "usr/lib"))
+	executeNspawn(c.Root, args)
+}
 
-	if err := syscall.Exec(args[0], args, env); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to execute nspawn: %v\n", err)
-		os.Exit(5)
+func enter(debug bool, opt_args []string) {
+	c, args := initialSetupAndArgs(debug)
+
+	args = append(args, c.ContainerToNspawnForEnterArgs()...)
+	// Binary to execute
+	args = append(args, "--")
+	args = append(args, opt_args...)
+
+	executeNspawn(c.Root, args)
+}
+
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Fprintf(os.Stderr, "Expected at least action parameter (run or enter)\n")
+		os.Exit(1)
+	}
+	action := os.Args[1];
+	no_interp_index := 2
+	debug := false
+	if len(os.Args) > 2 && os.Args[2] == "debug" {
+		debug = true
+		no_interp_index = 3
+	}
+
+	if len(os.Args) > no_interp_index && os.Args[no_interp_index] != "--" {
+		fmt.Fprintf(os.Stderr, "Expected '--' followed by optional parameters\n")
+		os.Exit(1)
+	}
+	opt_args := []string{}
+	if len(os.Args) > no_interp_index + 1 {
+		opt_args = os.Args[no_interp_index + 1:]
+	}
+	switch action {
+	case "run":
+		run(debug, opt_args)
+	case "enter":
+		enter(debug, opt_args)
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown action: %s\n", action)
 	}
 }

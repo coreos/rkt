@@ -179,17 +179,34 @@ func Setup(cfg Config) (string, error) {
 // Run actually runs the container by exec()ing the stage1 init inside
 // the container filesystem.
 func Run(dir string, debug bool) {
+	args := []string{"run"}
+	if debug {
+		args = append(args, "debug")
+	}
+	args = append(args, "--")
+	execInit1(dir, args)
+}
+
+func Enter(dir string, cmds []string, debug bool) {
+	args := []string{"enter"}
+	if debug {
+		args = append(args, "debug")
+	}
+	args = append(args, "--")
+	args = append(args, cmds...)
+	execInit1(dir, args)
+}
+
+func execInit1(dir string, args []string) {
 	log.Printf("Pivoting to filesystem %s", dir)
 	if err := os.Chdir(dir); err != nil {
 		log.Fatalf("failed changing to dir: %v", err)
 	}
 
 	log.Printf("Execing %s", initPath)
-	args := []string{initPath}
-	if debug {
-		args = append(args, "debug")
-	}
-	if err := syscall.Exec(initPath, args, os.Environ()); err != nil {
+	exec_args := []string{initPath}
+	exec_args = append(exec_args, args...)
+	if err := syscall.Exec(initPath, exec_args, os.Environ()); err != nil {
 		log.Fatalf("error execing init: %v", err)
 	}
 }

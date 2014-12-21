@@ -220,11 +220,15 @@ func (c *Container) appToNspawnArgs(am *schema.ImageManifest, id types.Hash) ([]
 	return args, nil
 }
 
+func (c *Container) containerUUIDNspawnArg() (string) {
+	return "--uuid=" + c.Manifest.UUID.String()
+}
+
 // ContainerToNspawnArgs renders a prepared Container as a systemd-nspawn
 // argument list ready to be executed
 func (c *Container) ContainerToNspawnArgs() ([]string, error) {
 	args := []string{
-		"--uuid=" + c.Manifest.UUID.String(),
+		c.containerUUIDNspawnArg(),
 		"--directory=" + rktpath.Stage1RootfsPath(c.Root),
 	}
 
@@ -241,4 +245,27 @@ func (c *Container) ContainerToNspawnArgs() ([]string, error) {
 	}
 
 	return args, nil
+}
+
+// ContainerToNspawnForEnterArgs renders a prepared Container as a systemd-nspawn
+// argument list ready to be entered
+func (c *Container) ContainerToNspawnForEnterArgs() ([]string) {
+	// TODO: We should get a image ID in different way, this one
+	// is a horrible hack. The image ID should be an ID of image
+	// passed to rkt enter.
+	if (len(c.Apps) == 0) {
+		panic("no apps in manifest")
+	}
+	var am *schema.ImageManifest
+	for _, app_manifest := range c.Apps {
+		am = app_manifest
+		break
+	}
+	image_id := c.Manifest.Apps.Get(am.Name).ImageID
+
+	args := []string{
+		c.containerUUIDNspawnArg(),
+		"--directory=" + rktpath.AppRootfsPath(c.Root, image_id),
+	}
+	return args
 }
