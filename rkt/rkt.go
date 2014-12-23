@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"text/tabwriter"
 )
 
@@ -87,4 +88,12 @@ func getFlags(flagset *flag.FlagSet) (flags []*flag.Flag) {
 		flags = append(flags, f)
 	})
 	return
+}
+
+func containersDir() string {
+	return filepath.Join(globalFlags.Dir, "containers")
+}
+
+func garbageDir() string {
+	return filepath.Join(globalFlags.Dir, "garbage")
 }
