@@ -36,6 +36,7 @@ import (
 const (
 	blobType int64 = iota
 	remoteType
+	aciInfoType
 
 	defaultPathPerm os.FileMode = 0777
 
@@ -47,10 +48,13 @@ const (
 	lenKey     = len(hashPrefix) + lenHashKey
 )
 
-var otmap = [...]string{
-	"blob",
-	"remote", // remote is a temporary secondary index
-}
+var (
+	otmap = []string{
+		"blob",
+		"remote", // remote is a temporary secondary index
+		"aciinfo",
+	}
+)
 
 // Store encapsulates a content-addressable-storage for storing ACIs on disk.
 type Store struct {
