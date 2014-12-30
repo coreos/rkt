@@ -21,6 +21,7 @@ install -m 0644 units/reaper.service "$RD/usr/lib/systemd/system"
 install -m 0644 units/sockets.target "$RD/usr/lib/systemd/system"
 install -m 0755 scripts/reaper.sh "$RD"
 install -m 0755 ../shim/shim.so "$RD"
+install -m 0755 ../enter/enter "$RD"
 ln -s shim.so "$RD/fakesdboot.so"
 
 install -d "$RD/etc"
