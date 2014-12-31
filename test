@@ -15,7 +15,7 @@ COVER=${COVER:-"-cover"}
 source ./build
 
 TESTABLE_AND_FORMATTABLE="cas pkg/keystore pkg/lock pkg/tar"
-FORMATTABLE="$TESTABLE_AND_FORMATTABLE metadatasvc path pkg/io pkg/proc rkt stage0/run.go stage1 version"
+FORMATTABLE="$TESTABLE_AND_FORMATTABLE network path pkg/io pkg/proc rkt stage0/run.go stage1 version"
 
 # user has not provided PKG override
 if [ -z "$PKG" ]; then

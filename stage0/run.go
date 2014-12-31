@@ -64,8 +64,9 @@ type Config struct {
 	Stage1Rootfs  string     // compressed bundle containing a rootfs for stage1
 	Debug         bool
 	// TODO(jonboulle): These images are partially-populated hashes, this should be clarified.
-	Images  []types.Hash      // application images
-	Volumes map[string]string // map of volumes that rocket can provide to applications
+	Images           []types.Hash      // application images
+	Volumes          map[string]string // map of volumes that rocket can provide to applications
+	SpawnMetadataSvc bool
 }
 
 func init() {
@@ -195,7 +196,7 @@ func Setup(cfg Config) (string, error) {
 
 // Run actually runs the container by exec()ing the stage1 init inside
 // the container filesystem.
-func Run(dir string, debug bool) {
+func Run(cfg Config, dir string) {
 	log.Printf("Pivoting to filesystem %s", dir)
 	if err := os.Chdir(dir); err != nil {
 		log.Fatalf("failed changing to dir: %v", err)
@@ -203,8 +204,15 @@ func Run(dir string, debug bool) {
 
 	log.Printf("Execing %s", initPath)
 	args := []string{initPath}
-	if debug {
-		args = append(args, "debug")
+	if cfg.Debug {
+		args = append(args, "--debug")
+	}
+	if cfg.SpawnMetadataSvc {
+		rktExe, err := os.Readlink("/proc/self/exe")
+		if err != nil {
+			log.Fatalf("failed to readlink /proc/self/exe: %v", err)
+		}
+		args = append(args, fmt.Sprintf("--metadata-svc=%s metadatasvc --no-idle", rktExe))
 	}
 	if err := syscall.Exec(initPath, args, os.Environ()); err != nil {
 		log.Fatalf("error execing init: %v", err)
