@@ -19,12 +19,16 @@ package main
 // this implements /init of stage1/nspawn+systemd
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"syscall"
 
+	"github.com/coreos/rocket/network"
 	"github.com/coreos/rocket/path"
 )
 
@@ -63,21 +67,34 @@ func mirrorLocalZoneInfo(root string) {
 	_, _ = io.Copy(dest, src)
 }
 
-func main() {
-	root := "."
-	debug := len(os.Args) > 1 && os.Args[1] == "debug"
+var (
+	debug   bool
+	privNet bool
+)
 
+func init() {
+	flag.BoolVar(&debug, "debug", false, "Run in debug mode")
+	flag.BoolVar(&privNet, "priv-net", false, "Setup private network (WIP!)")
+
+	// this ensures that main runs only on main thread (thread group leader).
+	// since namespace ops (unshare, setns) are done for a single thread, we
+	// must ensure that the goroutine does not jump from OS thread to thread
+	runtime.LockOSThread()
+}
+
+func stage1() int {
+	root := "."
 	c, err := LoadContainer(root)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to load container: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	mirrorLocalZoneInfo(c.Root)
 
 	if err = c.ContainerToSystemd(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to configure systemd: %v\n", err)
-		os.Exit(2)
+		return 2
 	}
 
 	args := []string{
@@ -94,7 +111,7 @@ func main() {
 	nsargs, err := c.ContainerToNspawnArgs()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to generate nspawn args: %v\n", err)
-		os.Exit(4)
+		return 4
 	}
 	args = append(args, nsargs...)
 
@@ -110,8 +127,40 @@ func main() {
 	env = append(env, "LD_PRELOAD="+filepath.Join(path.Stage1RootfsPath(c.Root), "fakesdboot.so"))
 	env = append(env, "LD_LIBRARY_PATH="+filepath.Join(path.Stage1RootfsPath(c.Root), "usr/lib"))
 
-	if err := syscall.Exec(args[0], args, env); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to execute nspawn: %v\n", err)
-		os.Exit(5)
+	if privNet {
+		ip, netns, err := network.Setup(c.Manifest.UUID)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to setup network: %v\n", err)
+			return 7
+		}
+		defer network.Teardown(c.Manifest.UUID, ip)
+
+		if err = network.Enter(netns); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to switch container netns: %v\n", err)
+			return 7
+		}
+
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Env = env
+		if err := cmd.Run(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to execute nspawn: %v\n", err)
+			return 5
+		}
+	} else {
+		if err := syscall.Exec(args[0], args, env); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to execute nspawn: %v\n", err)
+			os.Exit(5)
+		}
 	}
+
+	return 0
+}
+
+func main() {
+	flag.Parse()
+	// move code into stage1() helper so defered fns get run
+	os.Exit(stage1())
 }
