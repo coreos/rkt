@@ -40,6 +40,10 @@
 			"Rev": "508f5671a72eeaef05cf8c24abe7fbc1c07faf69"
 		},
 		{
+			"ImportPath": "github.com/vishvananda/netlink",
+			"Rev": "7f10b9c2b83cfebb282b60999505e8a72e1231a0"
+		},
+		{
 			"ImportPath": "golang.org/x/crypto/cast5",
 			"Rev": "a7ead6ddf06233883deca151dffaef2effbf498f"
 		},
