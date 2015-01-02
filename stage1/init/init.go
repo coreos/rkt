@@ -37,18 +37,56 @@ const (
 
 // mirrorLocalZoneInfo tries to reproduce the /etc/localtime target in stage1/ to satisfy systemd-nspawn
 func mirrorLocalZoneInfo(root string) {
-	zif, err := os.Readlink("/etc/localtime")
-	if err != nil {
+	const localtime = "/etc/localtime"
+
+	// Make sure src exists and neither are special files
+	issymlink := false
+	if fi, err := os.Lstat(localtime); err != nil {
 		return
+	} else {
+		mode := fi.Mode()
+		switch {
+		case mode.IsRegular():
+			break
+		case mode&os.ModeType == os.ModeSymlink:
+			issymlink = true
+		default:
+			// "Unsupported filemode for /etc/localtime: %q\n", fi.Mode()
+			return
+		}
 	}
 
-	src, err := os.Open(zif)
+	var srcp, destp = localtime,
+		filepath.Join(path.Stage1RootfsPath(root), localtime)
+
+	if issymlink {
+		// for symlink, need to create the symlink first
+		zif, err := os.Readlink(localtime)
+		if err != nil {
+			return
+		}
+
+		if err = os.MkdirAll(filepath.Dir(destp), 0755); err != nil {
+			return
+		}
+		if err = os.Symlink(zif, destp); err != nil {
+			return
+		}
+
+		if filepath.IsAbs(zif) {
+			srcp = zif
+		} else {
+			srcp = filepath.Join(filepath.Dir(srcp), zif)
+		}
+
+		destp = filepath.Join(path.Stage1RootfsPath(root), srcp)
+	}
+
+	src, err := os.Open(srcp)
 	if err != nil {
 		return
 	}
 	defer src.Close()
-
-	destp := filepath.Join(path.Stage1RootfsPath(root), zif)
 
 	if err = os.MkdirAll(filepath.Dir(destp), 0755); err != nil {
 		return
@@ -60,7 +98,7 @@ func mirrorLocalZoneInfo(root string) {
 	}
 	defer dest.Close()
 
-	_, _ = io.Copy(dest, src)
+	io.Copy(dest, src)
 }
 
 func main() {
