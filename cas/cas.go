@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 
 	"github.com/appc/spec/aci"
+	"github.com/appc/spec/schema"
 
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/peterbourgon/diskv"
 )
@@ -198,6 +199,19 @@ func (ds Store) ReadIndex(i Index) error {
 	i.Unmarshal(buf)
 
 	return nil
+}
+
+// Get the ImageManifest with the specified key.
+func (ds Store) GetImageManifest(key string) (*schema.ImageManifest, error) {
+	imj, err := ds.stores[imageManifestType].Read(key)
+	if err != nil {
+		return nil, fmt.Errorf("error importing image: %v", err)
+	}
+	var im *schema.ImageManifest
+	if err = json.Unmarshal(imj, &im); err != nil {
+		return nil, fmt.Errorf("error unmashalling imagemanifest: %v", err)
+	}
+	return im, nil
 }
 
 func (ds Store) Dump(hex bool) {

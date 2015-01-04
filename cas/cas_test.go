@@ -183,3 +183,46 @@ func TestResolveKey(t *testing.T) {
 		t.Errorf("expected non-nil error!")
 	}
 }
+
+func TestGetImageManifest(t *testing.T) {
+	dir, err := ioutil.TempDir("", tstprefix)
+	if err != nil {
+		t.Fatalf("error creating tempdir: %v", err)
+	}
+	defer os.RemoveAll(dir)
+	ds := NewStore(dir)
+
+	imj := `{
+			"acKind": "ImageManifest",
+			"acVersion": "0.1.1",
+			"name": "example.com/test01"
+		}`
+
+	aci, err := aci.NewACI(dir, imj, nil)
+	if err != nil {
+		t.Fatalf("error creating test tar: %v", err)
+	}
+	// Rewind the ACI
+	if _, err := aci.Seek(0, 0); err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+	key, err := ds.WriteACI(aci)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wanted := "example.com/test01"
+	im, err := ds.GetImageManifest(key)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if im.Name.String() != wanted {
+		t.Errorf("expected im with name: %s, got: %s", wanted, im.Name.String())
+	}
+
+	// test unexistent key
+	im, err = ds.GetImageManifest("sha512-aaaaaaaaaaaaaaaaa")
+	if err == nil {
+		t.Fatalf("expected non-nil error!")
+	}
+}
