@@ -17,12 +17,15 @@ package cas
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
+	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
 )
 
@@ -146,5 +149,55 @@ func TestResolveKey(t *testing.T) {
 	}
 	if err == nil {
 		t.Errorf("expected non-nil error!")
+	}
+}
+
+func TestGetImageManifest(t *testing.T) {
+	dir, err := ioutil.TempDir("", tstprefix)
+	if err != nil {
+		t.Fatalf("error creating tempdir: %v", err)
+	}
+	defer os.RemoveAll(dir)
+	ds := NewStore(dir)
+
+	imj := `{
+			"acKind": "ImageManifest",
+			"acVersion": "0.1.1",
+			"name": "example.com/test01"
+		}`
+
+	im := &schema.ImageManifest{}
+	err = json.Unmarshal([]byte(imj), im)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// fake sha512
+	imageID, err := types.NewHash("sha512-67147019a5b56f5e2ee01e989a8aa4787f56b8445960be2d8678391cf111009b")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	key := imageID.String()
+
+	aciinfo := NewACIInfo(im, key, false, time.Now())
+	ds.WriteIndex(aciinfo)
+
+	wanted := "example.com/test01"
+	im, err = ds.GetImageManifest(key)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if im.Name.String() != wanted {
+		t.Errorf("expected im with name: %s, got: %s", wanted, im.Name.String())
+	}
+
+	// unexistent sha512
+	imageID, err = types.NewHash("sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	key = imageID.String()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	im, err = ds.GetImageManifest(key)
+	if err == nil {
+		t.Fatalf("expected non-nil error!")
 	}
 }

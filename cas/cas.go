@@ -25,8 +25,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/appc/spec/aci"
+	"github.com/appc/spec/schema"
 
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/peterbourgon/diskv"
 )
@@ -198,6 +200,16 @@ func (ds Store) ReadIndex(i Index) error {
 	}
 
 	return nil
+}
+
+// Get the ACI that matches imageID.
+func (ds Store) GetImageManifest(key string) (*schema.ImageManifest, error) {
+	aciinfo := NewACIInfo(&schema.ImageManifest{}, key, false, time.Time{})
+	err := ds.ReadIndex(aciinfo)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get ACI: %v", err)
+	}
+	return aciinfo.Im, nil
 }
 
 func (ds Store) Dump(hex bool) {
