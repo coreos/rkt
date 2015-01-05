@@ -1,28 +1,15 @@
 #!/bin/bash -e
 
-ORG_PATH="github.com/coreos"
-REPO_PATH="${ORG_PATH}/rocket"
-
-if [ ! -h gopath/src/${REPO_PATH} ]; then
-	mkdir -p gopath/src/${ORG_PATH}
-	ln -s ../../../.. gopath/src/${REPO_PATH} || exit 255
-fi
-
-export GOBIN=${PWD}/bin
-export GOPATH=${GOPATH}:${PWD}/gopath
-
-eval $(go env)
-
 if [[ "$OSTYPE" == "linux-gnu" ]]; then
 	echo "Building init (stage1)..."
-	go build -o $GOBIN/init ${REPO_PATH}/stage1/init
+	go build -o bin/init ./stage1/init
 
-	S1INIT=${PWD}/stage0/stage1_init
-	if [ $GOBIN/init -nt $S1INIT/bin.go ]; then
+	S1INIT=stage0/stage1_init
+	if [ bin/init -nt $S1INIT/bin.go ]; then
 		echo "Packaging init (stage1)..."
 		TMP=$(mktemp -d -t rocket-XXXXXX)
 		[ -d $S1INIT ] || mkdir -p $S1INIT
-		cp $GOBIN/init $TMP/s1init
+		cp bin/init $TMP/s1init
 		go-bindata -o $S1INIT/bin.go -pkg="stage1_init" -prefix=$TMP $TMP
 	fi
 
@@ -31,7 +18,7 @@ if [[ "$OSTYPE" == "linux-gnu" ]]; then
 fi
 
 echo "Building rkt (stage0)..."
-go build -o $GOBIN/rkt ${REPO_PATH}/rkt
+go build -o bin/rkt ./rkt
 
 echo "Building metadatasvc..."
-go build -o $GOBIN/metadatasvc ${REPO_PATH}/metadatasvc
+go build -o bin/metadatasvc ./metadatasvc

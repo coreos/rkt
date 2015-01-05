@@ -33,9 +33,9 @@ else
 	FMT="$TEST"
 fi
 
-# split TEST into an array and prepend REPO_PATH to each local package
+# split TEST into an array and prepend ./ to each local package
 split=(${TEST// / })
-TEST=${split[@]/#/${REPO_PATH}/}
+TEST=${split[@]/#/./}
 
 echo "Running tests..."
 go test -timeout 60s ${COVER} $@ ${TEST} --race
