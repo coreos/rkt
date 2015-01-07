@@ -81,24 +81,6 @@ func runGC(args []string) (exit int) {
 	return
 }
 
-// getContainers returns a slice representing the containers in the given rocket directory
-func getContainers() ([]string, error) {
-	cdir := containersDir()
-	ls, err := ioutil.ReadDir(cdir)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read containers directory: %v", err)
-	}
-	var cs []string
-	for _, dir := range ls {
-		if !dir.IsDir() {
-			fmt.Fprintf(os.Stderr, "Unrecognized file: %q, ignoring", dir)
-			continue
-		}
-		cs = append(cs, dir.Name())
-	}
-	return cs, nil
-}
-
 // emptyGarbage discards sufficiently aged containers from garbageDir()
 func emptyGarbage(gracePeriod time.Duration) error {
 	g := garbageDir()
