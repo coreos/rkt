@@ -33,5 +33,8 @@ fi
 echo "Building rkt (stage0)..."
 go build -o $GOBIN/rkt ${REPO_PATH}/rkt
 
-echo "Building metadatasvc..."
-go build -o $GOBIN/metadatasvc ${REPO_PATH}/metadatasvc
+echo "Building network plugins"
+for d in network/plugins/*; do
+	echo "  " `basename $d`
+	go build -o $GOBIN/$d ${REPO_PATH}/$d
+done
