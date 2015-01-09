@@ -83,7 +83,12 @@ func fetchImage(img string, ds *cas.Store, ks *keystore.Keystore) (string, error
 			if err != nil {
 				return "", err
 			}
-			return fetchImageFromEndpoints(ep, ds, ks)
+			latest := false
+			// No specified version label, consider as latest
+			if _, ok := app.Labels["version"]; !ok {
+				latest = true
+			}
+			return fetchImageFromEndpoints(ep, ds, ks, latest)
 		}
 	}
 	if err != nil {
@@ -95,15 +100,15 @@ func fetchImage(img string, ds *cas.Store, ks *keystore.Keystore) (string, error
 	return fetchImageFromURL(u.String(), ds, ks)
 }
 
-func fetchImageFromEndpoints(ep *discovery.Endpoints, ds *cas.Store, ks *keystore.Keystore) (string, error) {
-	return downloadImage(ep.ACIEndpoints[0].ACI, ep.ACIEndpoints[0].Sig, ds, ks)
+func fetchImageFromEndpoints(ep *discovery.Endpoints, ds *cas.Store, ks *keystore.Keystore, latest bool) (string, error) {
+	return downloadImage(ep.ACIEndpoints[0].ACI, ep.ACIEndpoints[0].Sig, ds, ks, latest)
 }
 
 func fetchImageFromURL(imgurl string, ds *cas.Store, ks *keystore.Keystore) (string, error) {
-	return downloadImage(imgurl, sigURLFromImgURL(imgurl), ds, ks)
+	return downloadImage(imgurl, sigURLFromImgURL(imgurl), ds, ks, false)
 }
 
-func downloadImage(aciURL string, sigURL string, ds *cas.Store, ks *keystore.Keystore) (string, error) {
+func downloadImage(aciURL string, sigURL string, ds *cas.Store, ks *keystore.Keystore, latest bool) (string, error) {
 	fmt.Printf("rkt: fetching image from %s\n", aciURL)
 	if globalFlags.InsecureSkipVerify {
 		fmt.Printf("rkt: warning: signature verification has been disabled\n")
@@ -126,7 +131,7 @@ func downloadImage(aciURL string, sigURL string, ds *cas.Store, ks *keystore.Key
 				fmt.Printf("  %s\n", v.Name)
 			}
 		}
-		rem, err = rem.Store(*ds, aciFile)
+		rem, err = rem.Store(*ds, aciFile, latest)
 		if err != nil {
 			return "", err
 		}

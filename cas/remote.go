@@ -95,8 +95,8 @@ func (r Remote) Download(ds Store, ks *keystore.Keystore) (*openpgp.Entity, *os.
 
 // TODO: add locking
 // Store stores the ACI represented by r in the target data store.
-func (r Remote) Store(ds Store, aci io.Reader) (*Remote, error) {
-	key, err := ds.WriteACI(aci)
+func (r Remote) Store(ds Store, aci io.Reader, latest bool) (*Remote, error) {
+	key, err := ds.WriteACI(aci, latest)
 	if err != nil {
 		return nil, err
 	}

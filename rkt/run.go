@@ -97,7 +97,7 @@ func findImage(img string, ds *cas.Store, ks *keystore.Keystore) (*types.Hash, e
 	// import the local file if it exists
 	file, err := os.Open(img)
 	if err == nil {
-		key, err := ds.WriteACI(file)
+		key, err := ds.WriteACI(file, false)
 		file.Close()
 		if err != nil {
 			return nil, fmt.Errorf("%s: %v", img, err)
