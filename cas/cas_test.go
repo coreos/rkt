@@ -120,7 +120,7 @@ func TestDownloading(t *testing.T) {
 		}
 		defer os.Remove(aciFile.Name())
 
-		_, err = tt.r.Store(*ds, aciFile)
+		_, err = tt.r.Store(*ds, aciFile, false)
 		if err != nil {
 			panic(err)
 		}
