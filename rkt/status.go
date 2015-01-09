@@ -57,7 +57,7 @@ func runStatus(args []string) (exit int) {
 		return 1
 	}
 
-	l, exited, err := GetContainerLockAndState(containerUUID)
+	l, exited, err := getContainerLockAndState(containerUUID, flagWait)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to access container: %v\n", err)
 		return 1

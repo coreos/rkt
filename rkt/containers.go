@@ -44,7 +44,7 @@ func getContainers() ([]string, error) {
 
 // getContainerLockAndState opens the container directory in the form of a lock.DirLock,
 // returning the lock and wether the container has already exited or not.
-func getContainerLockAndState(containerUUID *types.UUID) (l *lock.DirLock, isExited bool, err error) {
+func getContainerLockAndState(containerUUID *types.UUID, wait bool) (l *lock.DirLock, isExited bool, err error) {
 	cid := containerUUID.String()
 	isGarbage := false
 
@@ -67,7 +67,7 @@ func getContainerLockAndState(containerUUID *types.UUID) (l *lock.DirLock, isExi
 	}
 
 	isExited = true
-	if flagWait && !isGarbage {
+	if wait && !isGarbage {
 		err = l.SharedLock()
 	} else {
 		err = l.TrySharedLock()
