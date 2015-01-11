@@ -119,7 +119,10 @@ func TestFetchImage(t *testing.T) {
 		t.Fatalf("error creating tempdir: %v", err)
 	}
 	defer os.RemoveAll(dir)
-	ds := cas.NewStore(dir)
+	ds, err := cas.NewStore(dir)
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
 	defer ds.Dump(false)
 
 	ks, ksPath, err := keystore.NewTestKeystore()

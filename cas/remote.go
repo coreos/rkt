@@ -18,7 +18,7 @@
 package cas
 
 import (
-	"encoding/json"
+	"database/sql"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -29,7 +29,7 @@ import (
 	"github.com/coreos/rocket/pkg/keystore"
 
 	"github.com/appc/spec/aci"
-	"github.com/appc/spec/schema/types"
+
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/mitchellh/ioprogress"
 	"github.com/coreos/rocket/Godeps/_workspace/src/golang.org/x/crypto/openpgp"
 )
@@ -48,26 +48,6 @@ type Remote struct {
 	ETag   string
 	// The key in the blob store under which the ACI has been saved.
 	BlobKey string
-}
-
-func (r Remote) Marshal() []byte {
-	m, _ := json.Marshal(r)
-	return m
-}
-
-func (r *Remote) Unmarshal(data []byte) {
-	err := json.Unmarshal(data, r)
-	if err != nil {
-		panic(err)
-	}
-}
-
-func (r Remote) Hash() string {
-	return types.NewHashSHA512([]byte(r.ACIURL)).String()
-}
-
-func (r Remote) Type() int64 {
-	return remoteType
 }
 
 // Download downloads and verifies the remote ACI.
@@ -121,7 +101,7 @@ func (r Remote) Store(ds Store, aci io.Reader) (*Remote, error) {
 		return nil, err
 	}
 	r.BlobKey = key
-	ds.WriteIndex(&r)
+	ds.WriteRemote(&r)
 	return &r, nil
 }
 
@@ -202,4 +182,40 @@ func downloadSignatureFile(sigurl string) (*os.File, error) {
 		return nil, fmt.Errorf("error writing signature: %v", err)
 	}
 	return sig, nil
+}
+
+// GetRemote tries to retrieve a remote with the given aciURL. found will be
+// false if not remote exists
+func GetRemote(tx *sql.Tx, aciURL string, sigURL string) (remote *Remote, found bool, err error) {
+	remote = &Remote{}
+	rows, err := tx.Query("SELECT etag, blobkey FROM remote WHERE aciurl == $1 and sigurl == $2", aciURL, sigURL)
+	if err != nil {
+		return nil, false, err
+	}
+	for rows.Next() {
+		found = true
+		if err := rows.Scan(&remote.ETag, &remote.BlobKey); err != nil {
+			return nil, false, err
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, false, err
+	}
+
+	return remote, found, err
+}
+
+// WriteRemote adds or updates the provided Remote.
+func WriteRemote(tx *sql.Tx, remote *Remote) error {
+	// ql doesn't have an INSERT OR UPDATE function so
+	// it's faster to remove and reinsert the row
+	_, err := tx.Exec("DELETE from remote where aciurl == $1 and sigurl == $2", remote.ACIURL, remote.SigURL)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec("INSERT into remote values ($1, $2, $3, $4)", remote.ACIURL, remote.SigURL, remote.ETag, remote.BlobKey)
+	if err != nil {
+		return err
+	}
+	return nil
 }

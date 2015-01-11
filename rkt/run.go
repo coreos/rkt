@@ -139,7 +139,11 @@ func runRun(args []string) (exit int) {
 		}
 	}
 
-	ds := cas.NewStore(globalFlags.Dir)
+	ds, err := cas.NewStore(globalFlags.Dir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "run: cannot open store: %v\n", err)
+		return 1
+	}
 	ks := getKeystore()
 
 	s1img, err := findImage(flagStage1Image, ds, ks)

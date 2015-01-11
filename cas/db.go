@@ -22,7 +22,7 @@ import (
 
 	"github.com/coreos/rocket/pkg/lock"
 
-	_ "github.com/cznic/ql/driver"
+	_ "github.com/coreos/rocket/Godeps/_workspace/src/github.com/cznic/ql/driver"
 )
 
 const (

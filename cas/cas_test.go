@@ -36,7 +36,10 @@ func TestBlobStore(t *testing.T) {
 		t.Fatalf("error creating tempdir: %v", err)
 	}
 	defer os.RemoveAll(dir)
-	ds := NewStore(dir)
+	ds, err := NewStore(dir)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 	for _, valueStr := range []string{
 		"I am a manually placed object",
 	} {
@@ -89,33 +92,41 @@ func TestDownloading(t *testing.T) {
 	defer ts.Close()
 
 	tests := []struct {
-		r    Remote
-		body []byte
-		hit  bool
+		ACIURL string
+		SigURL string
+		body   []byte
+		hit    bool
 	}{
 		// The Blob entry isn't used
-		{Remote{ts.URL, "", "12", ""}, body, false},
-		{Remote{ts.URL, "", "12", ""}, body, true},
+		{ts.URL, "", body, false},
+		{ts.URL, "", body, true},
 	}
 
-	ds := NewStore(dir)
+	ds, err := NewStore(dir)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 
 	for _, tt := range tests {
-		_, err := ds.stores[remoteType].Read(tt.r.Hash())
-		if tt.hit == false && err == nil {
+		_, ok, err := ds.GetRemote(tt.ACIURL, tt.SigURL)
+		if err != nil {
+			t.Fatalf("unexpected err: %v", err)
+		}
+		if tt.hit == false && ok {
 			panic("expected miss got a hit")
 		}
-		if tt.hit == true && err != nil {
+		if tt.hit == true && !ok {
 			panic("expected a hit got a miss")
 		}
-		ds.stores[remoteType].Write(tt.r.Hash(), tt.r.Marshal())
-		_, aciFile, err := tt.r.Download(*ds, nil)
+		rem := NewRemote(tt.ACIURL, tt.SigURL)
+		err = ds.WriteRemote(rem)
+		_, aciFile, err := rem.Download(*ds, nil)
 		if err != nil {
 			t.Fatalf("error downloading aci: %v", err)
 		}
 		defer os.Remove(aciFile.Name())
 
-		_, err = tt.r.Store(*ds, aciFile)
+		_, err = rem.Store(*ds, aciFile)
 		if err != nil {
 			panic(err)
 		}
@@ -130,7 +141,10 @@ func TestResolveKey(t *testing.T) {
 		t.Fatalf("error creating tempdir: %v", err)
 	}
 	defer os.RemoveAll(dir)
-	ds := NewStore(dir)
+	ds, err := NewStore(dir)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 
 	// Return a hash key buffer from a hex string
 	str2key := func(s string) *bytes.Buffer {
@@ -190,7 +204,10 @@ func TestGetImageManifest(t *testing.T) {
 		t.Fatalf("error creating tempdir: %v", err)
 	}
 	defer os.RemoveAll(dir)
-	ds := NewStore(dir)
+	ds, err := NewStore(dir)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 
 	imj := `{
 			"acKind": "ImageManifest",

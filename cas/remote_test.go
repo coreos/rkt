@@ -31,29 +31,33 @@ func TestNewRemote(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(dir)
-	ds := NewStore(dir)
+	ds, err := NewStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	// Create our first Remote, and simulate Store() to create index
+	// Create our first Remote, and simulate Store() to create row in the table
 	na := NewRemote(u1, "")
 	na.BlobKey = data
-	ds.WriteIndex(na)
+	ds.WriteRemote(na)
 
-	// Create a new remote w the same parameters, reading from index should be fine
-	nb := NewRemote(u1, "")
-	err = ds.ReadIndex(nb)
+	// Get a new remote w the same parameters, reading from table should be fine
+	nb, ok, err := ds.GetRemote(u1, "")
 	if err != nil {
 		t.Fatalf("unexpected error reading index: %v", err)
+	}
+	if !ok {
+		t.Fatalf("unexpected index not found")
 	}
 	if nb.BlobKey != data {
 		t.Fatalf("bad data returned from store: got %v, want %v", nb.BlobKey, data)
 	}
 
-	// Create a new remote with a different URI
-	nc := NewRemote(u2, "")
-	err = ds.ReadIndex(nc)
-	// Should get an error, since the URI shouldn't be indexed
-	if err == nil {
-		t.Errorf("unexpected nil error reading index")
+	// Get a remote with a different URI
+	nc, ok, err := ds.GetRemote(u2, "")
+	// Should get an error, since the URI shouldn't be present in the table
+	if ok {
+		t.Fatalf("unexpected index found")
 	}
 	// Remote shouldn't be populated
 	if nc.BlobKey != "" {
