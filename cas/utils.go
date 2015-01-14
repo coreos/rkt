@@ -15,8 +15,10 @@
 package cas
 
 import (
+	"archive/tar"
 	"compress/bzip2"
 	"compress/gzip"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -24,6 +26,9 @@ import (
 	"strings"
 
 	"github.com/appc/spec/aci"
+	"github.com/appc/spec/schema"
+
+	ptar "github.com/coreos/rocket/pkg/tar"
 )
 
 // blockTransform creates a path slice from the given string to use as a
@@ -71,4 +76,26 @@ func decompress(rs io.Reader, typ aci.FileType) (io.Reader, error) {
 		return nil, errors.New("no type returned from DetectFileType?")
 	}
 	return dr, nil
+}
+
+// ExtractImageManifest returns, given the blockStore key, the
+// schema.ImageManifest of an ACI
+func ExtractImageManifest(key string, ds *Store) (*schema.ImageManifest, error) {
+	rs, err := ds.ReadStream(key)
+	defer rs.Close()
+	if err != nil {
+		return nil, fmt.Errorf("error extracting ImageManifest: %v", err)
+	}
+
+	imb, err := ptar.ExtractFileFromTar(tar.NewReader(rs), "manifest")
+	if err != nil {
+		return nil, fmt.Errorf("error extracting ImageManifest: %v", err)
+	}
+
+	var im schema.ImageManifest
+	if err := json.Unmarshal(imb, &im); err != nil {
+		return nil, fmt.Errorf("error unmarshaling image manifest: %v", err)
+	}
+
+	return &im, nil
 }
