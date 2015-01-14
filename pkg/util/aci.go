@@ -8,21 +8,33 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/appc/spec/aci"
 	"github.com/appc/spec/schema"
 	"github.com/coreos/rocket/Godeps/_workspace/src/golang.org/x/crypto/openpgp"
 )
 
-// NewACI creates a new ACI with the given name.
+type ACIEntry struct {
+	Header   *tar.Header
+	Contents string
+}
+
+// NewBasicACI creates a new ACI in the given directory with the given name.
 // Used for testing.
-func NewACI(name string) (*os.File, error) {
-	tf, err := ioutil.TempFile("", "")
+func NewBasicACI(dir string, name string) (*os.File, error) {
+	manifest := fmt.Sprintf(`{"acKind":"ImageManifest","acVersion":"0.1.1","name":"%s"}`, name)
+	return NewACI(dir, manifest, nil)
+}
+
+// NewACI creates a new ACI in the given directory with the given image
+// manifest and entries.
+// Used for testing.
+func NewACI(dir string, manifest string, entries []*ACIEntry) (*os.File, error) {
+	tf, err := ioutil.TempFile(dir, "")
 	if err != nil {
 		return nil, err
 	}
-
-	manifest := fmt.Sprintf(`{"acKind":"ImageManifest","acVersion":"0.1.1","name":"%s"}`, name)
 
 	var im schema.ImageManifest
 	if err := im.UnmarshalJSON([]byte(manifest)); err != nil {
@@ -31,6 +43,22 @@ func NewACI(name string) (*os.File, error) {
 
 	tw := tar.NewWriter(tf)
 	aw := aci.NewImageWriter(im, tw)
+
+	for _, entry := range entries {
+		// Add default mode
+		if entry.Header.Mode == 0 {
+			if entry.Header.Typeflag == tar.TypeDir {
+				entry.Header.Mode = 0755
+			} else {
+				entry.Header.Mode = 0644
+			}
+		}
+		sr := strings.NewReader(entry.Contents)
+		if err := aw.AddFile("", entry.Header, sr); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := aw.Close(); err != nil {
 		return nil, err
 	}

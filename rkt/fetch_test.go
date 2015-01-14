@@ -118,7 +118,8 @@ func TestFetchImage(t *testing.T) {
 	if _, err := ks.StoreTrustedKeyPrefix("example.com/app", bytes.NewBufferString(key.ArmoredPublicKey)); err != nil {
 		t.Fatalf("unexpected error %v", err)
 	}
-	aci, err := util.NewACI("example.com/app")
+	aci, err := util.NewBasicACI(dir, "example.com/app")
+	defer aci.Close()
 	if err != nil {
 		t.Fatalf("unexpected error %v", err)
 	}
