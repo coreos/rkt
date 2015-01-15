@@ -77,9 +77,23 @@ func fetchImage(img string, ds *cas.Store, ks *keystore.Keystore) (string, error
 	if err == nil && u.Scheme == "" {
 		if app := newDiscoveryApp(img); app != nil {
 			fmt.Printf("rkt: starting to discover app img %s\n", img)
-			eps, err := discovery.DiscoverEndpoints(*app, true)
+			eps := &discovery.Endpoints{}
+			simpleEps, err := discovery.SimpleDiscoverEndpoints(*app, true)
 			if err != nil {
-				return "", err
+				fmt.Printf("rkt: no simple discovery available: %v\n", err)
+			} else {
+				eps.ACIEndpoints = append(eps.ACIEndpoints, simpleEps.ACIEndpoints...)
+				eps.Keys = append(eps.Keys, simpleEps.Keys...)
+			}
+			metaEps, err := discovery.MetaDiscoverEndpoints(*app, true)
+			if err != nil {
+				fmt.Printf("rkt: no meta discovery available: %v\n", err)
+			} else {
+				eps.ACIEndpoints = append(eps.ACIEndpoints, metaEps.ACIEndpoints...)
+				eps.Keys = append(eps.Keys, metaEps.Keys...)
+			}
+			if len(eps.ACIEndpoints) == 0 {
+				return "", fmt.Errorf("No available download url(s)")
 			}
 			return fetchImageFromEndpoints(eps, ds, ks)
 		}
