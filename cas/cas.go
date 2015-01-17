@@ -25,8 +25,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/appc/spec/aci"
+	"github.com/appc/spec/schema"
 
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/peterbourgon/diskv"
 )
@@ -36,6 +38,7 @@ import (
 const (
 	blobType int64 = iota
 	remoteType
+	aciInfoType
 
 	defaultPathPerm os.FileMode = 0777
 
@@ -47,10 +50,13 @@ const (
 	lenKey     = len(hashPrefix) + lenHashKey
 )
 
-var otmap = [...]string{
-	"blob",
-	"remote", // remote is a temporary secondary index
-}
+var (
+	otmap = []string{
+		"blob",
+		"remote", // remote is a temporary secondary index
+		"aciinfo",
+	}
+)
 
 // Store encapsulates a content-addressable-storage for storing ACIs on disk.
 type Store struct {
@@ -169,13 +175,18 @@ func (ds Store) WriteACI(r io.Reader) (string, error) {
 
 type Index interface {
 	Hash() string
-	Marshal() []byte
-	Unmarshal([]byte)
+	Marshal() ([]byte, error)
+	Unmarshal([]byte) error
 	Type() int64
 }
 
-func (ds Store) WriteIndex(i Index) {
-	ds.stores[i.Type()].Write(i.Hash(), i.Marshal())
+func (ds Store) WriteIndex(i Index) error {
+	m, err := i.Marshal()
+	if err != nil {
+		return err
+	}
+	ds.stores[i.Type()].Write(i.Hash(), m)
+	return nil
 }
 
 func (ds Store) ReadIndex(i Index) error {
@@ -184,9 +195,21 @@ func (ds Store) ReadIndex(i Index) error {
 		return err
 	}
 
-	i.Unmarshal(buf)
+	if err = i.Unmarshal(buf); err != nil {
+		return err
+	}
 
 	return nil
+}
+
+// Get the ACI that matches imageID.
+func (ds Store) GetImageManifest(key string) (*schema.ImageManifest, error) {
+	aciinfo := NewACIInfo(&schema.ImageManifest{}, key, false, time.Time{})
+	err := ds.ReadIndex(aciinfo)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get ACI: %v", err)
+	}
+	return aciinfo.Im, nil
 }
 
 func (ds Store) Dump(hex bool) {
