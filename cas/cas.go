@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/appc/spec/aci"
 	"github.com/appc/spec/schema"
@@ -62,8 +63,12 @@ type Store struct {
 }
 
 var dbCreateStmts = [...]string{
+	// remote
 	"CREATE TABLE IF NOT EXISTS remote (aciurl string, sigurl string, etag string, blobkey string);",
 	"CREATE UNIQUE INDEX IF NOT EXISTS aciurlidx ON remote (aciurl)",
+	// aciinfo, blobkey is the primary key and it matches the key used to save that aci in the blob store
+	"CREATE TABLE IF NOT EXISTS aciinfo (blobkey string, appname string, importtime time, latest bool);",
+	"CREATE UNIQUE INDEX IF NOT EXISTS blobkeyidx ON aciinfo (blobkey)",
 }
 
 func NewStore(base string) (*Store, error) {
@@ -202,6 +207,15 @@ func (ds Store) WriteACI(r io.Reader) (string, error) {
 		return "", fmt.Errorf("error importing image: %v", err)
 	}
 
+	// Save aciinfo
+	ds.db.Do(func(tx *sql.Tx) error {
+		aciinfo := &ACIInfo{
+			BlobKey:    key,
+			AppName:    im.Name.String(),
+			ImportTime: time.Now(),
+		}
+		return WriteACIInfo(tx, aciinfo)
+	})
 	return key, nil
 }
 
