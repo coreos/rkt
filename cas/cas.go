@@ -36,6 +36,7 @@ import (
 const (
 	blobType int64 = iota
 	remoteType
+	appIndexType
 
 	defaultPathPerm os.FileMode = 0777
 
@@ -47,10 +48,16 @@ const (
 	lenKey     = len(hashPrefix) + lenHashKey
 )
 
-var otmap = [...]string{
-	"blob",
-	"remote", // remote is a temporary secondary index
-}
+var (
+	otmap = []string{
+		"blob",
+		"remote", // remote is a temporary secondary index
+	}
+
+	idxs = []string{
+		"appindex",
+	}
+)
 
 // Store encapsulates a content-addressable-storage for storing ACIs on disk.
 type Store struct {
@@ -58,16 +65,27 @@ type Store struct {
 	stores []*diskv.Diskv
 }
 
+func strLess(a, b string) bool { return a < b }
+
 func NewStore(base string) *Store {
 	ds := &Store{
 		base:   base,
-		stores: make([]*diskv.Diskv, len(otmap)),
+		stores: make([]*diskv.Diskv, len(otmap)+len(idxs)),
 	}
 
 	for i, p := range otmap {
 		ds.stores[i] = diskv.New(diskv.Options{
 			BasePath:  filepath.Join(base, "cas", p),
 			Transform: blockTransform,
+		})
+	}
+	idxsstart := len(otmap)
+	for i, p := range idxs {
+		ds.stores[idxsstart+i] = diskv.New(diskv.Options{
+			BasePath:  filepath.Join(base, "cas", p),
+			Transform: blockTransform,
+			Index:     &diskv.LLRBIndex{},
+			IndexLess: strLess,
 		})
 	}
 
@@ -169,13 +187,18 @@ func (ds Store) WriteACI(r io.Reader) (string, error) {
 
 type Index interface {
 	Hash() string
-	Marshal() []byte
-	Unmarshal([]byte)
+	Marshal() ([]byte, error)
+	Unmarshal([]byte) error
 	Type() int64
 }
 
-func (ds Store) WriteIndex(i Index) {
-	ds.stores[i.Type()].Write(i.Hash(), i.Marshal())
+func (ds Store) WriteIndex(i Index) error {
+	m, err := i.Marshal()
+	if err != nil {
+		return err
+	}
+	ds.stores[i.Type()].Write(i.Hash(), m)
+	return nil
 }
 
 func (ds Store) ReadIndex(i Index) error {
@@ -184,7 +207,9 @@ func (ds Store) ReadIndex(i Index) error {
 		return err
 	}
 
-	i.Unmarshal(buf)
+	if err = i.Unmarshal(buf); err != nil {
+		return err
+	}
 
 	return nil
 }
