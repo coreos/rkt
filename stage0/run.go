@@ -339,5 +339,28 @@ func setupImage(cfg Config, img types.Hash, dir string) (*schema.ImageManifest, 
 	if err := json.Unmarshal(b, &am); err != nil {
 		return nil, fmt.Errorf("error unmarshaling app manifest: %v", err)
 	}
+
+	// Ensure the device files are created
+	for _, v := range am.DeviceFiles {
+		log.Println("Device files: ", v)
+		fi, err := os.Stat(v)
+		if err != nil {
+			return nil, fmt.Errorf("Cannot stat %s: %v", v, err)
+		}
+		if fi.Mode() & os.ModeType != os.ModeCharDevice && fi.Mode() & os.ModeType != os.ModeDevice {
+			return nil, fmt.Errorf("File %s is not a device file", v)
+		}
+		st, ok := fi.Sys().(*syscall.Stat_t)
+		if !ok {
+			return nil, fmt.Errorf("Cannot stat %s", v)
+		}
+
+		p := filepath.Join(ad, "rootfs", v)
+
+		if err := syscall.Mknod(p, st.Mode, int(st.Rdev)); err != nil {
+			return nil, fmt.Errorf("error creating device file %s: %v", v, err)
+		}
+	}
+
 	return &am, nil
 }
