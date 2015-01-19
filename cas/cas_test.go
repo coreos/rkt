@@ -15,8 +15,9 @@
 package cas
 
 import (
+	"archive/tar"
 	"bytes"
-	"encoding/base64"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -24,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/appc/spec/schema/types"
+	"github.com/coreos/rocket/pkg/util"
 )
 
 const tstprefix = "cas-test"
@@ -50,8 +52,38 @@ func TestDownloading(t *testing.T) {
 		t.Fatalf("error creating tempdir: %v", err)
 	}
 	defer os.RemoveAll(dir)
-	// TODO(philips): construct a real tarball using go, this is a base64 tarball with an empty file
-	body, _ := base64.StdEncoding.DecodeString("H4sIAIWbdlQAA+3PPQrCQBiE4ZU0NnoDcTstv8T9OYaNF7AwGFAIJlqn9wba5Cp6EG9gbWtiII1oF0R4n2bYZVhm81WWq46JiDNG1+mdfaVEzblhrQ4jM7M2tE5ESxhZb5SWrofV9lm+3FVT0nWySdLsY6+qxfGXd5qf6Db/xPjYV8X5sFDB/dIbVBfX8jHfDn3ZNgofnG6jiZr+bCMAAAAAAAAAAAAAAAAA4N0T/slETwAoAAA=")
+
+	imj := `{
+			"acKind": "ImageManifest",
+			"acVersion": "0.1.1",
+			"name": "example.com/test01"
+		}`
+
+	entries := []*util.ACIEntry{
+		// An empty file
+		{
+			Contents: "hello",
+			Header: &tar.Header{
+				Name: "rootfs/file01.txt",
+				Size: 5,
+			},
+		},
+	}
+
+	aci, err := util.NewACI(dir, imj, entries)
+	if err != nil {
+		t.Fatalf("error creating test tar: %v", err)
+	}
+
+	// Rewind the ACI
+	if _, err := aci.Seek(0, 0); err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+	body, err := ioutil.ReadAll(aci)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	fmt.Printf("body: %s\n", body)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write(body)
 	}))
@@ -62,8 +94,9 @@ func TestDownloading(t *testing.T) {
 		body []byte
 		hit  bool
 	}{
-		{Remote{ts.URL, "", "12", "96609004016e9625763c7153b74120c309c8cb1bd794345bf6fa2e60ac001cd7"}, body, false},
-		{Remote{ts.URL, "", "12", "96609004016e9625763c7153b74120c309c8cb1bd794345bf6fa2e60ac001cd7"}, body, true},
+		// The Blob entry isn't used
+		{Remote{ts.URL, "", "12", ""}, body, false},
+		{Remote{ts.URL, "", "12", ""}, body, true},
 	}
 
 	ds := NewStore(dir)
@@ -76,14 +109,18 @@ func TestDownloading(t *testing.T) {
 		if tt.hit == true && err != nil {
 			panic("expected a hit got a miss")
 		}
-		ds.stores[remoteType].Write(tt.r.Hash(), tt.r.Marshal())
+		rj, err := tt.r.Marshal()
+		if err != nil {
+			panic(err)
+		}
+		ds.stores[remoteType].Write(tt.r.Hash(), rj)
 		_, aciFile, err := tt.r.Download(*ds, nil)
 		if err != nil {
 			t.Fatalf("error downloading aci: %v", err)
 		}
 		defer os.Remove(aciFile.Name())
 
-		_, err = tt.r.Store(*ds, aciFile)
+		_, err = tt.r.Store(*ds, aciFile, false)
 		if err != nil {
 			panic(err)
 		}
@@ -142,5 +179,148 @@ func TestResolveKey(t *testing.T) {
 	}
 	if err == nil {
 		t.Errorf("expected non-nil error!")
+	}
+}
+
+// Test an image with 1 dep. The parent provides a dir not provided by the image.
+func TestGetAci(t *testing.T) {
+	type test struct {
+		name     types.ACName
+		labels   types.Labels
+		expected int // the aci index to expect or -1 if not result expected,
+	}
+
+	type acidef struct {
+		imj    string
+		latest bool
+	}
+
+	dir, err := ioutil.TempDir("", tstprefix)
+	if err != nil {
+		t.Fatalf("error creating tempdir: %v", err)
+	}
+	defer os.RemoveAll(dir)
+	ds := NewStore(dir)
+
+	tests := []struct {
+		acidefs []acidef
+		tests   []test
+	}{
+		{
+			[]acidef{
+				{
+					`{
+						"acKind": "ImageManifest",
+						"acVersion": "0.1.1",
+						"name": "example.com/test01"
+					}`,
+					false,
+				},
+				{
+					`{
+						"acKind": "ImageManifest",
+						"acVersion": "0.1.1",
+						"name": "example.com/test02",
+						"labels": [
+							{
+								"name": "version",
+								"value": "1.0.0"
+							}
+						]
+					}`,
+					true,
+				},
+				{
+					`{
+						"acKind": "ImageManifest",
+						"acVersion": "0.1.1",
+						"name": "example.com/test02",
+						"labels": [
+							{
+								"name": "version",
+								"value": "2.0.0"
+							}
+						]
+					}`,
+					false,
+				},
+			},
+			[]test{
+				{
+					"example.com/unexistentaci",
+					types.Labels{},
+					-1,
+				},
+				{
+					"example.com/test01",
+					types.Labels{},
+					0,
+				},
+				{
+					"example.com/test02",
+					types.Labels{
+						{
+							Name:  "version",
+							Value: "1.0.0",
+						},
+					},
+					1,
+				},
+				{
+					"example.com/test02",
+					types.Labels{
+						{
+							Name:  "version",
+							Value: "2.0.0",
+						},
+					},
+					2,
+				},
+				{
+					"example.com/test02",
+					types.Labels{},
+					1,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		keys := []string{}
+		// Create ACIs
+		for _, ad := range tt.acidefs {
+			aci, err := util.NewACI(dir, ad.imj, nil)
+			if err != nil {
+				t.Fatalf("error creating test tar: %v", err)
+			}
+
+			// Rewind the ACI
+			if _, err := aci.Seek(0, 0); err != nil {
+				t.Fatalf("unexpected error %v", err)
+			}
+
+			key, err := ds.WriteACI(aci, ad.latest)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			keys = append(keys, key)
+		}
+
+		for _, test := range tt.tests {
+			key, err := ds.GetACI(test.name, test.labels)
+			if test.expected == -1 {
+				if err == nil {
+					t.Fatalf("Expected no key, got %s", key)
+				}
+
+			} else {
+				if err != nil {
+					t.Fatalf("unexpected error on GetACI for name %s, labels: %v: %v", test.name, test.labels, err)
+				}
+				if keys[test.expected] != key {
+					t.Errorf("expected key: %s, got %s. GetACI with name: %s, labels: %v", key, keys[test.expected], test.name, test.labels)
+				}
+			}
+		}
 	}
 }

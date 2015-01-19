@@ -25,8 +25,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/appc/spec/aci"
+	"github.com/appc/spec/schema"
+	"github.com/appc/spec/schema/types"
 
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/peterbourgon/diskv"
 )
@@ -36,6 +39,8 @@ import (
 const (
 	blobType int64 = iota
 	remoteType
+	aciInfoType
+	appIndexType
 
 	defaultPathPerm os.FileMode = 0777
 
@@ -47,10 +52,17 @@ const (
 	lenKey     = len(hashPrefix) + lenHashKey
 )
 
-var otmap = [...]string{
-	"blob",
-	"remote", // remote is a temporary secondary index
-}
+var (
+	otmap = []string{
+		"blob",
+		"remote", // remote is a temporary secondary index
+		"aciinfo",
+	}
+
+	idxs = []string{
+		"appindex",
+	}
+)
 
 // Store encapsulates a content-addressable-storage for storing ACIs on disk.
 type Store struct {
@@ -58,16 +70,27 @@ type Store struct {
 	stores []*diskv.Diskv
 }
 
+func strLess(a, b string) bool { return a < b }
+
 func NewStore(base string) *Store {
 	ds := &Store{
 		base:   base,
-		stores: make([]*diskv.Diskv, len(otmap)),
+		stores: make([]*diskv.Diskv, len(otmap)+len(idxs)),
 	}
 
 	for i, p := range otmap {
 		ds.stores[i] = diskv.New(diskv.Options{
 			BasePath:  filepath.Join(base, "cas", p),
 			Transform: blockTransform,
+		})
+	}
+	idxsstart := len(otmap)
+	for i, p := range idxs {
+		ds.stores[idxsstart+i] = diskv.New(diskv.Options{
+			BasePath:  filepath.Join(base, "cas", p),
+			Transform: blockTransform,
+			Index:     &diskv.LLRBIndex{},
+			IndexLess: strLess,
 		})
 	}
 
@@ -124,7 +147,9 @@ func (ds Store) WriteStream(key string, r io.Reader) error {
 // WriteACI takes an ACI encapsulated in an io.Reader, decompresses it if
 // necessary, and then stores it in the store under a key based on the image ID
 // (i.e. the hash of the uncompressed ACI)
-func (ds Store) WriteACI(r io.Reader) (string, error) {
+// latest defines if the aci has to be marked as the latest (eg. an ACI
+// downloaded with the latest pattern: without asking for a specific version)
+func (ds Store) WriteACI(r io.Reader, latest bool) (string, error) {
 	// Peek at the first 512 bytes of the reader to detect filetype
 	br := bufio.NewReaderSize(r, 512)
 	hd, err := br.Peek(512)
@@ -154,6 +179,11 @@ func (ds Store) WriteACI(r io.Reader) (string, error) {
 	if _, err := io.Copy(fh, tr); err != nil {
 		return "", fmt.Errorf("error copying image: %v", err)
 	}
+
+	im, err := aci.ManifestFromImage(fh)
+	if err != nil {
+		return "", fmt.Errorf("error extracting ImageManifest: %v", err)
+	}
 	if err := fh.Close(); err != nil {
 		return "", fmt.Errorf("error closing image: %v", err)
 	}
@@ -164,18 +194,38 @@ func (ds Store) WriteACI(r io.Reader) (string, error) {
 		return "", fmt.Errorf("error importing image: %v", err)
 	}
 
+	aciinfo := NewACIInfo(im, key, latest, time.Now())
+	// TODO remove from the blob store old imageId if a new aci has the
+	// same imagemanigest but it's changed.
+	// Perhaps a cas store garbage collection will be a good idea.
+	if err = ds.WriteIndex(aciinfo); err != nil {
+		return "", fmt.Errorf("error writing aciinfo index: %v", err)
+	}
+
+	aciInfoKey := aciinfo.Hash()
+
+	appindex := NewAppIndex(im, aciInfoKey)
+	if err = ds.WriteIndex(appindex); err != nil {
+		return "", fmt.Errorf("error writing appindex index: %v", err)
+	}
+
 	return key, nil
 }
 
 type Index interface {
 	Hash() string
-	Marshal() []byte
-	Unmarshal([]byte)
+	Marshal() ([]byte, error)
+	Unmarshal([]byte) error
 	Type() int64
 }
 
-func (ds Store) WriteIndex(i Index) {
-	ds.stores[i.Type()].Write(i.Hash(), i.Marshal())
+func (ds Store) WriteIndex(i Index) error {
+	m, err := i.Marshal()
+	if err != nil {
+		return err
+	}
+	ds.stores[i.Type()].Write(i.Hash(), m)
+	return nil
 }
 
 func (ds Store) ReadIndex(i Index) error {
@@ -184,9 +234,106 @@ func (ds Store) ReadIndex(i Index) error {
 		return err
 	}
 
-	i.Unmarshal(buf)
+	if err = i.Unmarshal(buf); err != nil {
+		return err
+	}
 
 	return nil
+}
+
+// Get the best ACI that matches app name and the provided labels. It returns
+// the blob store key of the given ACI.
+// If there are multiple matching ACIs choose the latest one (defined as the
+// last one imported in the store).
+// If no version label is requested, ACIs marked as latest in the ACIInfo are
+// preferred.
+func (ds Store) GetACI(name types.ACName, labels types.Labels) (string, error) {
+	startACIInfoKey := ShortSHA512(name.String())
+
+	ACIInfoKeys := []string{}
+	finished := false
+	for {
+		if finished {
+			break
+		}
+		nextACIInfoKeys := ds.stores[appIndexType].Index.Keys(startACIInfoKey, 10)
+		if len(nextACIInfoKeys) == 0 {
+			break
+		}
+		for _, ACIInfoKey := range nextACIInfoKeys {
+			if strings.HasPrefix(ACIInfoKey, startACIInfoKey) {
+				ACIInfoKeys = append(ACIInfoKeys, ACIInfoKey)
+			} else {
+				finished = true
+			}
+		}
+		startACIInfoKey = nextACIInfoKeys[len(nextACIInfoKeys)-1]
+	}
+
+	var curaciinfo *ACIInfo
+	versionRequested := false
+	if _, ok := labels.Get("version"); ok {
+		versionRequested = true
+	}
+
+nextKey:
+	for _, key := range ACIInfoKeys {
+		buf, err := ds.stores[appIndexType].Read(key)
+		if err != nil {
+			return "", fmt.Errorf("cannot get AppIndex for key %s: %v", key, err)
+		}
+
+		appindex := &AppIndex{}
+		err = appindex.Unmarshal(buf)
+		if err != nil {
+			return "", fmt.Errorf("cannot unmarshal AppIndex for key %s: %v", key, err)
+		}
+
+		// Get the ACIInfo for this Key
+		aciinfo := NewACIInfo(&schema.ImageManifest{}, appindex.ACIInfoKey, false, time.Time{})
+		err = ds.ReadIndex(aciinfo)
+		if err != nil {
+			return "", fmt.Errorf("cannot get ACIInfo for key %s: %v", appindex.ACIInfoKey, err)
+		}
+
+		// The image manifest must have all the requested labels
+		for _, l := range labels {
+			ok := false
+			for _, rl := range aciinfo.Im.Labels {
+				if l.Name == rl.Name && l.Value == rl.Value {
+					ok = true
+					break
+				}
+			}
+			if !ok {
+				continue nextKey
+			}
+		}
+
+		if curaciinfo != nil {
+			// If no version is requested prefer the acis marked as latest
+			if !versionRequested {
+				if !curaciinfo.Latest && aciinfo.Latest {
+					curaciinfo = aciinfo
+					continue nextKey
+				}
+				if curaciinfo.Latest && !aciinfo.Latest {
+					continue nextKey
+				}
+			}
+			// If multiple matching image manifests are found, choose the latest imported in the cas.
+			if aciinfo.Time.After(curaciinfo.Time) {
+				curaciinfo = aciinfo
+			}
+		} else {
+			curaciinfo = aciinfo
+		}
+	}
+
+	if curaciinfo != nil {
+		return curaciinfo.BlobKey, nil
+	}
+	return "", fmt.Errorf("aci not found")
 }
 
 func (ds Store) Dump(hex bool) {

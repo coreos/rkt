@@ -47,16 +47,12 @@ type Remote struct {
 	BlobKey string
 }
 
-func (r Remote) Marshal() []byte {
-	m, _ := json.Marshal(r)
-	return m
+func (r Remote) Marshal() ([]byte, error) {
+	return json.Marshal(r)
 }
 
-func (r *Remote) Unmarshal(data []byte) {
-	err := json.Unmarshal(data, r)
-	if err != nil {
-		panic(err)
-	}
+func (r *Remote) Unmarshal(data []byte) error {
+	return json.Unmarshal(data, r)
 }
 
 func (r Remote) Hash() string {
@@ -111,8 +107,8 @@ func (r Remote) Download(ds Store, ks *keystore.Keystore) (*openpgp.Entity, *os.
 
 // TODO: add locking
 // Store stores the ACI represented by r in the target data store.
-func (r Remote) Store(ds Store, aci io.Reader) (*Remote, error) {
-	key, err := ds.WriteACI(aci)
+func (r Remote) Store(ds Store, aci io.Reader, latest bool) (*Remote, error) {
+	key, err := ds.WriteACI(aci, latest)
 	if err != nil {
 		return nil, err
 	}
