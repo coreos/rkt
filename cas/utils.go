@@ -17,6 +17,7 @@ package cas
 import (
 	"compress/bzip2"
 	"compress/gzip"
+	"crypto/sha512"
 	"errors"
 	"fmt"
 	"io"
@@ -71,4 +72,9 @@ func decompress(rs io.Reader, typ aci.FileType) (io.Reader, error) {
 		return nil, errors.New("no type returned from DetectFileType?")
 	}
 	return dr, nil
+}
+
+func ShortSHA512(s string) string {
+	sum := sha512.Sum512([]byte(s))
+	return fmt.Sprintf("%s%x", hashPrefix, sum)[0:lenKey]
 }
