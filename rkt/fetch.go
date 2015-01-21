@@ -91,7 +91,7 @@ func fetchImage(img string, ds *cas.Store, ks *keystore.Keystore) (string, error
 }
 
 func fetchImageFromEndpoints(ep *discovery.Endpoints, ds *cas.Store, ks *keystore.Keystore) (string, error) {
-	rem := cas.NewRemote(ep.ACI[0], ep.Sig[0])
+	rem := cas.NewRemote(ep.ACIEndpoints[0].ACI, ep.ACIEndpoints[0].Sig)
 	return downloadImage(rem, ds, ks)
 }
 
