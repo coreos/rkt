@@ -31,24 +31,28 @@ import (
 const (
 	defaultOS   = runtime.GOOS
 	defaultArch = runtime.GOARCH
+	cmdFetchName = "fetch"
 )
 
 var (
 	cmdFetch = &Command{
-		Name:    "fetch",
+		Name:    cmdFetchName,
 		Summary: "Fetch image(s) and store them in the local cache",
-		Usage:   "IMAGE_URL...",
+		Usage:   "[--discovery-port PORT] IMAGE_URL...",
 		Run:     runFetch,
 	}
+	flagDiscoveryPort uint
 )
 
 func init() {
 	commands = append(commands, cmdFetch)
+	cmdFetch.Flags.UintVar(&flagDiscoveryPort, "discovery-port", 0,
+		"Port to connect when performing discovery. If unset or set to 0, defaults to standard HTTPS and HTTP ports")
 }
 
 func runFetch(args []string) (exit int) {
 	if len(args) < 1 {
-		fmt.Fprintf(os.Stderr, "fetch: Must provide at least one image\n")
+		printCommandUsageByName(cmdFetchName)
 		return 1
 	}
 
@@ -74,7 +78,7 @@ func fetchImage(img string, ds *cas.Store, ks *keystore.Keystore) (string, error
 	if err == nil && u.Scheme == "" {
 		if app := newDiscoveryApp(img); app != nil {
 			fmt.Printf("rkt: starting to discover app img %s\n", img)
-			ep, err := discovery.DiscoverEndpoints(*app, true)
+			ep, err := discovery.DiscoverEndpoints(*app, flagDiscoveryPort, true)
 			if err != nil {
 				return "", err
 			}
