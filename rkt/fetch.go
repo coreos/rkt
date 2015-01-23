@@ -70,15 +70,32 @@ func runFetch(args []string) (exit int) {
 // fetchImage will take an image as either a URL or a name string and import it
 // into the store if found.
 func fetchImage(img string, ds *cas.Store, ks *keystore.Keystore) (string, error) {
+	if globalFlags.InsecureSkipVerify {
+		fmt.Printf("rkt: warning: signature verification has been disabled\n")
+	}
 	u, err := url.Parse(img)
 	if err == nil && u.Scheme == "" {
 		if app := newDiscoveryApp(img); app != nil {
 			fmt.Printf("rkt: starting to discover app img %s\n", img)
-			ep, err := discovery.DiscoverEndpoints(*app, true)
+			eps := &discovery.Endpoints{}
+			simpleEps, err := discovery.SimpleDiscoverEndpoints(*app, true)
 			if err != nil {
-				return "", err
+				fmt.Printf("rkt: no simple discovery available: %v\n", err)
+			} else {
+				eps.ACIEndpoints = append(eps.ACIEndpoints, simpleEps.ACIEndpoints...)
+				eps.Keys = append(eps.Keys, simpleEps.Keys...)
 			}
-			return fetchImageFromEndpoints(ep, ds, ks)
+			metaEps, err := discovery.MetaDiscoverEndpoints(*app, true)
+			if err != nil {
+				fmt.Printf("rkt: no meta discovery available: %v\n", err)
+			} else {
+				eps.ACIEndpoints = append(eps.ACIEndpoints, metaEps.ACIEndpoints...)
+				eps.Keys = append(eps.Keys, metaEps.Keys...)
+			}
+			if len(eps.ACIEndpoints) == 0 {
+				return "", fmt.Errorf("No available download url(s)")
+			}
+			return fetchImageFromEndpoints(eps, ds, ks)
 		}
 	}
 	if err != nil {
@@ -90,9 +107,16 @@ func fetchImage(img string, ds *cas.Store, ks *keystore.Keystore) (string, error
 	return fetchImageFromURL(u.String(), ds, ks)
 }
 
-func fetchImageFromEndpoints(ep *discovery.Endpoints, ds *cas.Store, ks *keystore.Keystore) (string, error) {
-	rem := cas.NewRemote(ep.ACIEndpoints[0].ACI, ep.ACIEndpoints[0].Sig)
-	return downloadImage(rem, ds, ks)
+func fetchImageFromEndpoints(eps *discovery.Endpoints, ds *cas.Store, ks *keystore.Keystore) (string, error) {
+	for i := 0; i < len(eps.ACIEndpoints); i++ {
+		rem := cas.NewRemote(eps.ACIEndpoints[i].ACI, eps.ACIEndpoints[i].Sig)
+		if blobkey, err := downloadImage(rem, ds, ks); err != nil {
+			fmt.Printf("rkt: failed to fetch image from url %q: %v\n", eps.ACIEndpoints[i].ACI, err)
+		} else {
+			return blobkey, nil
+		}
+	}
+	return "", fmt.Errorf("image fetching failed")
 }
 
 func fetchImageFromURL(imgurl string, ds *cas.Store, ks *keystore.Keystore) (string, error) {
@@ -102,9 +126,6 @@ func fetchImageFromURL(imgurl string, ds *cas.Store, ks *keystore.Keystore) (str
 
 func downloadImage(rem *cas.Remote, ds *cas.Store, ks *keystore.Keystore) (string, error) {
 	fmt.Printf("rkt: starting to fetch img from %s\n", rem.ACIURL)
-	if globalFlags.InsecureSkipVerify {
-		fmt.Printf("rkt: warning: signature verification has been disabled\n")
-	}
 	err := ds.ReadIndex(rem)
 	if err != nil && rem.BlobKey == "" {
 		entity, aciFile, err := rem.Download(*ds, ks)

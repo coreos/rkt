@@ -110,33 +110,34 @@ func TestFetchImage(t *testing.T) {
 
 	ks, ksPath, err := keystore.NewTestKeystore()
 	if err != nil {
-		t.Errorf("unexpected error %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 	defer os.RemoveAll(ksPath)
 
 	key := keystoretest.KeyMap["example.com/app"]
 	if _, err := ks.StoreTrustedKeyPrefix("example.com/app", bytes.NewBufferString(key.ArmoredPublicKey)); err != nil {
-		t.Fatalf("unexpected error %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	aci, err := util.NewBasicACI(dir, "example.com/app")
 	defer aci.Close()
 	if err != nil {
-		t.Fatalf("unexpected error %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
+	defer aci.Close()
 
 	// Rewind the ACI
 	if _, err := aci.Seek(0, 0); err != nil {
-		t.Fatalf("unexpected error %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	sig, err := util.NewDetachedSignature(key.ArmoredPrivateKey, aci)
 	if err != nil {
-		t.Fatalf("unexpected error %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	// Rewind the ACI.
 	if _, err := aci.Seek(0, 0); err != nil {
-		t.Fatalf("unexpected error %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -152,7 +153,97 @@ func TestFetchImage(t *testing.T) {
 	defer ts.Close()
 	_, err = fetchImage(fmt.Sprintf("%s/app.aci", ts.URL), ds, ks)
 	if err != nil {
-		t.Fatalf("unexpected error %v", err)
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestFetchImageFromEndpoints(t *testing.T) {
+	dir, err := ioutil.TempDir("", "fetch-image")
+	if err != nil {
+		t.Fatalf("error creating tempdir: %v", err)
+	}
+	defer os.RemoveAll(dir)
+	ds := cas.NewStore(dir)
+	defer ds.Dump(false)
+
+	ks, ksPath, err := keystore.NewTestKeystore()
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	defer os.RemoveAll(ksPath)
+
+	key := keystoretest.KeyMap["example.com/app"]
+	if _, err := ks.StoreTrustedKeyPrefix("example.com/app", bytes.NewBufferString(key.ArmoredPublicKey)); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	aci, err := util.NewACI("example.com/app")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer aci.Close()
+
+	// Rewind the ACI
+	if _, err := aci.Seek(0, 0); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	sig, err := util.NewDetachedSignature(key.ArmoredPrivateKey, aci)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Rewind the ACI.
+	if _, err := aci.Seek(0, 0); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/existingaci.aci":
+			io.Copy(w, aci)
+			return
+		case "/existingaci.sig":
+			io.Copy(w, sig)
+			return
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	}))
+	defer ts.Close()
+	eps := &discovery.Endpoints{
+		ACIEndpoints: []discovery.ACIEndpoint{
+			discovery.ACIEndpoint{
+				ACI: fmt.Sprintf("%s/notexistingaci.aci", ts.URL),
+				Sig: fmt.Sprintf("%s/notexistingaci.sig", ts.URL),
+			},
+			discovery.ACIEndpoint{
+				ACI: fmt.Sprintf("%s/existingaci.aci", ts.URL),
+				Sig: fmt.Sprintf("%s/existingaci.sig", ts.URL),
+			},
+		},
+	}
+	_, err = fetchImageFromEndpoints(eps, ds, ks)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Test missing images
+	eps = &discovery.Endpoints{
+		ACIEndpoints: []discovery.ACIEndpoint{
+			discovery.ACIEndpoint{
+				ACI: fmt.Sprintf("%s/notexistingaci.aci", ts.URL),
+				Sig: fmt.Sprintf("%s/notexistingaci.sig", ts.URL),
+			},
+			discovery.ACIEndpoint{
+				ACI: fmt.Sprintf("%s/notexistingaci2.aci", ts.URL),
+				Sig: fmt.Sprintf("%s/notexistingaci2.sig", ts.URL),
+			},
+		},
+	}
+	_, err = fetchImageFromEndpoints(eps, ds, ks)
+	if err == nil {
+		t.Fatalf("expected error fetching from endpoints")
 	}
 }
 
