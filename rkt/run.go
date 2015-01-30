@@ -17,7 +17,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -33,13 +32,13 @@ import (
 var (
 	flagStage1Init       string
 	flagStage1Rootfs     string
-	flagVolumes          volumeMap
+	flagVolumes          volumeList
 	flagPrivateNet       bool
 	flagSpawnMetadataSvc bool
 	cmdRun               = &Command{
 		Name:    "run",
 		Summary: "Run image(s) in an application container in rocket",
-		Usage:   "[--volume LABEL:SOURCE] IMAGE...",
+		Usage:   "[--volume name,type=host...] IMAGE...",
 		Description: `IMAGE should be a string referencing an image; either a hash, local file on disk, or URL.
 They will be checked in that order and the first match will be used.`,
 		Run: runRun,
@@ -53,7 +52,7 @@ func init() {
 	cmdRun.Flags.Var(&flagVolumes, "volume", "volumes to mount into the shared container environment")
 	cmdRun.Flags.BoolVar(&flagPrivateNet, "private-net", false, "give container a private network")
 	cmdRun.Flags.BoolVar(&flagSpawnMetadataSvc, "spawn-metadata-svc", false, "launch metadata svc if not running")
-	flagVolumes = volumeMap{}
+	flagVolumes = volumeList{}
 }
 
 // findImages will recognize a ACI hash and use that, import a local file, use
@@ -139,7 +138,7 @@ func runRun(args []string) (exit int) {
 		Stage1Init:       flagStage1Init,
 		Stage1Rootfs:     flagStage1Rootfs,
 		Images:           imgs,
-		Volumes:          flagVolumes,
+		Volumes:          []types.Volume(flagVolumes),
 		PrivateNet:       flagPrivateNet,
 		SpawnMetadataSvc: flagSpawnMetadataSvc,
 	}
@@ -152,27 +151,24 @@ func runRun(args []string) (exit int) {
 	return 1
 }
 
-// volumeMap implements the flag.Value interface to contain a set of mappings
+// volumeList implements the flag.Value interface to contain a set of mappings
 // from mount label --> mount path
-type volumeMap map[string]string
+type volumeList []types.Volume
 
-func (vm *volumeMap) Set(s string) error {
-	elems := strings.Split(s, ":")
-	if len(elems) != 2 {
-		return errors.New("volume must be of form key:path")
+func (vl *volumeList) Set(s string) error {
+	vol, err := types.VolumeFromString(s)
+	if err != nil {
+		return err
 	}
-	key := elems[0]
-	if _, ok := (*vm)[key]; ok {
-		return fmt.Errorf("got multiple flags for volume %q", key)
-	}
-	(*vm)[key] = elems[1]
+
+	*vl = append(*vl, *vol)
 	return nil
 }
 
-func (vm *volumeMap) String() string {
-	var ss []string
-	for k, v := range *vm {
-		ss = append(ss, fmt.Sprintf("%s:%s", k, v))
+func (vl *volumeList) String() string {
+	var vs []string
+	for _, v := range []types.Volume(*vl) {
+		vs = append(vs, v.String())
 	}
-	return strings.Join(ss, ",")
+	return strings.Join(vs, " ")
 }

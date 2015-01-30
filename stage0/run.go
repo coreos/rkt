@@ -64,10 +64,10 @@ type Config struct {
 	Stage1Rootfs  string     // compressed bundle containing a rootfs for stage1
 	Debug         bool
 	// TODO(jonboulle): These images are partially-populated hashes, this should be clarified.
-	Images           []types.Hash      // application images
-	Volumes          map[string]string // map of volumes that rocket can provide to applications
-	PrivateNet       bool              // container should have its own network stack
-	SpawnMetadataSvc bool              // launch metadata service
+	Images           []types.Hash   // application images
+	Volumes          []types.Volume // map of volumes that rocket can provide to applications
+	PrivateNet       bool           // container should have its own network stack
+	SpawnMetadataSvc bool           // launch metadata service
 }
 
 func init() {
@@ -166,21 +166,9 @@ func Setup(cfg Config) (string, error) {
 		cm.Apps = append(cm.Apps, a)
 	}
 
-	var sVols []types.Volume
-	for key, path := range cfg.Volumes {
-		v := types.Volume{
-			Kind:     "host",
-			Source:   path,
-			ReadOnly: true,
-			Fulfills: []types.ACName{
-				types.ACName(key),
-			},
-		}
-		sVols = append(sVols, v)
-	}
 	// TODO(jonboulle): check that app mountpoint expectations are
 	// satisfied here, rather than waiting for stage1
-	cm.Volumes = sVols
+	cm.Volumes = cfg.Volumes
 
 	cdoc, err := json.Marshal(cm)
 	if err != nil {
