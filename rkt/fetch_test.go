@@ -31,7 +31,7 @@ import (
 	"github.com/coreos/rocket/pkg/keystore"
 	"github.com/coreos/rocket/pkg/keystore/keystoretest"
 
-	"github.com/appc/spec/discovery"
+	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/discovery"
 )
 
 func TestNewDiscoveryApp(t *testing.T) {
