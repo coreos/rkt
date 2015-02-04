@@ -314,6 +314,10 @@ func TestDirFromParent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	err = checkRenderACI("example.com/test02", expectedFiles, ds)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }
 
 // Test an image with 1 dep. The image provides a dir not provided by the parent.
@@ -402,6 +406,10 @@ func TestNewDir(t *testing.T) {
 
 	images := Images{image2, image1}
 	err = checkRenderACIFromList(images, expectedFiles, ds)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	err = checkRenderACI("example.com/test02", expectedFiles, ds)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -503,6 +511,10 @@ func TestDirOverride(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	err = checkRenderACI("example.com/test02", expectedFiles, ds)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }
 
 // Test an image with 1 dep. The parent provides a file not provided by the image.
@@ -594,6 +606,10 @@ func TestFileFromParent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	err = checkRenderACI("example.com/test02", expectedFiles, ds)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }
 
 // Test an image with 1 dep. The image provides a file not provided by the parent.
@@ -682,6 +698,10 @@ func TestNewFile(t *testing.T) {
 
 	images := Images{image2, image1}
 	err = checkRenderACIFromList(images, expectedFiles, ds)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	err = checkRenderACI("example.com/test02", expectedFiles, ds)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -780,6 +800,10 @@ func TestFileOverride(t *testing.T) {
 
 	images := Images{image2, image1}
 	err = checkRenderACIFromList(images, expectedFiles, ds)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	err = checkRenderACI("example.com/test02", expectedFiles, ds)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -960,6 +984,10 @@ func TestPWLOnlyParent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	err = checkRenderACI("example.com/test02", expectedFiles, ds)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }
 
 // Test an image with 1 dep. The upper image has a pathWhiteList.
@@ -1132,6 +1160,10 @@ func TestPWLOnlyImage(t *testing.T) {
 
 	images := Images{image2, image1}
 	err = checkRenderACIFromList(images, expectedFiles, ds)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	err = checkRenderACI("example.com/test02", expectedFiles, ds)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1344,6 +1376,10 @@ func Test2Deps1(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	err = checkRenderACI("example.com/test03", expectedFiles, ds)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }
 
 // Test an image with a pathwhitelist and 2 deps (first without pathWhiteList and the second with pathWhiteList)
@@ -1550,6 +1586,10 @@ func Test2Deps2(t *testing.T) {
 
 	images := Images{image3, image2, image1}
 	err = checkRenderACIFromList(images, expectedFiles, ds)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	err = checkRenderACI("example.com/test03", expectedFiles, ds)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1829,6 +1869,20 @@ func Test3Deps(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	err = checkRenderACI("example.com/test04", expectedFiles, ds)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// Given an image app name and optional labels, get the best matching image
+// available in the store, build its dependency list and render it inside dir
+func RenderACI(name types.ACName, labels types.Labels, ap ACIRegistry) (map[string]*fileInfo, error) {
+	renderedACI, err := GetRenderedACI(name, labels, ap)
+	if err != nil {
+		return nil, err
+	}
+	return renderImage(renderedACI, ap)
 }
 
 // Given an already populated dependency list, it will extract, under the provided
@@ -1882,6 +1936,19 @@ func renderImage(renderedACI RenderedACI, ap ACIProvider) (map[string]*fileInfo,
 		}
 	}
 	return files, nil
+}
+
+func checkRenderACI(app types.ACName, expectedFiles []*fileInfo, ds *TestStore) error {
+	files, err := RenderACI(app, nil, ds)
+	if err != nil {
+		return err
+	}
+	err = checkExpectedFiles(files, FISliceToMap(expectedFiles))
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func checkRenderACIFromList(images Images, expectedFiles []*fileInfo, ds *TestStore) error {
