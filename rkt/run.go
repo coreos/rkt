@@ -97,7 +97,7 @@ func findImage(img string, ds *cas.Store, ks *keystore.Keystore) (*types.Hash, e
 	// import the local file if it exists
 	file, err := os.Open(img)
 	if err == nil {
-		key, err := ds.WriteACI(file)
+		key, err := ds.WriteACI(file, false)
 		file.Close()
 		if err != nil {
 			return nil, fmt.Errorf("%s: %v", img, err)
@@ -139,7 +139,11 @@ func runRun(args []string) (exit int) {
 		}
 	}
 
-	ds := cas.NewStore(globalFlags.Dir)
+	ds, err := cas.NewStore(globalFlags.Dir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "run: cannot open store: %v\n", err)
+		return 1
+	}
 	ks := getKeystore()
 
 	s1img, err := findImage(flagStage1Image, ds, ks)

@@ -52,8 +52,13 @@ func runFetch(args []string) (exit int) {
 		return 1
 	}
 
-	ds := cas.NewStore(globalFlags.Dir)
+	ds, err := cas.NewStore(globalFlags.Dir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "fetch: cannot open store: %v\n", err)
+		return 1
+	}
 	ks := getKeystore()
+
 	for _, img := range args {
 		hash, err := fetchImage(img, ds, ks)
 		if err != nil {
@@ -78,7 +83,12 @@ func fetchImage(img string, ds *cas.Store, ks *keystore.Keystore) (string, error
 			if err != nil {
 				return "", err
 			}
-			return fetchImageFromEndpoints(ep, ds, ks)
+			latest := false
+			// No specified version label, consider as latest
+			if _, ok := app.Labels["version"]; !ok {
+				latest = true
+			}
+			return fetchImageFromEndpoints(ep, ds, ks, latest)
 		}
 	}
 	if err != nil {
@@ -90,23 +100,25 @@ func fetchImage(img string, ds *cas.Store, ks *keystore.Keystore) (string, error
 	return fetchImageFromURL(u.String(), ds, ks)
 }
 
-func fetchImageFromEndpoints(ep *discovery.Endpoints, ds *cas.Store, ks *keystore.Keystore) (string, error) {
-	rem := cas.NewRemote(ep.ACIEndpoints[0].ACI, ep.ACIEndpoints[0].Sig)
-	return downloadImage(rem, ds, ks)
+func fetchImageFromEndpoints(ep *discovery.Endpoints, ds *cas.Store, ks *keystore.Keystore, latest bool) (string, error) {
+	return downloadImage(ep.ACIEndpoints[0].ACI, ep.ACIEndpoints[0].Sig, ds, ks, latest)
 }
 
 func fetchImageFromURL(imgurl string, ds *cas.Store, ks *keystore.Keystore) (string, error) {
-	rem := cas.NewRemote(imgurl, sigURLFromImgURL(imgurl))
-	return downloadImage(rem, ds, ks)
+	return downloadImage(imgurl, sigURLFromImgURL(imgurl), ds, ks, false)
 }
 
-func downloadImage(rem *cas.Remote, ds *cas.Store, ks *keystore.Keystore) (string, error) {
-	fmt.Printf("rkt: fetching image from %s\n", rem.ACIURL)
+func downloadImage(aciURL string, sigURL string, ds *cas.Store, ks *keystore.Keystore, latest bool) (string, error) {
+	fmt.Printf("rkt: fetching image from %s\n", aciURL)
 	if globalFlags.InsecureSkipVerify {
 		fmt.Printf("rkt: warning: signature verification has been disabled\n")
 	}
-	err := ds.ReadIndex(rem)
-	if err != nil && rem.BlobKey == "" {
+	rem, ok, err := ds.GetRemote(aciURL, sigURL)
+	if err != nil {
+		return "", err
+	}
+	if !ok {
+		rem = cas.NewRemote(aciURL, sigURL)
 		entity, aciFile, err := rem.Download(*ds, ks)
 		if err != nil {
 			return "", err
@@ -119,7 +131,7 @@ func downloadImage(rem *cas.Remote, ds *cas.Store, ks *keystore.Keystore) (strin
 				fmt.Printf("  %s\n", v.Name)
 			}
 		}
-		rem, err = rem.Store(*ds, aciFile)
+		rem, err = rem.Store(*ds, aciFile, latest)
 		if err != nil {
 			return "", err
 		}

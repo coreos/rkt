@@ -18,14 +18,19 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/sha512"
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"hash"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/appc/spec/aci"
+	"github.com/appc/spec/schema"
+	"github.com/appc/spec/schema/types"
 
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/peterbourgon/diskv"
 )
@@ -34,7 +39,7 @@ import (
 // appType. This is OK for now though.
 const (
 	blobType int64 = iota
-	remoteType
+	imageManifestType
 
 	defaultPathPerm os.FileMode = 0777
 
@@ -46,31 +51,62 @@ const (
 	lenKey     = len(hashPrefix) + lenHashKey
 )
 
-var otmap = [...]string{
+var diskvStores = [...]string{
 	"blob",
-	"remote", // remote is a temporary secondary index
+	"imageManifest",
 }
 
 // Store encapsulates a content-addressable-storage for storing ACIs on disk.
 type Store struct {
 	base   string
 	stores []*diskv.Diskv
+	db     *DB
 }
 
-func NewStore(base string) *Store {
+var dbCreateStmts = [...]string{
+	// remote
+	"CREATE TABLE IF NOT EXISTS remote (aciurl string, sigurl string, etag string, blobkey string);",
+	"CREATE UNIQUE INDEX IF NOT EXISTS aciurlidx ON remote (aciurl)",
+	// aciinfo, blobkey is the primary key and it matches the key used to save that aci in the blob store
+	"CREATE TABLE IF NOT EXISTS aciinfo (blobkey string, appname string, importtime time, latest bool);",
+	"CREATE UNIQUE INDEX IF NOT EXISTS blobkeyidx ON aciinfo (blobkey)",
+}
+
+func NewStore(base string) (*Store, error) {
 	ds := &Store{
 		base:   base,
-		stores: make([]*diskv.Diskv, len(otmap)),
+		stores: make([]*diskv.Diskv, len(diskvStores)),
 	}
 
-	for i, p := range otmap {
+	for i, p := range diskvStores {
 		ds.stores[i] = diskv.New(diskv.Options{
 			BasePath:  filepath.Join(base, "cas", p),
 			Transform: blockTransform,
 		})
 	}
+	db, err := NewDB(filepath.Join(base, "cas", "db"))
+	if err != nil {
+		return nil, err
+	}
+	ds.db = db
 
-	return ds
+	// Execute db create statements, this is done everytime NewStore is
+	// called so they should use the "IF NOT EXISTS" statements.
+	fn := func(tx *sql.Tx) error {
+		for _, stmt := range dbCreateStmts {
+			_, err = tx.Exec(stmt)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	if err = db.Do(fn); err != nil {
+		return nil, err
+	}
+
+	return ds, nil
 }
 
 func (ds Store) tmpFile() (*os.File, error) {
@@ -119,7 +155,9 @@ func (ds Store) WriteStream(key string, r io.Reader) error {
 // WriteACI takes an ACI encapsulated in an io.Reader, decompresses it if
 // necessary, and then stores it in the store under a key based on the image ID
 // (i.e. the hash of the uncompressed ACI)
-func (ds Store) WriteACI(r io.Reader) (string, error) {
+// latest defines if the aci has to be marked as the latest (eg. an ACI
+// downloaded with the latest pattern: without asking for a specific version)
+func (ds Store) WriteACI(r io.Reader, latest bool) (string, error) {
 	// Peek at the first 512 bytes of the reader to detect filetype
 	br := bufio.NewReaderSize(r, 512)
 	hd, err := br.Peek(512)
@@ -149,39 +187,144 @@ func (ds Store) WriteACI(r io.Reader) (string, error) {
 	if _, err := io.Copy(fh, tr); err != nil {
 		return "", fmt.Errorf("error copying image: %v", err)
 	}
+	im, err := aci.ManifestFromImage(fh)
+	if err != nil {
+		return "", fmt.Errorf("error extracting ImageManifest: %v", err)
+	}
 	if err := fh.Close(); err != nil {
 		return "", fmt.Errorf("error closing image: %v", err)
 	}
 
 	// Import the uncompressed image into the store at the real key
-	key := HashToKey(h)
+	key := ds.HashToKey(h)
 	if err = ds.stores[blobType].Import(fh.Name(), key, true); err != nil {
 		return "", fmt.Errorf("error importing image: %v", err)
 	}
 
+	// Save the imagemanifest using the same key used for the image
+	imj, err := json.Marshal(im)
+	if err != nil {
+		return "", fmt.Errorf("error marshalling image manifest: %v", err)
+	}
+	if err = ds.stores[imageManifestType].Write(key, imj); err != nil {
+		return "", fmt.Errorf("error importing image: %v", err)
+	}
+
+	// Save aciinfo
+	ds.db.Do(func(tx *sql.Tx) error {
+		aciinfo := &ACIInfo{
+			BlobKey:    key,
+			AppName:    im.Name.String(),
+			ImportTime: time.Now(),
+			Latest:     latest,
+		}
+		return WriteACIInfo(tx, aciinfo)
+	})
 	return key, nil
 }
 
-type Index interface {
-	Hash() string
-	Marshal() []byte
-	Unmarshal([]byte)
-	Type() int64
-}
-
-func (ds Store) WriteIndex(i Index) {
-	ds.stores[i.Type()].Write(i.Hash(), i.Marshal())
-}
-
-func (ds Store) ReadIndex(i Index) error {
-	buf, err := ds.stores[i.Type()].Read(i.Hash())
-	if err != nil {
+// GetRemote tries to retrieve a remote with the given ACIURL. found will be
+// false if not remote exists
+func (ds Store) GetRemote(aciURL string, sigURL string) (*Remote, bool, error) {
+	var remote *Remote
+	found := false
+	err := ds.db.Do(func(tx *sql.Tx) error {
+		var err error
+		remote, found, err = GetRemote(tx, aciURL, sigURL)
 		return err
+	})
+	return remote, found, err
+}
+
+// WriteRemote adds or updates the provided Remote.
+func (ds Store) WriteRemote(remote *Remote) error {
+	err := ds.db.Do(func(tx *sql.Tx) error {
+		return WriteRemote(tx, remote)
+	})
+	return err
+}
+
+// Get the ImageManifest with the specified key.
+func (ds Store) GetImageManifest(key string) (*schema.ImageManifest, error) {
+	imj, err := ds.stores[imageManifestType].Read(key)
+	if err != nil {
+		return nil, fmt.Errorf("error importing image: %v", err)
+	}
+	var im *schema.ImageManifest
+	if err = json.Unmarshal(imj, &im); err != nil {
+		return nil, fmt.Errorf("error unmashalling imagemanifest: %v", err)
+	}
+	return im, nil
+}
+
+// Get the best ACI that matches app name and the provided labels. It returns
+// the blob store key of the given ACI.
+// If there are multiple matching ACIs choose the latest one (defined as the
+// last one imported in the store).
+// If no version label is requested, ACIs marked as latest in the ACIInfo are
+// preferred.
+func (ds Store) GetACI(name types.ACName, labels types.Labels) (string, error) {
+	var curaciinfo *ACIInfo
+	versionRequested := false
+	if _, ok := labels.Get("version"); ok {
+		versionRequested = true
 	}
 
-	i.Unmarshal(buf)
+	var aciinfos []*ACIInfo
+	err := ds.db.Do(func(tx *sql.Tx) error {
+		var err error
+		aciinfos, _, err = GetACIInfosWithAppName(tx, name.String())
+		return err
+	})
+	if err != nil {
+		return "", err
+	}
 
-	return nil
+nextKey:
+	for _, aciinfo := range aciinfos {
+		im, err := ds.GetImageManifest(aciinfo.BlobKey)
+		if err != nil {
+			return "", fmt.Errorf("error getting image manifest: %v", err)
+		}
+
+		// The image manifest must have all the requested labels
+		for _, l := range labels {
+			ok := false
+			for _, rl := range im.Labels {
+				if l.Name == rl.Name && l.Value == rl.Value {
+					ok = true
+					break
+				}
+			}
+			if !ok {
+				continue nextKey
+			}
+		}
+
+		if curaciinfo != nil {
+			// If no version is requested prefer the acis marked as latest
+			if !versionRequested {
+				if !curaciinfo.Latest && aciinfo.Latest {
+					curaciinfo = aciinfo
+					continue nextKey
+				}
+				if curaciinfo.Latest && !aciinfo.Latest {
+					continue nextKey
+				}
+			}
+			// If multiple matching image manifests are found, choose the latest imported in the cas.
+			if aciinfo.ImportTime.After(curaciinfo.ImportTime) {
+				curaciinfo = aciinfo
+			}
+		} else {
+			curaciinfo = aciinfo
+		}
+	}
+
+	if curaciinfo != nil {
+		return curaciinfo.BlobKey, nil
+	}
+	return "", fmt.Errorf("aci not found")
 }
 
 func (ds Store) Dump(hex bool) {
@@ -209,7 +352,7 @@ func (ds Store) Dump(hex bool) {
 // HashToKey takes a hash.Hash (which currently _MUST_ represent a full SHA512),
 // calculates its sum, and returns a string which should be used as the key to
 // store the data matching the hash.
-func HashToKey(h hash.Hash) string {
+func (ds Store) HashToKey(h hash.Hash) string {
 	s := h.Sum(nil)
 	return keyToString(s)
 }
