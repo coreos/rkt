@@ -17,7 +17,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"os"
 	"strings"
 	"text/template"
 
@@ -96,7 +95,7 @@ func runHelp(args []string) (exit int) {
 
 	if err := printCommandUsageByName(args[0]); err != nil {
 		printGlobalUsage()
-		fmt.Fprintf(os.Stderr, "\nHelp error: %v\n", err)
+		stderr("\nHelp error: %v\n", err)
 		return 1
 	}
 	return

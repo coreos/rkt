@@ -54,7 +54,7 @@ func walkContainers(include includeMask, f func(*container)) error {
 	for _, uuid := range ls {
 		c, err := getContainer(uuid)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Skipping %q: %v\n", uuid, err)
+			stderr("Skipping %q: %v", uuid, err)
 			continue
 		}
 
@@ -196,7 +196,7 @@ func listContainersFromDir(cdir string) ([]string, error) {
 
 	for _, c := range ls {
 		if !c.IsDir() {
-			fmt.Fprintf(os.Stderr, "Unrecognized entry: %q, ignoring", c.Name())
+			stderr("Unrecognized entry: %q, ignoring", c.Name())
 			continue
 		}
 		cs = append(cs, c.Name())
@@ -274,7 +274,7 @@ func (c *container) getStatuses() (map[string]int, error) {
 	for _, name := range ls {
 		s, err := c.readIntFromFile(filepath.Join(statusDir, name))
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Unable to get status of app %q: %v\n", name, err)
+			stderr("Unable to get status of app %q: %v", name, err)
 			continue
 		}
 		stats[name] = s

@@ -16,11 +16,6 @@
 
 package main
 
-import (
-	"fmt"
-	"os"
-)
-
 var (
 	cmdStatus = &Command{
 		Name:    cmdStatusName,
@@ -49,26 +44,26 @@ func runStatus(args []string) (exit int) {
 
 	containerUUID, err := resolveUUID(args[0])
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to resolve UUID: %v\n", err)
+		stderr("Unable to resolve UUID: %v", err)
 		return 1
 	}
 
 	ch, err := getContainer(containerUUID.String())
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to get container handle: %v\n", err)
+		stderr("Unable to get container handle: %v", err)
 		return 1
 	}
 	defer ch.Close()
 
 	if flagWait {
 		if err := ch.waitExited(); err != nil {
-			fmt.Fprintf(os.Stderr, "Unable to wait for container: %v\n", err)
+			stderr("Unable to wait for container: %v", err)
 			return 1
 		}
 	}
 
 	if err = printStatus(ch); err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to print status: %v\n", err)
+		stderr("Unable to print status: %v", err)
 		return 1
 	}
 
@@ -87,9 +82,9 @@ func printStatus(ch *container) error {
 		return err
 	}
 
-	fmt.Printf("pid=%d\nexited=%t\n", pid, ch.isExited)
+	stdout("pid=%d\nexited=%t", pid, ch.isExited)
 	for app, stat := range stats {
-		fmt.Printf("%s=%d\n", app, stat)
+		stdout("%s=%d", app, stat)
 	}
 	return nil
 }
