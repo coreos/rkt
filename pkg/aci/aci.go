@@ -25,8 +25,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/appc/spec/aci"
-	"github.com/appc/spec/schema"
+	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/aci"
+	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/schema"
 	"github.com/coreos/rocket/Godeps/_workspace/src/golang.org/x/crypto/openpgp"
 )
 

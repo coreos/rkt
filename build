@@ -8,8 +8,10 @@ if [ ! -h gopath/src/${REPO_PATH} ]; then
 	ln -s ../../../.. gopath/src/${REPO_PATH} || exit 255
 fi
 
+# Set up a self-contained GOPATH so that rocket can be easily and reproducibly
+# built from a git clone
 export GOBIN=${PWD}/bin
-export GOPATH=${GOPATH:-}:${PWD}/gopath
+export GOPATH=${PWD}/gopath
 
 eval $(go env)
 

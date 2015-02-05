@@ -27,8 +27,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/appc/spec/schema"
-	"github.com/appc/spec/schema/types"
+	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/schema"
+	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/coreos/go-systemd/unit"
 	"github.com/coreos/rocket/common"
 )

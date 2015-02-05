@@ -26,7 +26,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/appc/spec/schema/types"
+	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rocket/Godeps/_workspace/src/golang.org/x/crypto/openpgp"
 )
 

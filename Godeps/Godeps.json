@@ -11,6 +11,21 @@
 			"Rev": "7dda39b2e7d5e265014674c5af696ba4186679e9"
 		},
 		{
+			"ImportPath": "github.com/appc/spec/aci",
+			"Comment": "v0.2.0-37-g2fe56d3eeef9",
+			"Rev": "2fe56d3eeef90f9655e53bbb62ec00d9419a8c27"
+		},
+		{
+			"ImportPath": "github.com/appc/spec/discovery",
+			"Comment": "v0.2.0-37-g2fe56d3eeef9",
+			"Rev": "2fe56d3eeef90f9655e53bbb62ec00d9419a8c27"
+		},
+		{
+			"ImportPath": "github.com/appc/spec/schema",
+			"Comment": "v0.2.0-37-g2fe56d3eeef9",
+			"Rev": "2fe56d3eeef90f9655e53bbb62ec00d9419a8c27"
+		},
+		{
 			"ImportPath": "github.com/coreos/go-semver/semver",
 			"Rev": "6fe83ccda8fb9b7549c9ab4ba47f47858bc950aa"
 		},
@@ -50,6 +65,10 @@
 		{
 			"ImportPath": "golang.org/x/crypto/openpgp",
 			"Rev": "a7ead6ddf06233883deca151dffaef2effbf498f"
+		},
+		{
+			"ImportPath": "golang.org/x/net/html",
+			"Rev": "1dfe7915deaf3f80b962c163b918868d8a6d8974"
 		}
 	]
 }

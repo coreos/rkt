@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/appc/spec/schema/types"
+	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 )
 
 // matchUUID attempts to match the uuid specified as uuid against all containers present.

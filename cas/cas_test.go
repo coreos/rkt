@@ -24,7 +24,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/appc/spec/schema/types"
+	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rocket/pkg/aci"
 )
 
