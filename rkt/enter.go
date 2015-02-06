@@ -58,42 +58,42 @@ func runEnter(args []string) (exit int) {
 
 	containerUUID, err := resolveUUID(args[0])
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to resolve UUID: %v\n", err)
+		stderr("Unable to resolve UUID: %v", err)
 		return 1
 	}
 
 	cid := containerUUID.String()
 	c, err := getContainer(cid)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to open container %q: %v\n", cid, err)
+		stderr("Failed to open container %q: %v", cid, err)
 		return 1
 	}
 	defer c.Close()
 
 	if c.isExited {
-		fmt.Fprintf(os.Stderr, "Cannot enter exited container\n")
+		stderr("Cannot enter exited container")
 		return 1
 	}
 
 	imageID, err := getAppImageID(c)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to determine image id: %v\n", err)
+		stderr("Unable to determine image id: %v", err)
 		return 1
 	}
 
 	if _, err = os.Stat(filepath.Join(common.AppRootfsPath(c.path(), *imageID))); err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to access app rootfs: %v\n", err)
+		stderr("Unable to access app rootfs: %v", err)
 		return 1
 	}
 
 	argv, err := getEnterArgv(c, imageID, args)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Enter failed: %v\n", err)
+		stderr("Enter failed: %v", err)
 		return 1
 	}
 
 	if err = stage0.Enter(c.path(), imageID, argv); err != nil {
-		fmt.Fprintf(os.Stderr, "Enter failed: %v\n", err)
+		stderr("Enter failed: %v", err)
 		return 1
 	}
 	// not reached when stage0.Enter execs /enter
@@ -128,9 +128,9 @@ func getAppImageID(c *container) (*types.Hash, error) {
 	default:
 	}
 
-	fmt.Fprintf(os.Stderr, "Container contains multiple apps:\n")
+	stderr("Container contains multiple apps:")
 	for _, ra := range m.Apps {
-		fmt.Fprintf(os.Stderr, "\t%s: %s\n", types.ShortHash(ra.ImageID.String()), ra.Name.String())
+		stderr("\t%s: %s", types.ShortHash(ra.ImageID.String()), ra.Name.String())
 	}
 
 	return nil, fmt.Errorf("specify app using \"rkt enter --imageid ...\"")
@@ -140,7 +140,7 @@ func getAppImageID(c *container) (*types.Hash, error) {
 func getEnterArgv(c *container, imageID *types.Hash, cmdArgs []string) ([]string, error) {
 	var argv []string
 	if len(cmdArgs) < 2 {
-		fmt.Printf("No command specified, assuming %q\n", defaultCmd)
+		stdout("No command specified, assuming %q", defaultCmd)
 		argv = []string{defaultCmd}
 	} else {
 		argv = cmdArgs[1:]

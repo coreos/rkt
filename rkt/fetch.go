@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -37,8 +38,13 @@ var (
 	cmdFetch = &Command{
 		Name:    "fetch",
 		Summary: "Fetch image(s) and store them in the local cache",
-		Usage:   "IMAGE_URL...",
-		Run:     runFetch,
+		Description: `IMAGE may be specified as an:
+  Local file e.g. "/tmp/foo.aci" or "foo.aci", or an
+  URL of http://, https://, or file:// scheme.
+
+Once cached the images may be referenced directly by the hashes printed.`,
+		Usage: "IMAGE...",
+		Run:   runFetch,
 	}
 )
 
@@ -48,7 +54,7 @@ func init() {
 
 func runFetch(args []string) (exit int) {
 	if len(args) < 1 {
-		fmt.Fprintf(os.Stderr, "fetch: Must provide at least one image\n")
+		stderr("fetch: Must provide at least one image")
 		return 1
 	}
 
@@ -57,7 +63,7 @@ func runFetch(args []string) (exit int) {
 	for _, img := range args {
 		hash, err := fetchImage(img, ds, ks, true)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "%v\n", err)
+			stderr("fetch error: %v", err)
 			return 1
 		}
 		shortHash := types.ShortHash(hash)
@@ -67,13 +73,26 @@ func runFetch(args []string) (exit int) {
 	return
 }
 
-// fetchImage will take an image as either a URL or a name string and import it
-// into the store if found.  If discover is true meta-discovery is enabled.
+// fetchImage will take an image as either a existing local file path, URL (file|http|https),
+// or a name string and import it into the store if found.
+// If discover is true meta-discovery is enabled for name string resolution.
 func fetchImage(img string, ds *cas.Store, ks *keystore.Keystore, discover bool) (string, error) {
+	// normalize to a file:// URL if img exists as a local file
+	_, err := os.Stat(img)
+	if err == nil {
+		path, err := filepath.Abs(img)
+		if err != nil {
+			return "", fmt.Errorf("error creating absolute path: %v", err)
+		}
+		img = fmt.Sprintf("file://%s", filepath.Clean(path))
+	} else if !os.IsNotExist(err) {
+		return "", fmt.Errorf("unable to access local file: %v", err)
+	}
+
 	u, err := url.Parse(img)
 	if err == nil && discover && u.Scheme == "" {
 		if app := newDiscoveryApp(img); app != nil {
-			fmt.Printf("rkt: searching for app image %s\n", img)
+			stdout("rkt: searching for app image %s", img)
 			ep, err := discovery.DiscoverEndpoints(*app, true)
 			if err != nil {
 				return "", err
@@ -84,47 +103,51 @@ func fetchImage(img string, ds *cas.Store, ks *keystore.Keystore, discover bool)
 	if err != nil {
 		return "", fmt.Errorf("not a valid URL (%s)", img)
 	}
-	if u.Scheme != "http" && u.Scheme != "https" {
+	if u.Scheme != "file" && u.Scheme != "http" && u.Scheme != "https" {
 		return "", fmt.Errorf("rkt only supports http or https URLs (%s)", img)
 	}
 	return fetchImageFromURL(u.String(), ds, ks)
 }
 
 func fetchImageFromEndpoints(ep *discovery.Endpoints, ds *cas.Store, ks *keystore.Keystore) (string, error) {
-	rem := cas.NewRemote(ep.ACIEndpoints[0].ACI, ep.ACIEndpoints[0].Sig)
-	return downloadImage(rem, ds, ks)
+	fr := cas.NewFetcher(ep.ACIEndpoints[0].ACI, ep.ACIEndpoints[0].Sig)
+	return getImage(fr, ds, ks)
 }
 
 func fetchImageFromURL(imgurl string, ds *cas.Store, ks *keystore.Keystore) (string, error) {
-	rem := cas.NewRemote(imgurl, sigURLFromImgURL(imgurl))
-	return downloadImage(rem, ds, ks)
+	fr := cas.NewFetcher(imgurl, sigURLFromImgURL(imgurl))
+	return getImage(fr, ds, ks)
 }
 
-func downloadImage(rem *cas.Remote, ds *cas.Store, ks *keystore.Keystore) (string, error) {
-	fmt.Printf("rkt: fetching image from %s\n", rem.ACIURL)
-	if globalFlags.InsecureSkipVerify {
-		fmt.Printf("rkt: warning: signature verification has been disabled\n")
+func getImage(fr *cas.Fetcher, ds *cas.Store, ks *keystore.Keystore) (string, error) {
+	if globalFlags.Debug {
+		stdout("rkt: fetching image from %s", fr.ACIURL)
 	}
-	err := ds.ReadIndex(rem)
-	if err != nil && rem.BlobKey == "" {
-		entity, aciFile, err := rem.Download(*ds, ks)
+	if globalFlags.InsecureSkipVerify {
+		stdout("rkt: warning: signature verification has been disabled")
+	}
+	err := ds.ReadIndex(fr)
+	if err != nil && fr.BlobKey == "" {
+		entity, aciFile, isRemote, err := fr.Get(*ds, ks)
 		if err != nil {
 			return "", err
 		}
-		defer os.Remove(aciFile.Name())
+		if isRemote {
+			defer os.Remove(aciFile.Name())
+		}
 
 		if !globalFlags.InsecureSkipVerify {
 			fmt.Println("rkt: signature verified: ")
 			for _, v := range entity.Identities {
-				fmt.Printf("  %s\n", v.Name)
+				stdout("  %s", v.Name)
 			}
 		}
-		rem, err = rem.Store(*ds, aciFile)
+		fr, err = fr.Store(*ds, aciFile)
 		if err != nil {
 			return "", err
 		}
 	}
-	return rem.BlobKey, nil
+	return fr.BlobKey, nil
 }
 
 func validateURL(s string) error {

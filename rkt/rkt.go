@@ -20,6 +20,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/coreos/rocket/pkg/keystore"
@@ -82,7 +83,7 @@ func main() {
 		if c.Name == args[0] {
 			cmd = c
 			if err := c.Flags.Parse(args[1:]); err != nil {
-				fmt.Fprintf(os.Stderr, "%v\n", err)
+				stderr("%v", err)
 				os.Exit(2)
 			}
 			break
@@ -90,8 +91,8 @@ func main() {
 	}
 
 	if cmd == nil {
-		fmt.Fprintf(os.Stderr, "%v: unknown subcommand: %q\n", cliName, args[0])
-		fmt.Fprintf(os.Stderr, "Run '%v help' for usage.\n", cliName)
+		stderr("%v: unknown subcommand: %q", cliName, args[0])
+		stderr("Run '%v help' for usage.", cliName)
 		os.Exit(2)
 	}
 
@@ -100,6 +101,21 @@ func main() {
 	}
 
 	os.Exit(cmd.Run(cmd.Flags.Args()))
+}
+
+func maybeAddNewline(s string) string {
+	if !strings.HasSuffix(s, "\n") {
+		s = s + "\n"
+	}
+	return s
+}
+
+func stderr(format string, a ...interface{}) (int, error) {
+	return fmt.Fprintf(os.Stderr, maybeAddNewline(format), a...)
+}
+
+func stdout(format string, a ...interface{}) (int, error) {
+	return fmt.Fprintf(os.Stdout, maybeAddNewline(format), a...)
 }
 
 func getAllFlags() (flags []*flag.Flag) {

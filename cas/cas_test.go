@@ -89,13 +89,13 @@ func TestDownloading(t *testing.T) {
 	defer ts.Close()
 
 	tests := []struct {
-		r    Remote
+		r    Fetcher
 		body []byte
 		hit  bool
 	}{
 		// The Blob entry isn't used
-		{Remote{ts.URL, "", "12", ""}, body, false},
-		{Remote{ts.URL, "", "12", ""}, body, true},
+		{Fetcher{ts.URL, "", "12", ""}, body, false},
+		{Fetcher{ts.URL, "", "12", ""}, body, true},
 	}
 
 	ds := NewStore(dir)
@@ -109,11 +109,14 @@ func TestDownloading(t *testing.T) {
 			panic("expected a hit got a miss")
 		}
 		ds.stores[remoteType].Write(tt.r.Hash(), tt.r.Marshal())
-		_, aciFile, err := tt.r.Download(*ds, nil)
+		_, aciFile, isRemote, err := tt.r.Get(*ds, nil)
 		if err != nil {
 			t.Fatalf("error downloading aci: %v", err)
 		}
 		defer os.Remove(aciFile.Name())
+		if !isRemote {
+			t.Fatalf("expected to get remote")
+		}
 
 		_, err = tt.r.Store(*ds, aciFile)
 		if err != nil {

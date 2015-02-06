@@ -15,7 +15,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"syscall"
 	"time"
@@ -42,18 +41,18 @@ func init() {
 
 func runGC(args []string) (exit int) {
 	if err := os.MkdirAll(garbageDir(), 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to create garbage dir: %v\n", err)
+		stderr("Unable to create garbage dir: %v", err)
 		return 1
 	}
 
 	if err := renameExited(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to rename exited containers: %v\n", err)
+		stderr("Failed to rename exited containers: %v", err)
 		return 1
 	}
 
 	// clean up anything old in the garbage dir
 	if err := emptyGarbage(flagGracePeriod); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to empty garbage: %v\n", err)
+		stderr("Failed to empty garbage: %v", err)
 		return 1
 	}
 
@@ -64,9 +63,9 @@ func runGC(args []string) (exit int) {
 func renameExited() error {
 	if err := walkContainers(includeContainersDir, func(c *container) {
 		if c.isExited {
-			fmt.Printf("Moving container %q to garbage\n", c.uuid)
+			stdout("Moving container %q to garbage", c.uuid)
 			if err := os.Rename(c.containersPath(), c.garbagePath()); err != nil && err != os.ErrNotExist {
-				fmt.Fprintf(os.Stderr, "Rename error: %v\n", err)
+				stderr("Rename error: %v", err)
 			}
 		}
 	}); err != nil {
@@ -83,7 +82,7 @@ func emptyGarbage(gracePeriod time.Duration) error {
 		st := &syscall.Stat_t{}
 		if err := syscall.Lstat(gp, st); err != nil {
 			if err != syscall.ENOENT {
-				fmt.Fprintf(os.Stderr, "Unable to stat %q, ignoring: %v\n", gp, err)
+				stderr("Unable to stat %q, ignoring: %v", gp, err)
 			}
 			return
 		}
@@ -92,9 +91,9 @@ func emptyGarbage(gracePeriod time.Duration) error {
 			if err := c.ExclusiveLock(); err != nil {
 				return
 			}
-			fmt.Printf("Garbage collecting container %q\n", c.uuid)
+			stdout("Garbage collecting container %q", c.uuid)
 			if err := os.RemoveAll(gp); err != nil {
-				fmt.Fprintf(os.Stderr, "Unable to remove container %q: %v\n", c.uuid, err)
+				stderr("Unable to remove container %q: %v", c.uuid, err)
 			}
 		}
 	}); err != nil {

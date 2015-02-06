@@ -94,23 +94,7 @@ func findImage(img string, ds *cas.Store, ks *keystore.Keystore, discover bool) 
 		return h, nil
 	}
 
-	// import the local file if it exists
-	file, err := os.Open(img)
-	if err == nil {
-		key, err := ds.WriteACI(file)
-		file.Close()
-		if err != nil {
-			return nil, fmt.Errorf("%s: %v", img, err)
-		}
-		h, err := types.NewHash(key)
-		if err != nil {
-			// should never happen
-			panic(err)
-		}
-		return h, nil
-	}
-
-	// try fetching remotely
+	// try fetching the image
 	key, err := fetchImage(img, ds, ks, discover)
 	if err != nil {
 		return nil, err
@@ -126,7 +110,7 @@ func findImage(img string, ds *cas.Store, ks *keystore.Keystore, discover bool) 
 
 func runRun(args []string) (exit int) {
 	if len(args) < 1 {
-		fmt.Fprintf(os.Stderr, "run: Must provide at least one image\n")
+		stderr("run: Must provide at least one image")
 		return 1
 	}
 	if globalFlags.Dir == "" {
@@ -134,7 +118,7 @@ func runRun(args []string) (exit int) {
 		var err error
 		globalFlags.Dir, err = ioutil.TempDir("", "rkt")
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error creating temporary directory: %v\n", err)
+			stderr("error creating temporary directory: %v", err)
 			return 1
 		}
 	}
@@ -144,13 +128,13 @@ func runRun(args []string) (exit int) {
 
 	s1img, err := findImage(flagStage1Image, ds, ks, false)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error finding stage1 image %q: %v\n", flagStage1Image, err)
+		stderr("Error finding stage1 image %q: %v", flagStage1Image, err)
 		return 1
 	}
 
 	imgs, err := findImages(args, ds, ks)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
+		stderr("%v", err)
 		return 1
 	}
 
@@ -166,7 +150,7 @@ func runRun(args []string) (exit int) {
 	}
 	cdir, err := stage0.Setup(cfg)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "run: error setting up stage0: %v\n", err)
+		stderr("run: error setting up stage0: %v", err)
 		return 1
 	}
 	stage0.Run(cfg, cdir) // execs, never returns

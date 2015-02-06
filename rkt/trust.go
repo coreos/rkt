@@ -62,7 +62,7 @@ func init() {
 func runTrust(args []string) (exit int) {
 	if flagPrefix == "" && !flagRoot {
 		if len(args) != 0 {
-			fmt.Fprintf(os.Stderr, "--root required for non-prefixed (root) keys\n")
+			stderr("--root required for non-prefixed (root) keys")
 		} else {
 			printCommandUsageByName(cmdTrustName)
 		}
@@ -70,18 +70,18 @@ func runTrust(args []string) (exit int) {
 	}
 
 	if flagPrefix != "" && flagRoot {
-		fmt.Fprintf(os.Stderr, "--root and --prefix usage mutually exclusive\n")
+		stderr("--root and --prefix usage mutually exclusive")
 		return 1
 	}
 
 	pkls, err := getPubKeyLocations(flagPrefix, args)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error determining key location: %v\n", err)
+		stderr("Error determining key location: %v", err)
 		return 1
 	}
 
 	if err := addKeys(pkls, flagPrefix); err != nil {
-		fmt.Fprintf(os.Stderr, "Error adding keys: %v\n", err)
+		stderr("Error adding keys: %v", err)
 		return 1
 	}
 
@@ -103,11 +103,11 @@ func addKeys(pkls []string, prefix string) error {
 		}
 
 		if !accepted {
-			fmt.Printf("Not trusting %q\n", pkl)
+			stdout("Not trusting %q", pkl)
 			continue
 		}
 
-		fmt.Printf("Trusting %q for prefix %q.\n", pkl, flagPrefix)
+		stdout("Trusting %q for prefix %q.", pkl, flagPrefix)
 
 		if err := addPubKey(prefix, pk); err != nil {
 			return fmt.Errorf("Error adding key: %v", err)
@@ -123,10 +123,10 @@ func addPubKey(prefix string, key *os.File) (err error) {
 	var path string
 	if prefix == "" {
 		path, err = ks.StoreTrustedKeyRoot(key)
-		fmt.Printf("Added root key at %q\n", path)
+		stdout("Added root key at %q", path)
 	} else {
 		path, err = ks.StoreTrustedKeyPrefix(prefix, key)
-		fmt.Printf("Added key for prefix %q at %q\n", prefix, path)
+		stdout("Added key for prefix %q at %q", prefix, path)
 	}
 
 	return
@@ -238,14 +238,14 @@ func reviewKey(prefix string, location string, key *os.File, forceAccept bool) (
 		return false, fmt.Errorf("error reading key: %v", err)
 	}
 
-	fmt.Printf("Prefix: %q\nKey: %q\n", prefix, location)
+	stdout("Prefix: %q\nKey: %q", prefix, location)
 	for _, k := range kr {
-		fmt.Printf("GPG key fingerprint is: %s\n", fingerToString(k.PrimaryKey.Fingerprint))
+		stdout("GPG key fingerprint is: %s", fingerToString(k.PrimaryKey.Fingerprint))
 		for _, sk := range k.Subkeys {
-			fmt.Printf("    Subkey fingerprint: %s\n", fingerToString(sk.PublicKey.Fingerprint))
+			stdout("    Subkey fingerprint: %s", fingerToString(sk.PublicKey.Fingerprint))
 		}
 		for n, _ := range k.Identities {
-			fmt.Printf("\t%s\n", n)
+			stdout("\t%s", n)
 		}
 	}
 
@@ -263,7 +263,7 @@ func reviewKey(prefix string, location string, key *os.File, forceAccept bool) (
 			case "no\n":
 				return false, nil
 			default:
-				fmt.Printf("Please enter 'yes' or 'no'\n")
+				stdout("Please enter 'yes' or 'no'")
 			}
 		}
 	}

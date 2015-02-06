@@ -15,8 +15,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/schema"
 	"github.com/coreos/rocket/version"
 )
@@ -33,7 +31,7 @@ func init() {
 }
 
 func runVersion(args []string) (exit int) {
-	fmt.Printf("rkt version %s\n", version.Version)
-	fmt.Printf("appc version %s\n", schema.AppContainerVersion)
+	stdout("rkt version %s", version.Version)
+	stdout("appc version %s", schema.AppContainerVersion)
 	return
 }

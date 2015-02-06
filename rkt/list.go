@@ -18,7 +18,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/schema"
 	common "github.com/coreos/rocket/common"
@@ -47,19 +46,19 @@ func runList(args []string) (exit int) {
 	if err := walkContainers(includeContainersDir|includeGarbageDir, func(c *container) {
 		manifFile, err := c.readFile(common.ContainerManifestPath(""))
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Unable to read manifest: %v\n", err)
+			stderr("Unable to read manifest: %v", err)
 			return
 		}
 
 		m := schema.ContainerRuntimeManifest{}
 		err = m.UnmarshalJSON(manifFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Unable to load manifest: %v\n", err)
+			stderr("Unable to load manifest: %v", err)
 			return
 		}
 
 		if len(m.Apps) == 0 {
-			fmt.Fprint(os.Stderr, "Container contains zero apps\n")
+			stderr("Container contains zero apps")
 			return
 		}
 
@@ -75,7 +74,7 @@ func runList(args []string) (exit int) {
 			fmt.Fprintf(tabOut, "\t%s\n", m.Apps[i].Name.String())
 		}
 	}); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to get container handles: %v\n", err)
+		stderr("Failed to get container handles: %v", err)
 		return 1
 	}
 
