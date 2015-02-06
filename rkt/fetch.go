@@ -74,7 +74,14 @@ func fetchImage(img string, ds *cas.Store, ks *keystore.Keystore, discover bool)
 	if err == nil && discover && u.Scheme == "" {
 		if app := newDiscoveryApp(img); app != nil {
 			fmt.Printf("rkt: searching for app image %s\n", img)
-			ep, err := discovery.DiscoverEndpoints(*app, true)
+			ep, attempts, err := discovery.DiscoverEndpoints(*app, true)
+
+			if globalFlags.Debug {
+				for _, a := range attempts {
+					fmt.Fprintf(os.Stderr, "meta tag 'ac-discovery' not found on %s: %v\n", a.Prefix, a.Error)
+				}
+			}
+
 			if err != nil {
 				return "", err
 			}

@@ -157,9 +157,15 @@ func metaDiscoverPubKeyLocations(prefix string) ([]string, error) {
 		return nil, err
 	}
 
-	ep, err := discovery.DiscoverEndpoints(*app, true)
+	ep, attempts, err := discovery.DiscoverPublicKeys(*app, true)
 	if err != nil {
 		return nil, err
+	}
+
+	if globalFlags.Debug {
+		for _, a := range attempts {
+			fmt.Fprintf(os.Stderr, "meta tag 'ac-discovery-pubkeys' not found on %s: %v\n", a.Prefix, a.Error)
+		}
 	}
 
 	return ep.Keys, nil
