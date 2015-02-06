@@ -94,23 +94,7 @@ func findImage(img string, ds *cas.Store, ks *keystore.Keystore, discover bool) 
 		return h, nil
 	}
 
-	// import the local file if it exists
-	file, err := os.Open(img)
-	if err == nil {
-		key, err := ds.WriteACI(file)
-		file.Close()
-		if err != nil {
-			return nil, fmt.Errorf("%s: %v", img, err)
-		}
-		h, err := types.NewHash(key)
-		if err != nil {
-			// should never happen
-			panic(err)
-		}
-		return h, nil
-	}
-
-	// try fetching remotely
+	// try fetching the image
 	key, err := fetchImage(img, ds, ks, discover)
 	if err != nil {
 		return nil, err
