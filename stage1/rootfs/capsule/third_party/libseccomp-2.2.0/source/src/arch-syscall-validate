@@ -1,0 +1,447 @@
+#!/bin/bash
+
+#
+# libseccomp syscall validation script
+#
+# Copyright (c) 2014 Red Hat <pmoore@redhat.com>
+# Author: Paul Moore <pmoore@redhat.com>
+#
+
+#
+# This library is free software; you can redistribute it and/or modify it
+# under the terms of version 2.1 of the GNU Lesser General Public License as
+# published by the Free Software Foundation.
+#
+# This library is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License
+# for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this library; if not, see <http://www.gnu.org/licenses>.
+#
+
+LIB_SYS_DUMP="./arch-syscall-dump"
+
+####
+# functions
+
+#
+# Dependency check
+#
+# Arguments:
+#     1    Dependency to check for
+#
+function check_deps() {
+	[[ -z "$1" ]] && return
+	which "$1" >& /dev/null
+	return $?
+}
+
+#
+# Dependency verification
+#
+# Arguments:
+#     1    Dependency to check for
+#
+function verify_deps() {
+	[[ -z "$1" ]] && return
+	if ! check_deps "$1"; then
+		echo "error: install \"$1\" and include it in your \$PATH"
+		exit 1
+	fi
+}
+
+#
+# Print out script usage details
+#
+function usage() {
+cat << EOF
+usage: arch-syscall-validate [-h] [-a <arch>] <kernel_directory>
+
+libseccomp syscall validation script
+optional arguments:
+  -h             show this help message and exit
+  -a             architecture
+EOF
+}
+
+#
+# Dump the x86 system syscall table
+#
+# Arguments:
+#     1    path to the kernel source
+#
+#  Dump the architecture's syscall table to stdout.
+#
+function dump_sys_x86() {
+	cat $1/arch/x86/syscalls/syscall_32.tbl | \
+		grep -v "^#" | awk '{ print $3"\t"$1 }' | sed '/^[ \t]*$/d' | \
+		sort
+}
+
+#
+# Dump the x86 library syscall table
+#
+#  Dump the library's syscall table to stdout.
+#
+function dump_lib_x86() {
+	$LIB_SYS_DUMP -a x86 | sed -e '/[^\t]\+\t-[0-9]\+/d'
+}
+
+#
+# Dump the x86_64 system syscall table
+#
+# Arguments:
+#     1    path to the kernel source
+#
+#  Dump the architecture's syscall table to stdout.
+#
+function dump_sys_x86_64() {
+	cat $1/arch/x86/syscalls/syscall_64.tbl | \
+		grep -v "^#" | awk '{ print $2,$3,$1 }' | sed -e '/^x32/d' | \
+		awk '{ print $2"\t"$3 }' | sed '/^[ \t]*$/d' | sort
+}
+
+#
+# Dump the x86_64 library syscall table
+#
+#  Dump the library's syscall table to stdout.
+#
+function dump_lib_x86_64() {
+	$LIB_SYS_DUMP -a x86_64 | sed -e '/[^\t]\+\t-[0-9]\+/d'
+}
+
+#
+# Dump the x32 system syscall table
+#
+# Arguments:
+#     1    path to the kernel source
+#
+#  Dump the architecture's syscall table to stdout.
+#
+function dump_sys_x32() {
+	cat $1/arch/x86/syscalls/syscall_64.tbl | \
+		grep -v "^#" | awk '{ print $2,$3,$1 }' | sed -e '/^64/d' | \
+		awk '{ print $2"\t"$3 }' | sed '/^[ \t]*$/d' | sort
+}
+
+#
+# Dump the x32 library syscall table
+#
+#  Dump the library's syscall table to stdout.
+#
+function dump_lib_x32() {
+	# 1073741824 == 0x40000000
+	$LIB_SYS_DUMP -a x32 -o 1073741824 | sed -e '/[^\t]\+\t-[0-9]\+/d'
+}
+
+#
+# Dump the arm system syscall table
+#
+# Arguments:
+#     1    path to the kernel source
+#
+#  Dump the architecture's syscall table to stdout.
+#
+function dump_sys_arm() {
+	# NOTE: arm_sync_file_range() and sync_file_range2() share values
+	cat $1/arch/arm/include/uapi/asm/unistd.h | \
+		grep "^#define __NR_" | sort | \
+		grep -v "^#define __NR_OABI_SYSCALL_BASE" | \
+		grep -v "^#define __NR_SYSCALL_BASE" | \
+		sed -e 's/#define[ \t]\+__NR_\([^ \t]\+\)[ \t]\+(__NR_SYSCALL_BASE[ \t]*+[ \t]*\([0-9]\+\)).*/\1\t\2/' | \
+		sed -e '/#define __NR_sync_file_range2[ \t]\+__NR_arm_sync_file_range/d'
+}
+
+#
+# Dump the arm library syscall table
+#
+#  Dump the library's syscall table to stdout.
+#
+function dump_lib_arm() {
+	# NOTE: arm_sync_file_range() and sync_file_range2() share values
+	$LIB_SYS_DUMP -a arm | sed -e '/[^\t]\+\t-[0-9]\+/d' | \
+		sed -e '/sync_file_range2[ \t]\+341/d'
+}
+
+#
+# Dump the aarch64 system syscall table
+#
+# Arguments:
+#     1    path to the kernel source
+#
+#  Dump the architecture's syscall table to stdout.
+#
+function dump_sys_aarch64() {
+	gcc -E -dM -I$1/include/uapi -D__BITS_PER_LONG=64 $1/include/uapi/asm-generic/unistd.h | \
+		grep "^#define __NR_" | sort | \
+		sed -e '/__NR_syscalls/d' | \
+		sed -e '/__NR_arch_specific_syscall/d' | \
+		sed -e 's/#define[ \t]\+__NR_\([^ \t]\+\)[ \t]\+\(.*\)/\1\t\2/' | \
+		sed -e 's/__NR3264_statfs/43/' | \
+		sed -e 's/__NR3264_ftruncate/46/' | \
+		sed -e 's/__NR3264_truncate/45/' | \
+		sed -e 's/__NR3264_lseek/62/' | \
+		sed -e 's/__NR3264_sendfile/71/' | \
+		sed -e 's/__NR3264_fstatat/79/' | \
+		sed -e 's/__NR3264_fstatfs/44/' | \
+		sed -e 's/__NR3264_fcntl/25/' | \
+		sed -e 's/__NR3264_fadvise64/223/' | \
+		sed -e 's/__NR3264_mmap/222/' | \
+		sed -e 's/__NR3264_fstat/80/' | \
+		sed -e 's/__NR3264_lstat/1039/' | \
+		sed -e 's/__NR3264_stat/1038/'
+}
+
+#
+# Dump the aarch64 library syscall table
+#
+#  Dump the library's syscall table to stdout.
+#
+function dump_lib_aarch64() {
+	$LIB_SYS_DUMP -a aarch64 | sed -e '/[^\t]\+\t-[0-9]\+/d'
+}
+
+#
+# Dump the mips system syscall table
+#
+# Arguments:
+#     1    path to the kernel source
+#
+#  Dump the architecture's syscall table to stdout.
+#
+function dump_sys_mips() {
+	# _MIPS_SIM values:
+	#   _MIPS_SIM_ABI32 == 1
+	#   _MIPS_SIM_NABI32 == 2
+	#   _MIPS_SIM_ABI64 == 3
+	gcc -E -dM -I$1/arch/mips/include/uapi -D_MIPS_SIM=1 $1/arch/mips/include/uapi/asm/unistd.h | \
+		grep "^#define __NR_" | sort | \
+		grep -v "^#define __NR_O32_" | \
+		grep -v "^#define __NR_N32_" | \
+		grep -v "^#define __NR_64_" | \
+		grep -v "^#define __NR_Linux" | \
+		grep -v "^#define __NR_unused" | \
+		grep -v "^#define __NR_reserved" | \
+		sed -e 's/#define[ \t]\+__NR_\([^ \t]\+\)[ \t]\+(__NR_Linux[ \t]*+[ \t]*\([0-9]\+\)).*/\1\t\2/'
+}
+
+#
+# Dump the mips library syscall table
+#
+#  Dump the library's syscall table to stdout.
+#
+function dump_lib_mips() {
+	$LIB_SYS_DUMP -a mips -o 4000 | sed -e '/[^\t]\+\t-[0-9]\+/d'
+}
+
+#
+# Dump the mips64 system syscall table
+#
+# Arguments:
+#     1    path to the kernel source
+#
+#  Dump the architecture's syscall table to stdout.
+#
+function dump_sys_mips64() {
+	# _MIPS_SIM values:
+	#   _MIPS_SIM_ABI32 == 1
+	#   _MIPS_SIM_NABI32 == 2
+	#   _MIPS_SIM_ABI64 == 3
+	gcc -E -dM -I$1/arch/mips/include/uapi -D_MIPS_SIM=3 $1/arch/mips/include/uapi/asm/unistd.h | \
+		grep "^#define __NR_" | sort | \
+		grep -v "^#define __NR_O32_" | \
+		grep -v "^#define __NR_N32_" | \
+		grep -v "^#define __NR_64_" | \
+		grep -v "^#define __NR_Linux" | \
+		grep -v "^#define __NR_unused" | \
+		grep -v "^#define __NR_reserved" | \
+		sed -e 's/#define[ \t]\+__NR_\([^ \t]\+\)[ \t]\+(__NR_Linux[ \t]*+[ \t]*\([0-9]\+\)).*/\1\t\2/'
+}
+
+#
+# Dump the mips64 library syscall table
+#
+#  Dump the library's syscall table to stdout.
+#
+function dump_lib_mips64() {
+	$LIB_SYS_DUMP -a mips64 -o 5000 | sed -e '/[^\t]\+\t-[0-9]\+/d'
+}
+
+#
+# Dump the mips64n32 system syscall table
+#
+# Arguments:
+#     1    path to the kernel source
+#
+#  Dump the architecture's syscall table to stdout.
+#
+function dump_sys_mips64n32() {
+	# _MIPS_SIM values:
+	#   _MIPS_SIM_ABI32 == 1
+	#   _MIPS_SIM_NABI32 == 2
+	#   _MIPS_SIM_ABI64 == 3
+	gcc -E -dM -I$1/arch/mips/include/uapi -D_MIPS_SIM=2 $1/arch/mips/include/uapi/asm/unistd.h | \
+		grep "^#define __NR_" | sort | \
+		grep -v "^#define __NR_O32_" | \
+		grep -v "^#define __NR_N32_" | \
+		grep -v "^#define __NR_64_" | \
+		grep -v "^#define __NR_Linux" | \
+		grep -v "^#define __NR_unused" | \
+		grep -v "^#define __NR_reserved" | \
+		sed -e 's/#define[ \t]\+__NR_\([^ \t]\+\)[ \t]\+(__NR_Linux[ \t]*+[ \t]*\([0-9]\+\)).*/\1\t\2/'
+}
+
+#
+# Dump the mips64n32 library syscall table
+#
+#  Dump the library's syscall table to stdout.
+#
+function dump_lib_mips64n32() {
+	$LIB_SYS_DUMP -a mips64n32 -o 6000 | sed -e '/[^\t]\+\t-[0-9]\+/d'
+}
+
+#
+# Dump the system syscall table
+#
+# Arguments:
+#     1    architecture
+#     2    path to the kernel source
+#
+#  Dump the system's syscall table to stdout using the given architecture.
+#
+function dump_sys() {
+	case $1 in
+	x86)
+		dump_sys_x86 "$2"
+		;;
+	x86_64)
+		dump_sys_x86_64 "$2"
+		;;
+	x32)
+		dump_sys_x32 "$2"
+		;;
+	arm)
+		dump_sys_arm "$2"
+		;;
+	aarch64)
+		dump_sys_aarch64 "$2"
+		;;
+	mips)
+		dump_sys_mips "$2"
+		;;
+	mips64)
+		dump_sys_mips64 "$2"
+		;;
+	mips64n32)
+		dump_sys_mips64n32 "$2"
+		;;
+	*)
+		echo ""
+		;;
+	esac
+}
+
+#
+# Dump the library syscall table
+#
+# Arguments:
+#     1    architecture
+#
+#  Dump the library's syscall table to stdout using the given architecture.
+#
+function dump_lib() {
+	case $1 in
+	x86)
+		dump_lib_x86 "$2"
+		;;
+	x86_64)
+		dump_lib_x86_64 "$2"
+		;;
+	x32)
+		dump_lib_x32 "$2"
+		;;
+	arm)
+		dump_lib_arm "$2"
+		;;
+	aarch64)
+		dump_lib_aarch64 "$2"
+		;;
+	mips)
+		dump_lib_mips "$2"
+		;;
+	mips64)
+		dump_lib_mips64 "$2"
+		;;
+	mips64n32)
+		dump_lib_mips64n32 "$2"
+		;;
+	*)
+		echo ""
+		;;
+	esac
+}
+
+####
+# main
+
+verify_deps diff
+verify_deps gcc
+verify_deps grep
+verify_deps mktemp
+verify_deps sed
+if [[ ! -x $LIB_SYS_DUMP ]]; then
+	echo "error: \"$LIB_SYS_DUMP\" is not in the current working directory"
+	exit 1
+fi
+
+arches=""
+
+while getopts "a:h" opt; do
+	case $opt in
+	a)
+		arches+="$OPTARG "
+		;;
+	h|*)
+		usage
+		exit 1
+		;;
+	esac
+done
+shift $(($OPTIND - 1))
+
+# defaults
+if [[ $arches == "" ]]; then
+	arches="x86 x86_64 x32 arm aarch64 mips mips64 mips64n32"
+fi
+
+# sanity checks
+kernel_dir="$1"
+if [[ -z $kernel_dir ]]; then
+	usage
+	exit 1
+fi
+if [[ ! -d $kernel_dir ]]; then
+	echo "error: \"$1\" is not a valid directory"
+	exit 1
+fi
+
+# generate some temp files
+tmp_orig=$(mktemp -t syscall_validate_XXXXXX)
+tmp_new=$(mktemp -t syscall_validate_XXXXXX)
+
+# loop through the architectures
+for i in $arches; do
+	# dump the syscall tables
+	dump_lib $i > $tmp_orig
+	dump_sys $i "$kernel_dir" > $tmp_new
+
+	# do the comparison
+	diff -u --label="$i [library]" $tmp_orig --label "$i [system]" $tmp_new
+done
+
+# cleanup and exit
+rm -f $tmp_orig $tmp_new
+
+exit 0

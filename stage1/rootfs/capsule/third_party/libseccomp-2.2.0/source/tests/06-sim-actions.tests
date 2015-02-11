@@ -1,0 +1,27 @@
+#
+# libseccomp regression test automation data
+#
+# Copyright IBM Corp. 2012
+# Author: Corey Bryant <coreyb@linux.vnet.ibm.com>
+#
+
+test type: bpf-sim
+
+# Testname	Arch		Syscall	Arg0		Arg1		Arg2	Arg3	Arg4	Arg5	Result
+06-sim-actions	all		read	4		0x856B008	80	N	N	N	ALLOW
+06-sim-actions	all		write	1		0x856B008	N	N	N	N	ERRNO(1)
+06-sim-actions	all		close	4		N		N	N	N	N	TRAP
+06-sim-actions	all,-aarch64	open	0x856B008	4		N	N	N	N	TRACE(1234)
+06-sim-actions	x86		0-2	N		N		N	N	N	N	KILL
+06-sim-actions	x86		7-350	N		N		N	N	N	N	KILL
+06-sim-actions	x86_64		4-350	N		N		N	N	N	N	KILL
+
+test type: bpf-sim-fuzz
+
+# Testname	StressCount
+06-sim-actions	50
+
+test type: bpf-valgrind
+
+# Testname
+06-sim-actions

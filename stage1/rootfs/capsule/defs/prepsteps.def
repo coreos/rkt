@@ -1,0 +1,36 @@
+/* src,			target,		type,		mode/flags,					data */
+
+mnt(NULL,		"proc",		"proc",		MS_NOSUID|MS_NODEV|MS_NOEXEC,			NULL)
+mnt("/proc/sys",	"proc/sys",	NULL,		MS_BIND, NULL)
+mnt(NULL,		"proc/sys",	NULL,		MS_REMOUNT|MS_BIND|MS_RDONLY,			NULL) 
+
+mnt(NULL,		"sys",		"sysfs",	MS_RDONLY|MS_NOSUID|MS_NODEV|MS_NOEXEC,		NULL) 
+mnt("cgroup_root",	"sys/fs/cgroup", "tmpfs",	MS_NOSUID|MS_NODEV|MS_NOEXEC|MS_STRICTATIME,	NULL)
+// mount sys/fs/cgroup/systemd?
+
+mnt(NULL,		"run",		"tmpfs",	MS_NOSUID|MS_NODEV|MS_STRICTATIME,		"mode=755")
+
+mnt(NULL,		"dev",		"tmpfs",	MS_NOSUID|MS_STRICTATIME,			"mode=755")
+dir(			"dev/pts",			0755)
+mnt(NULL,		"dev/pts",	"devpts",	MS_NOSUID|MS_NOEXEC,				"newinstance,ptmxmode=0666,mode=6")
+dir(			"dev/shm",			0755)
+mnt(NULL,		"dev/shm",	"tmpfs",	MS_NOSUID|MS_NODEV|MS_STRICTATIME,		"mode=1777")
+nod(			"dev/null",			S_IFCHR|0666,					makedev(1, 3))
+nod(			"dev/zero",			S_IFCHR|0666,					makedev(1, 5))
+nod(			"dev/full",			S_IFCHR|0666,					makedev(1, 7))
+nod(			"dev/random",			S_IFCHR|0666,					makedev(1, 8))
+nod(			"dev/urandom",			S_IFCHR|0666,					makedev(1, 9))
+nod(			"dev/tty",			S_IFCHR|0666,					makedev(5, 0))
+dir(			"dev/net",			0755)
+nod(			"dev/net/tun",			S_IFCHR|0666,					makedev(10, 200))
+nod(			"dev/console",			S_IFCHR|0600,					makedev(1, 3)) /* XXX: intentionally /dev/null */
+sym("pts/ptmx",		"dev/ptmx")
+sym("/proc/kcore",	"dev/core")
+sym("/proc/self/fd/0",	"dev/stdin")
+sym("/proc/self/fd/1",	"dev/stdout")
+sym("/proc/self/fd/2",	"dev/stderr")
+
+#undef mnt
+#undef dir
+#undef nod
+#undef sym

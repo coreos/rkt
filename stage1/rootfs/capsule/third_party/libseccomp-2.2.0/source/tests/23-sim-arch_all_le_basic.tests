@@ -1,0 +1,23 @@
+#
+# libseccomp regression test automation data
+#
+#
+# Copyright (c) 2013 Red Hat <pmoore@redhat.com>
+# Author: Paul Moore <pmoore@redhat.com
+#
+
+test type: bpf-sim
+
+# Testname		Arch	Syscall		Arg0		Arg1		Arg2	Arg3	Arg4	Arg5	Result
+23-sim-arch_all_le_basic	+all_le	read		0		0x856B008	10	N	N	N	ALLOW
+23-sim-arch_all_le_basic	+all_le	read		1-10		0x856B008	10	N	N	N	KILL
+23-sim-arch_all_le_basic	+all_le	write		1-2		0x856B008	10	N	N	N	ALLOW
+23-sim-arch_all_le_basic	+all_le	write		3-10		0x856B008	10	N	N	N	KILL
+23-sim-arch_all_le_basic	+all_le	close		N		N		N	N	N	N	ALLOW
+23-sim-arch_all_le_basic	+all_le	rt_sigreturn	N		N		N	N	N	N	ALLOW
+23-sim-arch_all_le_basic	+all_le	open		0x856B008	4		N	N	N	N	KILL
+
+test type: bpf-valgrind
+
+# Testname
+23-sim-arch_all_le_basic

@@ -1,0 +1,60 @@
+libseccomp: Releases
+===============================================================================
+https://github.com/seccomp/libseccomp
+
+* Version 2.2.0 - February 12, 2015
+- Migrated the build system to autotools
+- Added support for the aarch64 architecture
+- Added support for the mips, mips64, and mips64n32 architectures for both big
+  and little endian systems
+- Added support for using the new seccomp() syscall and the thread sync
+  functionality
+- Added Python bindings
+- Updated the internal syscall tables to Linux v3.19
+- Added documentation to help contributors wishing to submit patches
+- Migrated to Github for git hosting and Google Groups for the mailing list
+- Numerous minor bug fixes
+
+* Version 2.1.1 - October 31, 2013
+- Build system improvements
+- Automated test improvments, including a "check" target for use by
+  packagers to verify the build
+- Numerous bug fixes related to the filter's internal rule database which
+  affect those creating rules with syscall arguments
+- Introduced tools to verify the style/formatting of the code, including a
+  "check-syntax" target for use by developers
+- Non-public symbols are now hidden in the library
+
+* Version 2.1.0 - June 11, 2013
+- Add support for the x32 and ARM architectures
+- Improvements to the regression tests, including support for live tests
+- More verbose PFC output, including translation of syscall numbers to names
+- Several assorted bugfixes affecting the seccomp BPF generation
+- The syscall number/name resolver tool is now available to install
+
+* Version 2.0.0 - January 28, 2013
+- Fixes for the x86 multiplexed syscalls
+- Additions to the API to better support non-native architecures
+- Additions to the API to support multiple architecures in one filter
+- Additions to the API to resolve syscall name/number mappings
+- Assorted minor bug fixes
+- Improved build messages regardless of build verbosity
+- More automated tests added as well as a number of improvements to the test
+  harness
+
+* Version 1.0.1 - November 12, 2012
+- The header file is now easier to use with C++ compilers
+- Minor documentation fixes
+- Minor memory leak fixes
+- Corrected x86 filter generation on x86_64 systems
+- Corrected problems with small filters and filters with arguments
+
+* Version 1.0.0 - July 31, 2012
+- Change the API to be context-aware; eliminates all internal state but breaks
+  compatibility with the previous 0.1.0 release
+- Added support for multiple build jobs ("make -j8") and verbose builds using
+  the "V=1" build variable ("make V=1")
+- Minor tweaks to the regression test script output
+
+* Version 0.1.0 - June 8, 2012
+- Initial release

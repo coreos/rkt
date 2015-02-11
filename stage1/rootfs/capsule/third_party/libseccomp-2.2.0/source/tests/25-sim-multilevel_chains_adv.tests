@@ -1,0 +1,30 @@
+#
+# libseccomp regression test automation data
+#
+# Copyright (c) 2013 Red Hat <pmoore@redhat.com>
+# Author: Paul Moore <pmoore@redhat.com
+#
+
+test type: bpf-sim
+
+# Testname			Arch		Syscall		Arg0		Arg1		Arg2		Arg3	Arg4	Arg5	Result
+25-sim-multilevel_chains_adv	all		0-9		N		N		N		N	N	N	KILL
+25-sim-multilevel_chains_adv	all		10		0x0000000b	0x00000000	N		N	N	N	ALLOW
+25-sim-multilevel_chains_adv	x86_64		10		0x10000000b	0x00000000	N		N	N	N	KILL
+25-sim-multilevel_chains_adv	x86_64		10		0x0000000b	0x10000000c	N		N	N	N	ALLOW
+25-sim-multilevel_chains_adv	all		11-19		N		N		N		N	N	N	KILL
+25-sim-multilevel_chains_adv	all		20		0x00000015	0x00000000	0x00000017	N	N	N	ALLOW
+25-sim-multilevel_chains_adv	all		20		0x00000015	0x00000016	0x00000017	N	N	N	KILL
+25-sim-multilevel_chains_adv	x86_64		20		0x100000015	0x00000000	0x00000017	N	N	N	KILL
+25-sim-multilevel_chains_adv	x86_64		20		0x00000015	0x00000000	0x100000017	N	N	N	KILL
+25-sim-multilevel_chains_adv	all		21-30		N		N		N		N	N	N	KILL
+
+test type: bpf-sim-fuzz
+
+# Testname			StressCount
+25-sim-multilevel_chains_adv	50
+
+test type: bpf-valgrind
+
+# Testname
+25-sim-multilevel_chains_adv

@@ -1,0 +1,21 @@
+#
+# libseccomp regression test automation data
+#
+# Copyright IBM Corp. 2012
+# Author: Corey Bryant <coreyb@linux.vnet.ibm.com>
+#
+
+test type: bpf-sim
+
+# Testname	Arch	Syscall	Arg0	Arg1	Arg2	Arg3	Arg4	Arg5	Result
+01-sim-allow	all	0-350	N	N	N	N	N	N	ALLOW
+
+test type: bpf-sim-fuzz
+
+# Testname	StressCount
+01-sim-allow	50
+
+test type: bpf-valgrind
+
+# Testname
+01-sim-allow

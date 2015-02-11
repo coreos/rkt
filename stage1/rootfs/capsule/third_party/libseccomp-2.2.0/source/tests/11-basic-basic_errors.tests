@@ -1,0 +1,11 @@
+#
+# libseccomp regression test automation data
+#
+# Copyright IBM Corp. 2012
+# Author: Corey Bryant <coreyb@linux.vnet.ibm.com>
+#
+
+test type: basic
+
+# Test command
+11-basic-basic_errors

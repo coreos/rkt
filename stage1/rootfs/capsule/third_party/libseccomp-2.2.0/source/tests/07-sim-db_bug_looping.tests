@@ -1,0 +1,23 @@
+#
+# libseccomp regression test automation data
+#
+# Copyright IBM Corp. 2012
+# Author: Corey Bryant <coreyb@linux.vnet.ibm.com>
+#
+
+test type: bpf-sim
+
+# Testname		Arch	Syscall	Arg0	Arg1		Arg2	Arg3	Arg4	Arg5	Result
+07-sim-db_bug_looping	all	read	1	0x856B008	10	N	N	N	ALLOW
+07-sim-db_bug_looping	all	read	2-10	0		10	N	N	N	ALLOW
+07-sim-db_bug_looping	all	read	0	0x856B008	10	N	N	N	ALLOW
+
+test type: bpf-sim-fuzz
+
+# Testname		StressCount
+07-sim-db_bug_looping	50
+
+test type: bpf-valgrind
+
+# Testname
+07-sim-db_bug_looping

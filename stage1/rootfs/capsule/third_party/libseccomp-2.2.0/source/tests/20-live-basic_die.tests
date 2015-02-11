@@ -1,0 +1,13 @@
+#
+# libseccomp regression test automation data
+#
+# Copyright (c) 2013 Red Hat <pmoore@redhat.com>
+# Author: Paul Moore <pmoore@redhat.com
+#
+
+test type: live
+
+# Testname		Result
+20-live-basic_die	KILL
+20-live-basic_die	TRAP
+20-live-basic_die	ERRNO

@@ -1,0 +1,42 @@
+#
+# libseccomp regression test automation data
+#
+# Copyright IBM Corp. 2012
+# Author: Corey Bryant <coreyb@linux.vnet.ibm.com>
+#
+
+test type: bpf-sim
+
+# Testname		Arch	Syscall	Arg0	Arg1		Arg2	Arg3	Arg4	Arg5	Result
+12-sim-basic_masked_ops	all	1000	0	1		2	N	N	N	ALLOW
+12-sim-basic_masked_ops	all	1000	0	0x01		2	N	N	N	ALLOW
+12-sim-basic_masked_ops	all	1000	0	0x02-0x0A	2	N	N	N	KILL
+12-sim-basic_masked_ops	all	1000	0	0x101		2	N	N	N	ALLOW
+12-sim-basic_masked_ops	all	1000	0	11		2	N	N	N	ALLOW
+12-sim-basic_masked_ops	all	1000	0	0x0B		2	N	N	N	ALLOW
+12-sim-basic_masked_ops	all	1000	0	0x0C-0x6E	2	N	N	N	KILL
+12-sim-basic_masked_ops	all	1000	0	0x1000B		2	N	N	N	ALLOW
+12-sim-basic_masked_ops	all	1000	0	111		2	N	N	N	ALLOW
+12-sim-basic_masked_ops	all	1000	0	0x6F		2	N	N	N	ALLOW
+12-sim-basic_masked_ops	all	1000	0	0x70-0x100	2	N	N	N	KILL
+12-sim-basic_masked_ops	all	1000	0	0x102-0x200	2	N	N	N	KILL
+12-sim-basic_masked_ops	all	1000	0	0x10002-0x1000A	2	N	N	N	KILL
+12-sim-basic_masked_ops	all	1000	0	0x1000C-0x1006E	2	N	N	N	KILL
+12-sim-basic_masked_ops	all	1000	0	0x1006F		2	N	N	N	ALLOW
+12-sim-basic_masked_ops	all	1000	0	1000		2	N	N	N	ALLOW
+12-sim-basic_masked_ops	all	1000	0	0x3E8		2	N	N	N	ALLOW
+12-sim-basic_masked_ops	all	1000	0	0x2FF		2	N	N	N	KILL
+12-sim-basic_masked_ops	all	1000	0	0x300-0x3FF	2	N	N	N	ALLOW
+12-sim-basic_masked_ops	all	1000	0	0x400		2	N	N	N	KILL
+12-sim-basic_masked_ops	all	1000	0	0x402-0x4FF	2	N	N	N	KILL
+12-sim-basic_masked_ops	all	1000	0	0x10300-0x103FF	2	N	N	N	ALLOW
+
+test type: bpf-sim-fuzz
+
+# Testname		StressCount
+12-sim-basic_masked_ops	50
+
+test type: bpf-valgrind
+
+# Testname
+12-sim-basic_masked_ops
