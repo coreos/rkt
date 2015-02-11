@@ -13,7 +13,7 @@ SECCOMPMAKE=$(SECCOMPBUILD)/Makefile
 
 $(BIN): Makefile $(SRC) $(DEFS) $(HDRS) $(SECCOMPLIB)
 	$(CC) $(CFLAGS) -D_GNU_SOURCE -I$(SECCOMPINC) -o $@ $(SRC) $(SECCOMPLIB) -static -s
-	#@cp install ../aggregate/install.d/10capsule
+	@cp install ../aggregate/install.d/10capsule
 
 $(SECCOMPLIB): $(SECCOMPMAKE)
 	make -C $(SECCOMPBUILD)

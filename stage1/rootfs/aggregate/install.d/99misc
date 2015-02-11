@@ -9,8 +9,19 @@ install -m 0644 units/reaper.service "$ROOT/usr/lib/systemd/system"
 install -m 0644 units/sockets.target "$ROOT/usr/lib/systemd/system"
 install -m 0755 scripts/reaper.sh "$ROOT"
 
-install -d "$ROOT/etc"
-echo "rocket" > "$ROOT/etc/os-release"
+# setup stage1's base / outside of /usr
+install -d -m 0755 "$ROOT/dev"
+install -d -m 0755 "$ROOT/etc"
+install -d -m 0755 "$ROOT/proc"
+install -d -m 0750 "$ROOT/root"
+install -d -m 0755 "$ROOT/run"
+install -d -m 0755 "$ROOT/sys"
+install -d -m 1777 "$ROOT/tmp"
+
+# these just symlink into usr/
+ln -s usr/lib64 "$ROOT/lib64"
+ln -s usr/lib "$ROOT/lib"
+ln -s usr/bin "$ROOT/bin"
 
 # parent dir for the stage2 bind mounts
 install -d "$ROOT/opt/stage2"

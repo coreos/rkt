@@ -244,9 +244,9 @@ func (c *Container) ContainerToSystemd() error {
 	return nil
 }
 
-// appToNspawnArgs transforms the given app manifest, with the given associated
-// app image id, into a subset of applicable systemd-nspawn argument
-func (c *Container) appToNspawnArgs(am *schema.ImageManifest, id types.Hash) ([]string, error) {
+// appToCapsuleArgs transforms the given app manifest, with the given associated
+// app image id, into a subset of applicable capsule arguments
+func (c *Container) appToCapsuleArgs(am *schema.ImageManifest, id types.Hash) ([]string, error) {
 	args := []string{}
 	name := am.Name.String()
 
@@ -267,17 +267,17 @@ func (c *Container) appToNspawnArgs(am *schema.ImageManifest, id types.Hash) ([]
 		if !ok {
 			return nil, fmt.Errorf("no volume for mountpoint %q in app %q", key, name)
 		}
-		opt := make([]string, 4)
+		opt := make([]string, 3)
 
 		if mp.ReadOnly {
-			opt[0] = "--bind-ro="
+			args = append(args, "--bind-ro")
 		} else {
-			opt[0] = "--bind="
+			args = append(args, "--bind")
 		}
 
-		opt[1] = vol.Source
-		opt[2] = ":"
-		opt[3] = filepath.Join(common.RelAppRootfsPath(id), mp.Path)
+		opt[0] = vol.Source
+		opt[1] = ":"
+		opt[2] = filepath.Join(common.RelAppRootfsPath(id), mp.Path)
 
 		args = append(args, strings.Join(opt, ""))
 	}
@@ -286,27 +286,35 @@ func (c *Container) appToNspawnArgs(am *schema.ImageManifest, id types.Hash) ([]
 		switch i.Name {
 		case "capabilities/bounding-set":
 			capList := strings.Join(strings.Split(i.Val, " "), ",")
-			args = append(args, "--capability="+capList)
+			args = append(args, "--capability", capList)
 		}
 	}
 
 	return args, nil
 }
 
-// ContainerToNspawnArgs renders a prepared Container as a systemd-nspawn
+// ContainerToCapsuleArgs renders a prepared Container as a capsule
 // argument list ready to be executed
-func (c *Container) ContainerToNspawnArgs() ([]string, error) {
+func (c *Container) ContainerToCapsuleArgs() ([]string, error) {
 	args := []string{
-		"--uuid=" + c.Manifest.UUID.String(),
-		"--directory=" + common.Stage1RootfsPath(c.Root),
+		"--parent-isig", // systemd ditches its ctty, so we're better off handling ^C/^\ in the parent and letting the signal forwarding do its thing.
+		"--uuid", c.Manifest.UUID.String(),
+		"--directory", common.Stage1RootfsPath(c.Root),
+		"--pid-file", filepath.Join(c.Root, "pid"),
 	}
+
+	lock := os.Getenv("RKT_LOCK_FD")
+	if lock == "" {
+		panic("could not get container lock fd!")
+	}
+	args = append(args, "--keep-fd", lock)
 
 	for _, am := range c.Apps {
 		a := c.Manifest.Apps.Get(am.Name)
 		if a == nil {
 			panic("could not find app in container manifest!")
 		}
-		aa, err := c.appToNspawnArgs(am, a.ImageID)
+		aa, err := c.appToCapsuleArgs(am, a.ImageID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to construct args for app %q: %v", am.Name, err)
 		}
