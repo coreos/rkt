@@ -302,4 +302,3 @@ func (c *container) stop() (err error) {
 
 	return nil
 }
-

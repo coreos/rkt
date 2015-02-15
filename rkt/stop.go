@@ -51,7 +51,7 @@ func runStop(args []string) (exit int) {
 		return 1
 	}
 	defer ch.Close()
-  
+
 	if err = stopContainer(ch); err != nil {
 		stderr("Unable to stop container: %v", err)
 		return 1
