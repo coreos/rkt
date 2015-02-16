@@ -110,6 +110,31 @@ func newUnitOption(section, name, value string) *unit.UnitOption {
 	return &unit.UnitOption{Section: section, Name: name, Value: value}
 }
 
+// appMountsToSystemd writes a systemd mount unit file for the specified app
+func (c *Container) appMountsToSystemd(am *schema.ImageManifest, id types.Hash) error {
+	opts := []*unit.UnitOption{
+		newUnitOption("Mount", "What", "/dev"),
+		newUnitOption("Mount", "Where", common.RelAppRootfsPath(id)+"/dev"),
+		newUnitOption("Mount", "Options", "bind"),
+	}
+
+	file, err := os.OpenFile(MountUnitPath(c.Root, id), os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to create mount unit file: %v", err)
+	}
+	defer file.Close()
+
+	if _, err = io.Copy(file, unit.Serialize(opts)); err != nil {
+		return fmt.Errorf("failed to write mount unit file: %v", err)
+	}
+
+	if err = os.Symlink(path.Join("..", MountUnitName(id)), MountWantPath(c.Root, id)); err != nil {
+		return fmt.Errorf("failed to link mount want: %v", err)
+	}
+
+	return nil
+}
+
 // appToSystemd transforms the provided app manifest into systemd units
 func (c *Container) appToSystemd(am *schema.ImageManifest, id types.Hash) error {
 	name := am.Name.String()
@@ -200,6 +225,12 @@ func (c *Container) appToSystemd(am *schema.ImageManifest, id types.Hash) error 
 
 		opts = append(opts, newUnitOption("Unit", "Requires", SocketUnitName(id)))
 	}
+
+	err := c.appMountsToSystemd(am, id)
+	if err != nil {
+		return fmt.Errorf("failed to create mount unit file: %v", err)
+	}
+	opts = append(opts, newUnitOption("Unit", "Requires", MountUnitName(id)))
 
 	file, err := os.OpenFile(ServiceUnitPath(c.Root, id), os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
