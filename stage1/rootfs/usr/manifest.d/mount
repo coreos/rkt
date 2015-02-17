@@ -1,0 +1,11 @@
+bin/mount
+lib64/libmount.so.1
+lib64/libmount.so.1.1.0
+lib64/libc.so.6
+lib64/libblkid.so.1
+lib64/libselinux.so.1
+lib64/ld-linux-x86-64.so.2
+lib64/libuuid.so.1
+lib64/libpcre.so.3
+lib64/libdl.so.2
+lib64/libpthread.so.0

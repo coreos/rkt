@@ -17,6 +17,8 @@
 package main
 
 import (
+	"strings"
+
 	"path/filepath"
 
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/schema/types"
@@ -29,6 +31,24 @@ const (
 	defaultWantsDir = unitsDir + "/default.target.wants"
 	socketsWantsDir = unitsDir + "/sockets.target.wants"
 )
+
+// MountUnitName returns a systemd mount unit name for the given imageID
+func MountUnitName(imageID types.Hash) string {
+	// Naming respecting escaping rules, see systemd.mount(5) and systemd-escape(1)
+	return "opt-stage2-" + strings.Replace(types.ShortHash(imageID.String()), "-", "\\x2d", -1) + "-rootfs-dev.mount"
+}
+
+// MountUnitPath returns the path to the systemd mount file for the given
+// imageID
+func MountUnitPath(root string, imageID types.Hash) string {
+	return filepath.Join(common.Stage1RootfsPath(root), unitsDir, MountUnitName(imageID))
+}
+
+// MountWantPath returns the systemd default.target want symlink path for the
+// given imageID
+func MountWantPath(root string, imageID types.Hash) string {
+	return filepath.Join(common.Stage1RootfsPath(root), defaultWantsDir, MountUnitName(imageID))
+}
 
 // ServiceUnitName returns a systemd service unit name for the given imageID
 func ServiceUnitName(imageID types.Hash) string {
