@@ -2,3 +2,4 @@ bin/
 gopath/
 *.sw[ponm]
 .DS_Store
+.vagrant
