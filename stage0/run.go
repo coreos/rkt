@@ -34,6 +34,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"syscall"
 
@@ -248,6 +249,36 @@ func setupAppImage(cfg Config, img types.Hash, cdir string) (*schema.ImageManife
 	var am schema.ImageManifest
 	if err := json.Unmarshal(b, &am); err != nil {
 		return nil, fmt.Errorf("error unmarshaling app manifest: %v", err)
+	}
+
+	// Create a minimal set of device nodes
+	// https://github.com/appc/spec/issues/127
+	//
+	// Also inspired from: systemd/src/nspawn/nspawn.c copy_devnodes():
+	// http://cgit.freedesktop.org/systemd/systemd/tree/src/nspawn/nspawn.c#n1345
+	devnodes := []string{"null", "zero", "full", "random", "urandom", "tty", "net/tun"}
+	for _, dev := range devnodes {
+		from := path.Join("/dev/", dev)
+		to := path.Join(ad, "rootfs/dev", dev)
+
+		fi, err := os.Stat(from)
+		if err != nil {
+			return nil, fmt.Errorf("Cannot stat %s: %v", from, err)
+		}
+		if fi.Mode()&os.ModeType != os.ModeCharDevice && fi.Mode()&os.ModeType != os.ModeDevice {
+			return nil, fmt.Errorf("File %s is not a device file", from)
+		}
+
+		st, ok := fi.Sys().(*syscall.Stat_t)
+		if !ok {
+			return nil, fmt.Errorf("Cannot stat %s", from)
+		}
+
+		os.MkdirAll(path.Dir(to), 0755)
+		if err := syscall.Mknod(to, st.Mode, int(st.Rdev)); err != nil {
+			return nil, fmt.Errorf("error during mknod %s: %v", to, err)
+		}
+
 	}
 
 	return &am, nil
