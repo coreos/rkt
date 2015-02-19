@@ -145,7 +145,14 @@ func (p *Pod) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest, inte
 		return fmt.Errorf("unable to write environment file: %v", err)
 	}
 
-	execWrap := []string{"/diagexec", common.RelAppRootfsPath(id), workDir, RelEnvFilePath(id)}
+	// - prepare-app bind mounted stage1's diagexec on "/.diagexec" in stage2
+	// - use systemd option "RootDirectory" for chrooting the application,
+	//   so diagexec does not have to chroot. Pass "" as chroot parameter.
+	// - chdir to workDir
+	// - since diagexec runs in the chrooted environment, it does not have
+	//   access to the env file. Pass "" and let EnvionmentFile do the work.
+	execWrap := []string{"/.diagexec", "", workDir, ""}
+
 	execStart := quoteExec(append(execWrap, app.Exec...))
 	opts := []*unit.UnitOption{
 		newUnitOption("Unit", "Description", name),
@@ -157,6 +164,8 @@ func (p *Pod) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest, inte
 		newUnitOption("Service", "ExecStart", execStart),
 		newUnitOption("Service", "User", app.User),
 		newUnitOption("Service", "Group", app.Group),
+		newUnitOption("Service", "RootDirectory", common.RelAppRootfsPath(id)),
+		newUnitOption("Service", "EnvironmentFile", RelEnvFilePath(id)),
 	}
 
 	if interactive {
@@ -250,14 +259,16 @@ func (p *Pod) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest, inte
 func (p *Pod) writeEnvFile(env types.Environment, id types.Hash) error {
 	ef := bytes.Buffer{}
 
+	// Use the same format as systemd's EnvironmentFile option
+
 	for dk, dv := range defaultEnv {
 		if _, exists := env.Get(dk); !exists {
-			fmt.Fprintf(&ef, "%s=%s\000", dk, dv)
+			fmt.Fprintf(&ef, "%s=%s\n", dk, dv)
 		}
 	}
 
 	for _, e := range env {
-		fmt.Fprintf(&ef, "%s=%s\000", e.Name, e.Value)
+		fmt.Fprintf(&ef, "%s=%s\n", e.Name, e.Value)
 	}
 	return ioutil.WriteFile(EnvFilePath(p.Root, id), ef.Bytes(), 0640)
 }

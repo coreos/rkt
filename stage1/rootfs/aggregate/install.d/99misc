@@ -21,3 +21,7 @@ install -d "$ROOT/rkt/status"
 
 # dir for env files
 install -d "$ROOT/rkt/env"
+
+# misc empty directories that systemd wants when a unit file uses RootDirectory=
+install -d -m 0755 "$ROOT/tmp"
+install -d -m 0755 "$ROOT/var/tmp"
