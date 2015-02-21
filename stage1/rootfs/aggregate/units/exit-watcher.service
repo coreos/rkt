@@ -1,5 +1,6 @@
 [Unit]
 Description=Graceful exit watcher
+AllowIsolate=true
 StopWhenUnneeded=true
 DefaultDependencies=false
 

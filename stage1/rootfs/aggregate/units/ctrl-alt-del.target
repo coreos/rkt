@@ -1,0 +1,4 @@
+[Unit]
+Description=Rocket SIGINT target
+DefaultDependencies=false
+Requires=sigint.service
