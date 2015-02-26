@@ -49,16 +49,28 @@ const (
 	envLockFd = "RKT_LOCK_FD"
 )
 
-type Config struct {
-	Store       *cas.Store // store containing all of the configured application images
-	Stage1Image types.Hash // stage1 image containing usable /init and /enter entrypoints
-	Debug       bool
+// configuration parameters required by Prepare
+type PrepareConfig struct {
+	CommonConfig
+	Stage1Image types.Hash     // stage1 image containing usable /init and /enter entrypoints
+	Images      []types.Hash   // application images
+	Volumes     []types.Volume // list of volumes that rocket can provide to applications
+}
+
+// configuration parameters needed by Run
+type RunConfig struct {
+	CommonConfig
 	// TODO(jonboulle): These images are partially-populated hashes, this should be clarified.
-	Images           []types.Hash   // application images
-	Volumes          []types.Volume // list of volumes that rocket can provide to applications
-	PrivateNet       bool           // container should have its own network stack
-	SpawnMetadataSvc bool           // launch metadata service
-	LockFd           int            // lock file descriptor
+	PrivateNet       bool // container should have its own network stack
+	SpawnMetadataSvc bool // launch metadata service
+	LockFd           int  // lock file descriptor
+}
+
+// configuration shared by both Run and Prepare
+type CommonConfig struct {
+	Store         *cas.Store // store containing all of the configured application images
+	ContainersDir string     // root directory for rocket containers
+	Debug         bool
 }
 
 func init() {
@@ -66,7 +78,7 @@ func init() {
 }
 
 // Prepare sets up a filesystem for a container based on the given config.
-func Prepare(cfg Config, dir string, uuid *types.UUID) error {
+func Prepare(cfg PrepareConfig, dir string, uuid *types.UUID) error {
 	if cfg.Debug {
 		log.SetOutput(os.Stderr)
 	}
@@ -128,7 +140,7 @@ func Prepare(cfg Config, dir string, uuid *types.UUID) error {
 
 // Run actually runs the prepared container by exec()ing the stage1 init inside
 // the container filesystem.
-func Run(cfg Config, dir string) {
+func Run(cfg RunConfig, dir string) {
 	if err := os.Setenv(envLockFd, fmt.Sprintf("%v", cfg.LockFd)); err != nil {
 		log.Fatalf("setting lock fd environment: %v", err)
 	}
@@ -168,7 +180,7 @@ func Run(cfg Config, dir string) {
 // directory in the given dir.
 // It returns the ImageManifest that the image contains.
 // TODO(jonboulle): tighten up the Hash type here; currently it is partially-populated (i.e. half-length sha512)
-func setupAppImage(cfg Config, img types.Hash, cdir string) (*schema.ImageManifest, error) {
+func setupAppImage(cfg PrepareConfig, img types.Hash, cdir string) (*schema.ImageManifest, error) {
 	log.Println("Loading image", img.String())
 
 	ad := common.AppImagePath(cdir, img)
@@ -199,7 +211,7 @@ func setupAppImage(cfg Config, img types.Hash, cdir string) (*schema.ImageManife
 }
 
 // setupStage1Image attempts to expand the image by the given hash as the stage1
-func setupStage1Image(cfg Config, img types.Hash, cdir string) error {
+func setupStage1Image(cfg PrepareConfig, img types.Hash, cdir string) error {
 	s1 := common.Stage1ImagePath(cdir)
 	if err := os.MkdirAll(s1, 0755); err != nil {
 		return fmt.Errorf("error creating stage1 directory: %v", err)
@@ -212,7 +224,7 @@ func setupStage1Image(cfg Config, img types.Hash, cdir string) error {
 
 // expandImage attempts to load the image by the given hash from the store,
 // verifies that the image matches the hash, and extracts the image at the specified destination.
-func expandImage(cfg Config, img types.Hash, dest string) error {
+func expandImage(cfg PrepareConfig, img types.Hash, dest string) error {
 	rs, err := cfg.Store.ReadStream(img.String())
 	if err != nil {
 		return fmt.Errorf("error reading stream: %v", err)

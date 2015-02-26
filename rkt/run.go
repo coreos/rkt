@@ -144,7 +144,7 @@ func runRun(args []string) (exit int) {
 
 	ds, err := cas.NewStore(globalFlags.Dir)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "run: cannot open store: %v\n", err)
+		stderr("run: cannot open store: %v")
 		return 1
 	}
 	ks := getKeystore()
@@ -166,36 +166,45 @@ func runRun(args []string) (exit int) {
 		stderr("Error creating new container: %v", err)
 		return 1
 	}
+
+	cfg := stage0.CommonConfig{
+		Store: ds,
+		Debug: globalFlags.Debug,
+	}
+
+	pcfg := stage0.PrepareConfig{
+		CommonConfig: cfg,
+		Stage1Image:  *s1img,
+		Images:       imgs,
+		Volumes:      []types.Volume(flagVolumes),
+	}
+	err = stage0.Prepare(pcfg, c.path(), c.uuid)
+	if err != nil {
+		stderr("run: error setting up stage0: %v", err)
+		return 1
+	}
+
+	// get the lock fd for run
 	lfd, err := c.Fd()
 	if err != nil {
 		stderr("Error getting container lock fd: %v", err)
 		return 1
 	}
 
-	cfg := stage0.Config{
-		Store:            ds,
-		Debug:            globalFlags.Debug,
-		Stage1Image:      *s1img,
-		Images:           imgs,
-		Volumes:          []types.Volume(flagVolumes),
-		PrivateNet:       flagPrivateNet,
-		SpawnMetadataSvc: flagSpawnMetadataSvc,
-		LockFd:           lfd,
-	}
-
-	err = stage0.Prepare(cfg, c.preparedPath(), c.uuid)
-	if err != nil {
-		stderr("run: error setting up stage0: %v", err)
-		return 1
-	}
-
-	// jump directly to run
+	// skip prepared by jumping directly to run, we own this container
 	if err := c.xToRun(); err != nil {
 		stderr("run: unable to transition to run: %v", err)
 		return 1
 	}
 
-	stage0.Run(cfg, c.runPath()) // execs, never returns
+	rcfg := stage0.RunConfig{
+		CommonConfig:     cfg,
+		PrivateNet:       flagPrivateNet,
+		SpawnMetadataSvc: flagSpawnMetadataSvc,
+		LockFd:           lfd,
+	}
+	stage0.Run(rcfg, c.path()) // execs, never returns
+
 	return 1
 }
 
