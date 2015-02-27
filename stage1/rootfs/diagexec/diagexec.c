@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -178,6 +179,86 @@ static void load_env(const char *env)
 	}
 }
 
+static void setup_dev(const char *root)
+{
+	static const char *dirs[] = {
+		"/dev",
+		"/dev/net",
+		NULL
+	};
+	static const char *devnodes[] = {
+		"/dev/null",
+		"/dev/zero",
+		"/dev/full",
+		"/dev/random",
+		"/dev/urandom",
+		"/dev/tty",
+		"/dev/net/tun",
+		"/dev/console",
+		NULL
+	};
+	int i;
+
+	/* First, create the directories */
+	for (i = 0; dirs[i]; i++) {
+		const char *dir = dirs[i];
+		char path[4096];
+
+		snprintf(path, sizeof(path) - 1, "%s%s", root, dir);
+		/* No need to check the error: the directory might already
+		 * exist in the ACI. Errors will be catched by the mounts
+		 * below anyway.
+		 */
+		mkdir(path, 0755);
+	}
+
+	/* systemd-nspawn already creates few /dev entries in the container
+	 * namespace: copy_devnodes()
+	 * http://cgit.freedesktop.org/systemd/systemd/tree/src/nspawn/nspawn.c#n1345
+	 *
+	 * But they are not visible by the apps because they are "protected" by
+	 * the chroot.
+	 *
+	 * Bind mount them individually over the chroot border.
+	 *
+	 * Do NOT bind mount the whole directory /dev because it would shadow
+	 * potential individual bind mount by stage0 ("rkt run --volume...").
+	 *
+	 * Do NOT use mknod, it would not work for /dev/console because it is
+	 * a bind mount to a pts and pts device nodes only work when they live
+	 * on a devpts filesystem.
+	 */
+
+	for (i = 0; devnodes[i]; i++) {
+		const char *from = devnodes[i];
+		char to[4096];
+		int fd;
+
+		/* If the file does not exist, skip it. It might be because
+		 * the kernel does not provide it (e.g. kernel compiled without
+		 * CONFIG_TUN) or because systemd-nspawn does not provide it
+		 * (/dev/net/tun is not available with systemd-nspawn < v217
+		 */
+                if (access(from, F_OK) != 0)
+			continue;
+
+		snprintf(to, sizeof(to) - 1, "%s%s", root, from);
+
+		/* Also, if the target file already exists, just skip the bind
+		 * mount: it might come from the ACI, might have been setup by
+		 * stage0 ("rkt run --volume...") or the bind mount might have
+		 * been done previously ("systemctl restart app").
+		 */
+		fd = open(to, O_WRONLY|O_CREAT|O_CLOEXEC|O_NOCTTY, 0644);
+		if (fd == -1)
+			continue;
+		close(fd);
+
+		pexit_if(mount(from, to, "bind", MS_BIND, NULL) == -1,
+		         "Mounting \"%s\" on \"%s\" failed", from, to);
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	const char *root, *cwd, *env, *exe;
@@ -190,6 +271,8 @@ int main(int argc, char *argv[])
 	exe = argv[4];
 
 	load_env(env);
+
+	setup_dev(root);
 
 	pexit_if(chroot(root) == -1, "Chroot \"%s\" failed", root);
 	pexit_if(chdir(cwd) == -1, "Chdir \"%s\" failed", cwd);
