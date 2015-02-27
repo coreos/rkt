@@ -161,22 +161,41 @@ func runRun(args []string) (exit int) {
 		return 1
 	}
 
+	c, err := newContainer()
+	if err != nil {
+		stderr("Error creating new container: %v", err)
+		return 1
+	}
+	lfd, err := c.Fd()
+	if err != nil {
+		stderr("Error getting container lock fd: %v", err)
+		return 1
+	}
+
 	cfg := stage0.Config{
 		Store:            ds,
-		ContainersDir:    containersDir(),
 		Debug:            globalFlags.Debug,
 		Stage1Image:      *s1img,
 		Images:           imgs,
 		Volumes:          []types.Volume(flagVolumes),
 		PrivateNet:       flagPrivateNet,
 		SpawnMetadataSvc: flagSpawnMetadataSvc,
+		LockFd:           lfd,
 	}
-	cdir, err := stage0.Setup(cfg)
+
+	err = stage0.Prepare(cfg, c.preparedPath(), c.uuid)
 	if err != nil {
 		stderr("run: error setting up stage0: %v", err)
 		return 1
 	}
-	stage0.Run(cfg, cdir) // execs, never returns
+
+	// jump directly to run
+	if err := c.xToRun(); err != nil {
+		stderr("run: unable to transition to run: %v", err)
+		return 1
+	}
+
+	stage0.Run(cfg, c.runPath()) // execs, never returns
 	return 1
 }
 

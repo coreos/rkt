@@ -58,15 +58,21 @@ func runGC(args []string) (exit int) {
 		return 1
 	}
 
+	// clean up old uuids having no associated container directory
+	if err := reclaimUUIDs(flagGracePeriod); err != nil {
+		stderr("Failed to reclaim uuids: %v", err)
+		return 1
+	}
+
 	return
 }
 
 // renameExited renames exited containers to the garbage directory
 func renameExited() error {
-	if err := walkContainers(includeContainersDir, func(c *container) {
+	if err := walkContainers(includeRunDir, func(c *container) {
 		if c.isExited {
 			stdout("Moving container %q to garbage", c.uuid)
-			if err := os.Rename(c.containersPath(), c.garbagePath()); err != nil && err != os.ErrNotExist {
+			if err := c.xToGarbage(); err != nil && err != os.ErrNotExist {
 				stderr("Rename error: %v", err)
 			}
 		}
@@ -97,10 +103,20 @@ func emptyGarbage(gracePeriod time.Duration) error {
 			if err := os.RemoveAll(gp); err != nil {
 				stderr("Unable to remove container %q: %v", c.uuid, err)
 			}
+			if err := os.RemoveAll(c.uuidPath()); err != nil {
+				stderr("Unable to release container's uuid %q: %v", c.uuid, err)
+			}
 		}
 	}); err != nil {
 		return err
 	}
 
+	return nil
+}
+
+// reclaimUUIDs looks for old unused uuids and deletes their placeholders making them available
+func reclaimUUIDs(gracePeriod time.Duration) error {
+	// TODO(vc): implement this, should we reclaim space from old prepared but not run directories as well?
+	// what about preparing directories which have been interrupted and abandoned? probably require separate grace periods.
 	return nil
 }

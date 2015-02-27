@@ -37,12 +37,10 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/coreos/rocket/Godeps/_workspace/src/code.google.com/p/go-uuid/uuid"
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/schema"
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rocket/cas"
 	"github.com/coreos/rocket/common"
-	"github.com/coreos/rocket/pkg/lock"
 	ptar "github.com/coreos/rocket/pkg/tar"
 	"github.com/coreos/rocket/version"
 )
@@ -52,71 +50,55 @@ const (
 )
 
 type Config struct {
-	Store         *cas.Store // store containing all of the configured application images
-	ContainersDir string     // root directory for rocket containers
-	Stage1Image   types.Hash // stage1 image containing usable /init and /enter entrypoints
-	Debug         bool
+	Store       *cas.Store // store containing all of the configured application images
+	Stage1Image types.Hash // stage1 image containing usable /init and /enter entrypoints
+	Debug       bool
 	// TODO(jonboulle): These images are partially-populated hashes, this should be clarified.
 	Images           []types.Hash   // application images
 	Volumes          []types.Volume // list of volumes that rocket can provide to applications
 	PrivateNet       bool           // container should have its own network stack
 	SpawnMetadataSvc bool           // launch metadata service
+	LockFd           int            // lock file descriptor
 }
 
 func init() {
 	log.SetOutput(ioutil.Discard)
 }
 
-// Setup sets up a filesystem for a container based on the given config.
-// The directory containing the filesystem is returned, and any error encountered.
-func Setup(cfg Config) (string, error) {
+// Prepare sets up a filesystem for a container based on the given config.
+func Prepare(cfg Config, dir string, uuid *types.UUID) error {
 	if cfg.Debug {
 		log.SetOutput(os.Stderr)
 	}
 
-	if err := os.MkdirAll(cfg.ContainersDir, 0700); err != nil {
-		return "", fmt.Errorf("error creating containers directory: %v", err)
-	}
-
-	// Create a unique directory for this container
-	cuuid, dir, err := makeUniqueContainer(cfg.ContainersDir)
-	if err != nil {
-		return "", fmt.Errorf("error creating directory: %v", err)
-	}
-
-	// Set up the container lock
-	if err := lockDir(dir); err != nil {
-		return "", err
-	}
-
 	log.Printf("Preparing stage1")
 	if err := setupStage1Image(cfg, cfg.Stage1Image, dir); err != nil {
-		return "", fmt.Errorf("error preparing stage1: %v", err)
+		return fmt.Errorf("error preparing stage1: %v", err)
 	}
 	log.Printf("Wrote filesystem to %s\n", dir)
 
 	cm := schema.ContainerRuntimeManifest{
 		ACKind: "ContainerRuntimeManifest",
-		UUID:   *cuuid,
+		UUID:   *uuid, // TODO(vc): later appc spec omits uuid from the crm, this is a temp hack.
 		Apps:   make(schema.AppList, 0),
 	}
 
 	v, err := types.NewSemVer(version.Version)
 	if err != nil {
-		return "", fmt.Errorf("error creating version: %v", err)
+		return fmt.Errorf("error creating version: %v", err)
 	}
 	cm.ACVersion = *v
 
 	for _, img := range cfg.Images {
 		am, err := setupAppImage(cfg, img, dir)
 		if err != nil {
-			return "", fmt.Errorf("error setting up image %s: %v", img, err)
+			return fmt.Errorf("error setting up image %s: %v", img, err)
 		}
 		if cm.Apps.Get(am.Name) != nil {
-			return "", fmt.Errorf("error: multiple apps with name %s", am.Name)
+			return fmt.Errorf("error: multiple apps with name %s", am.Name)
 		}
 		if am.App == nil {
-			return "", fmt.Errorf("error: image %s has no app section", img)
+			return fmt.Errorf("error: image %s has no app section", img)
 		}
 		a := schema.RuntimeApp{
 			Name:        am.Name,
@@ -133,20 +115,24 @@ func Setup(cfg Config) (string, error) {
 
 	cdoc, err := json.Marshal(cm)
 	if err != nil {
-		return "", fmt.Errorf("error marshalling container manifest: %v", err)
+		return fmt.Errorf("error marshalling container manifest: %v", err)
 	}
 
 	log.Printf("Writing container manifest")
 	fn := common.ContainerManifestPath(dir)
 	if err := ioutil.WriteFile(fn, cdoc, 0700); err != nil {
-		return "", fmt.Errorf("error writing container manifest: %v", err)
+		return fmt.Errorf("error writing container manifest: %v", err)
 	}
-	return dir, nil
+	return nil
 }
 
-// Run actually runs the container by exec()ing the stage1 init inside
+// Run actually runs the prepared container by exec()ing the stage1 init inside
 // the container filesystem.
 func Run(cfg Config, dir string) {
+	if err := os.Setenv(envLockFd, fmt.Sprintf("%v", cfg.LockFd)); err != nil {
+		log.Fatalf("setting lock fd environment: %v", err)
+	}
+
 	if cfg.SpawnMetadataSvc {
 		log.Print("Launching metadata svc")
 		if err := launchMetadataSvc(cfg.Debug); err != nil {
@@ -175,47 +161,6 @@ func Run(cfg Config, dir string) {
 	if err := syscall.Exec(args[0], args, os.Environ()); err != nil {
 		log.Fatalf("error execing init: %v", err)
 	}
-}
-
-// makeUniqueContainer creates a subdirectory (representing a container)
-// within the given parent directory. On success, it returns a UUID
-// representing the created container and the full path to the new directory.
-// The UUID is guaranteed to be unique within the parent directory.
-// The parent directory MUST exist and be writeable.
-func makeUniqueContainer(pdir string) (*types.UUID, string, error) {
-	// Arbitrary limit so we don't spin forever
-	for i := 0; i <= 100; i++ {
-		cuuid, err := types.NewUUID(uuid.New())
-		if err != nil {
-			// Should never happen
-			return nil, "", fmt.Errorf("error creating UUID: %v", err)
-		}
-
-		dir := filepath.Join(pdir, cuuid.String())
-		err = os.Mkdir(dir, 0700)
-		switch {
-		case err == nil:
-			return cuuid, dir, nil
-		case os.IsExist(err):
-			continue
-		case err != nil:
-			return nil, "", err
-		}
-	}
-	return nil, "", fmt.Errorf("couldn't find unique directory!")
-}
-
-func lockDir(dir string) error {
-	l, err := lock.TryExclusiveLock(dir)
-	if err != nil {
-		return fmt.Errorf("error acquiring lock on dir %q: %v", dir, err)
-	}
-	// We need the fd number for stage1 and leave the file open / lock held til process exit
-	fd, err := l.Fd()
-	if err != nil {
-		panic(err)
-	}
-	return os.Setenv(envLockFd, fmt.Sprintf("%v", fd))
 }
 
 // setupAppImage attempts to load the app image by the given hash from the store,

@@ -33,7 +33,7 @@ const (
 
 func init() {
 	commands = append(commands, cmdStatus)
-	cmdStatus.Flags.BoolVar(&flagWait, "wait", false, "toggle waiting for the container to exit if running")
+	cmdStatus.Flags.BoolVar(&flagWait, "wait", false, "toggle waiting for the container to exit")
 }
 
 func runStatus(args []string) (exit int) {
@@ -48,21 +48,21 @@ func runStatus(args []string) (exit int) {
 		return 1
 	}
 
-	ch, err := getContainer(containerUUID.String())
+	c, err := getContainer(containerUUID.String())
 	if err != nil {
-		stderr("Unable to get container handle: %v", err)
+		stderr("Unable to get container: %v", err)
 		return 1
 	}
-	defer ch.Close()
+	defer c.Close()
 
 	if flagWait {
-		if err := ch.waitExited(); err != nil {
+		if err := c.waitExited(); err != nil {
 			stderr("Unable to wait for container: %v", err)
 			return 1
 		}
 	}
 
-	if err = printStatus(ch); err != nil {
+	if err = printStatus(c); err != nil {
 		stderr("Unable to print status: %v", err)
 		return 1
 	}
@@ -71,20 +71,24 @@ func runStatus(args []string) (exit int) {
 }
 
 // printStatus prints the container's pid and per-app status codes
-func printStatus(ch *container) error {
-	pid, err := ch.getPID()
-	if err != nil {
-		return err
-	}
+func printStatus(c *container) error {
+	stdout("state=%s", c.getState())
 
-	stats, err := ch.getStatuses()
-	if err != nil {
-		return err
-	}
+	if !c.isEmbryo && !c.isPreparing && !c.isPrepared {
+		pid, err := c.getPID()
+		if err != nil {
+			return err
+		}
 
-	stdout("pid=%d\nexited=%t", pid, ch.isExited)
-	for app, stat := range stats {
-		stdout("%s=%d", app, stat)
+		stats, err := c.getExitStatuses()
+		if err != nil {
+			return err
+		}
+
+		stdout("pid=%d\nexited=%t", pid, c.isExited)
+		for app, stat := range stats {
+			stdout("%s=%d", app, stat)
+		}
 	}
 	return nil
 }

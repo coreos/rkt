@@ -43,33 +43,30 @@ func runList(args []string) (exit int) {
 		fmt.Fprintf(tabOut, "UUID\tACI\tSTATE\n")
 	}
 
-	if err := walkContainers(includeContainersDir|includeGarbageDir, func(c *container) {
-		manifFile, err := c.readFile(common.ContainerManifestPath(""))
-		if err != nil {
-			stderr("Unable to read manifest: %v", err)
-			return
-		}
-
+	if err := walkContainers(includeAllDirs, func(c *container) {
 		m := schema.ContainerRuntimeManifest{}
-		err = m.UnmarshalJSON(manifFile)
-		if err != nil {
-			stderr("Unable to load manifest: %v", err)
-			return
+		app_zero := ""
+		if !c.isPreparing {
+			manifFile, err := c.readFile(common.ContainerManifestPath(""))
+			if err != nil {
+				stderr("Unable to read manifest: %v", err)
+				return
+			}
+
+			err = m.UnmarshalJSON(manifFile)
+			if err != nil {
+				stderr("Unable to load manifest: %v", err)
+				return
+			}
+
+			if len(m.Apps) == 0 {
+				stderr("Container contains zero apps")
+				return
+			}
+			app_zero = m.Apps[0].Name.String()
 		}
 
-		if len(m.Apps) == 0 {
-			stderr("Container contains zero apps")
-			return
-		}
-
-		state := "active"
-		if c.isDeleting {
-			state = "deleting"
-		} else if c.isExited {
-			state = "inactive"
-		}
-
-		fmt.Fprintf(tabOut, "%s\t%s\t%s\n", c.uuid, m.Apps[0].Name.String(), state)
+		fmt.Fprintf(tabOut, "%s\t%s\t%s\n", c.uuid, app_zero, c.getState())
 		for i := 1; i < len(m.Apps); i++ {
 			fmt.Fprintf(tabOut, "\t%s\n", m.Apps[i].Name.String())
 		}

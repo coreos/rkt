@@ -123,7 +123,7 @@ func TestWalkContainers(t *testing.T) {
 		defer os.RemoveAll(d)
 
 		globalFlags.Dir = d
-		if err := os.MkdirAll(containersDir(), 0700); err != nil {
+		if err := os.MkdirAll(runDir(), 0700); err != nil {
 			t.Fatalf("error creating container directory: %v", err)
 		}
 		if err := os.MkdirAll(garbageDir(), 0700); err != nil {
@@ -144,7 +144,7 @@ func TestWalkContainers(t *testing.T) {
 				cp = filepath.Join(garbageDir(), ct.uuid)
 				included |= includeGarbageDir
 			} else {
-				cp = filepath.Join(containersDir(), ct.uuid)
+				cp = filepath.Join(runDir(), ct.uuid)
 				included |= includeContainersDir
 			}
 
