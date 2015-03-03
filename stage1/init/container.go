@@ -110,10 +110,14 @@ func newUnitOption(section, name, value string) *unit.UnitOption {
 	return &unit.UnitOption{Section: section, Name: name, Value: value}
 }
 
-// appToSystemd transforms the provided app manifest into systemd units
-func (c *Container) appToSystemd(am *schema.ImageManifest, id types.Hash) error {
-	name := am.Name.String()
+// appToSystemd transforms the provided RuntimeApp+ImageManifest into systemd units
+func (c *Container) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest) error {
+	name := ra.Name.String()
+	id := ra.Image.ID
 	app := am.App
+	if ra.App != nil {
+		app = ra.App
+	}
 
 	workDir := "/"
 	if app.WorkingDirectory != "" {
@@ -234,12 +238,12 @@ func (c *Container) writeEnvFile(env types.Environment, id types.Hash) error {
 // all the constituent apps of the Container
 func (c *Container) ContainerToSystemd() error {
 	for _, am := range c.Apps {
-		a := c.Manifest.Apps.Get(am.Name)
-		if a == nil {
+		ra := c.Manifest.Apps.Get(am.Name)
+		if ra == nil {
 			// should never happen
 			panic("app not found in container manifest")
 		}
-		if err := c.appToSystemd(am, a.Image.ID); err != nil {
+		if err := c.appToSystemd(ra, am); err != nil {
 			return fmt.Errorf("failed to transform app %q into systemd service: %v", am.Name, err)
 		}
 	}
@@ -249,9 +253,14 @@ func (c *Container) ContainerToSystemd() error {
 
 // appToNspawnArgs transforms the given app manifest, with the given associated
 // app image id, into a subset of applicable systemd-nspawn argument
-func (c *Container) appToNspawnArgs(am *schema.ImageManifest, id types.Hash) ([]string, error) {
+func (c *Container) appToNspawnArgs(ra *schema.RuntimeApp, am *schema.ImageManifest) ([]string, error) {
 	args := []string{}
-	name := am.Name.String()
+	name := ra.Name.String()
+	id := ra.Image.ID
+	app := am.App
+	if ra.App != nil {
+		app = ra.App
+	}
 
 	vols := make(map[types.ACName]types.Volume)
 
@@ -264,7 +273,7 @@ func (c *Container) appToNspawnArgs(am *schema.ImageManifest, id types.Hash) ([]
 		vols[v.Name] = v
 	}
 
-	for _, mp := range am.App.MountPoints {
+	for _, mp := range app.MountPoints {
 		key := mp.Name
 		vol, ok := vols[key]
 		if !ok {
@@ -313,11 +322,11 @@ func (c *Container) ContainerToNspawnArgs() ([]string, error) {
 	}
 
 	for _, am := range c.Apps {
-		a := c.Manifest.Apps.Get(am.Name)
-		if a == nil {
+		ra := c.Manifest.Apps.Get(am.Name)
+		if ra == nil {
 			panic("could not find app in container manifest!")
 		}
-		aa, err := c.appToNspawnArgs(am, a.Image.ID)
+		aa, err := c.appToNspawnArgs(ra, am)
 		if err != nil {
 			return nil, fmt.Errorf("failed to construct args for app %q: %v", am.Name, err)
 		}
