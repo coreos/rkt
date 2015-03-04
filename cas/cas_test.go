@@ -17,12 +17,14 @@ package cas
 import (
 	"archive/tar"
 	"bytes"
+	"database/sql"
 	"encoding/hex"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rocket/pkg/aci"
@@ -160,7 +162,15 @@ func TestResolveKey(t *testing.T) {
 		str2key("67147019a5b56f5e2ee01e989a8aa4787f56b8445960be2d8678391cf111009bc0780f31001fd181a2b61507547aee4caa44cda4b8bdb238d0e4ba830069ed2c"),
 	}
 	for _, d := range data {
-		if err := ds.WriteStream(d.String(), d); err != nil {
+		// Save aciinfo
+		if err = ds.db.Do(func(tx *sql.Tx) error {
+			aciinfo := &ACIInfo{
+				BlobKey:    d.String(),
+				AppName:    "example.com/app",
+				ImportTime: time.Now(),
+			}
+			return WriteACIInfo(tx, aciinfo)
+		}); err != nil {
 			t.Fatalf("error writing to store: %v", err)
 		}
 	}

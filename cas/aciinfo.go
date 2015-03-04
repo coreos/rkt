@@ -27,6 +27,26 @@ func NewACIInfo(blobKey string, latest bool, t time.Time) *ACIInfo {
 	}
 }
 
+// GetAciInfosWithKeyPrefix returns all the ACIInfos with a blobkey starting with the given prefix.
+func GetACIInfosWithKeyPrefix(tx *sql.Tx, prefix string) ([]*ACIInfo, error) {
+	aciinfos := []*ACIInfo{}
+	rows, err := tx.Query("SELECT * from aciinfo WHERE hasPrefix(blobkey, $1)", prefix)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		aciinfo := &ACIInfo{}
+		if err := rows.Scan(&aciinfo.BlobKey, &aciinfo.AppName, &aciinfo.ImportTime, &aciinfo.Latest); err != nil {
+			return nil, err
+		}
+		aciinfos = append(aciinfos, aciinfo)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return aciinfos, err
+}
+
 // GetAciInfosWithAppName returns all the ACIInfos for a given appname. found will be
 // false if no aciinfo exists.
 func GetACIInfosWithAppName(tx *sql.Tx, appname string) ([]*ACIInfo, bool, error) {
