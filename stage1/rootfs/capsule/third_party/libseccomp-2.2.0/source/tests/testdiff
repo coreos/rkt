@@ -1,0 +1,126 @@
+#!/bin/bash
+
+#
+# libseccomp test diff generator
+#
+# Copyright (c) 2013 Red Hat <pmoore@redhat.com>
+# Author: Paul Moore <pmoore@redhat.com>
+#
+
+#
+# This library is free software; you can redistribute it and/or modify it
+# under the terms of version 2.1 of the GNU Lesser General Public License as
+# published by the Free Software Foundation.
+#
+# This library is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License
+# for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this library; if not, see <http://www.gnu.org/licenses>.
+#
+
+####
+# functions
+
+#
+# Print out script usage details
+#
+function usage() {
+cat << EOF
+usage: regression [-h] LABEL_1 LABEL_2
+
+libseccomp test diff generator script
+optional arguments:
+  -h             show this help message and exit
+EOF
+}
+
+#
+# Print the test header
+#
+# Arguments:
+#     1    string containing generated test number
+#
+function print_test() {
+	printf "Test %s comparison:\n" "$1"
+}
+
+#
+# Compare the tests
+#
+# Arguments:
+#     1    string containing first test label
+#     2    string containing second test label
+#
+function diff_tests() {
+	local batch_name
+	local label_a
+	local label_b
+	local file_a
+	local file_b
+
+	if [[ -n $1 ]]; then
+		label_a=".$1"
+	else
+		label_a=""
+	fi
+
+	if [[ -n $2 ]]; then
+		label_b=".$2"
+	else
+		label_b=""
+	fi
+
+	for file in *-sim-*.tests; do
+		# extract the batch name from the file name
+		batch_name=$(basename $file .tests)
+
+		print_test "$batch_name"
+
+		file_a="${batch_name}${label_a}"
+		file_b="${batch_name}${label_b}"
+
+		if [[ -r "$file_a.pfc" && -r "$file_b.pfc" ]]; then
+			diff -pu "$file_a.pfc" "$file_b.pfc"
+		fi
+
+		if [[ -r "$file_a.bpf" && -r "$file_b.bpf" ]]; then
+			diff -pu "$file_a.bpf" "$file_b.bpf"
+		fi
+
+		if [[ -r "$file_a.bpfd" && -r "$file_b.bpfd" ]]; then
+			diff -pu "$file_a.bpfd" "$file_b.bpfd"
+		fi
+	done
+
+	return
+}
+
+####
+# main
+
+opt_label=
+opt_disasm=0
+
+while getopts "h" opt; do
+	case $opt in
+	h|*)
+		usage
+		exit 1
+		;;
+	esac
+done
+
+stats_all=0
+stats_failure=0
+
+# display the test output and run the requested tests
+echo "=============== $(date) ==============="
+echo "Comparing Test Output (\"testdiff $*\")"
+diff_tests "$1" "$2"
+echo "============================================================"
+
+# exit
+exit 0

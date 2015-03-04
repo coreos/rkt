@@ -1,0 +1,207 @@
+#!/bin/bash
+
+#
+# libseccomp test output generator
+#
+# Copyright (c) 2013 Red Hat <pmoore@redhat.com>
+# Author: Paul Moore <pmoore@redhat.com>
+#
+
+#
+# This library is free software; you can redistribute it and/or modify it
+# under the terms of version 2.1 of the GNU Lesser General Public License as
+# published by the Free Software Foundation.
+#
+# This library is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License
+# for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this library; if not, see <http://www.gnu.org/licenses>.
+#
+
+####
+# functions
+
+#
+# Dependency verification
+#
+# Arguments:
+#     1    Dependency to check for
+#
+function verify_deps() {
+	[[ -z "$1" ]] && return
+	if ! which "$1" >& /dev/null; then
+		echo "error: install \"$1\" and include it in your \$PATH"
+		exit 1
+	fi
+}
+
+#
+# Print out script usage details
+#
+function usage() {
+cat << EOF
+usage: regression [-h] [-d] [-l LABEL]
+
+libseccomp test output generator script
+optional arguments:
+  -h             show this help message and exit
+  -b             generate BPF output
+  -d             generate disassembled BPF output
+  -p             generate PFC output
+  -v             perform valgrind checks
+  -l [LABEL]     specifies label for the test output
+EOF
+}
+
+#
+# Print the test result
+#
+# Arguments:
+#     1    string containing generated test number
+#     2    string containing the test result
+#
+function print_result() {
+	printf "Test %s result:   %s\n" "$1" "$2"
+}
+
+#
+# Run the tests
+#
+# Arguments:
+#     1    string containing output label
+#
+function run_tests() {
+	local batch_name
+	local label
+	local rc
+
+	if [[ -n $1 ]]; then
+		label=".$1"
+	else
+		label=""
+	fi
+
+	for file in *-sim-*.tests; do
+		# extract the batch name from the file name
+		batch_name=$(basename $file .tests)
+
+		if [[ -x "$batch_name" ]]; then
+			if [[ $opt_pfc -eq 1 ]]; then
+				./$batch_name > ${batch_name}${label}.pfc
+				rc=$?
+				stats_all=$(($stats_all + 1))
+				if [[ $rc -eq 0 ]]; then
+					print_result "$batch_name [pfc]" "SUCCESS"
+				else
+					stats_failure=$(($stats_failure + 1))
+					print_result "$batch_name [pfc]" "FAILURE"
+				fi
+			fi
+
+			if [[ $opt_bpf -eq 1 ]]; then
+				./$batch_name -b > ${batch_name}${label}.bpf
+				rc=$?
+				stats_all=$(($stats_all + 1))
+				if [[ $rc -eq 0 ]]; then
+					print_result "$batch_name [bpf]" "SUCCESS"
+				else
+					stats_failure=$(($stats_failure + 1))
+					print_result "$batch_name [bpf]" "FAILURE"
+				fi
+			fi
+
+			if [[ $opt_disasm -eq 1 ]]; then
+				./$batch_name -b | \
+					../tools/scmp_bpf_disasm > ${batch_name}${label}.bpfd
+				rc=$?
+				stats_all=$(($stats_all + 1))
+				if [[ $rc -eq 0 ]]; then
+					print_result "$batch_name [bpfd]" "SUCCESS"
+				else
+					stats_failure=$(($stats_failure + 1))
+					print_result "$batch_name [bpfd]" "FAILURE"
+				fi
+			fi
+
+			if [[ $opt_valgrind -eq 1 ]]; then
+				valgrind --tool=memcheck \
+					--quiet --error-exitcode=1 \
+					--leak-check=full \
+					--read-var-info=yes \
+					--track-origins=yes \
+					--suppressions=valgrind_test.supp \
+					-- ./$batch_name -b > /dev/null
+				rc=$?
+				stats_all=$(($stats_all + 1))
+				if [[ $rc -eq 0 ]]; then
+					print_result "$batch_name [valgrind]" "SUCCESS"
+				else
+					stats_failure=$(($stats_failure + 1))
+					print_result "$batch_name [valgrind]" "FAILURE"
+				fi
+			fi
+		else
+			stats_failure=$(($stats_failure + 1))
+			print_result "$batch_name" "FAILURE"
+		fi
+	done
+
+	return
+}
+
+####
+# main
+
+opt_label=
+opt_bpf=0
+opt_disasm=0
+opt_pfc=0
+opt_valgrind=0
+
+while getopts "bphdl:v" opt; do
+	case $opt in
+	b)
+		opt_bpf=1
+		;;
+	d)
+		opt_disasm=1
+		;;
+	l)
+		opt_label="$OPTARG"
+		;;
+	p)
+		opt_pfc=1
+		;;
+	v)
+		opt_valgrind=1
+		;;
+	h|*)
+		usage
+		exit 1
+		;;
+	esac
+done
+
+# verify valgrind
+[[ $opt_valgrind -eq 1 ]] && verify_deps valgrind
+
+stats_all=0
+stats_failure=0
+
+# display the test output and run the requested tests
+echo "=============== $(date) ==============="
+echo "Collecting Test Output (\"testgen $*\")"
+run_tests "$opt_label"
+echo "Test Summary"
+echo " tests run: $stats_all"
+echo " tests failed: $stats_failure"
+echo "============================================================"
+
+# cleanup and exit
+rc=0
+[[ $stats_failure -gt 0 ]] && rc=$(($rc + 2))
+
+exit $rc

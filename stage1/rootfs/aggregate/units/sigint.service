@@ -1,0 +1,6 @@
+[Unit]
+Description=Rocket SIGINT isolator
+DefaultDependencies=false
+
+[Service]
+ExecStart=/usr/bin/systemctl isolate exit-watcher.service

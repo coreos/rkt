@@ -1,0 +1,42 @@
+#
+# libseccomp regression test automation data
+#
+# Copyright IBM Corp. 2012
+# Author: Corey Bryant <coreyb@linux.vnet.ibm.com>
+#
+
+test type: bpf-sim
+
+# Testname			Arch		Syscall		Arg0		Arg1		Arg2			Arg3	Arg4	Arg5	Result
+04-sim-multilevel_chains	all,-aarch64	open		0x856B008	4		N			N	N	N	ALLOW
+04-sim-multilevel_chains	all		close		4		N		N			N	N	N	ALLOW
+04-sim-multilevel_chains	x86		read		0		0x856B008	0x7FFFFFFE		N	N	N	ALLOW
+04-sim-multilevel_chains	x86_64		read		0		0x856B008	0x7FFFFFFFFFFFFFFE	N	N	N	ALLOW
+04-sim-multilevel_chains	x86		read		0		0x856B008	0x7FFFFFFF		N	N	N	KILL
+04-sim-multilevel_chains	x86_64		read		0		0x856B008	0x7FFFFFFFFFFFFFFF	N	N	N	KILL
+04-sim-multilevel_chains	x86		read		0		0		0x7FFFFFFE		N	N	N	KILL
+04-sim-multilevel_chains	x86_64		read		0		0		0x7FFFFFFFFFFFFFFE	N	N	N	KILL
+04-sim-multilevel_chains	all		read		1-10		0x856B008	0x7FFFFFFE		N	N	N	KILL
+04-sim-multilevel_chains	x86		write		1-2		0x856B008	0x7FFFFFFE		N	N	N	ALLOW
+04-sim-multilevel_chains	x86_64		write		1-2		0x856B008	0x7FFFFFFFFFFFFFFE	N	N	N	ALLOW
+04-sim-multilevel_chains	x86		write		1-2		0		0x7FFFFFFE		N	N	N	KILL
+04-sim-multilevel_chains	x86_64		write		1-2		0		0x7FFFFFFFFFFFFFFE	N	N	N	KILL
+04-sim-multilevel_chains	x86		write		1-2		0x856B008	0x7FFFFFFF		N	N	N	KILL
+04-sim-multilevel_chains	x86_64		write		1-2		0x856B008	0x7FFFFFFFFFFFFFFF	N	N	N	KILL
+04-sim-multilevel_chains	all		write		3-10		0x856B008	0x7FFFFFFE		N	N	N	KILL
+04-sim-multilevel_chains	all		rt_sigreturn	N		N		N			N	N	N	ALLOW
+04-sim-multilevel_chains	x86		0-2		N		N		N			N	N	N	KILL
+04-sim-multilevel_chains	x86		7-172		N		N		N			N	N	N	KILL
+04-sim-multilevel_chains	x86		174-350		N		N		N			N	N	N	KILL
+04-sim-multilevel_chains	x86_64		4-14		N		N		N			N	N	N	KILL
+04-sim-multilevel_chains	x86_64		16-350		N		N		N			N	N	N	KILL
+
+test type: bpf-sim-fuzz
+
+# Testname			StressCount
+04-sim-multilevel_chains	50
+
+test type: bpf-valgrind
+
+# Testname
+04-sim-multilevel_chains

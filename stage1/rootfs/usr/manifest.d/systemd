@@ -12,7 +12,6 @@ bin/systemd-detect-virt
 bin/systemd-inhibit
 bin/systemd-machine-id-setup
 bin/systemd-notify
-bin/systemd-nspawn
 bin/systemd-path
 bin/systemd-run
 bin/systemd-stdio-bridge

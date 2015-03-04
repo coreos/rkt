@@ -1,0 +1,47 @@
+/*  capability,			description */
+
+cap_keep(	CAP_AUDIT_CONTROL,	"TODO")
+#ifdef CAP_AUDIT_READ
+cap(		CAP_AUDIT_READ,		"TODO")
+#endif
+cap_keep(	CAP_AUDIT_WRITE,	"TODO")
+#ifdef CAP_BLOCK_SUSPEND
+cap(		CAP_BLOCK_SUSPEND,	"TODO")
+#endif
+cap_keep(	CAP_CHOWN,		"Overrides the restriction of changing file ownership and group ownership.")
+cap_keep(	CAP_DAC_OVERRIDE,	"Override all DAC access, including ACL execute access.")
+cap_keep(	CAP_DAC_READ_SEARCH,	"Overrides all restrictions about allowed operations on files, where file owner ID must be equal to the user ID, except where CAP_FSETID is applicable.")
+cap_keep(	CAP_FOWNER,		"TODO")
+cap_keep(	CAP_FSETID,		"TODO")
+cap(		CAP_IPC_LOCK,		"TODO")
+cap_keep(	CAP_IPC_OWNER,		"TODO")
+cap_keep(	CAP_KILL,		"TODO")
+cap_keep(	CAP_LEASE,		"TODO")
+cap_keep(	CAP_LINUX_IMMUTABLE,	"TODO")
+cap(		CAP_MAC_ADMIN,		"TODO")
+cap(		CAP_MAC_OVERRIDE,	"TODO")
+cap_keep(	CAP_MKNOD,		"TODO")
+cap_keep(	CAP_NET_BIND_SERVICE,	"TODO")
+cap_keep(	CAP_NET_BROADCAST,	"TODO")
+cap_keep(	CAP_NET_RAW,		"TODO")
+cap(		CAP_NET_ADMIN,		"TODO")
+cap_keep(	CAP_SETFCAP,		"TODO")
+cap_keep(	CAP_SETGID,		"TODO")
+cap_keep(	CAP_SETUID,		"TODO")
+cap_keep(	CAP_SETPCAP,		"TODO")
+cap_keep(	CAP_SYS_ADMIN,		"TODO")
+cap_keep(	CAP_SYS_BOOT,		"TODO")
+cap_keep(	CAP_SYS_CHROOT,		"TODO")
+cap(		CAP_SYS_MODULE,		"TODO")
+cap_keep(	CAP_SYS_NICE,		"TODO")
+cap(		CAP_SYS_PACCT,		"TODO")
+cap_keep(	CAP_SYS_PTRACE,		"TODO")
+cap(		CAP_SYS_RAWIO,		"TODO")
+cap_keep(	CAP_SYS_RESOURCE,	"TODO")
+cap(		CAP_SYS_TIME,		"TODO")
+cap_keep(	CAP_SYS_TTY_CONFIG,	"TODO")
+cap(		CAP_SYSLOG,		"TODO")
+cap(		CAP_WAKE_ALARM,		"TODO")
+
+#undef cap
+#undef cap_keep

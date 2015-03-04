@@ -1,0 +1,1 @@
+install -m 0755 ../capsule/capsule "$ROOT"

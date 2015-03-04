@@ -1,0 +1,966 @@
+#!/bin/bash
+
+#
+# libseccomp regression test automation script
+#
+# Copyright IBM Corp. 2012
+# Author: Corey Bryant <coreyb@linux.vnet.ibm.com>
+#
+
+#
+# This library is free software; you can redistribute it and/or modify it
+# under the terms of version 2.1 of the GNU Lesser General Public License as
+# published by the Free Software Foundation.
+#
+# This library is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License
+# for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this library; if not, see <http://www.gnu.org/licenses>.
+#
+
+GLBL_ARCH_LE_SUPPORT="x86 x86_64 x32 arm aarch64 mipsel mipsel64 mipsel64n32"
+GLBL_ARCH_BE_SUPPORT="mips mips64 mips64n32"
+
+GLBL_SYS_ARCH="../tools/scmp_arch_detect"
+GLBL_SYS_RESOLVER="../tools/scmp_sys_resolver"
+GLBL_SYS_SIM="../tools/scmp_bpf_sim"
+
+####
+# functions
+
+#
+# Dependency check
+#
+# Arguments:
+#     1    Dependency to check for
+#
+function check_deps() {
+	[[ -z "$1" ]] && return
+	which "$1" >& /dev/null
+	return $?
+}
+
+#
+# Dependency verification
+#
+# Arguments:
+#     1    Dependency to check for
+#
+function verify_deps() {
+	[[ -z "$1" ]] && return
+	if ! check_deps "$1"; then
+		echo "error: install \"$1\" and include it in your \$PATH"
+		exit 1
+	fi
+}
+
+#
+# Print out script usage details
+#
+function usage() {
+cat << EOF
+usage: regression [-h] [-v] [-m MODE] [-a] [-b BATCH_NAME] [-l <LOG>]
+                  [-s SINGLE_TEST] [-t <TEMP_DIR>] [-T <TEST_TYPE>]
+
+libseccomp regression test automation script
+optional arguments:
+  -h             show this help message and exit
+  -m MODE        specified the test mode [c (default), python]
+  -a             specifies all tests are to be run
+  -b BATCH_NAME  specifies batch of tests to be run
+  -l [LOG]       specifies log file to write test results to
+  -s SINGLE_TEST specifies individual test number to be run
+  -t [TEMP_DIR]  specifies directory to create temporary files in
+  -T [TEST_TYPE] only run tests matching the specified type
+  -v             specifies that verbose output be provided
+EOF
+}
+
+#
+# Generate a string representing the test number
+#
+# Arguments:
+#     1    string containing the batch name
+#     2    value of the test number from the input test data file
+#     3    value of the subtest number that corresponds to argument 1
+#
+#  The actual test number from the input test data file is 1 for the first
+#  test found in the file, 2 for the second, etc.
+#
+#  The subtest number is useful for batches that generate multiple tests based
+#  on a single line of input from the test data file.  The subtest number
+#  should be set to zero if the  corresponding test data is actual test data
+#  that was read from the input file, and should be set to a value greater than
+#  zero if the corresponding test data is generated.
+#
+function generate_test_num() {
+	local testnumstr=$(printf '%s%%%%%03d-%05d' "$1" $2 $3)
+	echo "$testnumstr"
+}
+
+#
+# Print the test data to the log file
+#
+# Arguments:
+#     1    string containing generated test number
+#     2    string containing line of test data
+#
+function print_data() {
+	if [[ -n $verbose ]]; then
+		printf "Test %s data:     %s\n" "$1" "$2" >&$logfd
+	fi
+}
+
+#
+# Print the test result to the log file
+#
+# Arguments:
+#     1    string containing generated test number
+#     2    string containing the test result (INFO, SUCCESS, ERROR, or FAILURE)
+#     3    string containing addition details
+#
+function print_result() {
+	if [[ $2 == "INFO" && -z $verbose ]]; then
+		return
+	fi
+	if [[ $3 == "" ]]; then
+		printf "Test %s result:   %s\n" "$1" "$2" >&$logfd
+	else
+		printf "Test %s result:   %s %s\n" "$1" "$2" "$3" >&$logfd
+	fi
+}
+
+#
+# Print the valgrind header to the log file
+#
+# Arguments:
+#     1    string containing generated test number
+#
+function print_valgrind() {
+	if [[ -n $verbose ]]; then
+		printf "Test %s valgrind output\n" "$1" >&$logfd
+	fi
+}
+
+#
+# Get the low or high range value from a range specification
+#
+# Arguments:
+#     1    value specifying range value to retrieve: low (1) or high (2)
+#     2    string containing dash-separated range or a single value
+#
+function get_range() {
+	if [[ $2 =~ ^[0-9a-fA-Fx]+-[0-9a-fA-Fx]+$ ]]; then
+		# if there's a dash, get the low or high range value
+		range_val=$(echo "$2" | cut -d'-' -f "$1")
+	else
+		# otherwise there should just be a single value
+		range_val="$2"
+	fi
+	echo "$range_val"
+}
+
+#
+# Run the specified test command (with valgrind if requested)
+#
+# Arguments:
+#     1    string containing generated test number
+#     2    string containing command name
+#     3    string containing command options
+#     4    number for the stdout fd
+#     5    number for the stderr fd
+#
+function run_test_command() {
+	local cmd
+
+	if [[ $mode == "python" ]]; then
+		cmd="PYTHONPATH=$PYTHONPATH"
+		cmd="$cmd:$(cd $(pwd)/../src/python/build/lib.*; pwd)"
+		cmd="$cmd /usr/bin/env python $2.py $3"
+	else
+		cmd="$2 $3"
+	fi
+
+	# setup the stdout/stderr redirects
+	local stdout=$4
+	local stderr=$5
+	[[ -z $stdout ]] && stdout=$logfd
+	[[ -z $stderr ]] && stderr=$logfd
+
+	# run the command
+	eval "$cmd" 1>&$stdout 2>&$stderr
+
+	# return the command's return code
+	return $?
+}
+
+#
+# Generate pseudo-random string of alphanumeric characters
+#
+# The generated string will be no larger than the corresponding
+# architecture's register size.
+#
+function generate_random_data() {
+	local rcount
+	local rdata
+	if [[ $arch == "x86_64" ]]; then
+		rcount=$[ ($RANDOM % 16) + 1 ]
+	else
+		rcount=$[ ($RANDOM % 8) + 1 ]
+	fi
+	rdata=$(echo $(</dev/urandom tr -dc A-Za-z0-9 | head -c"$rcount"))
+	echo "$rdata"
+}
+
+#
+# Run the specified "bpf-sim-fuzz" test
+#
+# Tests that belong to the "bpf-sim-fuzz" test type generate a BPF filter and
+# then run a simulated system call test with pseudo-random fuzz data for the
+# syscall and argument values.  Tests that belong to this test type provide the
+# following data on a single line in the input batch file:
+#
+#     Testname - The executable test name (e.g. 01-allow, 02-basic, etc.)
+#     StressCount - The number of fuzz tests to run against the filter
+#
+# The following test data is output to the logfile for each generated test:
+#
+#     Testname - The executable test name (e.g. 01-allow, 02-basic, etc.)
+#     Syscall - The fuzzed syscall value to be simulated against the filter
+#     Arg0-5 - The fuzzed syscall arg values to be simulated against the filter
+#
+# Arguments:
+#     1    string containing the batch name
+#     2    value of test number from batch file
+#     3    string containing line of test data from batch file
+#
+function run_test_bpf_sim_fuzz() {
+	local rc
+
+	# begin splitting the test data from the line into individual variables
+	local line=($3)
+	local testname=${line[0]}
+	local stress_count=${line[1]}
+
+	for i in $(seq 1 $stress_count); do
+		local sys=$(generate_random_data)
+		local -a arg=($(generate_random_data) $(generate_random_data) \
+			      $(generate_random_data) $(generate_random_data) \
+			      $(generate_random_data) $(generate_random_data))
+
+		# get the generated sub-test num string
+		local testnumstr=$(generate_test_num "$1" $2 $i)
+
+		# set up log file test data line for this individual test,
+		# spacing is added to align the output in the correct columns
+		local -a COL_WIDTH=(26 17 17 17 17 17 17)
+		local testdata=$(printf "%-${COL_WIDTH[0]}s" $testname)
+		testdata+=$(printf "%-${COL_WIDTH[1]}s" $sys)
+		testdata+=$(printf "%-${COL_WIDTH[2]}s" ${arg[0]})
+		testdata+=$(printf "%-${COL_WIDTH[3]}s" ${arg[1]})
+		testdata+=$(printf "%-${COL_WIDTH[4]}s" ${arg[2]})
+		testdata+=$(printf "%-${COL_WIDTH[5]}s" ${arg[3]})
+		testdata+=$(printf "%-${COL_WIDTH[6]}s" ${arg[4]})
+		testdata+=$(printf "%s" ${arg[5]})
+
+		# print out the generated test data to the log file
+		print_data "$testnumstr" "$testdata"
+
+		# set up the syscall argument values to be passed to bpf_sim
+		for i in {0..5}; do
+			arg[$i]=" -$i ${arg[$i]} "
+		done
+
+		# run the test command and put the BPF filter in a temp file
+		exec 4>$tmpfile
+		run_test_command "$testnumstr" "./$testname" "-b" 4 ""
+		rc=$?
+		exec 4>&-
+		if [[ $rc -ne 0 ]]; then
+			print_result $testnumstr "ERROR" "$testname rc=$rc"
+			stats_error=$(($stats_error+1))
+			return
+		fi
+
+		# simulate the fuzzed syscall data against the BPF filter, we
+		# don't verify the resulting action since we're just testing for
+		# stability
+		allow=$($GLBL_SYS_SIM -f $tmpfile -s $sys \
+			${arg[0]} ${arg[1]} ${arg[2]} ${arg[3]} ${arg[4]} \
+			${arg[5]})
+		rc=$?
+		if [[ $rc -ne 0 ]]; then
+			print_result $testnumstr "ERROR" "bpf_sim rc=$rc"
+			stats_error=$(($stats_error+1))
+		else
+			print_result $testnumstr "SUCCESS" ""
+			stats_success=$(($stats_success+1))
+		fi
+		stats_all=$(($stats_all+1))
+	done
+}
+
+#
+# Run the specified "bpf-sim" test
+#
+# Tests that belong to the "bpf-sim" test type generate a BPF filter and then
+# run a simulated system call test to validate the filter.  Tests that belong to
+# this test type provide the following data on a single line in the input batch
+# file:
+#
+#     Testname - The executable test name (e.g. 01-allow, 02-basic, etc.)
+#     Arch - The architecture that the test should be run on (all, x86, x86_64)
+#     Syscall - The syscall to simulate against the generated filter
+#     Arg0-5 - The syscall arguments to simulate against the generated filter
+#     Result - The expected simulation result (ALLOW, KILL, etc.)
+#
+# If a range of syscall or argument values are specified (e.g. 1-9), a test is
+# generated for every combination of range values.  Otherwise, the individual
+# test is run.
+#
+# Arguments:
+#     1    string containing the batch name
+#     2    value of test number from batch file
+#     3    string containing line of test data from batch file
+#
+function run_test_bpf_sim() {
+	local rc
+	local LOW=1
+	local HIGH=2
+	local -a arg_empty=(false false false false false false)
+
+	# begin splitting the test data from the line into individual variables
+	local line=($3)
+	local testname=${line[0]}
+	local testarch=${line[1]}
+	local low_syscall  #line[2]
+	local high_syscall #line[2]
+	local -a low_arg   #line[3-8]
+	local -a high_arg  #line[3-8]
+	local result=${line[9]}
+
+	# expand the architecture list
+	local simarch_tmp
+	local simarch_avoid
+	simarch_tmp=""
+	simarch_avoid=""
+	for arch_i in $(echo $testarch | sed -e 's/,/ /g'); do
+		case $arch_i in
+		all)
+			# add the native arch
+			simarch_tmp+=" $arch"
+			;;
+		all_le)
+			# add the native arch only if it is little endian
+			if echo "$GLBL_ARCH_LE_SUPPORT" | grep -qw "$arch"; then
+				simarch_tmp+=" $arch"
+			fi
+			;;
+		+all_le)
+			# add all of the little endian architectures
+			simarch_tmp+=" $GLBL_ARCH_LE_SUPPORT"
+			;;
+		all_be)
+			# add the native arch only if it is big endian
+			if echo "$GLBL_ARCH_BE_SUPPORT" | grep -qw "$arch"; then
+				simarch_tmp+=" $arch"
+			fi
+			;;
+		+all_be)
+			# add all of the big endian architectures
+			simarch_tmp+=" $GLBL_ARCH_BE_SUPPORT"
+			;;
+		+*)
+			# add the architecture specified
+			simarch_tmp+=" ${arch_i:1}"
+			;;
+		-*)
+			# remove the architecture specified
+			simarch_avoid+=" ${arch_i:1}"
+			;;
+		*)
+			# add the architecture specified if it is native
+			if [[ "$arch_i" == "$arch" ]]; then
+				simarch_tmp+=" $arch_i"
+			fi
+			;;
+		esac
+	done
+
+	# make sure we remove any undesired architectures
+	local simarch_list
+	simarch_list=""
+	for arch_i in $simarch_tmp; do
+		if echo "$simarch_avoid" | grep -q -v -w "$arch_i"; then
+			simarch_list+=" $arch_i"
+		fi
+	done
+	simarch_list=$(echo $simarch_list | sed -e 's/  / /g;s/^ //;')
+
+	# do we have any architectures remaining in the list?
+	if [[ $simarch_list == "" ]]; then
+		print_result $(generate_test_num "$1" $2 1) "INFO" \
+			"Test skipped due to architecture difference"
+		stats_skipped=$(($stats_skipped+1))
+		return
+	fi
+
+	# get low and high range arg values
+	line_i=3
+	for arg_i in {0..5}; do
+		low_arg[$arg_i]=$(get_range $LOW "${line[$line_i]}")
+		high_arg[$arg_i]=$(get_range $HIGH "${line[$line_i]}")
+
+		# fix up empty arg values so the nested loops work
+		if [[ ${low_arg[$arg_i]} == "N" ]]; then
+			arg_empty[$arg_i]=true
+			low_arg[$arg_i]=0
+			high_arg[$arg_i]=0
+		fi
+
+		line_i=$(($line_i+1))
+	done
+
+	# loop through the selected architectures
+	for simarch in $simarch_list; do
+		# print architecture header if necessary
+		if [[ $simarch != $simarch_list ]]; then
+			echo " test arch:  $simarch" >&$logfd
+		fi
+
+		# reset the subtest number
+		local subtestnum=1
+
+		# get low and high syscall values and convert them to numbers
+		low_syscall=$(get_range $LOW "${line[2]}")
+		if [[ ! $low_syscall =~ ^[0-9]+$ ]]; then
+			low_syscall=$($GLBL_SYS_RESOLVER -a $simarch -t \
+				      $low_syscall)
+			if [[ $? -ne 0 ]]; then
+				print_result $(generate_test_num "$1" $2 1) \
+					     "ERROR" "sys_resolver rc=$?"
+				stats_error=$(($stats_error+1))
+				return
+			fi
+		fi
+		high_syscall=$(get_range $HIGH "${line[2]}")
+		if [[ ! $high_syscall =~ ^[0-9]+$ ]]; then
+			high_syscall=$($GLBL_SYS_RESOLVER -a $simarch -t \
+				       $high_syscall)
+			if [[ $? -ne 0 ]]; then
+				print_result $(generate_test_num "$1" $2 1) \
+					     "ERROR" "sys_resolver rc=$?"
+				stats_error=$(($stats_error+1))
+				return
+			fi
+		fi
+
+		# if ranges exist, the following will loop through all syscall
+		# and arg ranges and generate/run every combination of requested
+		# tests; if no ranges were specifed, then the single test is
+		# run
+		for sys in $(seq -f "%1.0f" $low_syscall $high_syscall); do
+		for arg0 in $(seq -f "%1.0f" ${low_arg[0]} ${high_arg[0]}); do
+		for arg1 in $(seq -f "%1.0f" ${low_arg[1]} ${high_arg[1]}); do
+		for arg2 in $(seq -f "%1.0f" ${low_arg[2]} ${high_arg[2]}); do
+		for arg3 in $(seq -f "%1.0f" ${low_arg[3]} ${high_arg[3]}); do
+		for arg4 in $(seq -f "%1.0f" ${low_arg[4]} ${high_arg[4]}); do
+		for arg5 in $(seq -f "%1.0f" ${low_arg[5]} ${high_arg[5]}); do
+			local -a arg=($arg0 $arg1 $arg2 $arg3 $arg4 $arg5)
+
+			# Get the generated sub-test num string
+			local testnumstr=$(generate_test_num "$1" $2 \
+					   $subtestnum)
+
+			# format any empty args to print to log file
+			for i in {0..5}; do
+				if ${arg_empty[$i]}; then
+					arg[$i]="N"
+				fi
+			done
+
+			# set up log file test data line for this
+			# individual test, spacing is added to align
+			# the output in the correct columns
+			local -a COL_WIDTH=(26 08 14 11 17 21 09 06 06)
+			local testdata=$(printf "%-${COL_WIDTH[0]}s" $testname)
+			testdata+=$(printf "%-${COL_WIDTH[1]}s" $simarch)
+			testdata+=$(printf "%-${COL_WIDTH[2]}s" $sys)
+			testdata+=$(printf "%-${COL_WIDTH[3]}s" ${arg[0]})
+			testdata+=$(printf "%-${COL_WIDTH[4]}s" ${arg[1]})
+			testdata+=$(printf "%-${COL_WIDTH[5]}s" ${arg[2]})
+			testdata+=$(printf "%-${COL_WIDTH[6]}s" ${arg[3]})
+			testdata+=$(printf "%-${COL_WIDTH[7]}s" ${arg[4]})
+			testdata+=$(printf "%-${COL_WIDTH[8]}s" ${arg[5]})
+			testdata+=$(printf "%-${COL_WIDTH[9]}s" $result)
+
+			# print out the test data to the log file
+			print_data "$testnumstr" "$testdata"
+
+			# set up the syscall arguments to be passed to bpf_sim
+			for i in {0..5}; do
+				if ${arg_empty[$i]}; then
+					arg[$i]=""
+				else
+					arg[$i]=" -$i ${arg[$i]} "
+				fi
+			done
+
+			# run the test command and put the BPF in a temp file
+			exec 4>$tmpfile
+			run_test_command "$testnumstr" "./$testname" "-b" 4 ""
+			rc=$?
+			exec 4>&-
+			if [[ $rc -ne 0 ]]; then
+				print_result $testnumstr \
+					     "ERROR" "$testname rc=$rc"
+				stats_error=$(($stats_error+1))
+				return
+			fi
+
+			# simulate the specifed syscall against the BPF filter
+			# and verify the results
+			action=$($GLBL_SYS_SIM -a $simarch -f $tmpfile \
+				 -s $sys ${arg[0]} ${arg[1]} ${arg[2]} \
+				 ${arg[3]} ${arg[4]} ${arg[5]})
+			rc=$?
+			if [[ $rc -ne 0 ]]; then
+				print_result $testnumstr \
+					     "ERROR" "bpf_sim rc=$rc"
+				stats_error=$(($stats_error+1))
+			elif [[ "$action" != "$result" ]]; then
+				print_result $testnumstr "FAILURE" \
+					     "bpf_sim resulted in $action"
+				stats_failure=$(($stats_failure+1))
+			else
+				print_result $testnumstr "SUCCESS" ""
+				stats_success=$(($stats_success+1))
+			fi
+			stats_all=$(($stats_all+1))
+
+			subtestnum=$(($subtestnum+1))
+		done # syscall
+		done # arg0
+		done # arg1
+		done # arg2
+		done # arg3
+		done # arg4
+		done # arg5
+	done # architecture
+}
+
+#
+# Run the specified "basic" test
+#
+# Tests that belong to the "basic" test type will simply have the command
+# specified in the input batch file.  The command must return zero for success
+# and non-zero for failure.
+#
+# Arguments:
+#     1    value of test number from batch file
+#     2    string containing line of test data from batch file
+#
+function run_test_basic() {
+	local rc
+
+	# print out the input test data to the log file
+	print_data "$1" "$2"
+
+	# run the command
+	run_test_command "$1" "./$2" "" "" ""
+	rc=$?
+	if [[ $rc -ne 0 ]]; then
+		print_result $1 "FAILURE" "$2 rc=$rc"
+		stats_failure=$(($stats_failure+1))
+	else
+		print_result $1 "SUCCESS" ""
+		stats_success=$(($stats_success+1))
+	fi
+	stats_all=$(($stats_all+1))
+}
+
+#
+# Run the specified "bpf-valgrind" test
+#
+# Tests that belong to the "bpf-valgrind" test type generate a BPF filter
+# while running under valgrind to detect any memory errors.
+#
+# Arguments:
+#     1    value of test number from batch file
+#     2    string containing line of test data from batch file
+#
+function run_test_bpf_valgrind() {
+	local rc
+
+	# we only support the native/c test mode here
+	if [[ $mode != "c" ]]; then
+		stats_skipped=$(($stats_skipped+1))
+		return
+	fi
+
+	# print out the input test data to the log file
+	print_data "$1" "$2"
+
+	# build the command
+	testvalgrind="valgrind \
+		       --tool=memcheck \
+		       --error-exitcode=1 \
+		       --leak-check=full \
+		       --read-var-info=yes \
+		       --track-origins=yes \
+		       --suppressions=$basedir/valgrind_test.supp"
+	if [[ -n $logfile ]]; then
+		testvalgrind+=" --log-fd=$logfd"
+	fi
+	if [[ -z $verbose ]]; then
+		testvalgrind+=" --quiet --log-fd=4"
+	fi
+
+	# run the command
+	exec 4>/dev/null
+	print_valgrind "$1"
+	run_test_command "$1" "$testvalgrind --" "./$2 -b" 4 2
+	rc=$?
+	exec 4>&-
+	if [[ $rc -ne 0 ]]; then
+		print_result $1 "FAILURE" "$2 rc=$rc"
+		stats_failure=$(($stats_failure+1))
+	else
+		print_result $1 "SUCCESS" ""
+		stats_success=$(($stats_success+1))
+	fi
+	stats_all=$(($stats_all+1))
+}
+
+#
+# Run the specified "live" test
+#
+# Tests that belong to the "live" test type will attempt to run a live test
+# of the libseccomp library on the host system; for obvious reasons the host
+# system must support seccomp mode 2 for this to work correctly.
+#
+# Arguments:
+#     1    value of test number from batch file
+#     2    string containing line of test data from batch file
+#
+function run_test_live() {
+	local rc
+	local line=($2)
+
+	# parse the test line
+	line_cmd=${line[0]}
+	line_act=${line[1]}
+	line_test="$line_cmd $line_act"
+
+	# print out the input test data to the log file
+	print_data "$1" "$2"
+
+	# run the command
+	exec 4>/dev/null
+	run_test_command "$1" "./$line_cmd" "$line_act" "" 4
+	rc=$?
+	exec 4>&-
+	stats_all=$(($stats_all+1))
+
+	# setup the arch specific return values
+	case "$arch" in
+	x86|x86_64|x32|arm|aarch64)
+		rc_kill=159
+		rc_allow=160
+		rc_trap=161
+		rc_trace=162
+		rc_errno=163
+		;;
+	mips|mipsel|mips64|mips64n32|mipsel64|mipsel64n32)
+		rc_kill=140
+		rc_allow=160
+		rc_trap=161
+		rc_trace=162
+		rc_errno=163
+		;;
+	*)
+		print_result $testnumstr "ERROR" "arch $arch not supported"
+		stats_error=$(($stats_error+1))
+		return
+		;;
+	esac
+
+	# verify the results
+	if [[ $line_act == "KILL" && $rc -eq $rc_kill ]]; then
+		print_result $1 "SUCCESS" ""
+		stats_success=$(($stats_success+1))
+	elif [[ $line_act == "ALLOW" && $rc -eq $rc_allow ]]; then
+		print_result $1 "SUCCESS" ""
+		stats_success=$(($stats_success+1))
+	elif [[ $line_act == "TRAP" && $rc -eq $rc_trap ]]; then
+		print_result $1 "SUCCESS" ""
+		stats_success=$(($stats_success+1))
+	elif [[ $line_act == "TRACE" ]]; then
+		print_result $1 "ERROR" "unsupported action \"$line_act\""
+		stats_error=$(($stats_error+1))
+	elif [[ $line_act == "ERRNO" && $rc -eq $rc_errno ]]; then
+		print_result $1 "SUCCESS" ""
+		stats_success=$(($stats_success+1))
+	else
+		print_result $1 "FAILURE" "$line_test rc=$rc"
+		stats_failure=$(($stats_failure+1))
+	fi
+}
+
+#
+# Run a single test from the specified batch
+#
+# Arguments:
+#     1    string containing the batch name
+#     2    value of test number from batch file
+#     3    string containing line of test data from batch file
+#     4    string containing test type that this test belongs to
+#
+function run_test() {
+	# generate the test number string for the line of batch test data
+	local testnumstr=$(generate_test_num "$1" $2 1)
+
+	# ensure we only run tests which match the specified type
+	[[ -n $type && "$4" != "$type" ]] && return
+
+	# execute the function corresponding to the test type
+	if [[ "$4" == "basic" ]]; then
+		run_test_basic "$testnumstr" "$3"
+	elif [[ "$4" == "bpf-sim" ]]; then
+		run_test_bpf_sim "$1" $2 "$3"
+	elif [[ "$4" == "bpf-sim-fuzz" ]]; then
+		run_test_bpf_sim_fuzz "$1" $2 "$3"
+	elif [[ "$4" == "bpf-valgrind" ]]; then
+		# only run this test if valgrind is installed
+		if check_deps valgrind; then
+			run_test_bpf_valgrind "$testnumstr" "$3"
+		else
+			stats_skipped=$(($stats_skipped+1))
+		fi
+	elif [[ "$4" == "live" ]]; then
+		# only run this test if explicitly requested
+		if [[ -n $type ]]; then
+			run_test_live "$testnumstr" "$3"
+		else
+			stats_skipped=$(($stats_skipped+1))
+		fi
+	else
+		print_result $testnumstr "ERROR" "test type $4 not supported"
+		stats_error=$(($stats_error+1))
+	fi
+}
+
+#
+# Run the requested tests
+#
+function run_tests() {
+	# loop through all test files
+	for file in $basedir/*.tests; do
+		local testnum=1
+		local batch_requested=false
+		local batch_name=""
+
+		# extract the batch name from the file name
+		batch_name=$(basename $file .tests)
+
+		# check if this batch was requested
+		if [[ ${batch_list[@]} ]]; then
+			for b in ${batch_list[@]}; do
+				if [[ $b == $batch_name ]]; then
+					batch_requested=true
+					break
+				fi
+			done
+			if ! $batch_requested; then
+				continue
+			fi
+		fi
+
+		# print a test batch header
+		echo " batch name: $batch_name" >&$logfd
+
+		# loop through each line and run the requested tests
+		while read line; do
+			# strip whitespace, comments, and blank lines
+			line=$(echo "$line" | \
+			       sed -e 's/^[\t ]*//;s/[\t ]*$//;' | \
+			       sed -e '/^[#].*$/d;/^$/d')
+			if [[ -z $line ]]; then
+				continue
+			fi
+
+			if [[ $line =~ ^"test type": ]]; then
+				test_type=$(echo "$line" | \
+					    sed -e 's/^test type: //;')
+				# print a test mode and type header
+				echo " test mode:  $mode" >&$logfd
+				echo " test type:  $test_type" >&$logfd
+				continue
+			fi
+
+			if [[ ${single_list[@]} ]]; then
+				for i in ${single_list[@]}; do
+					if [ $i -eq $testnum ]; then
+						# we're running a single test
+						run_test "$batch_name" \
+							 $testnum "$line" \
+							 "$test_type"
+					fi
+				done
+			else
+				# we're running a test from a batch
+				run_test "$batch_name" \
+					 $testnum "$line" "$test_type"
+			fi
+			testnum=$(($testnum+1))
+		done < "$file"
+	done
+}
+
+####
+# main
+
+# verify general script dependencies
+verify_deps head
+verify_deps sed
+verify_deps awk
+verify_deps seq
+verify_deps tr
+
+# global variables
+declare -a batch_list
+declare -a single_list
+arch=
+batch_count=0
+logfile=
+logfd=
+mode_list=""
+runall=
+singlecount=0
+tmpfile=""
+tmpdir=""
+type=
+verbose=
+stats_all=0
+stats_skipped=0
+stats_success=0
+stats_failure=0
+stats_error=0
+
+# set the test root directory
+basedir=$(dirname $0)
+
+# parse the command line
+while getopts "ab:gl:m:s:t:T:vh" opt; do
+	case $opt in
+	a)
+		runall=1
+		;;
+	b)
+		batch_list[batch_count]="$OPTARG"
+		batch_count=$(($batch_count+1))
+		;;
+	l)
+		logfile="$OPTARG"
+		;;
+	m)
+		case $OPTARG in
+		c)
+			mode_list="$mode_list c"
+			;;
+		python)
+			verify_deps python
+			mode_list="$mode_list python"
+			;;
+		*)
+			usage
+			exit 1
+		esac
+		;;
+	s)
+		single_list[single_count]=$OPTARG
+		single_count=$(($single_count+1))
+		;;
+	t)
+		tmpdir="$OPTARG"
+		;;
+	T)
+		type="$OPTARG"
+		;;
+	v)
+		verbose=1
+		;;
+	h|*)
+		usage
+		exit 1
+		;;
+	esac
+done
+
+# determine the mode test automatically
+if [[ -z $mode_list ]]; then
+	# always perform the native c tests
+	mode_list="c"
+
+	# query the build configuration
+	if [[ -r "../configure.h" ]]; then
+		# python tests
+		[[ "$(grep "ENABLE_PYTHON" ../configure.h | \
+		   awk '{ print $3 }')" = "1" ]] && \
+			mode_list="$mode_list python"
+	fi
+fi
+
+# default to all tests if batch or single tests not requested
+if [[ -z $batch_list ]] && [[ -z $single_list ]]; then
+	runall=1
+fi
+
+# drop any requested batch and single tests if all tests were requested
+if [[ -n $runall ]]; then
+	batch_list=()
+	single_list=()
+fi
+
+# open log file for append (default to stdout)
+if [[ -n $logfile ]]; then
+	logfd=3
+	exec 3>>"$logfile"
+else
+	logfd=1
+fi
+
+# open temporary file
+if [[ -n $tmpdir ]]; then
+	tmpfile=$(mktemp -t regression_XXXXXX --tmpdir=$tmpdir)
+else
+	tmpfile=$(mktemp -t regression_XXXXXX)
+fi
+
+# determine the current system's architecture
+arch=$($GLBL_SYS_ARCH)
+
+# display the test output and run the requested tests
+echo "=============== $(date) ===============" >&$logfd
+echo "Regression Test Report (\"regression $*\")" >&$logfd
+for mode in $mode_list; do
+	run_tests
+done
+echo "Regression Test Summary" >&$logfd
+echo " tests run: $stats_all" >&$logfd
+echo " tests skipped: $stats_skipped" >&$logfd
+echo " tests passed: $stats_success" >&$logfd
+echo " tests failed: $stats_failure" >&$logfd
+echo " tests errored: $stats_error" >&$logfd
+echo "============================================================" >&$logfd
+
+# cleanup and exit
+rm -f $tmpfile
+rc=0
+[[ $stats_failure -gt 0 ]] && rc=$(($rc + 2))
+[[ $stats_error -gt 0 ]] && rc=$(($rc + 4))
+
+exit $rc

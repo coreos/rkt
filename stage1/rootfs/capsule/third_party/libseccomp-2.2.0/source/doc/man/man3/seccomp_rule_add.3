@@ -1,0 +1,295 @@
+.TH "seccomp_rule_add" 3 "25 July 2012" "paul@paul-moore.com" "libseccomp Documentation"
+.\" //////////////////////////////////////////////////////////////////////////
+.SH NAME
+.\" //////////////////////////////////////////////////////////////////////////
+seccomp_rule_add, seccomp_rule_add_exact \- Add a seccomp filter rule
+.\" //////////////////////////////////////////////////////////////////////////
+.SH SYNOPSIS
+.\" //////////////////////////////////////////////////////////////////////////
+.nf
+.B #include <seccomp.h>
+.sp
+.B typedef void * scmp_filter_ctx;
+.sp
+.BI "int SCMP_SYS(" syscall_name ");"
+.sp
+.BI "struct scmp_arg_cmp SCMP_CMP(unsigned int " arg ","
+.BI "                             enum scmp_compare " op ", " ... ");"
+.BI "struct scmp_arg_cmp SCMP_A0(enum scmp_compare " op ", " ... ");"
+.BI "struct scmp_arg_cmp SCMP_A1(enum scmp_compare " op ", " ... ");"
+.BI "struct scmp_arg_cmp SCMP_A2(enum scmp_compare " op ", " ... ");"
+.BI "struct scmp_arg_cmp SCMP_A3(enum scmp_compare " op ", " ... ");"
+.BI "struct scmp_arg_cmp SCMP_A4(enum scmp_compare " op ", " ... ");"
+.BI "struct scmp_arg_cmp SCMP_A5(enum scmp_compare " op ", " ... ");"
+.sp
+.BI "int seccomp_rule_add(scmp_filter_ctx " ctx ", uint32_t " action ","
+.BI "                     int " syscall ", unsigned int " arg_cnt ", " ... ");"
+.BI "int seccomp_rule_add_exact(scmp_filter_ctx " ctx ", uint32_t " action ","
+.BI "                           int " syscall ", unsigned int " arg_cnt ", " ... ");"
+.sp
+.BI "int seccomp_rule_add_array(scmp_filter_ctx " ctx ","
+.BI "                           uint32_t " action ", int " syscall ","
+.BI "                           unsigned int " arg_cnt ","
+.BI "                           const struct scmp_arg_cmp *"arg_array ");"
+.BI "int seccomp_rule_add_exact_array(scmp_filter_ctx " ctx ","
+.BI "                                 uint32_t " action ", int " syscall ","
+.BI "                                 unsigned int " arg_cnt ","
+.BI "                                 const struct scmp_arg_cmp *"arg_array ");"
+.sp
+Link with \fI\-lseccomp\fP.
+.fi
+.\" //////////////////////////////////////////////////////////////////////////
+.SH DESCRIPTION
+.\" //////////////////////////////////////////////////////////////////////////
+.P
+The
+.BR seccomp_rule_add (),
+.BR seccomp_rule_add_array (),
+.BR seccomp_rule_add_exact (),
+and
+.BR seccomp_rule_add_exact_array ()
+functions all add a new filter rule to the current seccomp filter.  The
+.BR seccomp_rule_add ()
+and
+.BR seccomp_rule_add_array ()
+functions will make a "best effort" to add the rule as specified, but may alter
+the rule slightly due to architecture specifics, e.g. socket and ipc functions
+on x86.  The
+.BR seccomp_rule_add_exact ()
+and
+.BR seccomp_rule_add_exact_array ()
+functions will attempt to add the rule exactly as specified so it may behave
+differently on different architectures.  While it does not guarantee a exact
+filter ruleset,
+.BR seccomp_rule_add ()
+and
+.BR seccomp_rule_add_array ()
+do guarantee the same behavior regardless of the architecture.
+.P
+The newly added filter rule does not take effect until the entire filter is
+loaded into the kernel using
+.BR seccomp_load (3).
+.P
+The
+.BR SCMP_CMP ()
+and
+.BR SCMP_A{0-5} ()
+macros generate a scmp_arg_cmp structure for use with the above functions. The
+.BR SCMP_CMP ()
+macro allows the caller to specify an arbitrary argument along with the
+comparison operator, mask, and datum values where the
+.BR SCMP_A{0-5} ()
+macros are specific to a certain argument.  See the EXAMPLES section below.
+.P
+While it is possible to specify the
+.I syscall
+value directly using the standard
+.B __NR_syscall
+values, in order to ensure proper operation across multiple architectures it
+is highly recommended to use the
+.BR SCMP_SYS ()
+macro instead.  See the EXAMPLES section below.
+.P
+The filter context
+.I ctx
+is the value returned by the call to
+.BR seccomp_init (3).
+.P
+Valid
+.I action
+values are as follows:
+.TP
+.B SCMP_ACT_KILL
+The thread will be killed by the kernel when it calls a syscall that does not
+match any of the configured seccomp filter rules.
+.TP
+.B SCMP_ACT_TRAP
+The thread will throw a SIGSYS signal when it calls a syscall that does not
+match any of the configured seccomp filter rules.
+.TP
+.B SCMP_ACT_ERRNO(uint16_t errno)
+The thread will receive a return value of
+.I errno
+when it calls a syscall that does not match any of the configured seccomp filter
+rules.
+.TP
+.B SCMP_ACT_TRACE(uint16_t msg_num)
+If the thread is being traced and the tracing process specified the
+.B PTRACE_O_TRACESECCOMP
+option in the call to
+.BR ptrace (2),
+the tracing process will be notified, via
+.B PTRACE_EVENT_SECCOMP
+, and the value provided in
+.I msg_num
+can be retrieved using the
+.B PTRACE_GETEVENTMSG
+option.
+.TP
+.B SCMP_ACT_ALLOW
+The seccomp filter will have no effect on the thread calling the syscall if it
+does not match any of the configured seccomp filter rules.
+.P
+Valid comparison
+.I op
+values are as follows:
+.TP
+.B SCMP_CMP_NE
+Matches when the argument value is not equal to the datum value, example:
+.sp
+SCMP_CMP(
+.I arg
+, SCMP_CMP_NE ,
+.I datum
+)
+.TP
+.B SCMP_CMP_LT
+Matches when the argument value is less than the datum value, example:
+.sp
+SCMP_CMP(
+.I arg
+, SCMP_CMP_LT ,
+.I datum
+)
+.TP
+.B SCMP_CMP_LE
+Matches when the argument value is less than or equal to the datum value,
+example:
+.sp
+SCMP_CMP(
+.I arg
+, SCMP_CMP_LE ,
+.I datum
+)
+.TP
+.B SCMP_CMP_EQ
+Matches when the argument value is equal to the datum value, example:
+.sp
+SCMP_CMP(
+.I arg
+, SCMP_CMP_EQ ,
+.I datum
+)
+.TP
+.B SCMP_CMP_GE
+Matches when the argument value is greater than or equal to the datum value,
+example:
+.sp
+SCMP_CMP(
+.I arg
+, SCMP_CMP_GE ,
+.I datum
+)
+.TP
+.B SCMP_CMP_GT
+Matches when the argument value is greater than the datum value, example:
+.sp
+SCMP_CMP(
+.I arg
+, SCMP_CMP_GT ,
+.I datum
+)
+.TP
+.B SCMP_CMP_MASKED_EQ
+Matches when the masked argument value is equal to the masked datum value,
+example:
+.sp
+SCMP_CMP(
+.I arg
+, SCMP_CMP_MASKED_EQ ,
+.I mask
+,
+.I datum
+)
+.\" //////////////////////////////////////////////////////////////////////////
+.SH RETURN VALUE
+.\" //////////////////////////////////////////////////////////////////////////
+The
+.BR seccomp_rule_add (),
+.BR seccomp_rule_add_array (),
+.BR seccomp_rule_add_exact (),
+and
+.BR seccomp_rule_add_exact_array ()
+functions return zero on success, negative errno values on failure.
+.\" //////////////////////////////////////////////////////////////////////////
+.SH EXAMPLES
+.\" //////////////////////////////////////////////////////////////////////////
+.nf
+#include <fcntl.h>
+#include <seccomp.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#define BUF_SIZE	256
+
+int main(int argc, char *argv[])
+{
+	int rc = \-1;
+	scmp_filter_ctx ctx;
+	struct scmp_arg_cmp arg_cmp[] = { SCMP_A0(SCMP_CMP_EQ, 2) };
+	int fd;
+	unsigned char buf[BUF_SIZE];
+
+	ctx = seccomp_init(SCMP_ACT_KILL);
+	if (ctx == NULL)
+		goto out;
+
+	/* ... */
+
+	fd = open("file.txt", 0);
+
+	/* ... */
+
+	rc = seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(close), 0);
+	if (rc < 0)
+		goto out;
+
+	rc = seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(read), 3,
+			      SCMP_A0(SCMP_CMP_EQ, fd),
+			      SCMP_A1(SCMP_CMP_EQ, (scmp_datum_t)buf),
+			      SCMP_A2(SCMP_CMP_LE, BUF_SIZE));
+	if (rc < 0)
+		goto out;
+
+	rc = seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(write), 1,
+			      SCMP_CMP(0, SCMP_CMP_EQ, fd));
+	if (rc < 0)
+		goto out;
+
+	rc = seccomp_rule_add_array(ctx, SCMP_ACT_ALLOW, SCMP_SYS(write), 1,
+			            arg_cmp);
+	if (rc < 0)
+		goto out;
+
+	rc = seccomp_load(ctx);
+	if (rc < 0)
+		goto out;
+
+	/* ... */
+
+out:
+	seccomp_release(ctx);
+	return \-rc;
+}
+.fi
+.\" //////////////////////////////////////////////////////////////////////////
+.SH NOTES
+.\" //////////////////////////////////////////////////////////////////////////
+.P
+While the seccomp filter can be generated independent of the kernel, kernel
+support is required to load and enforce the seccomp filter generated by
+libseccomp.
+.P
+The libseccomp project site, with more information and the source code
+repository, can be found at https://github.com/seccomp/libseccomp.  This tool,
+as well as the libseccomp library, is currently under development, please
+report any bugs at the project site or directly to the author.
+.\" //////////////////////////////////////////////////////////////////////////
+.SH AUTHOR
+.\" //////////////////////////////////////////////////////////////////////////
+Paul Moore <paul@paul-moore.com>
+.\" //////////////////////////////////////////////////////////////////////////
+.SH SEE ALSO
+.\" //////////////////////////////////////////////////////////////////////////
+.BR seccomp_syscall_priority (3),
+.BR seccomp_load (3)

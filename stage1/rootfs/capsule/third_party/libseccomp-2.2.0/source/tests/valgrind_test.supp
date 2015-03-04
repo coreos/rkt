@@ -1,0 +1,27 @@
+#
+# Valgrind suppression file for the libseccomp automated tests
+#
+
+# information:
+# to create entries run with the "--gen-suppressions=all" option, e.g.
+#  valgrind --gen-suppressions=all ...
+# to use the suppressions run with the "--suppressions" options, e.g.
+#  valgrind --suppressions=<file> ...
+
+# Gentoo x86-64 system with valgrind-3.9.0 and glibc-2.19
+{
+   gentoo-x86-64_valgrind-3.9.0_glibc-2.19_1
+   Memcheck:Cond
+   fun:index
+   fun:expand_dynamic_string_token
+   fun:_dl_map_object
+   fun:map_doit
+   fun:_dl_catch_error
+   fun:do_preload
+   fun:dl_main
+   fun:_dl_sysdep_start
+   fun:_dl_start
+   obj:/lib64/ld-2.19.so
+   obj:*
+   obj:*
+}

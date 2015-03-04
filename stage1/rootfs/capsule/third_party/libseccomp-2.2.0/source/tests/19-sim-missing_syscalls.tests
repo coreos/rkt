@@ -1,0 +1,16 @@
+#
+# libseccomp regression test automation data
+#
+# Copyright (c) 2013 Red Hat <pmoore@redhat.com>
+# Author: Paul Moore <pmoore@redhat.com>
+#
+
+test type: bpf-sim
+
+# Testname		Arch	Syscall		Arg0	Arg1	Arg2	Arg3	Arg4	Arg5	Result
+19-sim-missing_syscalls	+x86	0-350		N	N	N	N	N	N	KILL
+
+test type: bpf-valgrind
+
+# Testname
+19-sim-missing_syscalls

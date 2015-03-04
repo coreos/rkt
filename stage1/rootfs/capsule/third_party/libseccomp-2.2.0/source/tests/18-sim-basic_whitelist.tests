@@ -1,0 +1,32 @@
+#
+# libseccomp regression test automation data
+#
+# Copyright (c) 2013 Red Hat <pmoore@redhat.com>
+# Author: Paul Moore <pmoore@redhat.com>
+#
+
+test type: bpf-sim
+
+# Testname		Arch	Syscall		Arg0		Arg1		Arg2	Arg3	Arg4	Arg5	Result
+18-sim-basic_whitelist	all	read		0		0x856B008	10	N	N	N	KILL
+18-sim-basic_whitelist	all	read		1-10		0x856B008	10	N	N	N	ALLOW
+18-sim-basic_whitelist	all	write		1-2		0x856B008	10	N	N	N	KILL
+18-sim-basic_whitelist	all	write		3-10		0x856B008	10	N	N	N	ALLOW
+18-sim-basic_whitelist	all	close		N		N		N	N	N	N	KILL
+18-sim-basic_whitelist	all	rt_sigreturn	N		N		N	N	N	N	KILL
+18-sim-basic_whitelist	all	open		0x856B008	4		N	N	N	N	ALLOW
+18-sim-basic_whitelist	x86	0-2		N		N		N	N	N	N	ALLOW
+18-sim-basic_whitelist	x86	7-172		N		N		N	N	N	N	ALLOW
+18-sim-basic_whitelist	x86	174-350		N		N		N	N	N	N	ALLOW
+18-sim-basic_whitelist	x86_64	4-14		N		N		N	N	N	N	ALLOW
+18-sim-basic_whitelist	x86_64	16-350		N		N		N	N	N	N	ALLOW
+
+test type: bpf-sim-fuzz
+
+# Testname		StressCount
+18-sim-basic_whitelist	50
+
+test type: bpf-valgrind
+
+# Testname
+18-sim-basic_whitelist

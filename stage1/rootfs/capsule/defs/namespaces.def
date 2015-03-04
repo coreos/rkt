@@ -1,0 +1,10 @@
+/*		flag		description */
+ns_default(	CLONE_NEWNS,	"Create a new mount namespace.")
+ns_default(	CLONE_NEWIPC,	"Create a new IPC namespace.")
+ns_default(	CLONE_NEWPID,	"Create a new PID namespace.")
+ns_default(	CLONE_NEWUTS,	"Create a new UTS namespace.")
+ns_default(	CLONE_NEWNET,	"Create a new network namespace.")
+ns(		CLONE_NEWUSER,	"Create a new user namespace.")
+
+#undef ns_default
+#undef ns

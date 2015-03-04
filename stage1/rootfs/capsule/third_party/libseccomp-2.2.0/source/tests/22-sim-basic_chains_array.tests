@@ -1,0 +1,31 @@
+#
+# libseccomp regression test automation data
+#
+# Author: Vitaly Shukela <vi0oss@gmail.com>
+#
+
+test type: bpf-sim
+
+# Testname			Arch	Syscall		Arg0		Arg1		Arg2	Arg3	Arg4	Arg5	Result
+22-sim-basic_chains_array	all	read		0		0x856B008	10	N	N	N	ALLOW
+22-sim-basic_chains_array	all	read		1-10		0x856B008	10	N	N	N	KILL
+22-sim-basic_chains_array	all	write		1-2		0x856B008	10	N	N	N	ALLOW
+22-sim-basic_chains_array	all	write		3-10		0x856B008	10	N	N	N	KILL
+22-sim-basic_chains_array	all	close		N		N		N	N	N	N	ALLOW
+22-sim-basic_chains_array	all	rt_sigreturn	N		N		N	N	N	N	ALLOW
+22-sim-basic_chains_array	all	open		0x856B008	4		N	N	N	N	KILL
+22-sim-basic_chains_array	x86	0-2		N		N		N	N	N	N	KILL
+22-sim-basic_chains_array	x86	7-172		N		N		N	N	N	N	KILL
+22-sim-basic_chains_array	x86	174-350		N		N		N	N	N	N	KILL
+22-sim-basic_chains_array	x86_64	4-14		N		N		N	N	N	N	KILL
+22-sim-basic_chains_array	x86_64	16-350		N		N		N	N	N	N	KILL
+
+test type: bpf-sim-fuzz
+
+# Testname			StressCount
+22-sim-basic_chains_array	50
+
+test type: bpf-valgrind
+
+# Testname
+22-sim-basic_chains_array

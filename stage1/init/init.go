@@ -21,7 +21,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -33,47 +32,11 @@ import (
 )
 
 const (
-	// Path to systemd-nspawn binary within the stage1 rootfs
-	nspawnBin = "/usr/bin/systemd-nspawn"
-	// Path to the interpreter within the stage1 rootfs
-	interpBin = "/usr/lib/ld-linux-x86-64.so.2"
-	// Path to the localtime file/symlink in host
-	localtimePath = "/etc/localtime"
+	// Path to capsule binary within the stage1 rootfs
+	capsuleBin = "/capsule"
+	// Path to systemd binary within the stage1 rootfs
+	systemdBin = "/usr/lib/systemd/systemd"
 )
-
-// mirrorLocalZoneInfo tries to reproduce the /etc/localtime target in stage1/ to satisfy systemd-nspawn
-func mirrorLocalZoneInfo(root string) {
-	zif, err := os.Readlink(localtimePath)
-	if err != nil {
-		return
-	}
-
-	// On some systems /etc/localtime is a relative symlink, make it absolute
-	if !filepath.IsAbs(zif) {
-		zif = filepath.Join(filepath.Dir(localtimePath), zif)
-		zif = filepath.Clean(zif)
-	}
-
-	src, err := os.Open(zif)
-	if err != nil {
-		return
-	}
-	defer src.Close()
-
-	destp := filepath.Join(common.Stage1RootfsPath(root), zif)
-
-	if err = os.MkdirAll(filepath.Dir(destp), 0755); err != nil {
-		return
-	}
-
-	dest, err := os.OpenFile(destp, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return
-	}
-	defer dest.Close()
-
-	_, _ = io.Copy(dest, src)
-}
 
 var (
 	debug   bool
@@ -98,7 +61,6 @@ func stage1() int {
 		return 1
 	}
 
-	mirrorLocalZoneInfo(c.Root)
 	c.MetadataSvcURL = common.MetadataSvcPublicURL()
 
 	if err = c.ContainerToSystemd(); err != nil {
@@ -107,25 +69,22 @@ func stage1() int {
 	}
 
 	args := []string{
-		filepath.Join(common.Stage1RootfsPath(c.Root), interpBin),
-		filepath.Join(common.Stage1RootfsPath(c.Root), nspawnBin),
-		"--boot",              // Launch systemd in the container
-		"--register", "false", // We cannot assume the host system is running systemd
+		filepath.Join(common.Stage1RootfsPath(c.Root), capsuleBin),
 	}
 
 	if !debug {
-		args = append(args, "--quiet") // silence most nspawn output (log_warning is currently not covered by this)
+		args = append(args, "--quiet") // silence most capsule output (log_warning is currently not covered by this)
 	}
 
-	nsargs, err := c.ContainerToNspawnArgs()
+	nsargs, err := c.ContainerToCapsuleArgs()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to generate nspawn args: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to generate capsule args: %v\n", err)
 		return 4
 	}
 	args = append(args, nsargs...)
 
 	// Arguments to systemd
-	args = append(args, "--")
+	args = append(args, "--", systemdBin)
 	args = append(args, "--default-standard-output=tty") // redirect all service logs straight to tty
 	if !debug {
 		args = append(args, "--log-target=null") // silence systemd output inside container
@@ -133,8 +92,6 @@ func stage1() int {
 	}
 
 	env := os.Environ()
-	env = append(env, "LD_PRELOAD="+filepath.Join(common.Stage1RootfsPath(c.Root), "fakesdboot.so"))
-	env = append(env, "LD_LIBRARY_PATH="+filepath.Join(common.Stage1RootfsPath(c.Root), "usr/lib"))
 
 	if privNet {
 		// careful not to make another local err variable.

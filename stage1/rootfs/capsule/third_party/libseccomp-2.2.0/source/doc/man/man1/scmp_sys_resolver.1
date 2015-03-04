@@ -1,0 +1,60 @@
+.TH "scmp_sys_resolver" 1 "23 May 2013" "paul@paul-moore.com" "libseccomp Documentation"
+.\" //////////////////////////////////////////////////////////////////////////
+.SH NAME
+.\" //////////////////////////////////////////////////////////////////////////
+scmp_sys_resolver \- Resolve system calls
+.\" //////////////////////////////////////////////////////////////////////////
+.SH SYNOPSIS
+.\" //////////////////////////////////////////////////////////////////////////
+.B scmp_sys_resolver
+[\-h] [\-a
+.I ARCH
+] [\-t]
+.I SYSCALL_NAME
+|
+.I SYSCALL_NUMBER
+.\" //////////////////////////////////////////////////////////////////////////
+.SH DESCRIPTION
+.\" //////////////////////////////////////////////////////////////////////////
+.P
+This command resolves both system call names and numbers with respect to the
+given architecture supplied in the optional
+.I ARCH
+argument.  If the architecture is not supplied on the command line then the
+native architecture is used.  If the "\-t" argument is specified along with a
+system call name, then the system call will be translated as necessary for the
+given architecture.  The "\-t" argument has no effect if a system call number
+is specified.
+.P
+In some combinations of architecture and system call, a negative system call
+number will be displayed.  A negative system call number indicates that the
+system call is not defined for the given architecture and is treated in a
+special manner by libseccomp depending on the operation.
+.TP
+.B \-a \fIARCH
+The architecture to use for resolving the system call.  Valid
+.I ARCH
+values are "x86", "x86_64", "x32", and "arm".
+.TP
+.B \-t
+If necessary, translate the system call name to the proper system call number,
+even if the system call name is different, e.g. socket(2) on x86.
+.TP
+.B \-h
+A simple one-line usage display.
+.\" //////////////////////////////////////////////////////////////////////////
+.SH EXIT STATUS
+.\" //////////////////////////////////////////////////////////////////////////
+Returns zero on success, errno values on failure.
+.\" //////////////////////////////////////////////////////////////////////////
+.SH NOTES
+.\" //////////////////////////////////////////////////////////////////////////
+.P
+The libseccomp project site, with more information and the source code
+repository, can be found at https://github.com/seccomp/libseccomp.  This tool,
+as well as the libseccomp library, is currently under development, please
+report any bugs at the project site or directly to the author.
+.\" //////////////////////////////////////////////////////////////////////////
+.SH AUTHOR
+.\" //////////////////////////////////////////////////////////////////////////
+Paul Moore <paul@paul-moore.com>

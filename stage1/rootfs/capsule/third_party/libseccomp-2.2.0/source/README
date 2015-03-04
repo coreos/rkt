@@ -1,0 +1,49 @@
+libseccomp: An Enhanced Seccomp (mode 2) Helper Library
+===============================================================================
+https://github.com/seccomp/libseccomp
+
+The libseccomp library provides an easy to use, platform independent, interface
+to the Linux Kernel's syscall filtering mechanism.  The libseccomp API is
+designed to abstract away the underlying BPF based syscall filter language and
+present a more conventional function-call based filtering interface that should
+be familiar to, and easily adopted by, application developers.
+
+* Documentation
+
+The "doc/" directory contains all of the currently available documentation,
+mostly in the form of manpages.  The top level directory also contains a README
+file (this file) as well as the LICENSE, CREDITS, SUBMITTING_PATCHES, and
+CHANGELOG files.
+
+Those who are interested in contributing to the the project are encouraged to
+read the SUBMITTING_PATCHES in the top level directory.
+
+* Building and Installing the Library
+
+In order to build the library you should follow the familiar three step
+process used by most autotools based applications:
+
+	# ./configure
+	# make [V=0|1]
+	# make install
+
+As usual, running "./configure -h" will display a list of build-time
+configuration options.
+
+* Testing the Library
+
+There are a number of tests located in the "tests/" directory and a make target
+which can be used to help automate their execution.  If you want to run the
+standard regression tests you can execute the following after building the
+library:
+
+	# make check
+
+Be warned that the test run can take a while to run and produces a lot of
+output.
+
+* Other Useful Tools
+
+The "tools/" directory includes a number of tools which may be helpful in the
+development of the library, or applications using the library.  Not all of
+these tools are installed by default.

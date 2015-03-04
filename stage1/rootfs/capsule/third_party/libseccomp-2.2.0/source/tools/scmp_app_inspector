@@ -1,0 +1,103 @@
+#!/bin/bash
+
+#
+# Runtime syscall inspector
+#
+# Copyright (c) 2012 Red Hat <pmoore@redhat.com>
+# Author: Paul Moore <pmoore@redhat.com>
+#
+
+#
+# This library is free software; you can redistribute it and/or modify it
+# under the terms of version 2.1 of the GNU Lesser General Public License as
+# published by the Free Software Foundation.
+#
+# This library is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License
+# for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this library; if not, see <http://www.gnu.org/licenses>.
+#
+
+####
+# functions
+
+function verify_deps() {
+	[[ -z "$1" ]] && return
+	if ! which "$1" >& /dev/null; then
+		echo "error: install \"$1\" and include it in your \$PATH"
+		exit 1
+	fi
+}
+
+####
+# main
+
+# verify script dependencies
+verify_deps strace
+verify_deps sed
+verify_deps sort
+verify_deps uniq
+
+# get the command line arguments
+opt_freq=0
+opt_args=0
+opt_out="/proc/self/fd/1"
+while getopts "afo:h" opt; do
+	case $opt in
+	a)
+		opt_args=1
+		;;
+	f)
+		opt_freq=1
+		;;
+	o)
+		opt_out="$OPTARG"
+		;;
+	h|*)
+		echo "usage $0 [-f] [-a] [-o <file>] <command> [<args>]"
+		exit 1
+	esac
+done
+shift $(expr $OPTIND - 1)
+
+# generate a temporary output file
+raw=$(mktemp -t strace-raw_XXXXXX)
+out="$raw-out"
+
+# capture the strace output
+strace -o $raw -- $*
+
+# filter the raw strace
+if [[ $opt_args -eq 0 ]]; then
+	if [[ $opt_freq -eq 0 ]]; then
+		cat $raw | sed -e 's/(.*//' | sort -u > $out
+	else
+		cat $raw | sed -e 's/(.*//' | sort | uniq -c | sort -nr > $out
+	fi
+else
+	if [[ $opt_freq -eq 0 ]]; then
+		cat $raw | sed -e 's/)[ \t]*=.*$/)/' \
+			| sed -e 's/".*,/"...",/g;s/\/\*.*\*\//.../g' \
+			| sed -e 's/0x[a-f0-9]\+/.../g' \
+			| sort -u > $out
+	else
+		cat $raw | sed -e 's/)[ \t]*=.*$/)/' \
+			| sed -e 's/".*,/"...",/g;s/\/\*.*\*\//.../g' \
+			| sed -e 's/0x[a-f0-9]\+/.../g' \
+			| sort | uniq -c | sort -nr > $out
+	fi
+fi
+
+# display the output
+echo "============================================================" > $opt_out
+echo "Syscall Report (\"$*\")" >> $opt_out
+[[ $opt_freq -eq 1 ]] && echo "   freq syscall" >> $opt_out
+echo "============================================================" >> $opt_out
+cat $out >> $opt_out
+
+# cleanup and exit
+rm -f $raw $out
+exit 0

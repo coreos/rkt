@@ -1,0 +1,24 @@
+#
+# libseccomp regression test automation data
+#
+# Copyright (c) 2012 Red Hat <pmoore@redhat.com>
+# Author: Paul Moore <pmoore@redhat.com>
+#
+
+test type: bpf-sim
+
+# Testname		Arch	Syscall		Arg0		Arg1		Arg2	Arg3	Arg4	Arg5	Result
+17-sim-arch_merge	+x86	read		0		0x856B008	10	N	N	N	ALLOW
+17-sim-arch_merge	+x86	read		1-10		0x856B008	10	N	N	N	KILL
+17-sim-arch_merge	+x86	write		1-2		0x856B008	10	N	N	N	ALLOW
+17-sim-arch_merge	+x86	write		3-10		0x856B008	10	N	N	N	KILL
+17-sim-arch_merge	+x86	close		N		N		N	N	N	N	ALLOW
+17-sim-arch_merge	+x86	open		0x856B008	4		N	N	N	N	KILL
+17-sim-arch_merge	+x86_64	socket		0		1		2	N	N	N	ALLOW
+17-sim-arch_merge	+x86_64	connect		0		1		2	N	N	N	ALLOW
+17-sim-arch_merge	+x86_64	shutdown	0		1		2	N	N	N	ALLOW
+
+test type: bpf-valgrind
+
+# Testname
+17-sim-arch_merge

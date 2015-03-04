@@ -1,0 +1,23 @@
+#
+# libseccomp regression test automation data
+#
+# Author: Markos Chandras <markos.chandras@imgtec.com>
+#
+# Similar to 23-sim-arch_all_basic but for big-endian architectures
+#
+
+test type: bpf-sim
+
+# Testname		Arch	Syscall		Arg0		Arg1		Arg2	Arg3	Arg4	Arg5	Result
+26-sim-arch_all_be_basic	+all_be	read		0		0x856B008	10	N	N	N	ALLOW
+26-sim-arch_all_be_basic	+all_be	read		1-10		0x856B008	10	N	N	N	KILL
+26-sim-arch_all_be_basic	+all_be	write		1-2		0x856B008	10	N	N	N	ALLOW
+26-sim-arch_all_be_basic	+all_be	write		3-10		0x856B008	10	N	N	N	KILL
+26-sim-arch_all_be_basic	+all_be	close		N		N		N	N	N	N	ALLOW
+26-sim-arch_all_be_basic	+all_be	rt_sigreturn	N		N		N	N	N	N	ALLOW
+26-sim-arch_all_be_basic	+all_be	open		0x856B008	4		N	N	N	N	KILL
+
+test type: bpf-valgrind
+
+# Testname
+26-sim-arch_all_be_basic

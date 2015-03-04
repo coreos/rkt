@@ -1,0 +1,37 @@
+#
+# libseccomp regression test automation data
+#
+# Copyright IBM Corp. 2012
+# Author: Corey Bryant <coreyb@linux.vnet.ibm.com>
+#
+
+test type: bpf-sim
+
+# Testname		Arch	Syscall	Arg0	Arg1		Arg2			Arg3	Arg4	Arg5	Result
+05-sim-long_jumps	all	1	1	2		3			4	5	6	ALLOW
+05-sim-long_jumps	all	2	N	N		N			N	N	N	KILL
+05-sim-long_jumps	all	999	N	N		N			N	N	N	KILL
+05-sim-long_jumps	x86	1000	0-5 	0x856B008	0x7FFFFFFE		N	N	N	ALLOW
+05-sim-long_jumps	x86_64	1000	0-5 	0x856B008	0x7FFFFFFFFFFFFFFE	N	N	N	ALLOW
+05-sim-long_jumps	x86	1000	95-99	0x856B008	0x7FFFFFFE		N	N	N	ALLOW
+05-sim-long_jumps	x86_64	1000	95-99	0x856B008	0x7FFFFFFFFFFFFFFE	N	N	N	ALLOW
+05-sim-long_jumps	x86	1000	100	0x856B008	0x7FFFFFFE		N	N	N	KILL
+05-sim-long_jumps	x86_64	1000	100	0x856B008	0x7FFFFFFFFFFFFFFE	N	N	N	KILL
+05-sim-long_jumps	all	1001	N	N		N			N	N	N	KILL
+05-sim-long_jumps	all	99	1	N		N			N	N	N	KILL
+05-sim-long_jumps	all	100-105	1	N		N			N	N	N	ALLOW
+05-sim-long_jumps	all	195-199	1	N		N			N	N	N	ALLOW
+05-sim-long_jumps	all	200	1	N		N			N	N	N	KILL
+05-sim-long_jumps	all	3	N	N		N			N	N	N	KILL
+05-sim-long_jumps	all	4	1	2		3			4	5	6	ALLOW
+05-sim-long_jumps	all	5	N	N		N			N	N	N	KILL
+
+test type: bpf-sim-fuzz
+
+# Testname		StressCount
+05-sim-long_jumps	50
+
+test type: bpf-valgrind
+
+# Testname
+05-sim-long_jumps

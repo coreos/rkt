@@ -1,0 +1,29 @@
+#
+# libseccomp regression test automation data
+#
+# Copyright (c) 2012 Red Hat <pmoore@redhat.com>
+# Author: Paul Moore <pmoore@redhat.com
+#
+
+test type: bpf-sim
+
+# Testname	Arch	Syscall		Arg0		Arg1		Arg2	Arg3	Arg4	Arg5	Result
+14-sim-reset	all	read		0		0x856B008	40	N	N	N	KILL
+14-sim-reset	all	write		1		0x856B008	40	N	N	N	ALLOW
+14-sim-reset	all	close		4		N		N	N	N	N	KILL
+14-sim-reset	all	rt_sigreturn	N		N		N	N	N	N	KILL
+14-sim-reset	all	open		0x856B008	4		N	N	N	N	KILL
+14-sim-reset	x86	0-3		N		N		N	N	N	N	KILL
+14-sim-reset	x86	5-360		N		N		N	N	N	N	KILL
+14-sim-reset	x86_64	0		N		N		N	N	N	N	KILL
+14-sim-reset	x86_64	2-360		N		N		N	N	N	N	KILL
+
+test type: bpf-sim-fuzz
+
+# Testname	StressCount
+14-sim-reset	50
+
+test type: bpf-valgrind
+
+# Testname
+14-sim-reset

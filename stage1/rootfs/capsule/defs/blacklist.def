@@ -1,0 +1,14 @@
+/* 	sym,			desc	*/
+sys_bl(	delete_module,		"Unload kernel module")
+#ifdef __NR_finit_module
+sys_bl(	finit_module,		"Load kernel module from fd")
+#endif
+sys_bl(	init_module,		"Load kernel module")
+sys_bl(	ioperm,			"Change port IO permissions")
+sys_bl(	iopl,			"Change IO privilege level")
+sys_bl(	kexec_load,		"Kexec loading of new kernels")
+sys_bl(	open_by_handle_at,	"Opening files by handle")
+sys_bl(	swapoff,		"Disable swap device")
+sys_bl(	swapon,			"Enable swap device")
+
+#undef sys_bl

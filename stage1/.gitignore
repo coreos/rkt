@@ -10,3 +10,4 @@ rootfs/usr/manifest.txt
 rootfs/usr/rootfs/
 rootfs/usr/usr.done
 rootfs/usr/usr.squashfs
+rootfs/capsule/capsule
