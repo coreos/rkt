@@ -154,3 +154,59 @@ func TestSharedLock(t *testing.T) {
 		t.Fatalf("error creating lock: %v", err)
 	}
 }
+
+func TestFileChangedLock(t *testing.T) {
+	// Test file removed
+	dir, err := ioutil.TempDir("", "")
+	if err != nil {
+		t.Fatalf("error creating tmpdir: %v", err)
+	}
+	defer os.Remove(dir)
+
+	l1, err := NewDirLock(dir)
+	if err != nil {
+		t.Fatalf("error creating NewLock: %v", err)
+	}
+
+	l2, err := NewDirLock(dir)
+	if err != nil {
+		t.Fatalf("error creating NewLock: %v", err)
+	}
+
+	l1.ExclusiveLock()
+	os.Remove(dir)
+	l1.Close()
+
+	err = l2.SharedLock()
+	if err != ErrFileChanged {
+		t.Fatalf("expected ErrFileChanged got: %v", err)
+	}
+
+	// Test file recreated
+	dir, err = ioutil.TempDir("", "")
+	if err != nil {
+		t.Fatalf("error creating tmpdir: %v", err)
+	}
+	defer os.Remove(dir)
+
+	l1, err = NewDirLock(dir)
+	if err != nil {
+		t.Fatalf("error creating NewLock: %v", err)
+	}
+
+	l2, err = NewDirLock(dir)
+	if err != nil {
+		t.Fatalf("error creating NewLock: %v", err)
+	}
+
+	l1.ExclusiveLock()
+	os.Remove(dir)
+	os.MkdirAll(dir, 0700)
+	l1.Close()
+
+	err = l2.SharedLock()
+	if err != ErrFileChanged {
+		t.Fatalf("expected ErrFileChanged got: %v", err)
+	}
+
+}

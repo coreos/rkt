@@ -22,16 +22,18 @@ import (
 )
 
 var (
-	ErrLocked     = errors.New("file already locked")
-	ErrNotExist   = errors.New("file does not exist")
-	ErrPermission = errors.New("permission denied")
-	ErrNotRegular = errors.New("not a regular file")
+	ErrLocked      = errors.New("file already locked")
+	ErrNotExist    = errors.New("file does not exist")
+	ErrPermission  = errors.New("permission denied")
+	ErrNotRegular  = errors.New("not a regular file")
+	ErrFileChanged = errors.New("lock file changed")
 )
 
 // FileLock represents a lock on a regular file or a directory
 type FileLock struct {
 	path string
 	fd   int
+	stat syscall.Stat_t
 }
 
 // TryExclusiveLock takes an exclusive lock without blocking.
@@ -39,11 +41,7 @@ type FileLock struct {
 // and tries promote a shared lock to exclusive atomically.
 // It will return ErrLocked if any lock is already held.
 func (l *FileLock) TryExclusiveLock() error {
-	err := syscall.Flock(l.fd, syscall.LOCK_EX|syscall.LOCK_NB)
-	if err == syscall.EWOULDBLOCK {
-		err = ErrLocked
-	}
-	return err
+	return l.Lock(true, true)
 }
 
 // TryExclusiveRegFileLock takes an exclusive lock on a file without blocking.
@@ -77,7 +75,7 @@ func TryExclusiveLock(path string, isDir bool) (*FileLock, error) {
 // and promotes a shared lock to exclusive atomically.
 // It will block if an exclusive lock is already held.
 func (l *FileLock) ExclusiveLock() error {
-	return syscall.Flock(l.fd, syscall.LOCK_EX)
+	return l.Lock(false, true)
 }
 
 // ExclusiveRegFileLock takes an exclusive lock on a file.
@@ -110,11 +108,7 @@ func ExclusiveLock(path string, isDir bool) (*FileLock, error) {
 // and tries demote an exclusive lock to shared atomically.
 // It will return ErrLocked if an exclusive lock already exists.
 func (l *FileLock) TrySharedLock() error {
-	err := syscall.Flock(l.fd, syscall.LOCK_SH|syscall.LOCK_NB)
-	if err == syscall.EWOULDBLOCK {
-		err = ErrLocked
-	}
-	return err
+	return l.Lock(true, false)
 }
 
 // TrySharedRegFileLock takes a co-operative (shared) lock on a file without blocking.
@@ -148,7 +142,7 @@ func TrySharedLock(path string, isDir bool) (*FileLock, error) {
 // and demotes an exclusive lock to shared atomically.
 // It will block if an exclusive lock is already held.
 func (l *FileLock) SharedLock() error {
-	return syscall.Flock(l.fd, syscall.LOCK_SH)
+	return l.Lock(false, false)
 }
 
 // SharedRegFileLock takes a co-operative (shared) lock on a file.
@@ -175,6 +169,48 @@ func SharedLock(path string, isDir bool) (*FileLock, error) {
 		return nil, err
 	}
 	return l, nil
+}
+
+// Lock takes a lock on a directory. When exclusive is true, an exclusive lock is
+// requested, elsewhere a co-operative (shared lock) is requested.
+// If try is true it will return ErrLocked if an exclusive (when exclusive is
+// false) or any lock (when exclusive is true) is already held on the
+// directory.
+// If the file is changed between opening and acquiring the lock an
+// ErrLockFileChanged is returned.
+func (l *FileLock) Lock(try bool, exclusive bool) error {
+	var flags int
+	if exclusive {
+		flags = syscall.LOCK_EX
+	} else {
+		flags = syscall.LOCK_SH
+	}
+	if try {
+		flags |= syscall.LOCK_NB
+	}
+
+	err := syscall.Flock(l.fd, flags)
+	if try && err == syscall.EWOULDBLOCK {
+		err = ErrLocked
+	}
+	if err != nil {
+		return err
+	}
+
+	fd, err := syscall.Open(l.path, syscall.O_RDONLY, 0)
+	// If there's an error opening the file return an ErrLockFileChanged
+	if err != nil {
+		return ErrFileChanged
+	}
+	var stat syscall.Stat_t
+	err = syscall.Fstat(fd, &stat)
+	if err != nil {
+		return err
+	}
+	if l.stat.Ino != stat.Ino || l.stat.Dev != stat.Dev {
+		return ErrFileChanged
+	}
+	return nil
 }
 
 // Unlock unlocks the lock
@@ -217,14 +253,12 @@ func NewLock(path string, isDir bool) (*FileLock, error) {
 		return nil, err
 	}
 	l.fd = lfd
-
-	var stat syscall.Stat_t
-	err = syscall.Fstat(lfd, &stat)
+	err = syscall.Fstat(lfd, &l.stat)
 	if err != nil {
 		return nil, err
 	}
 	// Check if the file is a regular file
-	if !isDir && !(stat.Mode&syscall.S_IFMT == syscall.S_IFREG) {
+	if !isDir && !(l.stat.Mode&syscall.S_IFMT == syscall.S_IFREG) {
 		return nil, ErrNotRegular
 	}
 
