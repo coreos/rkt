@@ -31,7 +31,7 @@ const (
 
 type DB struct {
 	dbdir string
-	lock  *lock.DirLock
+	lock  *lock.FileLock
 	sqldb *sql.DB
 }
 
@@ -47,7 +47,7 @@ func (db *DB) Open() error {
 	if db.lock != nil {
 		panic("cas db lock already gained")
 	}
-	dl, err := lock.ExclusiveLock(db.dbdir)
+	dl, err := lock.ExclusiveDirLock(db.dbdir)
 	if err != nil {
 		return err
 	}

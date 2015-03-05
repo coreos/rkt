@@ -12,7 +12,7 @@ import (
 var defaultDataDir = "/var/lib/rkt/networks"
 
 type Store struct {
-	lock.DirLock
+	lock.FileLock
 	dataDir string
 }
 
@@ -22,7 +22,7 @@ func New(network string) (*Store, error) {
 		return nil, err
 	}
 
-	lk, err := lock.NewLock(dir)
+	lk, err := lock.NewDirLock(dir)
 	if err != nil {
 		return nil, err
 	}

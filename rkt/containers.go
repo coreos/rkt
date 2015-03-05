@@ -29,7 +29,7 @@ import (
 )
 
 type container struct {
-	*lock.DirLock
+	*lock.FileLock
 	uuid       string
 	isExited   bool
 	isGarbage  bool
@@ -84,9 +84,9 @@ func getContainer(uuid string) (*container, error) {
 		isDeleting: false,
 	}
 
-	l, err := lock.NewLock(filepath.Join(garbageDir(), uuid))
+	l, err := lock.NewDirLock(filepath.Join(garbageDir(), uuid))
 	if err == lock.ErrNotExist {
-		l, err = lock.NewLock(filepath.Join(containersDir(), uuid))
+		l, err = lock.NewDirLock(filepath.Join(containersDir(), uuid))
 		c.isGarbage = false
 		c.isExited = false
 	}
@@ -108,7 +108,7 @@ func getContainer(uuid string) (*container, error) {
 		c.isExited = true
 	}
 
-	c.DirLock = l
+	c.FileLock = l
 	cfd, err := c.Fd()
 	if err != nil {
 		c.Close()
