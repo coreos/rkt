@@ -35,6 +35,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/schema"
@@ -57,6 +58,7 @@ type PrepareConfig struct {
 	Images      []types.Hash   // application images
 	ExecAppends [][]string     // appendages to each image's app.exec lines (empty when none, length should match length of Images)
 	Volumes     []types.Volume // list of volumes that rocket can provide to applications
+	InheritEnv  bool           // inherit parent environment into apps
 }
 
 // configuration parameters needed by Run
@@ -76,6 +78,22 @@ type CommonConfig struct {
 
 func init() {
 	log.SetOutput(ioutil.Discard)
+}
+
+// MergeEnvs amends appEnv setting variables in setEnv before setting anything new from inheritEnv
+// inheritEnv and setEnv are expected to be in the os.Environ() key=value format
+func MergeEnvs(appEnv *types.Environment, inheritEnv, setEnv []string) {
+	for _, ev := range setEnv {
+		pair := strings.SplitN(ev, "=", 2)
+		appEnv.Set(pair[0], pair[1])
+	}
+
+	for _, ev := range inheritEnv {
+		pair := strings.SplitN(ev, "=", 2)
+		if _, exists := appEnv.Get(pair[0]); !exists {
+			appEnv.Set(pair[0], pair[1])
+		}
+	}
 }
 
 // Prepare sets up a filesystem for a container based on the given config.
@@ -122,9 +140,18 @@ func Prepare(cfg PrepareConfig, dir string, uuid *types.UUID) error {
 			},
 			Annotations: am.Annotations,
 		}
+
 		if len(cfg.ExecAppends[i]) > 0 {
 			a.App = am.App
 			a.App.Exec = append(a.App.Exec, cfg.ExecAppends[i]...)
+		}
+
+		if cfg.InheritEnv {
+			if a.App == nil {
+				a.App = am.App
+			}
+			// TODO(vc): use last parameter to propagate explicit override values
+			MergeEnvs(&a.App.Environment, os.Environ(), nil)
 		}
 		cm.Apps = append(cm.Apps, a)
 	}

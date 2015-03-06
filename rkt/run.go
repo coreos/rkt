@@ -37,6 +37,7 @@ var (
 	flagVolumes          volumeList
 	flagPrivateNet       bool
 	flagSpawnMetadataSvc bool
+	flagInheritEnv       bool
 	cmdRun               = &Command{
 		Name:    "run",
 		Summary: "Run image(s) in an application container in rocket",
@@ -66,6 +67,7 @@ func init() {
 	cmdRun.Flags.Var(&flagVolumes, "volume", "volumes to mount into the shared container environment")
 	cmdRun.Flags.BoolVar(&flagPrivateNet, "private-net", false, "give container a private network")
 	cmdRun.Flags.BoolVar(&flagSpawnMetadataSvc, "spawn-metadata-svc", false, "launch metadata svc if not running")
+	cmdRun.Flags.BoolVar(&flagInheritEnv, "inherit-environment", false, "inherit all environment variables not set by apps")
 	flagVolumes = volumeList{}
 }
 
@@ -228,6 +230,7 @@ func runRun(args []string) (exit int) {
 		Images:       imgs,
 		ExecAppends:  appArgs,
 		Volumes:      []types.Volume(flagVolumes),
+		InheritEnv:   flagInheritEnv,
 	}
 	err = stage0.Prepare(pcfg, c.path(), c.uuid)
 	if err != nil {
