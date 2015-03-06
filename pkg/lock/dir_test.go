@@ -28,10 +28,11 @@ func TestNewLock(t *testing.T) {
 	defer os.Remove(f.Name())
 	f.Close()
 
-	l, err := NewLock(f.Name())
-	if err == nil || l != nil {
-		t.Fatal("expected error creating lock on file")
+	l, err := NewFileLock(f.Name())
+	if err != nil {
+		t.Fatalf("error creating NewFileLock: %v", err)
 	}
+	l.Close()
 
 	d, err := ioutil.TempDir("", "")
 	if err != nil {
@@ -39,9 +40,9 @@ func TestNewLock(t *testing.T) {
 	}
 	defer os.Remove(d)
 
-	l, err = NewLock(d)
+	l, err = NewDirLock(d)
 	if err != nil {
-		t.Fatalf("error creating NewLock: %v", err)
+		t.Fatalf("error creating NewDirLock: %v", err)
 	}
 
 	err = l.Close()
@@ -53,7 +54,7 @@ func TestNewLock(t *testing.T) {
 		t.Fatalf("error removing tmpdir: %v", err)
 	}
 
-	l, err = NewLock(d)
+	l, err = NewDirLock(d)
 	if err == nil {
 		t.Fatalf("expected error creating lock on nonexistent path")
 	}
@@ -67,7 +68,7 @@ func TestExclusiveLock(t *testing.T) {
 	defer os.Remove(dir)
 
 	// Set up the initial exclusive lock
-	l, err := ExclusiveLock(dir)
+	l, err := ExclusiveDirLock(dir)
 	if err != nil {
 		t.Fatalf("error creating lock: %v", err)
 	}
@@ -79,7 +80,7 @@ func TestExclusiveLock(t *testing.T) {
 	}
 
 	// Now try another exclusive lock, should fail
-	_, err = TryExclusiveLock(dir)
+	_, err = TryExclusiveDirLock(dir)
 	if err == nil {
 		t.Fatalf("expected err trying exclusive lock")
 	}
@@ -91,7 +92,7 @@ func TestExclusiveLock(t *testing.T) {
 	}
 
 	// Now another exclusive lock should succeed
-	_, err = TryExclusiveLock(dir)
+	_, err = TryExclusiveDirLock(dir)
 	if err != nil {
 		t.Fatalf("error creating lock: %v", err)
 	}
@@ -105,7 +106,7 @@ func TestSharedLock(t *testing.T) {
 	defer os.Remove(dir)
 
 	// Set up the initial shared lock
-	l1, err := SharedLock(dir)
+	l1, err := SharedDirLock(dir)
 	if err != nil {
 		t.Fatalf("error creating new shared lock: %v", err)
 	}
@@ -116,17 +117,17 @@ func TestSharedLock(t *testing.T) {
 	}
 
 	// Subsequent shared locks should succeed
-	l2, err := TrySharedLock(dir)
+	l2, err := TrySharedDirLock(dir)
 	if err != nil {
 		t.Fatalf("error creating shared lock: %v", err)
 	}
-	l3, err := TrySharedLock(dir)
+	l3, err := TrySharedDirLock(dir)
 	if err != nil {
 		t.Fatalf("error creating shared lock: %v", err)
 	}
 
 	// But an exclusive lock should fail
-	_, err = TryExclusiveLock(dir)
+	_, err = TryExclusiveDirLock(dir)
 	if err == nil {
 		t.Fatal("expected exclusive lock to fail")
 	}
@@ -148,8 +149,64 @@ func TestSharedLock(t *testing.T) {
 	}
 
 	// Now try an exclusive lock, should succeed
-	_, err = TryExclusiveLock(dir)
+	_, err = TryExclusiveDirLock(dir)
 	if err != nil {
 		t.Fatalf("error creating lock: %v", err)
 	}
+}
+
+func TestFileChangedLock(t *testing.T) {
+	// Test file removed
+	dir, err := ioutil.TempDir("", "")
+	if err != nil {
+		t.Fatalf("error creating tmpdir: %v", err)
+	}
+	defer os.Remove(dir)
+
+	l1, err := NewDirLock(dir)
+	if err != nil {
+		t.Fatalf("error creating NewLock: %v", err)
+	}
+
+	l2, err := NewDirLock(dir)
+	if err != nil {
+		t.Fatalf("error creating NewLock: %v", err)
+	}
+
+	l1.ExclusiveLock()
+	os.Remove(dir)
+	l1.Close()
+
+	err = l2.SharedLock()
+	if err != ErrFileChanged {
+		t.Fatalf("expected ErrFileChanged got: %v", err)
+	}
+
+	// Test file recreated
+	dir, err = ioutil.TempDir("", "")
+	if err != nil {
+		t.Fatalf("error creating tmpdir: %v", err)
+	}
+	defer os.Remove(dir)
+
+	l1, err = NewDirLock(dir)
+	if err != nil {
+		t.Fatalf("error creating NewLock: %v", err)
+	}
+
+	l2, err = NewDirLock(dir)
+	if err != nil {
+		t.Fatalf("error creating NewLock: %v", err)
+	}
+
+	l1.ExclusiveLock()
+	os.Remove(dir)
+	os.MkdirAll(dir, 0700)
+	l1.Close()
+
+	err = l2.SharedLock()
+	if err != ErrFileChanged {
+		t.Fatalf("expected ErrFileChanged got: %v", err)
+	}
+
 }

@@ -153,7 +153,7 @@ func TestWalkContainers(t *testing.T) {
 			}
 
 			if !ct.exited || ct.deleting { // acquire lock to simulate running and deleting containers
-				l, err := lock.ExclusiveLock(cp)
+				l, err := lock.ExclusiveDirLock(cp)
 				if err != nil {
 					t.Fatalf("error locking container: %v", err)
 				}

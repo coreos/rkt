@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Package lock implements simple locking primitives on a
-// directory using flock
+// regular file or directory using flock
 package lock
 
 import (
@@ -22,33 +22,44 @@ import (
 )
 
 var (
-	ErrLocked     = errors.New("directory already locked")
-	ErrNotExist   = errors.New("directory does not exist")
-	ErrPermission = errors.New("permission denied")
+	ErrLocked      = errors.New("file already locked")
+	ErrNotExist    = errors.New("file does not exist")
+	ErrPermission  = errors.New("permission denied")
+	ErrNotRegular  = errors.New("not a regular file")
+	ErrFileChanged = errors.New("lock file changed")
 )
 
-// DirLock represents a lock on a directory
-type DirLock struct {
-	dir string
-	fd  int
+// FileLock represents a lock on a regular file or a directory
+type FileLock struct {
+	path string
+	fd   int
+	stat syscall.Stat_t
 }
 
-// TryExclusiveLock takes an exclusive lock on a directory without blocking.
-// This is idempotent when the DirLock already represents an exclusive lock,
+// TryExclusiveLock takes an exclusive lock without blocking.
+// This is idempotent when the Lock already represents an exclusive lock,
 // and tries promote a shared lock to exclusive atomically.
-// It will return ErrLocked if any lock is already held on the directory.
-func (l *DirLock) TryExclusiveLock() error {
-	err := syscall.Flock(l.fd, syscall.LOCK_EX|syscall.LOCK_NB)
-	if err == syscall.EWOULDBLOCK {
-		err = ErrLocked
-	}
-	return err
+// It will return ErrLocked if any lock is already held.
+func (l *FileLock) TryExclusiveLock() error {
+	return l.Lock(true, true)
 }
 
-// TryExclusiveLock takes an exclusive lock on a directory without blocking.
+// TryExclusiveRegFileLock takes an exclusive lock on a file without blocking.
+// It will return ErrLocked if any lock is already held on the file.
+func TryExclusiveRegFileLock(path string) (*FileLock, error) {
+	return TryExclusiveLock(path, false)
+}
+
+// TryExclusiveDirLock takes an exclusive lock on a directory without blocking.
 // It will return ErrLocked if any lock is already held on the directory.
-func TryExclusiveLock(dir string) (*DirLock, error) {
-	l, err := NewLock(dir)
+func TryExclusiveDirLock(path string) (*FileLock, error) {
+	return TryExclusiveLock(path, true)
+}
+
+// TryExclusiveLock takes an exclusive lock on a file/directory without blocking.
+// It will return ErrLocked if any lock is already held on the file/directory.
+func TryExclusiveLock(path string, isDir bool) (*FileLock, error) {
+	l, err := NewLock(path, isDir)
 	if err != nil {
 		return nil, err
 	}
@@ -59,18 +70,30 @@ func TryExclusiveLock(dir string) (*DirLock, error) {
 	return l, err
 }
 
-// ExclusiveLock takes an exclusive lock on a directory.
-// This is idempotent when the DirLock already represents an exclusive lock,
+// ExclusiveLock takes an exclusive lock.
+// This is idempotent when the Lock already represents an exclusive lock,
 // and promotes a shared lock to exclusive atomically.
-// It will block if an exclusive lock is already held on the directory.
-func (l *DirLock) ExclusiveLock() error {
-	return syscall.Flock(l.fd, syscall.LOCK_EX)
+// It will block if an exclusive lock is already held.
+func (l *FileLock) ExclusiveLock() error {
+	return l.Lock(false, true)
 }
 
-// ExclusiveLock takes an exclusive lock on a directory.
+// ExclusiveRegFileLock takes an exclusive lock on a file.
+// It will block if an exclusive lock is already held on the file.
+func ExclusiveRegFileLock(path string) (*FileLock, error) {
+	return ExclusiveLock(path, false)
+}
+
+// ExclusiveDirLock takes an exclusive lock on a directory.
 // It will block if an exclusive lock is already held on the directory.
-func ExclusiveLock(dir string) (*DirLock, error) {
-	l, err := NewLock(dir)
+func ExclusiveDirLock(path string) (*FileLock, error) {
+	return ExclusiveLock(path, true)
+}
+
+// ExclusiveLock takes an exclusive lock on a file/directory.
+// It will block if an exclusive lock is already held on the file/directory.
+func ExclusiveLock(path string, isDir bool) (*FileLock, error) {
+	l, err := NewLock(path, isDir)
 	if err == nil {
 		err = l.ExclusiveLock()
 	}
@@ -80,22 +103,30 @@ func ExclusiveLock(dir string) (*DirLock, error) {
 	return l, nil
 }
 
-// TrySharedLock takes a co-operative (shared) lock on a directory without blocking.
-// This is idempotent when the DirLock already represents a shared lock,
+// TrySharedLock takes a co-operative (shared) lock without blocking.
+// This is idempotent when the Lock already represents a shared lock,
 // and tries demote an exclusive lock to shared atomically.
-// It will return ErrLocked if an exclusive lock already exists on the directory.
-func (l *DirLock) TrySharedLock() error {
-	err := syscall.Flock(l.fd, syscall.LOCK_SH|syscall.LOCK_NB)
-	if err == syscall.EWOULDBLOCK {
-		err = ErrLocked
-	}
-	return err
+// It will return ErrLocked if an exclusive lock already exists.
+func (l *FileLock) TrySharedLock() error {
+	return l.Lock(true, false)
 }
 
-// TrySharedLock takes a co-operative (shared) lock on a directory without blocking.
+// TrySharedRegFileLock takes a co-operative (shared) lock on a file without blocking.
+// It will return ErrLocked if an exclusive lock already exists on the file.
+func TrySharedRegFileLock(path string) (*FileLock, error) {
+	return TrySharedLock(path, false)
+}
+
+// TrySharedDirLock takes a co-operative (shared) lock on a directory without blocking.
 // It will return ErrLocked if an exclusive lock already exists on the directory.
-func TrySharedLock(dir string) (*DirLock, error) {
-	l, err := NewLock(dir)
+func TrySharedDirLock(path string) (*FileLock, error) {
+	return TrySharedLock(path, true)
+}
+
+// TrySharedLock takes a co-operative (shared) lock on a file/directory without blocking.
+// It will return ErrLocked if an exclusive lock already exists on the file/directory.
+func TrySharedLock(path string, isDir bool) (*FileLock, error) {
+	l, err := NewLock(path, isDir)
 	if err != nil {
 		return nil, err
 	}
@@ -106,18 +137,30 @@ func TrySharedLock(dir string) (*DirLock, error) {
 	return l, nil
 }
 
-// SharedLock takes a co-operative (shared) lock on a directory.
-// This is idempotent when the DirLock already represents a shared lock,
+// SharedLock takes a co-operative (shared) lock on.
+// This is idempotent when the Lock already represents a shared lock,
 // and demotes an exclusive lock to shared atomically.
-// It will block if an exclusive lock is already held on the directory.
-func (l *DirLock) SharedLock() error {
-	return syscall.Flock(l.fd, syscall.LOCK_SH)
+// It will block if an exclusive lock is already held.
+func (l *FileLock) SharedLock() error {
+	return l.Lock(false, false)
 }
 
-// SharedLock takes a co-operative (shared) lock on a directory.
+// SharedRegFileLock takes a co-operative (shared) lock on a file.
+// It will block if an exclusive lock is already held on the file.
+func SharedRegFileLock(path string) (*FileLock, error) {
+	return TrySharedLock(path, false)
+}
+
+// SharedDirLock takes a co-operative (shared) lock on a directory.
 // It will block if an exclusive lock is already held on the directory.
-func SharedLock(dir string) (*DirLock, error) {
-	l, err := NewLock(dir)
+func SharedDirLock(path string) (*FileLock, error) {
+	return TrySharedLock(path, true)
+}
+
+// SharedLock takes a co-operative (shared) lock on a file/directory.
+// It will block if an exclusive lock is already held on the file/directory.
+func SharedLock(path string, isDir bool) (*FileLock, error) {
+	l, err := NewLock(path, isDir)
 	if err != nil {
 		return nil, err
 	}
@@ -128,13 +171,55 @@ func SharedLock(dir string) (*DirLock, error) {
 	return l, nil
 }
 
+// Lock takes a lock on a directory. When exclusive is true, an exclusive lock is
+// requested, elsewhere a co-operative (shared lock) is requested.
+// If try is true it will return ErrLocked if an exclusive (when exclusive is
+// false) or any lock (when exclusive is true) is already held on the
+// directory.
+// If the file is changed between opening and acquiring the lock an
+// ErrLockFileChanged is returned.
+func (l *FileLock) Lock(try bool, exclusive bool) error {
+	var flags int
+	if exclusive {
+		flags = syscall.LOCK_EX
+	} else {
+		flags = syscall.LOCK_SH
+	}
+	if try {
+		flags |= syscall.LOCK_NB
+	}
+
+	err := syscall.Flock(l.fd, flags)
+	if try && err == syscall.EWOULDBLOCK {
+		err = ErrLocked
+	}
+	if err != nil {
+		return err
+	}
+
+	fd, err := syscall.Open(l.path, syscall.O_RDONLY, 0)
+	// If there's an error opening the file return an ErrLockFileChanged
+	if err != nil {
+		return ErrFileChanged
+	}
+	var stat syscall.Stat_t
+	err = syscall.Fstat(fd, &stat)
+	if err != nil {
+		return err
+	}
+	if l.stat.Ino != stat.Ino || l.stat.Dev != stat.Dev {
+		return ErrFileChanged
+	}
+	return nil
+}
+
 // Unlock unlocks the lock
-func (l *DirLock) Unlock() error {
+func (l *FileLock) Unlock() error {
 	return syscall.Flock(l.fd, syscall.LOCK_UN)
 }
 
 // Fd returns the lock's file descriptor, or an error if the lock is closed
-func (l *DirLock) Fd() (int, error) {
+func (l *FileLock) Fd() (int, error) {
 	var err error
 	if l.fd == -1 {
 		err = errors.New("lock closed")
@@ -143,18 +228,22 @@ func (l *DirLock) Fd() (int, error) {
 }
 
 // Close closes the lock which implicitly unlocks it as well
-func (l *DirLock) Close() error {
+func (l *FileLock) Close() error {
 	fd := l.fd
 	l.fd = -1
 	return syscall.Close(fd)
 }
 
-// NewLock opens a new lock on a directory without acquisition
-func NewLock(dir string) (*DirLock, error) {
-	l := &DirLock{dir: dir, fd: -1}
+// NewLock opens a new lock on a file without acquisition
+func NewLock(path string, isDir bool) (*FileLock, error) {
+	l := &FileLock{path: path, fd: -1}
 
+	mode := syscall.O_RDONLY
+	if isDir {
+		mode |= syscall.O_DIRECTORY
+	}
 	// we can't use os.OpenFile as Go sets O_CLOEXEC
-	lfd, err := syscall.Open(l.dir, syscall.O_RDONLY|syscall.O_DIRECTORY, 0)
+	lfd, err := syscall.Open(l.path, mode, 0)
 	if err != nil {
 		if err == syscall.ENOENT {
 			err = ErrNotExist
@@ -164,6 +253,22 @@ func NewLock(dir string) (*DirLock, error) {
 		return nil, err
 	}
 	l.fd = lfd
+	err = syscall.Fstat(lfd, &l.stat)
+	if err != nil {
+		return nil, err
+	}
+	// Check if the file is a regular file
+	if !isDir && !(l.stat.Mode&syscall.S_IFMT == syscall.S_IFREG) {
+		return nil, ErrNotRegular
+	}
 
 	return l, nil
+}
+
+func NewDirLock(path string) (*FileLock, error) {
+	return NewLock(path, true)
+}
+
+func NewFileLock(path string) (*FileLock, error) {
+	return NewLock(path, false)
 }

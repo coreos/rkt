@@ -206,7 +206,7 @@ func makeUniqueContainer(pdir string) (*types.UUID, string, error) {
 }
 
 func lockDir(dir string) error {
-	l, err := lock.TryExclusiveLock(dir)
+	l, err := lock.TryExclusiveDirLock(dir)
 	if err != nil {
 		return fmt.Errorf("error acquiring lock on dir %q: %v", dir, err)
 	}
