@@ -124,13 +124,13 @@ func getAppImageID(c *container) (*types.Hash, error) {
 	case 0:
 		return nil, fmt.Errorf("container contains zero apps")
 	case 1:
-		return &m.Apps[0].ImageID, nil
+		return &m.Apps[0].Image.ID, nil
 	default:
 	}
 
 	stderr("Container contains multiple apps:")
 	for _, ra := range m.Apps {
-		stderr("\t%s: %s", types.ShortHash(ra.ImageID.String()), ra.Name.String())
+		stderr("\t%s: %s", types.ShortHash(ra.Image.ID.String()), ra.Name.String())
 	}
 
 	return nil, fmt.Errorf("specify app using \"rkt enter --imageid ...\"")

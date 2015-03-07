@@ -112,10 +112,14 @@ func Prepare(cfg PrepareConfig, dir string, uuid *types.UUID) error {
 		if am.App == nil {
 			return fmt.Errorf("error: image %s has no app section", img)
 		}
+		rimg := schema.RuntimeImage{
+			Name: am.Name,
+			ID: img,
+		}
 		a := schema.RuntimeApp{
 			Name:        am.Name,
-			ImageID:     img,
-			Isolators:   am.App.Isolators,
+			Image: rimg,
+			App: am.App,
 			Annotations: am.Annotations,
 		}
 		cm.Apps = append(cm.Apps, a)

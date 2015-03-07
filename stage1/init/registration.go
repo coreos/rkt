@@ -39,7 +39,7 @@ func registerContainer(c *Container, ip net.IP) error {
 
 	uid := c.Manifest.UUID.String()
 	for _, app := range c.Manifest.Apps {
-		ampath := common.ImageManifestPath(c.Root, app.ImageID)
+		ampath := common.ImageManifestPath(c.Root, app.Image.ID)
 		amf, err := os.Open(ampath)
 		if err != nil {
 			fmt.Errorf("failed reading app manifest %q: %v", ampath, err)

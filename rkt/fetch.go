@@ -105,7 +105,7 @@ func fetchImage(img string, ds *cas.Store, ks *keystore.Keystore, discover bool)
 }
 
 func fetchImageFromEndpoints(ep *discovery.Endpoints, ds *cas.Store, ks *keystore.Keystore) (string, error) {
-	return downloadImage(ep.ACIEndpoints[0].ACI, ep.ACIEndpoints[0].Sig, "", ds, ks)
+	return downloadImage(ep.ACIEndpoints[0].ACI, ep.ACIEndpoints[0].ASC, "", ds, ks)
 }
 
 func fetchImageFromURL(imgurl string, scheme string, ds *cas.Store, ks *keystore.Keystore) (string, error) {

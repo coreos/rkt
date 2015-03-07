@@ -62,7 +62,7 @@ func LoadContainer(root string) (*Container, error) {
 	c.Manifest = cm
 
 	for _, app := range c.Manifest.Apps {
-		ampath := common.ImageManifestPath(c.Root, app.ImageID)
+		ampath := common.ImageManifestPath(c.Root, app.Image.ID)
 		buf, err := ioutil.ReadFile(ampath)
 		if err != nil {
 			return nil, fmt.Errorf("failed reading app manifest %q: %v", ampath, err)
@@ -239,7 +239,7 @@ func (c *Container) ContainerToSystemd() error {
 			// should never happen
 			panic("app not found in container manifest")
 		}
-		if err := c.appToSystemd(am, a.ImageID); err != nil {
+		if err := c.appToSystemd(am, a.Image.ID); err != nil {
 			return fmt.Errorf("failed to transform app %q into systemd service: %v", am.Name, err)
 		}
 	}
@@ -286,10 +286,18 @@ func (c *Container) appToNspawnArgs(am *schema.ImageManifest, id types.Hash) ([]
 	}
 
 	for _, i := range am.App.Isolators {
-		switch i.Name {
-		case "capabilities/bounding-set":
-			capList := strings.Join(strings.Split(i.Val, " "), ",")
-			args = append(args, "--capability="+capList)
+		switch v := i.Value().(type) {
+		case types.LinuxCapabilitiesSet:
+			var caps []string
+			var s types.LinuxCapabilitiesSet = v
+			// TODO: cleanup the API on LinuxCapabilitiesSet to give strings easily.
+			for _, c := range v.Set() {
+				caps = append(caps, string(c))
+			}
+			if s.Name() == types.LinuxCapabilitiesRetainSetName {
+				capList := strings.Join(caps, ",")
+				args = append(args, "--capability="+capList)
+			}
 		}
 	}
 
@@ -309,7 +317,7 @@ func (c *Container) ContainerToNspawnArgs() ([]string, error) {
 		if a == nil {
 			panic("could not find app in container manifest!")
 		}
-		aa, err := c.appToNspawnArgs(am, a.ImageID)
+		aa, err := c.appToNspawnArgs(am, a.Image.ID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to construct args for app %q: %v", am.Name, err)
 		}
