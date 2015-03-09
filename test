@@ -14,7 +14,7 @@ COVER=${COVER:-"-cover"}
 
 source ./build
 
-TESTABLE_AND_FORMATTABLE="cas pkg/keystore pkg/lock pkg/tar rkt stage1/init"
+TESTABLE_AND_FORMATTABLE="cas pkg/keystore pkg/lock pkg/tar pkg/acirenderer rkt stage1/init"
 FORMATTABLE="$TESTABLE_AND_FORMATTABLE common networking stage0/run.go version"
 
 # user has not provided PKG override
