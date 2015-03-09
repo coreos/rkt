@@ -43,3 +43,37 @@ func TestACKindMarshalGood(t *testing.T) {
 		}
 	}
 }
+
+func TestACKindUnmarshalBad(t *testing.T) {
+	tests := []string{
+		"ImageManifest", // Not a valid JSON-encoded string
+		`"garbage"`,
+		`"AppManifest"`,
+		`""`,
+	}
+	for i, in := range tests {
+		var a, b ACKind
+		err := a.UnmarshalJSON([]byte(in))
+		if err == nil {
+			t.Errorf("#%d: err=nil, want non-nil", i)
+		} else if !reflect.DeepEqual(a, b) {
+			t.Errorf("#%d: a=%v, want empty", i, a)
+		}
+	}
+}
+
+func TestACKindUnmarshalGood(t *testing.T) {
+	tests := map[string]ACKind{
+		`"ContainerRuntimeManifest"`: ACKind("ContainerRuntimeManifest"),
+		`"ImageManifest"`:            ACKind("ImageManifest"),
+	}
+	for in, w := range tests {
+		var a ACKind
+		err := json.Unmarshal([]byte(in), &a)
+		if err != nil {
+			t.Errorf("%v: err=%v, want nil", in, err)
+		} else if !reflect.DeepEqual(a, w) {
+			t.Errorf("%v: a=%v, want %v", in, a, w)
+		}
+	}
+}

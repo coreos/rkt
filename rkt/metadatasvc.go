@@ -345,7 +345,7 @@ func handleAppID(w http.ResponseWriter, r *http.Request, c *mdsContainer, im *sc
 	if a == nil {
 		panic("could not find app in manifest!")
 	}
-	w.Write([]byte(a.ImageID.String()))
+	w.Write([]byte(a.Image.ID.String()))
 }
 
 func initCrypto() error {

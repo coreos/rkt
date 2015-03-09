@@ -55,7 +55,7 @@ func (a *Annotations) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	na := Annotations(ja)
-	if err := a.assertValid(); err != nil {
+	if err := na.assertValid(); err != nil {
 		return err
 	}
 	*a = na

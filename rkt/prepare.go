@@ -30,9 +30,13 @@ var (
 	cmdPrepare = &Command{
 		Name:    "prepare",
 		Summary: "Prepare to run image(s) in an application container in rocket",
-		Usage:   "[--volume name,type=host...] [--quiet] IMAGE...",
+		Usage:   "[--volume name,type=host...] [--quiet] IMAGE [-- image-args...[---]]...",
 		Description: `Image should be a string referencing an image; either a hash, local file on disk, or URL.
-They will be checked in that order and the first match will be used.`,
+They will be checked in that order and the first match will be used.
+
+An "--" may be used to inhibit rkt prepare's parsing of subsequent arguments,
+which will instead be appended to the preceding image app's exec arguments.
+End the image arguments with a lone "---" to resume argument parsing.`,
 		Run: runPrepare,
 	}
 	flagQuiet bool
@@ -43,6 +47,7 @@ func init() {
 	cmdPrepare.Flags.StringVar(&flagStage1Image, "stage1-image", defaultStage1Image, `image to use as stage1. Local paths and http/https URLs are supported. If empty, Rocket will look for a file called "stage1.aci" in the same directory as rkt itself`)
 	cmdPrepare.Flags.Var(&flagVolumes, "volume", "volumes to mount into the shared container environment")
 	cmdPrepare.Flags.BoolVar(&flagQuiet, "quiet", false, "suppress superfluous output on stdout, print only the UUID on success")
+	cmdPrepare.Flags.BoolVar(&flagInheritEnv, "inherit-environment", false, "inherit all environment variables not set by apps")
 }
 
 func runPrepare(args []string) (exit int) {
@@ -54,7 +59,14 @@ func runPrepare(args []string) (exit int) {
 			return 1
 		}
 	}
-	if len(args) < 1 {
+
+	appArgs, images, err := parseAppArgs(args)
+	if err != nil {
+		stderr("prepare: error parsing app image arguments")
+		return 1
+	}
+
+	if len(images) < 1 {
 		stderr("prepare: Must provide at least one image")
 		return 1
 	}
@@ -80,9 +92,14 @@ func runPrepare(args []string) (exit int) {
 		return 1
 	}
 
-	imgs, err := findImages(args, ds, ks)
+	imgs, err := findImages(images, ds, ks)
 	if err != nil {
 		stderr("%v", err)
+		return 1
+	}
+
+	if len(imgs) != len(appArgs) {
+		stderr("Unexpected mismatch of app args and app images")
 		return 1
 	}
 
@@ -99,7 +116,9 @@ func runPrepare(args []string) (exit int) {
 		},
 		Stage1Image: *s1img,
 		Images:      imgs,
+		ExecAppends: appArgs,
 		Volumes:     []types.Volume(flagVolumes),
+		InheritEnv:  flagInheritEnv,
 	}
 
 	if err = stage0.Prepare(pcfg, c.path(), c.uuid); err != nil {

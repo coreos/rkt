@@ -80,6 +80,112 @@ func TestAnnotationsAssertValid(t *testing.T) {
 	}
 }
 
+func TestAnnotationsMarshal(t *testing.T) {
+	for i, tt := range []struct {
+		in   []Annotation
+		wb   []byte
+		werr bool
+	}{
+		{
+			[]Annotation{
+				makeAnno("foo", "bar"),
+				makeAnno("foo", "baz"),
+				makeAnno("website", "http://example.com/anno"),
+			},
+			nil,
+			true,
+		},
+		{
+			[]Annotation{
+				makeAnno("a", "b"),
+			},
+			[]byte(`[{"name":"a","value":"b"}]`),
+			false,
+		},
+		{
+			[]Annotation{
+				makeAnno("foo", "bar"),
+				makeAnno("website", "http://example.com/anno"),
+			},
+			[]byte(`[{"name":"foo","value":"bar"},{"name":"website","value":"http://example.com/anno"}]`),
+			false,
+		},
+	} {
+		a := Annotations(tt.in)
+		b, err := a.MarshalJSON()
+		if !reflect.DeepEqual(b, tt.wb) {
+			t.Errorf("#%d: b=%s, want %s", i, b, tt.wb)
+		}
+		gerr := err != nil
+		if gerr != tt.werr {
+			t.Errorf("#%d: gerr=%t, want %t (err=%v)", i, gerr, tt.werr, err)
+		}
+	}
+}
+
+func TestAnnotationsUnmarshal(t *testing.T) {
+	tests := []struct {
+		in   string
+		wann *Annotations
+		werr bool
+	}{
+		{
+			`garbage`,
+			&Annotations{},
+			true,
+		},
+		{
+			`[{"name":"a","value":"b"},{"name":"a","value":"b"}]`,
+			&Annotations{},
+			true,
+		},
+		{
+			`[{"name":"a","value":"b"}]`,
+			&Annotations{
+				makeAnno("a", "b"),
+			},
+			false,
+		},
+	}
+	for i, tt := range tests {
+		a := &Annotations{}
+		err := a.UnmarshalJSON([]byte(tt.in))
+		gerr := err != nil
+		if gerr != tt.werr {
+			t.Errorf("#%d: gerr=%t, want %t (err=%v)", i, gerr, tt.werr, err)
+		}
+		if !reflect.DeepEqual(a, tt.wann) {
+			t.Errorf("#%d: ann=%#v, want %#v", i, a, tt.wann)
+		}
+	}
+
+}
+
+func TestAnnotationsGet(t *testing.T) {
+	for i, tt := range []struct {
+		in   string
+		wval string
+		wok  bool
+	}{
+		{"foo", "bar", true},
+		{"website", "http://example.com/anno", true},
+		{"baz", "", false},
+		{"wuuf", "", false},
+	} {
+		a := Annotations{
+			makeAnno("foo", "bar"),
+			makeAnno("website", "http://example.com/anno"),
+		}
+		gval, gok := a.Get(tt.in)
+		if gval != tt.wval {
+			t.Errorf("#%d: val=%v, want %v", i, gval, tt.wval)
+		}
+		if gok != tt.wok {
+			t.Errorf("#%d: ok=%t, want %t", i, gok, tt.wok)
+		}
+	}
+}
+
 func TestAnnotationsSet(t *testing.T) {
 	a := Annotations{}
 

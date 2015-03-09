@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/discovery"
@@ -29,6 +30,12 @@ func runDiscover(args []string) (exit int) {
 
 	for _, name := range args {
 		app, err := discovery.NewAppFromString(name)
+		if app.Labels["os"] == "" {
+			app.Labels["os"] = runtime.GOOS
+		}
+		if app.Labels["arch"] == "" {
+			app.Labels["arch"] = runtime.GOARCH
+		}
 		if err != nil {
 			stderr("%s: %s", name, err)
 			return 1
@@ -42,7 +49,7 @@ func runDiscover(args []string) (exit int) {
 			fmt.Printf("discover walk: prefix: %s error: %v\n", a.Prefix, a.Error)
 		}
 		for _, aciEndpoint := range eps.ACIEndpoints {
-			fmt.Printf("ACI: %s, Sig: %s\n", aciEndpoint.ACI, aciEndpoint.Sig)
+			fmt.Printf("ACI: %s, ASC: %s\n", aciEndpoint.ACI, aciEndpoint.ASC)
 		}
 		if len(eps.Keys) > 0 {
 			fmt.Println("Keys: " + strings.Join(eps.Keys, ","))

@@ -19,7 +19,7 @@ type acMeta struct {
 
 type ACIEndpoint struct {
 	ACI string
-	Sig string
+	ASC string
 }
 
 type Endpoints struct {
@@ -135,7 +135,7 @@ func doDiscover(pre string, app App, insecure bool) (*Endpoints, error) {
 		case "ac-discovery":
 			// Ignore not handled variables as {ext} isn't already rendered.
 			uri, _ := renderTemplate(m.uri, tplVars...)
-			sig, ok := renderTemplate(uri, "{ext}", "sig")
+			asc, ok := renderTemplate(uri, "{ext}", "aci.asc")
 			if !ok {
 				continue
 			}
@@ -143,7 +143,7 @@ func doDiscover(pre string, app App, insecure bool) (*Endpoints, error) {
 			if !ok {
 				continue
 			}
-			de.ACIEndpoints = append(de.ACIEndpoints, ACIEndpoint{ACI: aci, Sig: sig})
+			de.ACIEndpoints = append(de.ACIEndpoints, ACIEndpoint{ACI: aci, ASC: asc})
 
 		case "ac-discovery-pubkeys":
 			de.Keys = append(de.Keys, m.uri)
