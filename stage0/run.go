@@ -52,15 +52,16 @@ const (
 // configuration parameters required by Prepare
 type PrepareConfig struct {
 	CommonConfig
+	// TODO(jonboulle): These images are partially-populated hashes, this should be clarified.
 	Stage1Image types.Hash     // stage1 image containing usable /init and /enter entrypoints
 	Images      []types.Hash   // application images
+	ExecAppends [][]string     // appendages to each image's app.exec lines (empty when none, length should match length of Images)
 	Volumes     []types.Volume // list of volumes that rocket can provide to applications
 }
 
 // configuration parameters needed by Run
 type RunConfig struct {
 	CommonConfig
-	// TODO(jonboulle): These images are partially-populated hashes, this should be clarified.
 	PrivateNet       bool // container should have its own network stack
 	SpawnMetadataSvc bool // launch metadata service
 	LockFd           int  // lock file descriptor
@@ -101,7 +102,7 @@ func Prepare(cfg PrepareConfig, dir string, uuid *types.UUID) error {
 	}
 	cm.ACVersion = *v
 
-	for _, img := range cfg.Images {
+	for i, img := range cfg.Images {
 		am, err := setupAppImage(cfg, img, dir)
 		if err != nil {
 			return fmt.Errorf("error setting up image %s: %v", img, err)
@@ -113,10 +114,17 @@ func Prepare(cfg PrepareConfig, dir string, uuid *types.UUID) error {
 			return fmt.Errorf("error: image %s has no app section", img)
 		}
 		a := schema.RuntimeApp{
-			Name:        am.Name,
-			ImageID:     img,
-			Isolators:   am.App.Isolators,
+			// TODO(vc): leverage RuntimeApp.Name for disambiguating the apps
+			Name: am.Name,
+			Image: schema.RuntimeImage{
+				Name: am.Name,
+				ID:   img,
+			},
 			Annotations: am.Annotations,
+		}
+		if len(cfg.ExecAppends[i]) > 0 {
+			a.App = am.App
+			a.App.Exec = append(a.App.Exec, cfg.ExecAppends[i]...)
 		}
 		cm.Apps = append(cm.Apps, a)
 	}

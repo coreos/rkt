@@ -90,7 +90,7 @@ func ValidateLayout(dir string) error {
 // Application Container Image format.  If any errors are encountered during
 // the validation, it will abort and return the first one.
 func ValidateArchive(tr *tar.Reader) error {
-	var flist []string
+	var fseen map[string]bool = make(map[string]bool)
 	var imOK, rfsOK bool
 	var im bytes.Buffer
 Tar:
@@ -118,8 +118,15 @@ Tar:
 			}
 			rfsOK = true
 		default:
-			flist = append(flist, name)
+			if _, seen := fseen[name]; seen {
+				return fmt.Errorf("duplicate file entry in archive: %s", name)
+			}
+			fseen[name] = true
 		}
+	}
+	var flist []string
+	for key := range fseen {
+		flist = append(flist, key)
 	}
 	return validate(imOK, &im, rfsOK, flist)
 }

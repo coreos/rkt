@@ -30,3 +30,19 @@ func TestEmptyApp(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
+
+func TestImageManifestMerge(t *testing.T) {
+	imj := `{"name": "example.com/test"}`
+	im := &ImageManifest{}
+
+	if im.UnmarshalJSON([]byte(imj)) == nil {
+		t.Fatal("Manifest JSON without acKind and acVersion unmarshalled successfully")
+	}
+
+	im = BlankImageManifest()
+
+	err := im.UnmarshalJSON([]byte(imj))
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}

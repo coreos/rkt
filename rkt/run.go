@@ -40,9 +40,13 @@ var (
 	cmdRun               = &Command{
 		Name:    "run",
 		Summary: "Run image(s) in an application container in rocket",
-		Usage:   "[--volume name,type=host...] IMAGE...",
+		Usage:   "[--volume name,type=host...] IMAGE [-- image-args...[---]]...",
 		Description: `IMAGE should be a string referencing an image; either a hash, local file on disk, or URL.
-They will be checked in that order and the first match will be used.`,
+They will be checked in that order and the first match will be used.
+
+An "--" may be used to inhibit rkt run's parsing of subsequent arguments,
+which will instead be appended to the preceding image app's exec arguments.
+End the image arguments with a lone "---" to resume argument parsing.`,
 		Run: runRun,
 	}
 )
@@ -127,11 +131,41 @@ func findImage(img string, ds *cas.Store, ks *keystore.Keystore, discover bool) 
 	return h, nil
 }
 
-func runRun(args []string) (exit int) {
-	if len(args) < 1 {
-		stderr("run: Must provide at least one image")
-		return 1
+// parseAppArgs looks through the remaining arguments for support of per-app argument lists delimited with "--" and "---"
+func parseAppArgs(args []string) ([][]string, []string, error) {
+	// valid args here may either be:
+	// not-"--"; an image specifier
+	// "--"; image arguments begin
+	// "---"; conclude image arguments
+	appArgs := make([][]string, 0)
+	images := make([]string, 0)
+	inAppArgs := false
+	for _, a := range args {
+		if inAppArgs {
+			if a == "---" {
+				// conclude this app's args
+				inAppArgs = false
+			} else {
+				// keep appending to this app's args
+				appArgs[len(appArgs)-1] = append(appArgs[len(appArgs)-1], a)
+			}
+		} else {
+			if a == "--" {
+				// begin app's args, TODO(vc): this could be made more strict/police if deemed necessary
+				inAppArgs = true
+			} else {
+				// this is something else, append it to images
+				// TODO(vc): for now these basically have to be images, but it should be possible to reenter cmdRun.flags.Parse()
+				images = append(images, a)
+				appArgs = append(appArgs, make([]string, 0))
+			}
+		}
 	}
+
+	return appArgs, images, nil
+}
+
+func runRun(args []string) (exit int) {
 	if globalFlags.Dir == "" {
 		log.Printf("dir unset - using temporary directory")
 		var err error
@@ -140,6 +174,17 @@ func runRun(args []string) (exit int) {
 			stderr("error creating temporary directory: %v", err)
 			return 1
 		}
+	}
+
+	appArgs, images, err := parseAppArgs(args)
+	if err != nil {
+		stderr("run: error parsing app image arguments")
+		return 1
+	}
+
+	if len(images) < 1 {
+		stderr("run: Must provide at least one image")
+		return 1
 	}
 
 	ds, err := cas.NewStore(globalFlags.Dir)
@@ -155,9 +200,14 @@ func runRun(args []string) (exit int) {
 		return 1
 	}
 
-	imgs, err := findImages(args, ds, ks)
+	imgs, err := findImages(images, ds, ks)
 	if err != nil {
 		stderr("%v", err)
+		return 1
+	}
+
+	if len(imgs) != len(appArgs) {
+		stderr("Unexpected mismatch of app args and app images")
 		return 1
 	}
 
@@ -176,6 +226,7 @@ func runRun(args []string) (exit int) {
 		CommonConfig: cfg,
 		Stage1Image:  *s1img,
 		Images:       imgs,
+		ExecAppends:  appArgs,
 		Volumes:      []types.Volume(flagVolumes),
 	}
 	err = stage0.Prepare(pcfg, c.path(), c.uuid)

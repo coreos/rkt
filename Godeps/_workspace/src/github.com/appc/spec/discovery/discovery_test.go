@@ -74,11 +74,11 @@ func TestDiscoverEndpoints(t *testing.T) {
 			[]ACIEndpoint{
 				ACIEndpoint{
 					ACI: "https://storage.example.com/example.com/myapp-1.0.0.aci?torrent",
-					Sig: "https://storage.example.com/example.com/myapp-1.0.0.sig?torrent",
+					ASC: "https://storage.example.com/example.com/myapp-1.0.0.aci.asc?torrent",
 				},
 				ACIEndpoint{
 					ACI: "hdfs://storage.example.com/example.com/myapp-1.0.0.aci",
-					Sig: "hdfs://storage.example.com/example.com/myapp-1.0.0.sig",
+					ASC: "hdfs://storage.example.com/example.com/myapp-1.0.0.aci.asc",
 				},
 			},
 			[]string{"https://example.com/pubkeys.gpg"},
@@ -97,11 +97,11 @@ func TestDiscoverEndpoints(t *testing.T) {
 			[]ACIEndpoint{
 				ACIEndpoint{
 					ACI: "https://storage.example.com/example.com/myapp/foobar-1.0.0.aci?torrent",
-					Sig: "https://storage.example.com/example.com/myapp/foobar-1.0.0.sig?torrent",
+					ASC: "https://storage.example.com/example.com/myapp/foobar-1.0.0.aci.asc?torrent",
 				},
 				ACIEndpoint{
 					ACI: "hdfs://storage.example.com/example.com/myapp/foobar-1.0.0.aci",
-					Sig: "hdfs://storage.example.com/example.com/myapp/foobar-1.0.0.sig",
+					ASC: "hdfs://storage.example.com/example.com/myapp/foobar-1.0.0.aci.asc",
 				},
 			},
 			[]string{"https://example.com/pubkeys.gpg"},
@@ -135,7 +135,7 @@ func TestDiscoverEndpoints(t *testing.T) {
 			[]ACIEndpoint{
 				ACIEndpoint{
 					ACI: "https://storage.example.com/example.com/myapp-1.0.0.aci",
-					Sig: "https://storage.example.com/example.com/myapp-1.0.0.sig",
+					ASC: "https://storage.example.com/example.com/myapp-1.0.0.aci.asc",
 				},
 			},
 			[]string{"https://example.com/pubkeys.gpg"},
@@ -152,7 +152,7 @@ func TestDiscoverEndpoints(t *testing.T) {
 			[]ACIEndpoint{
 				ACIEndpoint{
 					ACI: "https://storage.example.com/example.com/myapp-latest.aci",
-					Sig: "https://storage.example.com/example.com/myapp-latest.sig",
+					ASC: "https://storage.example.com/example.com/myapp-latest.aci.asc",
 				},
 			},
 			[]string{"https://example.com/pubkeys.gpg"},
@@ -171,7 +171,7 @@ func TestDiscoverEndpoints(t *testing.T) {
 			[]ACIEndpoint{
 				ACIEndpoint{
 					ACI: "https://storage.example.com/example.com/myapp-1.0.0.aci",
-					Sig: "https://storage.example.com/example.com/myapp-1.0.0.sig",
+					ASC: "https://storage.example.com/example.com/myapp-1.0.0.aci.asc",
 				},
 			},
 			[]string{"https://example.com/pubkeys.gpg"},

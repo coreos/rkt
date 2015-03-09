@@ -7,11 +7,13 @@ import (
 	"compress/gzip"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/schema"
 )
@@ -111,7 +113,6 @@ func XzReader(r io.Reader) io.ReadCloser {
 // ManifestFromImage extracts a new schema.ImageManifest from the given ACI image.
 func ManifestFromImage(rs io.ReadSeeker) (*schema.ImageManifest, error) {
 	var im schema.ImageManifest
-	manifestFound := false
 
 	tr, err := NewCompressedTarReader(rs)
 	if err != nil {
@@ -120,26 +121,24 @@ func ManifestFromImage(rs io.ReadSeeker) (*schema.ImageManifest, error) {
 
 	for {
 		hdr, err := tr.Next()
-		if err != nil {
-			return nil, err
-		}
-		if hdr.Name == "manifest" {
-			data, err := ioutil.ReadAll(tr)
-			if err != nil {
-				return nil, err
+		switch err {
+		case io.EOF:
+			return nil, errors.New("missing manifest")
+		case nil:
+			if filepath.Clean(hdr.Name) == ManifestFile {
+				data, err := ioutil.ReadAll(tr)
+				if err != nil {
+					return nil, err
+				}
+				if err := im.UnmarshalJSON(data); err != nil {
+					return nil, err
+				}
+				return &im, nil
 			}
-			if err := im.UnmarshalJSON(data); err != nil {
-				return nil, err
-			}
-			manifestFound = true
-			break
+		default:
+			return nil, fmt.Errorf("error extracting tarball: %v", err)
 		}
 	}
-
-	if !manifestFound {
-		return nil, errors.New("error: missing manifest")
-	}
-	return &im, nil
 }
 
 // NewCompressedTarReader creates a new tar.Reader reading from the given ACI image.

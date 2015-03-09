@@ -62,7 +62,7 @@ func LoadContainer(root string) (*Container, error) {
 	c.Manifest = cm
 
 	for _, app := range c.Manifest.Apps {
-		ampath := common.ImageManifestPath(c.Root, app.ImageID)
+		ampath := common.ImageManifestPath(c.Root, app.Image.ID)
 		buf, err := ioutil.ReadFile(ampath)
 		if err != nil {
 			return nil, fmt.Errorf("failed reading app manifest %q: %v", ampath, err)
@@ -110,10 +110,14 @@ func newUnitOption(section, name, value string) *unit.UnitOption {
 	return &unit.UnitOption{Section: section, Name: name, Value: value}
 }
 
-// appToSystemd transforms the provided app manifest into systemd units
-func (c *Container) appToSystemd(am *schema.ImageManifest, id types.Hash) error {
-	name := am.Name.String()
+// appToSystemd transforms the provided RuntimeApp+ImageManifest into systemd units
+func (c *Container) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest) error {
+	name := ra.Name.String()
+	id := ra.Image.ID
 	app := am.App
+	if ra.App != nil {
+		app = ra.App
+	}
 
 	workDir := "/"
 	if app.WorkingDirectory != "" {
@@ -234,12 +238,12 @@ func (c *Container) writeEnvFile(env types.Environment, id types.Hash) error {
 // all the constituent apps of the Container
 func (c *Container) ContainerToSystemd() error {
 	for _, am := range c.Apps {
-		a := c.Manifest.Apps.Get(am.Name)
-		if a == nil {
+		ra := c.Manifest.Apps.Get(am.Name)
+		if ra == nil {
 			// should never happen
 			panic("app not found in container manifest")
 		}
-		if err := c.appToSystemd(am, a.ImageID); err != nil {
+		if err := c.appToSystemd(ra, am); err != nil {
 			return fmt.Errorf("failed to transform app %q into systemd service: %v", am.Name, err)
 		}
 	}
@@ -249,9 +253,14 @@ func (c *Container) ContainerToSystemd() error {
 
 // appToNspawnArgs transforms the given app manifest, with the given associated
 // app image id, into a subset of applicable systemd-nspawn argument
-func (c *Container) appToNspawnArgs(am *schema.ImageManifest, id types.Hash) ([]string, error) {
+func (c *Container) appToNspawnArgs(ra *schema.RuntimeApp, am *schema.ImageManifest) ([]string, error) {
 	args := []string{}
-	name := am.Name.String()
+	name := ra.Name.String()
+	id := ra.Image.ID
+	app := am.App
+	if ra.App != nil {
+		app = ra.App
+	}
 
 	vols := make(map[types.ACName]types.Volume)
 
@@ -264,7 +273,7 @@ func (c *Container) appToNspawnArgs(am *schema.ImageManifest, id types.Hash) ([]
 		vols[v.Name] = v
 	}
 
-	for _, mp := range am.App.MountPoints {
+	for _, mp := range app.MountPoints {
 		key := mp.Name
 		vol, ok := vols[key]
 		if !ok {
@@ -286,10 +295,18 @@ func (c *Container) appToNspawnArgs(am *schema.ImageManifest, id types.Hash) ([]
 	}
 
 	for _, i := range am.App.Isolators {
-		switch i.Name {
-		case "capabilities/bounding-set":
-			capList := strings.Join(strings.Split(i.Val, " "), ",")
-			args = append(args, "--capability="+capList)
+		switch v := i.Value().(type) {
+		case types.LinuxCapabilitiesSet:
+			var caps []string
+			var s types.LinuxCapabilitiesSet = v
+			// TODO: cleanup the API on LinuxCapabilitiesSet to give strings easily.
+			for _, c := range v.Set() {
+				caps = append(caps, string(c))
+			}
+			if s.Name() == types.LinuxCapabilitiesRetainSetName {
+				capList := strings.Join(caps, ",")
+				args = append(args, "--capability="+capList)
+			}
 		}
 	}
 
@@ -305,11 +322,11 @@ func (c *Container) ContainerToNspawnArgs() ([]string, error) {
 	}
 
 	for _, am := range c.Apps {
-		a := c.Manifest.Apps.Get(am.Name)
-		if a == nil {
+		ra := c.Manifest.Apps.Get(am.Name)
+		if ra == nil {
 			panic("could not find app in container manifest!")
 		}
-		aa, err := c.appToNspawnArgs(am, a.ImageID)
+		aa, err := c.appToNspawnArgs(ra, am)
 		if err != nil {
 			return nil, fmt.Errorf("failed to construct args for app %q: %v", am.Name, err)
 		}

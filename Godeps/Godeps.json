@@ -11,6 +11,11 @@
 			"Rev": "7dda39b2e7d5e265014674c5af696ba4186679e9"
 		},
 		{
+			"ImportPath": "github.com/GoogleCloudPlatform/kubernetes/pkg/api/resource",
+			"Comment": "v0.12.0-270-g53ec66c",
+			"Rev": "53ec66caf4e952a1384ec93b9f0cde37616e4caf"
+		},
+		{
 			"ImportPath": "github.com/appc/docker2aci/lib",
 			"Rev": "616c01fe7e3d6532768ce9cc4843e97ef6592eb8"
 		},
@@ -20,36 +25,36 @@
 		},
 		{
 			"ImportPath": "github.com/appc/spec/aci",
-			"Comment": "v0.3.0-2-g4c3cbeae4798",
-			"Rev": "4c3cbeae47980d073828dd263a8c982667855f06"
+			"Comment": "v0.3.0-88-g480f581",
+			"Rev": "480f5812e40cb93dbc5270301092368952546bb1"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/actool",
-			"Comment": "v0.3.0-2-g4c3cbeae4798",
-			"Rev": "4c3cbeae47980d073828dd263a8c982667855f06"
+			"Comment": "v0.3.0-88-g480f581",
+			"Rev": "480f5812e40cb93dbc5270301092368952546bb1"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/discovery",
-			"Comment": "v0.3.0-2-g4c3cbeae4798",
-			"Rev": "4c3cbeae47980d073828dd263a8c982667855f06"
+			"Comment": "v0.3.0-88-g480f581",
+			"Rev": "480f5812e40cb93dbc5270301092368952546bb1"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/pkg/tarheader",
-			"Comment": "v0.3.0-2-g4c3cbeae4798",
-			"Rev": "4c3cbeae47980d073828dd263a8c982667855f06"
+			"Comment": "v0.3.0-88-g480f581",
+			"Rev": "480f5812e40cb93dbc5270301092368952546bb1"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/schema",
-			"Comment": "v0.3.0-2-g4c3cbeae4798",
-			"Rev": "4c3cbeae47980d073828dd263a8c982667855f06"
-		},
-		{
-			"ImportPath": "github.com/coreos/go-iptables/iptables",
-			"Rev": "83dfad0f13fd7310fb3c1cb8563248d8d604b95b"
+			"Comment": "v0.3.0-88-g480f581",
+			"Rev": "480f5812e40cb93dbc5270301092368952546bb1"
 		},
 		{
 			"ImportPath": "github.com/camlistore/lock",
 			"Rev": "ae27720f340952636b826119b58130b9c1a847a0"
+		},
+		{
+			"ImportPath": "github.com/coreos/go-iptables/iptables",
+			"Rev": "83dfad0f13fd7310fb3c1cb8563248d8d604b95b"
 		},
 		{
 			"ImportPath": "github.com/coreos/go-semver/semver",
@@ -113,6 +118,10 @@
 			"Rev": "508f5671a72eeaef05cf8c24abe7fbc1c07faf69"
 		},
 		{
+			"ImportPath": "github.com/spf13/pflag",
+			"Rev": "370c3171201099fa6b466db45c8a032cbce33d8d"
+		},
+		{
 			"ImportPath": "github.com/vishvananda/netlink",
 			"Rev": "ae3e7dba57271b4e976c4f91637861ee477135e2"
 		},
@@ -127,6 +136,10 @@
 		{
 			"ImportPath": "golang.org/x/net/html",
 			"Rev": "1dfe7915deaf3f80b962c163b918868d8a6d8974"
+		},
+		{
+			"ImportPath": "speter.net/go/exp/math/dec/inf",
+			"Rev": "42ca6cd68aa922bc3f32f1e056e61b65945d9ad7"
 		}
 	]
 }

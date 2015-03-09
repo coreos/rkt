@@ -7,6 +7,8 @@ import (
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 )
 
+const ContainerRuntimeManifestKind = types.ACKind("ContainerRuntimeManifest")
+
 type ContainerRuntimeManifest struct {
 	ACVersion   types.SemVer      `json:"acVersion"`
 	ACKind      types.ACKind      `json:"acKind"`
@@ -21,8 +23,12 @@ type ContainerRuntimeManifest struct {
 // unmarshalling of the ContainerRuntimeManifest
 type containerRuntimeManifest ContainerRuntimeManifest
 
+func BlankContainerRuntimeManifest() *ContainerRuntimeManifest {
+	return &ContainerRuntimeManifest{ACKind: ContainerRuntimeManifestKind, ACVersion: AppContainerVersion}
+}
+
 func (cm *ContainerRuntimeManifest) UnmarshalJSON(data []byte) error {
-	c := containerRuntimeManifest{}
+	c := containerRuntimeManifest(*cm)
 	err := json.Unmarshal(data, &c)
 	if err != nil {
 		return err
@@ -42,14 +48,16 @@ func (cm ContainerRuntimeManifest) MarshalJSON() ([]byte, error) {
 	return json.Marshal(containerRuntimeManifest(cm))
 }
 
+var cmKindError = types.InvalidACKindError(ContainerRuntimeManifestKind)
+
 // assertValid performs extra assertions on an ContainerRuntimeManifest to
 // ensure that fields are set appropriately, etc. It is used exclusively when
 // marshalling and unmarshalling an ContainerRuntimeManifest. Most
 // field-specific validation is performed through the individual types being
 // marshalled; assertValid() should only deal with higher-level validation.
 func (cm *ContainerRuntimeManifest) assertValid() error {
-	if cm.ACKind != "ContainerRuntimeManifest" {
-		return types.ACKindError(`missing or bad ACKind (must be "ContainerRuntimeManifest")`)
+	if cm.ACKind != ContainerRuntimeManifestKind {
+		return cmKindError
 	}
 	return nil
 }
@@ -89,8 +97,15 @@ func (r Mount) assertValid() error {
 // RuntimeApp describes an application referenced in a ContainerRuntimeManifest
 type RuntimeApp struct {
 	Name        types.ACName      `json:"name"`
-	ImageID     types.Hash        `json:"imageID"`
+	Image       RuntimeImage      `json:"image"`
+	App         *types.App        `json:"app,omitempty"`
 	Mounts      []Mount           `json:"mounts"`
-	Isolators   []types.Isolator  `json:"isolators"`
 	Annotations types.Annotations `json:"annotations"`
+}
+
+// RuntimeImage describes an image referenced in a RuntimeApp
+type RuntimeImage struct {
+	Name   types.ACName `json:"name"`
+	ID     types.Hash   `json:"id"`
+	Labels types.Labels `json:"labels"`
 }

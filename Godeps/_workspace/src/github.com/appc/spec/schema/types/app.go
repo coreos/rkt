@@ -24,7 +24,7 @@ type App struct {
 type app App
 
 func (a *App) UnmarshalJSON(data []byte) error {
-	ja := app{}
+	ja := app(*a)
 	err := json.Unmarshal(data, &ja)
 	if err != nil {
 		return err
