@@ -148,23 +148,23 @@ func (ds Store) ResolveKey(key string) (string, error) {
 		key = key[:lenKey]
 	}
 
-	cancel := make(chan struct{})
-	var k string
-	keyCount := 0
-	for k = range ds.stores[blobType].KeysPrefix(key, cancel) {
-		keyCount++
-		if keyCount > 1 {
-			close(cancel)
-			break
-		}
+	aciInfos := []*ACIInfo{}
+	if err := ds.db.Do(func(tx *sql.Tx) error {
+		var err error
+		aciInfos, err = GetACIInfosWithKeyPrefix(tx, key)
+		return err
+	}); err != nil {
+		return "", fmt.Errorf("error retrieving ACI Infos: %v", err)
 	}
+
+	keyCount := len(aciInfos)
 	if keyCount == 0 {
 		return "", fmt.Errorf("no keys found")
 	}
 	if keyCount != 1 {
 		return "", fmt.Errorf("ambiguous key: %q", key)
 	}
-	return k, nil
+	return aciInfos[0].BlobKey, nil
 }
 
 func (ds Store) ReadStream(key string) (io.ReadCloser, error) {
