@@ -37,7 +37,7 @@ import (
 type Container struct {
 	Root               string // root directory where the container will be located
 	Manifest           *schema.ContainerRuntimeManifest
-	Apps               map[string]*schema.ImageManifest
+	Images             map[string]*schema.ImageManifest
 	MetadataServiceURL string
 	Networks           []string
 }
@@ -46,8 +46,8 @@ type Container struct {
 // its associated Application Manifests, under $root/stage1/opt/stage1/$apphash
 func LoadContainer(root string) (*Container, error) {
 	c := &Container{
-		Root: root,
-		Apps: make(map[string]*schema.ImageManifest),
+		Root:   root,
+		Images: make(map[string]*schema.ImageManifest),
 	}
 
 	buf, err := ioutil.ReadFile(common.ContainerManifestPath(c.Root))
@@ -62,21 +62,21 @@ func LoadContainer(root string) (*Container, error) {
 	c.Manifest = cm
 
 	for _, app := range c.Manifest.Apps {
-		ampath := common.ImageManifestPath(c.Root, app.Image.ID)
-		buf, err := ioutil.ReadFile(ampath)
+		impath := common.ImageManifestPath(c.Root, app.Image.ID)
+		buf, err := ioutil.ReadFile(impath)
 		if err != nil {
-			return nil, fmt.Errorf("failed reading app manifest %q: %v", ampath, err)
+			return nil, fmt.Errorf("failed reading app manifest %q: %v", impath, err)
 		}
 
-		am := &schema.ImageManifest{}
-		if err = json.Unmarshal(buf, am); err != nil {
-			return nil, fmt.Errorf("failed unmarshalling app manifest %q: %v", ampath, err)
+		im := &schema.ImageManifest{}
+		if err = json.Unmarshal(buf, im); err != nil {
+			return nil, fmt.Errorf("failed unmarshalling app manifest %q: %v", impath, err)
 		}
-		name := am.Name.String()
-		if _, ok := c.Apps[name]; ok {
+		name := im.Name.String()
+		if _, ok := c.Images[name]; ok {
 			return nil, fmt.Errorf("got multiple definitions for app: %s", name)
 		}
-		c.Apps[name] = am
+		c.Images[name] = im
 	}
 
 	return c, nil
@@ -244,14 +244,15 @@ func (c *Container) writeEnvFile(env types.Environment, id types.Hash) error {
 // ContainerToSystemd creates the appropriate systemd service unit files for
 // all the constituent apps of the Container
 func (c *Container) ContainerToSystemd(interactive bool) error {
-	for _, am := range c.Apps {
-		ra := c.Manifest.Apps.Get(am.Name)
-		if ra == nil {
-			// should never happen
-			panic("app not found in container manifest")
+	for _, ra := range c.Manifest.Apps {
+		imgName := ra.Image.Name.String()
+		im, ok := c.Images[imgName]
+		if !ok {
+			panic("referenced image not found")
 		}
-		if err := c.appToSystemd(ra, am, interactive); err != nil {
-			return fmt.Errorf("failed to transform app %q into systemd service: %v", am.Name, err)
+
+		if err := c.appToSystemd(&ra, im, interactive); err != nil {
+			return fmt.Errorf("failed to transform app %q into systemd service: %v", im.Name, err)
 		}
 	}
 
@@ -269,22 +270,26 @@ func (c *Container) appToNspawnArgs(ra *schema.RuntimeApp, am *schema.ImageManif
 		app = ra.App
 	}
 
+	// there are global "volumes" and per-app "mounts" linking those volumes to a per-app "mountpoint"
+	// here we relate them: app.MountPoints to c.Manifest.Volumes via ra.Mounts.
 	vols := make(map[types.ACName]types.Volume)
-
-	// TODO(philips): this is implicitly creating a mapping from MountPoint
-	// to volumes. This is a nice convenience for users but we will need to
-	// introduce a --mount flag so they can control which mountPoint maps to
-	// which volume.
-
 	for _, v := range c.Manifest.Volumes {
 		vols[v.Name] = v
 	}
 
+	mnts := make(map[types.ACName]types.ACName)
+	for _, m := range ra.Mounts {
+		mnts[m.MountPoint] = m.Volume
+	}
+
 	for _, mp := range app.MountPoints {
-		key := mp.Name
+		key, ok := mnts[mp.Name]
+		if !ok {
+			return nil, fmt.Errorf("no mount for mountpoint %q in app %q", mp.Name, name)
+		}
 		vol, ok := vols[key]
 		if !ok {
-			return nil, fmt.Errorf("no volume for mountpoint %q in app %q", key, name)
+			return nil, fmt.Errorf("no volume for mount %q:%q in app %q", mp.Name, key, name)
 		}
 		opt := make([]string, 4)
 
@@ -327,14 +332,16 @@ func (c *Container) ContainerToNspawnArgs() ([]string, error) {
 		"--directory=" + common.Stage1RootfsPath(c.Root),
 	}
 
-	for _, am := range c.Apps {
-		ra := c.Manifest.Apps.Get(am.Name)
-		if ra == nil {
-			panic("could not find app in container manifest!")
+	for _, ra := range c.Manifest.Apps {
+		imgName := ra.Image.Name.String()
+		im, ok := c.Images[imgName]
+		if !ok {
+			panic("referenced image not found")
 		}
-		aa, err := c.appToNspawnArgs(ra, am)
+
+		aa, err := c.appToNspawnArgs(&ra, im)
 		if err != nil {
-			return nil, fmt.Errorf("failed to construct args for app %q: %v", am.Name, err)
+			return nil, fmt.Errorf("failed to construct args for app %q: %v", im.Name, err)
 		}
 		args = append(args, aa...)
 	}
