@@ -82,6 +82,9 @@ func main() {
 	for _, c := range commands {
 		if c.Name == args[0] {
 			cmd = c
+			globalFlagset.VisitAll(func(f *flag.Flag) {
+				c.Flags.Var(f.Value, f.Name, f.Usage)
+			})
 			if err := c.Flags.Parse(args[1:]); err != nil {
 				stderr("%v", err)
 				os.Exit(2)
