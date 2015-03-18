@@ -32,12 +32,14 @@ var (
 		Usage:   "",
 		Run:     runList,
 	}
-	flagNoLegend bool
+	flagNoLegend   bool
+	flagLongOutput bool
 )
 
 func init() {
 	commands = append(commands, cmdList)
 	cmdList.Flags.BoolVar(&flagNoLegend, "no-legend", false, "suppress a legend with the list")
+	cmdList.Flags.BoolVar(&flagLongOutput, "long", false, "use long output format")
 }
 
 func runList(args []string) (exit int) {
@@ -70,7 +72,14 @@ func runList(args []string) (exit int) {
 			app_zero = m.Apps[0].Name.String()
 		}
 
-		fmt.Fprintf(tabOut, "%s\t%s\t%s\t%s\n", c.uuid, app_zero, c.getState(), fmtNets(c.nets))
+		uuid := ""
+		if flagLongOutput {
+			uuid = c.uuid.String()
+		} else {
+			uuid = c.uuid.String()[:8]
+		}
+
+		fmt.Fprintf(tabOut, "%s\t%s\t%s\t%s\n", uuid, app_zero, c.getState(), fmtNets(c.nets))
 		for i := 1; i < len(m.Apps); i++ {
 			fmt.Fprintf(tabOut, "\t%s\n", m.Apps[i].Name.String())
 		}
