@@ -35,6 +35,7 @@ var (
 
 	flagStage1Image          string
 	flagVolumes              volumeList
+	flagMounts               mountsMap
 	flagPrivateNet           bool
 	flagSpawnMetadataService bool
 	flagInheritEnv           bool
@@ -43,13 +44,17 @@ var (
 	cmdRun                   = &Command{
 		Name:    "run",
 		Summary: "Run image(s) in an application container in rocket",
-		Usage:   "[--volume name,kind=host,...] IMAGE [-- image-args...[---]]...",
-		Description: `IMAGE should be a string referencing an image; either a hash, local file on disk, or URL.
+		Usage:   "[--volume VOL,type=host,...] [--mount APP,VOL,MNT] APP=IMAGE [-- image-args...[---]]...",
+		Description: `APP must be an unique name for addressing the application within this rkt invocation.
+IMAGE should be a string referencing an image; either a hash, local file on disk, or URL.
 They will be checked in that order and the first match will be used.
 
 An "--" may be used to inhibit rkt run's parsing of subsequent arguments,
 which will instead be appended to the preceding image app's exec arguments.
-End the image arguments with a lone "---" to resume argument parsing.`,
+End the image arguments with a lone "---" to resume argument parsing.
+
+Bind mounts are made available to the container as volumes via --volume,
+then mounted into specific apps via --mount.`,
 		Run: runRun,
 	}
 )
@@ -66,7 +71,8 @@ func init() {
 	}
 
 	cmdRun.Flags.StringVar(&flagStage1Image, "stage1-image", defaultStage1Image, `image to use as stage1. Local paths and http/https URLs are supported. If empty, Rocket will look for a file called "stage1.aci" in the same directory as rkt itself`)
-	cmdRun.Flags.Var(&flagVolumes, "volume", "volumes to mount into the shared container environment")
+	cmdRun.Flags.Var(&flagVolumes, "volume", "volumes to make available for mounting in the shared container environment")
+	cmdRun.Flags.Var(&flagMounts, "mount", "mounts to mount volumes at specific per-app mountpoints")
 	cmdRun.Flags.BoolVar(&flagPrivateNet, "private-net", false, "give container a private network")
 	cmdRun.Flags.BoolVar(&flagSpawnMetadataService, "spawn-metadata-svc", false, "launch metadata svc if not running")
 	cmdRun.Flags.BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
@@ -75,18 +81,20 @@ func init() {
 	flagVolumes = volumeList{}
 }
 
-// findImages uses findImage to attain a list of image hashes using discovery if necessary
-func findImages(args []string, ds *cas.Store, ks *keystore.Keystore) (out []types.Hash, err error) {
-	out = make([]types.Hash, len(args))
-	for i, img := range args {
+// findImages uses findImage to attain a list of image hashes using discovery if necessary.
+// On success a list of hashes will be returned, or nil on error.
+func findImages(images []string, ds *cas.Store, ks *keystore.Keystore) (hashes []types.Hash, err error) {
+	hashes = make([]types.Hash, len(images))
+
+	for i, img := range images {
 		h, err := findImage(img, ds, ks, true)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to find image %q: %v", img, err)
 		}
-		out[i] = *h
+		hashes[i] = *h
 	}
 
-	return out, nil
+	return hashes, nil
 }
 
 // findImage will recognize a ACI hash and use that, import a local file, use
@@ -137,6 +145,36 @@ func findImage(img string, ds *cas.Store, ks *keystore.Keystore, discover bool) 
 	return h, nil
 }
 
+// parseApps splits appname=appimage args into an array of names and images
+func parseApps(args []string) (names []*types.ACName, images []string, err error) {
+	dict := make(map[string]struct{})
+	names = make([]*types.ACName, len(args))
+	images = make([]string, len(args))
+
+	if len(args) < 1 {
+		return nil, nil, fmt.Errorf("at least one APP=IMAGE pair required")
+	}
+
+	for i, app := range args {
+		pair := strings.SplitN(app, "=", 2)
+		if len(pair) != 2 {
+			return nil, nil, fmt.Errorf("app %q must be specified in the form APP=IMAGE", app)
+		}
+
+		if _, exists := dict[pair[0]]; exists {
+			return nil, nil, fmt.Errorf("app name %q repeated, uniqueness required", pair[0])
+		}
+
+		names[i], err = types.NewACName(pair[0])
+		if err != nil {
+			return nil, nil, fmt.Errorf("name %q invalid in %q: %v", pair[0], app, err)
+		}
+		images[i] = pair[1]
+	}
+
+	return names, images, nil
+}
+
 // parseAppArgs looks through the remaining arguments for support of per-app argument lists delimited with "--" and "---"
 func parseAppArgs(args []string) ([][]string, []string, error) {
 	// valid args here may either be:
@@ -176,29 +214,35 @@ func parseAppArgs(args []string) ([][]string, []string, error) {
 }
 
 func runRun(args []string) (exit int) {
-	if flagInteractive && len(args) > 1 {
+	appArgs, apps, err := parseAppArgs(args)
+	if err != nil {
+		stderr("run: error parsing app image arguments: %v", err)
+		return 1
+	}
+
+	if flagInteractive && len(apps) > 1 {
 		stderr("run: interactive option only supports one image")
 		return 1
 	}
+
+	appNames, appImages, err := parseApps(apps)
+	if err != nil {
+		stderr("run: error parsing apps: %v", err)
+		return 1
+	}
+
+	if err := flagMounts.ValidateAppNames(appNames); err != nil {
+		stderr("run: invalid mounts: %v", err)
+		return 1
+	}
+
 	if globalFlags.Dir == "" {
 		log.Printf("dir unset - using temporary directory")
-		var err error
 		globalFlags.Dir, err = ioutil.TempDir("", "rkt")
 		if err != nil {
 			stderr("error creating temporary directory: %v", err)
 			return 1
 		}
-	}
-
-	appArgs, images, err := parseAppArgs(args)
-	if err != nil {
-		stderr("run: error parsing app image arguments")
-		return 1
-	}
-
-	if len(images) < 1 {
-		stderr("run: Must provide at least one image")
-		return 1
 	}
 
 	ds, err := cas.NewStore(globalFlags.Dir)
@@ -210,18 +254,18 @@ func runRun(args []string) (exit int) {
 
 	s1img, err := findImage(flagStage1Image, ds, ks, false)
 	if err != nil {
-		stderr("Error finding stage1 image %q: %v", flagStage1Image, err)
+		stderr("run: error finding stage1 image %q: %v", flagStage1Image, err)
 		return 1
 	}
 
-	imgs, err := findImages(images, ds, ks)
+	imgHashes, err := findImages(appImages, ds, ks)
 	if err != nil {
 		stderr("%v", err)
 		return 1
 	}
 
-	if len(imgs) != len(appArgs) {
-		stderr("Unexpected mismatch of app args and app images")
+	if len(imgHashes) != len(appArgs) || len(appArgs) != len(appNames) {
+		stderr("Unexpected mismatch of app args, images, or names")
 		return 1
 	}
 
@@ -239,15 +283,24 @@ func runRun(args []string) (exit int) {
 	pcfg := stage0.PrepareConfig{
 		CommonConfig: cfg,
 		Stage1Image:  *s1img,
-		Images:       imgs,
-		ExecAppends:  appArgs,
 		Volumes:      []types.Volume(flagVolumes),
 		InheritEnv:   flagInheritEnv,
 		ExplicitEnv:  flagExplicitEnv.Strings(),
 	}
+
+	for i, hash := range imgHashes {
+		appConf := stage0.PrepareAppConfig{
+			Name:       *appNames[i],
+			Image:      hash,
+			ExecAppend: appArgs[i],
+			Mounts:     flagMounts.GetAppMounts(appNames[i]),
+		}
+		pcfg.AppConfigs = append(pcfg.AppConfigs, appConf)
+	}
+
 	err = stage0.Prepare(pcfg, c.path(), c.uuid)
 	if err != nil {
-		stderr("run: error setting up stage0: %v", err)
+		stderr("run: error preparing stage0: %v", err)
 		return 1
 	}
 
@@ -274,28 +327,6 @@ func runRun(args []string) (exit int) {
 	stage0.Run(rcfg, c.path()) // execs, never returns
 
 	return 1
-}
-
-// volumeList implements the flag.Value interface to contain a set of mappings
-// from mount label --> mount path
-type volumeList []types.Volume
-
-func (vl *volumeList) Set(s string) error {
-	vol, err := types.VolumeFromString(s)
-	if err != nil {
-		return err
-	}
-
-	*vl = append(*vl, *vol)
-	return nil
-}
-
-func (vl *volumeList) String() string {
-	var vs []string
-	for _, v := range []types.Volume(*vl) {
-		vs = append(vs, v.String())
-	}
-	return strings.Join(vs, " ")
 }
 
 // envMap implements the flag.Value interface to contain a set of name=value mappings

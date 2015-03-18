@@ -47,16 +47,23 @@ const (
 	envLockFd = "RKT_LOCK_FD"
 )
 
+// per-app configuration parameters required by Prepare
+type PrepareAppConfig struct {
+	// TODO(jonboulle): These images are partially-populated hashes, this should be clarified.
+	Name       types.ACName   // unique name given to this app on rkt cli
+	Image      types.Hash     // image backing this app
+	ExecAppend []string       // any appendages to the app.exec lines
+	Mounts     []schema.Mount // volume->mountpoint mapping for this app
+}
+
 // configuration parameters required by Prepare
 type PrepareConfig struct {
 	CommonConfig
-	// TODO(jonboulle): These images are partially-populated hashes, this should be clarified.
-	Stage1Image types.Hash     // stage1 image containing usable /init and /enter entrypoints
-	Images      []types.Hash   // application images
-	ExecAppends [][]string     // appendages to each image's app.exec lines (empty when none, length should match length of Images)
-	Volumes     []types.Volume // list of volumes that rocket can provide to applications
-	InheritEnv  bool           // inherit parent environment into apps
-	ExplicitEnv []string       // always set these environment variables for all the apps
+	Stage1Image types.Hash         // stage1 image containing usable /init and /enter entrypoints
+	AppConfigs  []PrepareAppConfig // constituent application images and per-app settings
+	Volumes     []types.Volume     // list of volumes that rocket can provide to applications
+	InheritEnv  bool               // inherit parent environment into all apps
+	ExplicitEnv []string           // always set these environment variables for all the apps
 }
 
 // configuration parameters needed by Run
@@ -121,43 +128,50 @@ func Prepare(cfg PrepareConfig, dir string, uuid *types.UUID) error {
 	}
 	cm.ACVersion = *v
 
-	for i, img := range cfg.Images {
-		am, err := setupAppImage(cfg, img, dir)
+	for _, appConf := range cfg.AppConfigs {
+		im, err := setupAppImage(cfg, appConf.Image, dir)
 		if err != nil {
-			return fmt.Errorf("error setting up image %s: %v", img, err)
+			return fmt.Errorf("error setting up image %s: %v", appConf.Image, err)
 		}
-		if cm.Apps.Get(am.Name) != nil {
-			return fmt.Errorf("error: multiple apps with name %s", am.Name)
-		}
-		if am.App == nil {
-			return fmt.Errorf("error: image %s has no app section", img)
-		}
-		a := schema.RuntimeApp{
-			// TODO(vc): leverage RuntimeApp.Name for disambiguating the apps
-			Name: am.Name,
-			Image: schema.RuntimeImage{
-				Name: am.Name,
-				ID:   img,
-			},
-			Annotations: am.Annotations,
+		if im.App == nil {
+			return fmt.Errorf("error: image %s has no app section", appConf.Image)
 		}
 
-		if len(cfg.ExecAppends[i]) > 0 {
-			a.App = am.App
-			a.App.Exec = append(a.App.Exec, cfg.ExecAppends[i]...)
+	nextMountPoint:
+		for _, mp := range im.App.MountPoints {
+			for _, cfm := range appConf.Mounts {
+				if cfm.MountPoint.Equals(mp.Name) {
+					continue nextMountPoint
+				}
+			}
+			return fmt.Errorf("error: app %q image %q requires mount %q", appConf.Name, appConf.Image, mp.Name)
+		}
+
+		a := schema.RuntimeApp{
+			Name: appConf.Name,
+			Image: schema.RuntimeImage{
+				Name: im.Name,
+				ID:   appConf.Image,
+			},
+			Annotations: im.Annotations,
+			Mounts:      appConf.Mounts,
+		}
+
+		if len(appConf.ExecAppend) > 0 {
+			a.App = im.App
+			a.App.Exec = append(a.App.Exec, appConf.ExecAppend...)
 		}
 
 		if cfg.InheritEnv || len(cfg.ExplicitEnv) > 0 {
 			if a.App == nil {
-				a.App = am.App
+				a.App = im.App
 			}
 			MergeEnvs(&a.App.Environment, cfg.InheritEnv, cfg.ExplicitEnv)
 		}
+
 		cm.Apps = append(cm.Apps, a)
 	}
 
-	// TODO(jonboulle): check that app mountpoint expectations are
-	// satisfied here, rather than waiting for stage1
 	cm.Volumes = cfg.Volumes
 
 	cdoc, err := json.Marshal(cm)
