@@ -91,7 +91,7 @@ func printStatus(c *container) error {
 
 		stdout("pid=%d\nexited=%t", pid, c.isExited)
 		for app, stat := range stats {
-			stdout("%s=%d", app, stat)
+			stdout("app=%s=%d", app.String(), stat)
 		}
 	}
 	return nil

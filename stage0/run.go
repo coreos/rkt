@@ -129,7 +129,7 @@ func Prepare(cfg PrepareConfig, dir string, uuid *types.UUID) error {
 	cm.ACVersion = *v
 
 	for _, appConf := range cfg.AppConfigs {
-		im, err := setupAppImage(cfg, appConf.Image, dir)
+		im, err := setupAppImage(cfg, appConf, dir)
 		if err != nil {
 			return fmt.Errorf("error setting up image %s: %v", appConf.Image, err)
 		}
@@ -232,16 +232,16 @@ func Run(cfg RunConfig, dir string) {
 // directory in the given dir.
 // It returns the ImageManifest that the image contains.
 // TODO(jonboulle): tighten up the Hash type here; currently it is partially-populated (i.e. half-length sha512)
-func setupAppImage(cfg PrepareConfig, img types.Hash, cdir string) (*schema.ImageManifest, error) {
-	log.Println("Loading image", img.String())
+func setupAppImage(cfg PrepareConfig, app PrepareAppConfig, cdir string) (*schema.ImageManifest, error) {
+	log.Println("Loading image", app.Image.String())
 
-	ad := common.AppImagePath(cdir, img)
+	ad := common.AppImagePath(cdir, &app.Name)
 	err := os.MkdirAll(ad, 0776)
 	if err != nil {
-		return nil, fmt.Errorf("error creating image directory: %v", err)
+		return nil, fmt.Errorf("error creating app directory: %v", err)
 	}
 
-	if err := aci.RenderACIWithImageID(img, ad, cfg.Store); err != nil {
+	if err := aci.RenderACIWithImageID(app.Image, ad, cfg.Store); err != nil {
 		return nil, fmt.Errorf("error rendering app image: %v", err)
 	}
 
@@ -250,7 +250,7 @@ func setupAppImage(cfg PrepareConfig, img types.Hash, cdir string) (*schema.Imag
 		return nil, fmt.Errorf("error creating tmp directory: %v", err)
 	}
 
-	b, err := ioutil.ReadFile(common.ImageManifestPath(cdir, img))
+	b, err := ioutil.ReadFile(common.ImageManifestPath(cdir, &app.Name))
 	if err != nil {
 		return nil, fmt.Errorf("error reading app manifest: %v", err)
 	}

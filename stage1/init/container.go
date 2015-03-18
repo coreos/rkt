@@ -62,7 +62,7 @@ func LoadContainer(root string) (*Container, error) {
 	c.Manifest = cm
 
 	for _, app := range c.Manifest.Apps {
-		impath := common.ImageManifestPath(c.Root, app.Image.ID)
+		impath := common.ImageManifestPath(c.Root, &app.Name)
 		buf, err := ioutil.ReadFile(impath)
 		if err != nil {
 			return nil, fmt.Errorf("failed reading app manifest %q: %v", impath, err)
@@ -72,6 +72,7 @@ func LoadContainer(root string) (*Container, error) {
 		if err = json.Unmarshal(buf, im); err != nil {
 			return nil, fmt.Errorf("failed unmarshalling app manifest %q: %v", impath, err)
 		}
+		/* TODO(vc): this no longer needs to be policed */
 		name := im.Name.String()
 		if _, ok := c.Images[name]; ok {
 			return nil, fmt.Errorf("got multiple definitions for app: %s", name)
@@ -112,10 +113,9 @@ func newUnitOption(section, name, value string) *unit.UnitOption {
 }
 
 // appToSystemd transforms the provided RuntimeApp+ImageManifest into systemd units
-func (c *Container) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest, interactive bool) error {
+func (c *Container) appToSystemd(ra *schema.RuntimeApp, im *schema.ImageManifest, interactive bool) error {
 	name := ra.Name.String()
-	id := ra.Image.ID
-	app := am.App
+	app := im.App
 	if ra.App != nil {
 		app = ra.App
 	}
@@ -127,13 +127,14 @@ func (c *Container) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest
 
 	env := app.Environment
 	env.Set("AC_APP_NAME", name)
+	env.Set("AC_IMAGE_NAME", ra.Image.Name.String()) // TODO(vc): does this make more sense? should the spec be changed to this?
 	env.Set("AC_METADATA_URL", c.MetadataServiceURL)
 
-	if err := c.writeEnvFile(env, id); err != nil {
+	if err := c.writeEnvFile(env, ra); err != nil {
 		return fmt.Errorf("unable to write environment file: %v", err)
 	}
 
-	execWrap := []string{"/diagexec", common.RelAppRootfsPath(id), workDir, RelEnvFilePath(id)}
+	execWrap := []string{"/diagexec", common.RelAppRootfsPath(&ra.Name), workDir, RelEnvFilePath(ra)}
 	execStart := quoteExec(append(execWrap, app.Exec...))
 	opts := []*unit.UnitOption{
 		newUnitOption("Unit", "Description", name),
@@ -179,7 +180,7 @@ func (c *Container) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest
 			newUnitOption("Unit", "Description", name+" socket-activated ports"),
 			newUnitOption("Unit", "DefaultDependencies", "false"),
 			newUnitOption("Socket", "BindIPv6Only", "both"),
-			newUnitOption("Socket", "Service", ServiceUnitName(id)),
+			newUnitOption("Socket", "Service", ServiceUnitName(ra)),
 		}
 
 		for _, sap := range saPorts {
@@ -195,7 +196,7 @@ func (c *Container) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest
 			sockopts = append(sockopts, newUnitOption("Socket", proto, fmt.Sprintf("%v", sap.Port)))
 		}
 
-		file, err := os.OpenFile(SocketUnitPath(c.Root, id), os.O_WRONLY|os.O_CREATE, 0644)
+		file, err := os.OpenFile(SocketUnitPath(c.Root, ra), os.O_WRONLY|os.O_CREATE, 0644)
 		if err != nil {
 			return fmt.Errorf("failed to create socket file: %v", err)
 		}
@@ -205,17 +206,17 @@ func (c *Container) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest
 			return fmt.Errorf("failed to write socket unit file: %v", err)
 		}
 
-		if err = os.Symlink(path.Join("..", SocketUnitName(id)), SocketWantPath(c.Root, id)); err != nil {
+		if err = os.Symlink(path.Join("..", SocketUnitName(ra)), SocketWantPath(c.Root, ra)); err != nil {
 			return fmt.Errorf("failed to link socket want: %v", err)
 		}
 
-		opts = append(opts, newUnitOption("Unit", "Requires", SocketUnitName(id)))
+		opts = append(opts, newUnitOption("Unit", "Requires", SocketUnitName(ra)))
 	}
 
-	opts = append(opts, newUnitOption("Unit", "Requires", InstantiatedPrepareAppUnitName(id)))
-	opts = append(opts, newUnitOption("Unit", "After", InstantiatedPrepareAppUnitName(id)))
+	opts = append(opts, newUnitOption("Unit", "Requires", InstantiatedPrepareAppUnitName(ra)))
+	opts = append(opts, newUnitOption("Unit", "After", InstantiatedPrepareAppUnitName(ra)))
 
-	file, err := os.OpenFile(ServiceUnitPath(c.Root, id), os.O_WRONLY|os.O_CREATE, 0644)
+	file, err := os.OpenFile(ServiceUnitPath(c.Root, ra), os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to create service unit file: %v", err)
 	}
@@ -225,20 +226,20 @@ func (c *Container) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest
 		return fmt.Errorf("failed to write service unit file: %v", err)
 	}
 
-	if err = os.Symlink(path.Join("..", ServiceUnitName(id)), ServiceWantPath(c.Root, id)); err != nil {
+	if err = os.Symlink(path.Join("..", ServiceUnitName(ra)), ServiceWantPath(c.Root, ra)); err != nil {
 		return fmt.Errorf("failed to link service want: %v", err)
 	}
 
 	return nil
 }
 
-// writeEnvFile creates an environment file for given app id
-func (c *Container) writeEnvFile(env types.Environment, id types.Hash) error {
+// writeEnvFile creates an environment file for given app
+func (c *Container) writeEnvFile(env types.Environment, app *schema.RuntimeApp) error {
 	ef := bytes.Buffer{}
 	for _, e := range env {
 		fmt.Fprintf(&ef, "%s=%s\000", e.Name, e.Value)
 	}
-	return ioutil.WriteFile(EnvFilePath(c.Root, id), ef.Bytes(), 0640)
+	return ioutil.WriteFile(EnvFilePath(c.Root, app), ef.Bytes(), 0640)
 }
 
 // ContainerToSystemd creates the appropriate systemd service unit files for
@@ -264,7 +265,6 @@ func (c *Container) ContainerToSystemd(interactive bool) error {
 func (c *Container) appToNspawnArgs(ra *schema.RuntimeApp, am *schema.ImageManifest) ([]string, error) {
 	args := []string{}
 	name := ra.Name.String()
-	id := ra.Image.ID
 	app := am.App
 	if ra.App != nil {
 		app = ra.App
@@ -301,7 +301,7 @@ func (c *Container) appToNspawnArgs(ra *schema.RuntimeApp, am *schema.ImageManif
 
 		opt[1] = vol.Source
 		opt[2] = ":"
-		opt[3] = filepath.Join(common.RelAppRootfsPath(id), mp.Path)
+		opt[3] = filepath.Join(common.RelAppRootfsPath(&ra.Name), mp.Path)
 
 		args = append(args, strings.Join(opt, ""))
 	}
