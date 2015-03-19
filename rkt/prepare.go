@@ -46,6 +46,7 @@ func init() {
 	commands = append(commands, cmdPrepare)
 	cmdPrepare.Flags.StringVar(&flagStage1Image, "stage1-image", defaultStage1Image, `image to use as stage1. Local paths and http/https URLs are supported. If empty, Rocket will look for a file called "stage1.aci" in the same directory as rkt itself`)
 	cmdPrepare.Flags.Var(&flagVolumes, "volume", "volumes to mount into the shared container environment")
+	cmdPrepare.Flags.Var(&flagMounts, "mount", "mounts to mount volumes at specific per-app mountpoints")
 	cmdPrepare.Flags.BoolVar(&flagQuiet, "quiet", false, "suppress superfluous output on stdout, print only the UUID on success")
 	cmdPrepare.Flags.BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
 	cmdPrepare.Flags.Var(&flagExplicitEnv, "set-env", "an environment variable to set for apps in the form name=value")
@@ -61,16 +62,23 @@ func runPrepare(args []string) (exit int) {
 		}
 	}
 
-	appArgs, images, err := parseAppArgs(args)
+	appArgs, apps, err := parseAppArgs(args)
 	if err != nil {
-		stderr("prepare: error parsing app image arguments")
+		stderr("prepare: error parsing app image arguments: %v", err)
 		return 1
 	}
 
-	if len(images) < 1 {
-		stderr("prepare: Must provide at least one image")
+	appNames, appImages, err := parseApps(apps)
+	if err != nil {
+		stderr("prepare: error parsing apps: %v", err)
 		return 1
 	}
+
+	if err := flagMounts.ValidateAppNames(appNames); err != nil {
+		stderr("prepare: invalid mounts: %v", err)
+		return 1
+	}
+
 	if globalFlags.Dir == "" {
 		log.Printf("dir unset - using temporary directory")
 		globalFlags.Dir, err = ioutil.TempDir("", "rkt")
@@ -93,14 +101,14 @@ func runPrepare(args []string) (exit int) {
 		return 1
 	}
 
-	imgs, err := findImages(images, ds, ks)
+	imgHashes, err := findImages(appImages, ds, ks)
 	if err != nil {
 		stderr("%v", err)
 		return 1
 	}
 
-	if len(imgs) != len(appArgs) {
-		stderr("Unexpected mismatch of app args and app images")
+	if len(imgHashes) != len(appArgs) || len(appArgs) != len(appNames) {
+		stderr("prepare: unexpected mismatch of app args, images, or names")
 		return 1
 	}
 
@@ -116,15 +124,23 @@ func runPrepare(args []string) (exit int) {
 			Debug: globalFlags.Debug,
 		},
 		Stage1Image: *s1img,
-		Images:      imgs,
-		ExecAppends: appArgs,
 		Volumes:     []types.Volume(flagVolumes),
 		InheritEnv:  flagInheritEnv,
 		ExplicitEnv: flagExplicitEnv.Strings(),
 	}
 
+	for i, hash := range imgHashes {
+		appConf := stage0.PrepareAppConfig{
+			Name:       *appNames[i],
+			Image:      hash,
+			ExecAppend: appArgs[i],
+			Mounts:     flagMounts.GetAppMounts(appNames[i]),
+		}
+		pcfg.AppConfigs = append(pcfg.AppConfigs, appConf)
+	}
+
 	if err = stage0.Prepare(pcfg, c.path(), c.uuid); err != nil {
-		stderr("prepare: error setting up stage0: %v", err)
+		stderr("prepare: error preparing stage0: %v", err)
 		return 1
 	}
 

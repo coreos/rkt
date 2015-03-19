@@ -37,7 +37,7 @@ import (
 type Container struct {
 	Root               string // root directory where the container will be located
 	Manifest           *schema.ContainerRuntimeManifest
-	Apps               map[string]*schema.ImageManifest
+	Images             map[string]*schema.ImageManifest
 	MetadataServiceURL string
 	Networks           []string
 }
@@ -46,8 +46,8 @@ type Container struct {
 // its associated Application Manifests, under $root/stage1/opt/stage1/$apphash
 func LoadContainer(root string) (*Container, error) {
 	c := &Container{
-		Root: root,
-		Apps: make(map[string]*schema.ImageManifest),
+		Root:   root,
+		Images: make(map[string]*schema.ImageManifest),
 	}
 
 	buf, err := ioutil.ReadFile(common.ContainerManifestPath(c.Root))
@@ -62,21 +62,22 @@ func LoadContainer(root string) (*Container, error) {
 	c.Manifest = cm
 
 	for _, app := range c.Manifest.Apps {
-		ampath := common.ImageManifestPath(c.Root, app.Image.ID)
-		buf, err := ioutil.ReadFile(ampath)
+		impath := common.ImageManifestPath(c.Root, &app.Name)
+		buf, err := ioutil.ReadFile(impath)
 		if err != nil {
-			return nil, fmt.Errorf("failed reading app manifest %q: %v", ampath, err)
+			return nil, fmt.Errorf("failed reading app manifest %q: %v", impath, err)
 		}
 
-		am := &schema.ImageManifest{}
-		if err = json.Unmarshal(buf, am); err != nil {
-			return nil, fmt.Errorf("failed unmarshalling app manifest %q: %v", ampath, err)
+		im := &schema.ImageManifest{}
+		if err = json.Unmarshal(buf, im); err != nil {
+			return nil, fmt.Errorf("failed unmarshalling app manifest %q: %v", impath, err)
 		}
-		name := am.Name.String()
-		if _, ok := c.Apps[name]; ok {
+		/* TODO(vc): this no longer needs to be policed */
+		name := im.Name.String()
+		if _, ok := c.Images[name]; ok {
 			return nil, fmt.Errorf("got multiple definitions for app: %s", name)
 		}
-		c.Apps[name] = am
+		c.Images[name] = im
 	}
 
 	return c, nil
@@ -112,10 +113,9 @@ func newUnitOption(section, name, value string) *unit.UnitOption {
 }
 
 // appToSystemd transforms the provided RuntimeApp+ImageManifest into systemd units
-func (c *Container) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest, interactive bool) error {
+func (c *Container) appToSystemd(ra *schema.RuntimeApp, im *schema.ImageManifest, interactive bool) error {
 	name := ra.Name.String()
-	id := ra.Image.ID
-	app := am.App
+	app := im.App
 	if ra.App != nil {
 		app = ra.App
 	}
@@ -127,13 +127,14 @@ func (c *Container) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest
 
 	env := app.Environment
 	env.Set("AC_APP_NAME", name)
+	env.Set("AC_IMAGE_NAME", ra.Image.Name.String()) // TODO(vc): does this make more sense? should the spec be changed to this?
 	env.Set("AC_METADATA_URL", c.MetadataServiceURL)
 
-	if err := c.writeEnvFile(env, id); err != nil {
+	if err := c.writeEnvFile(env, ra); err != nil {
 		return fmt.Errorf("unable to write environment file: %v", err)
 	}
 
-	execWrap := []string{"/diagexec", common.RelAppRootfsPath(id), workDir, RelEnvFilePath(id)}
+	execWrap := []string{"/diagexec", common.RelAppRootfsPath(&ra.Name), workDir, RelEnvFilePath(ra)}
 	execStart := quoteExec(append(execWrap, app.Exec...))
 	opts := []*unit.UnitOption{
 		newUnitOption("Unit", "Description", name),
@@ -179,7 +180,7 @@ func (c *Container) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest
 			newUnitOption("Unit", "Description", name+" socket-activated ports"),
 			newUnitOption("Unit", "DefaultDependencies", "false"),
 			newUnitOption("Socket", "BindIPv6Only", "both"),
-			newUnitOption("Socket", "Service", ServiceUnitName(id)),
+			newUnitOption("Socket", "Service", ServiceUnitName(ra)),
 		}
 
 		for _, sap := range saPorts {
@@ -195,7 +196,7 @@ func (c *Container) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest
 			sockopts = append(sockopts, newUnitOption("Socket", proto, fmt.Sprintf("%v", sap.Port)))
 		}
 
-		file, err := os.OpenFile(SocketUnitPath(c.Root, id), os.O_WRONLY|os.O_CREATE, 0644)
+		file, err := os.OpenFile(SocketUnitPath(c.Root, ra), os.O_WRONLY|os.O_CREATE, 0644)
 		if err != nil {
 			return fmt.Errorf("failed to create socket file: %v", err)
 		}
@@ -205,17 +206,17 @@ func (c *Container) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest
 			return fmt.Errorf("failed to write socket unit file: %v", err)
 		}
 
-		if err = os.Symlink(path.Join("..", SocketUnitName(id)), SocketWantPath(c.Root, id)); err != nil {
+		if err = os.Symlink(path.Join("..", SocketUnitName(ra)), SocketWantPath(c.Root, ra)); err != nil {
 			return fmt.Errorf("failed to link socket want: %v", err)
 		}
 
-		opts = append(opts, newUnitOption("Unit", "Requires", SocketUnitName(id)))
+		opts = append(opts, newUnitOption("Unit", "Requires", SocketUnitName(ra)))
 	}
 
-	opts = append(opts, newUnitOption("Unit", "Requires", InstantiatedPrepareAppUnitName(id)))
-	opts = append(opts, newUnitOption("Unit", "After", InstantiatedPrepareAppUnitName(id)))
+	opts = append(opts, newUnitOption("Unit", "Requires", InstantiatedPrepareAppUnitName(ra)))
+	opts = append(opts, newUnitOption("Unit", "After", InstantiatedPrepareAppUnitName(ra)))
 
-	file, err := os.OpenFile(ServiceUnitPath(c.Root, id), os.O_WRONLY|os.O_CREATE, 0644)
+	file, err := os.OpenFile(ServiceUnitPath(c.Root, ra), os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to create service unit file: %v", err)
 	}
@@ -225,33 +226,34 @@ func (c *Container) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest
 		return fmt.Errorf("failed to write service unit file: %v", err)
 	}
 
-	if err = os.Symlink(path.Join("..", ServiceUnitName(id)), ServiceWantPath(c.Root, id)); err != nil {
+	if err = os.Symlink(path.Join("..", ServiceUnitName(ra)), ServiceWantPath(c.Root, ra)); err != nil {
 		return fmt.Errorf("failed to link service want: %v", err)
 	}
 
 	return nil
 }
 
-// writeEnvFile creates an environment file for given app id
-func (c *Container) writeEnvFile(env types.Environment, id types.Hash) error {
+// writeEnvFile creates an environment file for given app
+func (c *Container) writeEnvFile(env types.Environment, app *schema.RuntimeApp) error {
 	ef := bytes.Buffer{}
 	for _, e := range env {
 		fmt.Fprintf(&ef, "%s=%s\000", e.Name, e.Value)
 	}
-	return ioutil.WriteFile(EnvFilePath(c.Root, id), ef.Bytes(), 0640)
+	return ioutil.WriteFile(EnvFilePath(c.Root, app), ef.Bytes(), 0640)
 }
 
 // ContainerToSystemd creates the appropriate systemd service unit files for
 // all the constituent apps of the Container
 func (c *Container) ContainerToSystemd(interactive bool) error {
-	for _, am := range c.Apps {
-		ra := c.Manifest.Apps.Get(am.Name)
-		if ra == nil {
-			// should never happen
-			panic("app not found in container manifest")
+	for _, ra := range c.Manifest.Apps {
+		imgName := ra.Image.Name.String()
+		im, ok := c.Images[imgName]
+		if !ok {
+			panic("referenced image not found")
 		}
-		if err := c.appToSystemd(ra, am, interactive); err != nil {
-			return fmt.Errorf("failed to transform app %q into systemd service: %v", am.Name, err)
+
+		if err := c.appToSystemd(&ra, im, interactive); err != nil {
+			return fmt.Errorf("failed to transform app %q into systemd service: %v", im.Name, err)
 		}
 	}
 
@@ -263,28 +265,31 @@ func (c *Container) ContainerToSystemd(interactive bool) error {
 func (c *Container) appToNspawnArgs(ra *schema.RuntimeApp, am *schema.ImageManifest) ([]string, error) {
 	args := []string{}
 	name := ra.Name.String()
-	id := ra.Image.ID
 	app := am.App
 	if ra.App != nil {
 		app = ra.App
 	}
 
+	// there are global "volumes" and per-app "mounts" linking those volumes to a per-app "mountpoint"
+	// here we relate them: app.MountPoints to c.Manifest.Volumes via ra.Mounts.
 	vols := make(map[types.ACName]types.Volume)
-
-	// TODO(philips): this is implicitly creating a mapping from MountPoint
-	// to volumes. This is a nice convenience for users but we will need to
-	// introduce a --mount flag so they can control which mountPoint maps to
-	// which volume.
-
 	for _, v := range c.Manifest.Volumes {
 		vols[v.Name] = v
 	}
 
+	mnts := make(map[types.ACName]types.ACName)
+	for _, m := range ra.Mounts {
+		mnts[m.MountPoint] = m.Volume
+	}
+
 	for _, mp := range app.MountPoints {
-		key := mp.Name
+		key, ok := mnts[mp.Name]
+		if !ok {
+			return nil, fmt.Errorf("no mount for mountpoint %q in app %q", mp.Name, name)
+		}
 		vol, ok := vols[key]
 		if !ok {
-			return nil, fmt.Errorf("no volume for mountpoint %q in app %q", key, name)
+			return nil, fmt.Errorf("no volume for mount %q:%q in app %q", mp.Name, key, name)
 		}
 		opt := make([]string, 4)
 
@@ -296,7 +301,7 @@ func (c *Container) appToNspawnArgs(ra *schema.RuntimeApp, am *schema.ImageManif
 
 		opt[1] = vol.Source
 		opt[2] = ":"
-		opt[3] = filepath.Join(common.RelAppRootfsPath(id), mp.Path)
+		opt[3] = filepath.Join(common.RelAppRootfsPath(&ra.Name), mp.Path)
 
 		args = append(args, strings.Join(opt, ""))
 	}
@@ -327,14 +332,16 @@ func (c *Container) ContainerToNspawnArgs() ([]string, error) {
 		"--directory=" + common.Stage1RootfsPath(c.Root),
 	}
 
-	for _, am := range c.Apps {
-		ra := c.Manifest.Apps.Get(am.Name)
-		if ra == nil {
-			panic("could not find app in container manifest!")
+	for _, ra := range c.Manifest.Apps {
+		imgName := ra.Image.Name.String()
+		im, ok := c.Images[imgName]
+		if !ok {
+			panic("referenced image not found")
 		}
-		aa, err := c.appToNspawnArgs(ra, am)
+
+		aa, err := c.appToNspawnArgs(&ra, im)
 		if err != nil {
-			return nil, fmt.Errorf("failed to construct args for app %q: %v", am.Name, err)
+			return nil, fmt.Errorf("failed to construct args for app %q: %v", im.Name, err)
 		}
 		args = append(args, aa...)
 	}

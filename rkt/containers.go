@@ -710,20 +710,25 @@ func (c *container) getAppCount() (int, error) {
 }
 
 // getExitStatuses returns a map of the statuses of the container.
-func (c *container) getExitStatuses() (map[string]int, error) {
+func (c *container) getExitStatuses() (map[types.ACName]int, error) {
 	ls, err := c.getDirNames(statusDir)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read status directory: %v", err)
 	}
 
-	stats := make(map[string]int)
-	for _, name := range ls {
-		s, err := c.readIntFromFile(filepath.Join(statusDir, name))
+	stats := make(map[types.ACName]int)
+	for _, escName := range ls {
+		name, err := types.EscapedNewACName(escName)
+		if err != nil {
+			stderr("Unable to create ACName from escaped %q: %v", escName, err)
+			continue
+		}
+		s, err := c.readIntFromFile(filepath.Join(statusDir, escName))
 		if err != nil {
 			stderr("Unable to get status of app %q: %v", name, err)
 			continue
 		}
-		stats[name] = s
+		stats[*name] = s
 	}
 	return stats, nil
 }

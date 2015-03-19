@@ -60,33 +60,32 @@ func AppImagesPath(root string) string {
 }
 
 // AppImagePath returns the path where an app image (i.e. unpacked ACI) is rooted (i.e.
-// where its contents are extracted during stage0), based on the app image ID.
-func AppImagePath(root string, imageID types.Hash) string {
-	return filepath.Join(AppImagesPath(root), types.ShortHash(imageID.String()))
+// where its contents are extracted during stage0), based on the app name.
+func AppImagePath(root string, appName *types.ACName) string {
+	return filepath.Join(AppImagesPath(root), appName.EscapedString())
 }
 
 // AppRootfsPath returns the path to an app's rootfs.
-// imageID should be the app image ID.
-func AppRootfsPath(root string, imageID types.Hash) string {
-	return filepath.Join(AppImagePath(root, imageID), aci.RootfsDir)
+// name should be the unique app name.
+func AppRootfsPath(root string, appName *types.ACName) string {
+	return filepath.Join(AppImagePath(root, appName), aci.RootfsDir)
 }
 
 // RelAppImagePath returns the path of an application image relative to the
 // stage1 chroot
-func RelAppImagePath(imageID types.Hash) string {
-	return filepath.Join(stage2Dir, types.ShortHash(imageID.String()))
+func RelAppImagePath(appName *types.ACName) string {
+	return filepath.Join(stage2Dir, appName.EscapedString())
 }
 
 // RelAppImagePath returns the path of an application's rootfs relative to the
 // stage1 chroot
-func RelAppRootfsPath(imageID types.Hash) string {
-	return filepath.Join(RelAppImagePath(imageID), aci.RootfsDir)
+func RelAppRootfsPath(appName *types.ACName) string {
+	return filepath.Join(RelAppImagePath(appName), aci.RootfsDir)
 }
 
 // ImageManifestPath returns the path to the app's manifest file inside the expanded ACI.
-// id should be the app image ID.
-func ImageManifestPath(root string, imageID types.Hash) string {
-	return filepath.Join(AppImagePath(root, imageID), aci.ManifestFile)
+func ImageManifestPath(root string, appName *types.ACName) string {
+	return filepath.Join(AppImagePath(root, appName), aci.ManifestFile)
 }
 
 // MetadataServicePrivateURL returns the private URL used to host the metadata service

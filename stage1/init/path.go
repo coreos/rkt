@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/schema/types"
+	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/schema"
 	"github.com/coreos/rocket/common"
 )
 
@@ -31,56 +31,56 @@ const (
 	socketsWantsDir = unitsDir + "/sockets.target.wants"
 )
 
-// ServiceUnitName returns a systemd service unit name for the given imageID
-func ServiceUnitName(imageID types.Hash) string {
-	return types.ShortHash(imageID.String()) + ".service"
+// ServiceUnitName returns a systemd service unit name for the given app
+func ServiceUnitName(app *schema.RuntimeApp) string {
+	return app.Name.EscapedString() + ".service"
 }
 
 // ServiceUnitPath returns the path to the systemd service file for the given
-// imageID
-func ServiceUnitPath(root string, imageID types.Hash) string {
-	return filepath.Join(common.Stage1RootfsPath(root), unitsDir, ServiceUnitName(imageID))
+// app
+func ServiceUnitPath(root string, app *schema.RuntimeApp) string {
+	return filepath.Join(common.Stage1RootfsPath(root), unitsDir, ServiceUnitName(app))
 }
 
-// RelEnvFilePath returns the path to the environment file for the given imageID
+// RelEnvFilePath returns the path to the environment file for the given app
 // relative to the container's root
-func RelEnvFilePath(imageID types.Hash) string {
-	return filepath.Join(envDir, types.ShortHash(imageID.String()))
+func RelEnvFilePath(app *schema.RuntimeApp) string {
+	return filepath.Join(envDir, app.Name.EscapedString())
 }
 
-// EnvFilePath returns the path to the environment file for the given imageID
-func EnvFilePath(root string, imageID types.Hash) string {
-	return filepath.Join(common.Stage1RootfsPath(root), RelEnvFilePath(imageID))
+// EnvFilePath returns the path to the environment file for the given app
+func EnvFilePath(root string, app *schema.RuntimeApp) string {
+	return filepath.Join(common.Stage1RootfsPath(root), RelEnvFilePath(app))
 }
 
 // ServiceWantPath returns the systemd default.target want symlink path for the
-// given imageID
-func ServiceWantPath(root string, imageID types.Hash) string {
-	return filepath.Join(common.Stage1RootfsPath(root), defaultWantsDir, ServiceUnitName(imageID))
+// given app
+func ServiceWantPath(root string, app *schema.RuntimeApp) string {
+	return filepath.Join(common.Stage1RootfsPath(root), defaultWantsDir, ServiceUnitName(app))
 }
 
 // InstantiatedPrepareAppUnitName returns the systemd service unit name for prepare-app
 // instantiated for the given root
-func InstantiatedPrepareAppUnitName(imageID types.Hash) string {
+func InstantiatedPrepareAppUnitName(app *schema.RuntimeApp) string {
 	// Naming respecting escaping rules, see systemd.unit(5) and systemd-escape(1)
-	escaped_root := common.RelAppRootfsPath(imageID)
+	escaped_root := common.RelAppRootfsPath(&app.Name)
 	escaped_root = strings.Replace(escaped_root, "-", "\\x2d", -1)
 	escaped_root = strings.Replace(escaped_root, "/", "-", -1)
 	return "prepare-app@" + escaped_root + ".service"
 }
 
-// SocketUnitName returns a systemd socket unit name for the given imageID
-func SocketUnitName(imageID types.Hash) string {
-	return imageID.String() + ".socket"
+// SocketUnitName returns a systemd socket unit name for the given app
+func SocketUnitName(app *schema.RuntimeApp) string {
+	return app.Name.EscapedString() + ".socket"
 }
 
-// SocketUnitPath returns the path to the systemd socket file for the given imageID
-func SocketUnitPath(root string, imageID types.Hash) string {
-	return filepath.Join(common.Stage1RootfsPath(root), unitsDir, SocketUnitName(imageID))
+// SocketUnitPath returns the path to the systemd socket file for the given app
+func SocketUnitPath(root string, app *schema.RuntimeApp) string {
+	return filepath.Join(common.Stage1RootfsPath(root), unitsDir, SocketUnitName(app))
 }
 
 // SocketWantPath returns the systemd sockets.target.wants symlink path for the
-// given imageID
-func SocketWantPath(root string, imageID types.Hash) string {
-	return filepath.Join(common.Stage1RootfsPath(root), socketsWantsDir, SocketUnitName(imageID))
+// given app
+func SocketWantPath(root string, app *schema.RuntimeApp) string {
+	return filepath.Join(common.Stage1RootfsPath(root), socketsWantsDir, SocketUnitName(app))
 }

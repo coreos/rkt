@@ -33,10 +33,10 @@ var (
 	cmdEnter = &Command{
 		Name:    cmdEnterName,
 		Summary: "Enter the namespaces of an app within a rkt container",
-		Usage:   "[--imageid IMAGEID] UUID [CMD [ARGS ...]]",
+		Usage:   "[--app APP] UUID [CMD [ARGS ...]]",
 		Run:     runEnter,
 	}
-	flagAppImageID types.Hash
+	flagAppName types.ACName
 )
 
 const (
@@ -46,7 +46,7 @@ const (
 
 func init() {
 	commands = append(commands, cmdEnter)
-	cmdEnter.Flags.Var(&flagAppImageID, "imageid", "imageid of the app to enter within the specified container")
+	cmdEnter.Flags.Var(&flagAppName, "app", "name of the app to enter within the specified container")
 }
 
 func runEnter(args []string) (exit int) {
@@ -75,24 +75,24 @@ func runEnter(args []string) (exit int) {
 		return 1
 	}
 
-	imageID, err := getAppImageID(c)
+	app, err := getAppName(c)
 	if err != nil {
-		stderr("Unable to determine image id: %v", err)
+		stderr("Unable to determine app to enter: %v", err)
 		return 1
 	}
 
-	if _, err = os.Stat(filepath.Join(common.AppRootfsPath(c.path(), *imageID))); err != nil {
+	if _, err = os.Stat(filepath.Join(common.AppRootfsPath(c.path(), app))); err != nil {
 		stderr("Unable to access app rootfs: %v", err)
 		return 1
 	}
 
-	argv, err := getEnterArgv(c, imageID, args)
+	argv, err := getEnterArgv(c, app, args)
 	if err != nil {
 		stderr("Enter failed: %v", err)
 		return 1
 	}
 
-	if err = stage0.Enter(c.path(), imageID, argv); err != nil {
+	if err = stage0.Enter(c.path(), app, argv); err != nil {
 		stderr("Enter failed: %v", err)
 		return 1
 	}
@@ -100,13 +100,13 @@ func runEnter(args []string) (exit int) {
 	return 0
 }
 
-// getAppImageID returns the image id to enter
+// getAppName returns the app to enter
 // If one was supplied in the flags then it's simply returned
-// If the CRM contains a single image, that image's id is returned
-// If the CRM has multiple images, the ids and names are printed and an error is returned
-func getAppImageID(c *container) (*types.Hash, error) {
-	if !flagAppImageID.Empty() {
-		return &flagAppImageID, nil
+// If the CRM contains a single app, that app's name is returned
+// If the CRM has multiple apps, the names and images are printed and an error is returned
+func getAppName(c *container) (*types.ACName, error) {
+	if !flagAppName.Empty() {
+		return &flagAppName, nil
 	}
 
 	// figure out the image id, or show a list if multiple are present
@@ -124,20 +124,20 @@ func getAppImageID(c *container) (*types.Hash, error) {
 	case 0:
 		return nil, fmt.Errorf("container contains zero apps")
 	case 1:
-		return &m.Apps[0].Image.ID, nil
+		return &m.Apps[0].Name, nil
 	default:
 	}
 
 	stderr("Container contains multiple apps:")
 	for _, ra := range m.Apps {
-		stderr("\t%s: %s", types.ShortHash(ra.Image.ID.String()), ra.Name.String())
+		stderr("\t%s: %s", ra.Name.String(), ra.Image.Name.String())
 	}
 
-	return nil, fmt.Errorf("specify app using \"rkt enter --imageid ...\"")
+	return nil, fmt.Errorf("specify app using \"rkt enter --app ...\"")
 }
 
 // getEnterArgv returns the argv to use for entering the container
-func getEnterArgv(c *container, imageID *types.Hash, cmdArgs []string) ([]string, error) {
+func getEnterArgv(c *container, app *types.ACName, cmdArgs []string) ([]string, error) {
 	var argv []string
 	if len(cmdArgs) < 2 {
 		stdout("No command specified, assuming %q", defaultCmd)
@@ -147,7 +147,7 @@ func getEnterArgv(c *container, imageID *types.Hash, cmdArgs []string) ([]string
 	}
 
 	// TODO(vc): LookPath() uses os.Stat() internally so symlinks can defeat this check
-	if _, err := exec.LookPath(filepath.Join(common.AppRootfsPath(c.path(), *imageID), argv[0])); err != nil {
+	if _, err := exec.LookPath(filepath.Join(common.AppRootfsPath(c.path(), app), argv[0])); err != nil {
 		return nil, fmt.Errorf("command %q missing, giving up: %v", argv[0], err)
 	}
 

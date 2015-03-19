@@ -28,13 +28,11 @@ import (
 
 // Enter enters the container by exec()ing the stage1's /enter similar to /init
 // /enter can expect to have its CWD set to the container root
-// imageID and command are supplied to /enter on argv followed by any arguments
-func Enter(cdir string, imageID *types.Hash, cmdline []string) error {
+// app and command are supplied to /enter on argv followed by any arguments
+func Enter(cdir string, app *types.ACName, cmdline []string) error {
 	if err := os.Chdir(cdir); err != nil {
 		return fmt.Errorf("error changing to dir: %v", err)
 	}
-
-	id := types.ShortHash(imageID.String())
 
 	ep, err := getStage1Entrypoint(cdir, enterEntrypoint)
 	if err != nil {
@@ -42,7 +40,7 @@ func Enter(cdir string, imageID *types.Hash, cmdline []string) error {
 	}
 
 	argv := []string{filepath.Join(common.Stage1RootfsPath(cdir), ep)}
-	argv = append(argv, id)
+	argv = append(argv, app.String())
 	argv = append(argv, cmdline...)
 	if err := syscall.Exec(argv[0], argv, os.Environ()); err != nil {
 		return fmt.Errorf("error execing enter: %v", err)
