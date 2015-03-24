@@ -18,7 +18,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rocket/cas"
@@ -29,7 +28,7 @@ import (
 func (al *rktApps) findImages(ds *cas.Store, ks *keystore.Keystore) error {
 	for i, _ := range al.apps {
 		app := &al.apps[i]
-		h, err := findImage(app.image, ds, ks, true)
+		h, err := findImage(app.image, app.asc, ds, ks, true)
 		if err != nil {
 			return err
 		}
@@ -41,7 +40,7 @@ func (al *rktApps) findImages(ds *cas.Store, ks *keystore.Keystore) error {
 
 // findImage will recognize a ACI hash and use that, import a local file, use
 // discovery or download an ACI directly.
-func findImage(img string, ds *cas.Store, ks *keystore.Keystore, discover bool) (*types.Hash, error) {
+func findImage(img string, asc string, ds *cas.Store, ks *keystore.Keystore, discover bool) (*types.Hash, error) {
 	// check if it is a valid hash, if so let it pass through
 	h, err := types.NewHash(img)
 	if err == nil {
@@ -57,24 +56,8 @@ func findImage(img string, ds *cas.Store, ks *keystore.Keystore, discover bool) 
 		return h, nil
 	}
 
-	// import the local file if it exists
-	file, err := os.Open(img)
-	if err == nil {
-		key, err := ds.WriteACI(file, false)
-		file.Close()
-		if err != nil {
-			return nil, fmt.Errorf("%s: %v", img, err)
-		}
-		h, err := types.NewHash(key)
-		if err != nil {
-			// should never happen
-			panic(err)
-		}
-		return h, nil
-	}
-
-	// try fetching remotely
-	key, err := fetchImage(img, ds, ks, discover)
+	// try fetching the image, potentially remotely
+	key, err := fetchImage(img, asc, ds, ks, discover)
 	if err != nil {
 		return nil, err
 	}
