@@ -27,7 +27,6 @@ import (
 
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rocket/cas"
-	"github.com/coreos/rocket/pkg/keystore"
 	"github.com/coreos/rocket/stage0"
 )
 
@@ -78,108 +77,6 @@ func init() {
 	flagVolumes = volumeList{}
 }
 
-// findImages uses findImage to attain a list of image hashes using discovery if necessary
-func findImages(args []string, ds *cas.Store, ks *keystore.Keystore) (out []types.Hash, err error) {
-	out = make([]types.Hash, len(args))
-	for i, img := range args {
-		h, err := findImage(img, ds, ks, true)
-		if err != nil {
-			return nil, err
-		}
-		out[i] = *h
-	}
-
-	return out, nil
-}
-
-// findImage will recognize a ACI hash and use that, import a local file, use
-// discovery or download an ACI directly.
-func findImage(img string, ds *cas.Store, ks *keystore.Keystore, discover bool) (*types.Hash, error) {
-	// check if it is a valid hash, if so let it pass through
-	h, err := types.NewHash(img)
-	if err == nil {
-		fullKey, err := ds.ResolveKey(img)
-		if err != nil {
-			return nil, fmt.Errorf("could not resolve key: %v", err)
-		}
-		h, err = types.NewHash(fullKey)
-		if err != nil {
-			// should never happen
-			panic(err)
-		}
-		return h, nil
-	}
-
-	// import the local file if it exists
-	file, err := os.Open(img)
-	if err == nil {
-		key, err := ds.WriteACI(file, false)
-		file.Close()
-		if err != nil {
-			return nil, fmt.Errorf("%s: %v", img, err)
-		}
-		h, err := types.NewHash(key)
-		if err != nil {
-			// should never happen
-			panic(err)
-		}
-		return h, nil
-	}
-
-	// try fetching remotely
-	key, err := fetchImage(img, ds, ks, discover)
-	if err != nil {
-		return nil, err
-	}
-	h, err = types.NewHash(key)
-	if err != nil {
-		// should never happen
-		panic(err)
-	}
-
-	return h, nil
-}
-
-// parseAppArgs looks through the remaining arguments for support of per-app argument lists delimited with "--" and "---"
-// between per-app argument lists flags.Parse() is called using the supplied FlagSet
-// anything not consumed by flags.Parse() and not found to be a per-app argument list is treated as an image.
-func parseAppArgs(args []string, flags *flag.FlagSet) ([][]string, []string, error) {
-	// valid args here may either be:
-	// not-"--"; an image specifier
-	// "--"; image arguments begin
-	// "---"; conclude image arguments
-	appArgs := make([][]string, 0)
-	images := make([]string, 0)
-	inAppArgs := false
-	for _, a := range args {
-		if inAppArgs {
-			switch a {
-			case "---":
-				// conclude this app's args
-				inAppArgs = false
-			default:
-				// keep appending to this app's args
-				appArgs[len(appArgs)-1] = append(appArgs[len(appArgs)-1], a)
-			}
-		} else {
-			switch a {
-			case "--":
-				// begin app's args, TODO(vc): this could be made more strict/police if deemed necessary
-				inAppArgs = true
-			case "---":
-				// ignore triple dashes since they aren't images
-			default:
-				// this is something else, append it to images
-				// TODO(vc): for now these basically have to be images, but it should be possible to reenter cmdRun.flags.Parse()
-				images = append(images, a)
-				appArgs = append(appArgs, make([]string, 0))
-			}
-		}
-	}
-
-	return appArgs, images, nil
-}
-
 func runRun(args []string) (exit int) {
 	if flagInteractive && len(args) > 1 {
 		stderr("run: interactive option only supports one image")
@@ -195,14 +92,14 @@ func runRun(args []string) (exit int) {
 		}
 	}
 
-	appArgs, images, err := parseAppArgs(args, &runFlags)
+	err := Apps.parse(args, &runFlags)
 	if err != nil {
-		stderr("run: error parsing app image arguments")
+		stderr("run: error parsing app image arguments: %v", err)
 		return 1
 	}
 
-	if len(images) < 1 {
-		stderr("run: Must provide at least one image")
+	if Apps.count() < 1 {
+		stderr("run: must provide at least one image")
 		return 1
 	}
 
@@ -211,22 +108,16 @@ func runRun(args []string) (exit int) {
 		stderr("run: cannot open store: %v", err)
 		return 1
 	}
-	ks := getKeystore()
 
-	s1img, err := findImage(flagStage1Image, ds, ks, false)
+	s1img, err := findImage(flagStage1Image, ds, nil, false)
 	if err != nil {
 		stderr("Error finding stage1 image %q: %v", flagStage1Image, err)
 		return 1
 	}
 
-	imgs, err := findImages(images, ds, ks)
-	if err != nil {
+	ks := getKeystore()
+	if err := Apps.findImages(ds, ks); err != nil {
 		stderr("%v", err)
-		return 1
-	}
-
-	if len(imgs) != len(appArgs) {
-		stderr("Unexpected mismatch of app args and app images")
 		return 1
 	}
 
@@ -240,13 +131,13 @@ func runRun(args []string) (exit int) {
 		Store:       ds,
 		Stage1Image: *s1img,
 		UUID:        c.uuid,
-		Images:      imgs,
+		Images:      Apps.getImageIDs(),
 		Debug:       globalFlags.Debug,
 	}
 
 	pcfg := stage0.PrepareConfig{
 		CommonConfig: cfg,
-		ExecAppends:  appArgs,
+		ExecAppends:  Apps.getArgs(),
 		Volumes:      []types.Volume(flagVolumes),
 		InheritEnv:   flagInheritEnv,
 		ExplicitEnv:  flagExplicitEnv.Strings(),

@@ -64,13 +64,12 @@ func runPrepare(args []string) (exit int) {
 		}
 	}
 
-	appArgs, images, err := parseAppArgs(args, &prepareFlags)
-	if err != nil {
-		stderr("prepare: error parsing app image arguments")
+	if err = Apps.parse(args, &prepareFlags); err != nil {
+		stderr("prepare: error parsing app image arguments: %v", err)
 		return 1
 	}
 
-	if len(images) < 1 {
+	if Apps.count() < 1 {
 		stderr("prepare: Must provide at least one image")
 		return 1
 	}
@@ -88,22 +87,16 @@ func runPrepare(args []string) (exit int) {
 		stderr("prepare: cannot open store: %v", err)
 		return 1
 	}
-	ks := getKeystore()
 
-	s1img, err := findImage(flagStage1Image, ds, ks, false)
+	s1img, err := findImage(flagStage1Image, ds, nil, false)
 	if err != nil {
 		stderr("prepare: finding stage1 image %q: %v", flagStage1Image, err)
 		return 1
 	}
 
-	imgs, err := findImages(images, ds, ks)
-	if err != nil {
+	ks := getKeystore()
+	if err := Apps.findImages(ds, ks); err != nil {
 		stderr("%v", err)
-		return 1
-	}
-
-	if len(imgs) != len(appArgs) {
-		stderr("Unexpected mismatch of app args and app images")
 		return 1
 	}
 
@@ -119,12 +112,12 @@ func runPrepare(args []string) (exit int) {
 			Debug:       globalFlags.Debug,
 			Stage1Image: *s1img,
 			UUID:        c.uuid,
-			Images:      imgs,
+			Images:      Apps.getImageIDs(),
 		},
-		ExecAppends: appArgs,
+		ExecAppends: Apps.getArgs(),
+		Volumes:     []types.Volume(flagVolumes),
 		InheritEnv:  flagInheritEnv,
 		ExplicitEnv: flagExplicitEnv.Strings(),
-		Volumes:     []types.Volume(flagVolumes),
 	}
 
 	if err = stage0.Prepare(pcfg, c.path(), c.uuid); err != nil {

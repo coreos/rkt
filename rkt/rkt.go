@@ -100,6 +100,7 @@ func main() {
 		log.SetOutput(os.Stderr)
 	}
 
+	// FIXME(vc): Flags.Args() swallows the "--" which may have stopped its parsing, this interferes with parseApps()
 	os.Exit(cmd.Run(cmd.Flags.Args()))
 }
 
