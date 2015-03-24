@@ -17,6 +17,7 @@
 package main
 
 import (
+	"flag"
 	"io/ioutil"
 	"log"
 	"os"
@@ -37,18 +38,20 @@ They will be checked in that order and the first match will be used.
 An "--" may be used to inhibit rkt prepare's parsing of subsequent arguments,
 which will instead be appended to the preceding image app's exec arguments.
 End the image arguments with a lone "---" to resume argument parsing.`,
-		Run: runPrepare,
+		Run:   runPrepare,
+		Flags: &prepareFlags,
 	}
-	flagQuiet bool
+	prepareFlags flag.FlagSet
+	flagQuiet    bool
 )
 
 func init() {
 	commands = append(commands, cmdPrepare)
-	cmdPrepare.Flags.StringVar(&flagStage1Image, "stage1-image", defaultStage1Image, `image to use as stage1. Local paths and http/https URLs are supported. If empty, Rocket will look for a file called "stage1.aci" in the same directory as rkt itself`)
-	cmdPrepare.Flags.Var(&flagVolumes, "volume", "volumes to mount into the shared container environment")
-	cmdPrepare.Flags.BoolVar(&flagQuiet, "quiet", false, "suppress superfluous output on stdout, print only the UUID on success")
-	cmdPrepare.Flags.BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
-	cmdPrepare.Flags.Var(&flagExplicitEnv, "set-env", "an environment variable to set for apps in the form name=value")
+	prepareFlags.StringVar(&flagStage1Image, "stage1-image", defaultStage1Image, `image to use as stage1. Local paths and http/https URLs are supported. If empty, Rocket will look for a file called "stage1.aci" in the same directory as rkt itself`)
+	prepareFlags.Var(&flagVolumes, "volume", "volumes to mount into the shared container environment")
+	prepareFlags.BoolVar(&flagQuiet, "quiet", false, "suppress superfluous output on stdout, print only the UUID on success")
+	prepareFlags.BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
+	prepareFlags.Var(&flagExplicitEnv, "set-env", "an environment variable to set for apps in the form name=value")
 }
 
 func runPrepare(args []string) (exit int) {
@@ -61,7 +64,7 @@ func runPrepare(args []string) (exit int) {
 		}
 	}
 
-	appArgs, images, err := parseAppArgs(args)
+	appArgs, images, err := parseAppArgs(args, &prepareFlags)
 	if err != nil {
 		stderr("prepare: error parsing app image arguments")
 		return 1

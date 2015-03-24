@@ -17,6 +17,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"strings"
 
@@ -31,15 +32,17 @@ var (
 		Summary: "List containers",
 		Usage:   "",
 		Run:     runList,
+		Flags:   &listFlags,
 	}
+	listFlags      flag.FlagSet
 	flagNoLegend   bool
 	flagFullOutput bool
 )
 
 func init() {
 	commands = append(commands, cmdList)
-	cmdList.Flags.BoolVar(&flagNoLegend, "no-legend", false, "suppress a legend with the list")
-	cmdList.Flags.BoolVar(&flagFullOutput, "full", false, "use long output format")
+	listFlags.BoolVar(&flagNoLegend, "no-legend", false, "suppress a legend with the list")
+	listFlags.BoolVar(&flagFullOutput, "full", false, "use long output format")
 }
 
 func runList(args []string) (exit int) {

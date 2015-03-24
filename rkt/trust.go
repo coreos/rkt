@@ -20,6 +20,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -43,8 +44,10 @@ PUBKEY may be either a local file or URL,
 PREFIX scopes the applicability of PUBKEY to image names sharing PREFIX.
 Meta discovery of PUBKEY at PREFIX will be attempted if no PUBKEY is specified.
 --root must be specified to add keys with no prefix.`,
-		Run: runTrust,
+		Run:   runTrust,
+		Flags: &trustFlags,
 	}
+	trustFlags    flag.FlagSet
 	flagPrefix    string
 	flagRoot      bool
 	flagAllowHTTP bool
@@ -56,9 +59,9 @@ const (
 
 func init() {
 	commands = append(commands, cmdTrust)
-	cmdTrust.Flags.StringVar(&flagPrefix, "prefix", "", "prefix to limit trust to")
-	cmdTrust.Flags.BoolVar(&flagRoot, "root", false, "add root key without a prefix")
-	cmdTrust.Flags.BoolVar(&flagAllowHTTP, "insecure-allow-http", false, "allow HTTP use for key discovery and/or retrieval")
+	trustFlags.StringVar(&flagPrefix, "prefix", "", "prefix to limit trust to")
+	trustFlags.BoolVar(&flagRoot, "root", false, "add root key without a prefix")
+	trustFlags.BoolVar(&flagAllowHTTP, "insecure-allow-http", false, "allow HTTP use for key discovery and/or retrieval")
 }
 
 func runTrust(args []string) (exit int) {
