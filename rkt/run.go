@@ -110,7 +110,7 @@ func runRun(args []string) (exit int) {
 		return 1
 	}
 
-	s1img, err := findImage(flagStage1Image, ds, nil, false)
+	s1img, err := findImage(flagStage1Image, "", ds, nil, false)
 	if err != nil {
 		stderr("Error finding stage1 image %q: %v", flagStage1Image, err)
 		return 1

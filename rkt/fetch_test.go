@@ -182,9 +182,9 @@ func TestDownloading(t *testing.T) {
 		if tt.hit == true && !ok {
 			t.Fatalf("expected a hit got a miss")
 		}
-		_, aciFile, err := download(tt.ACIURL, tt.SigURL, ds, nil)
+		_, aciFile, err := fetch(tt.ACIURL, tt.SigURL, nil, ds, nil)
 		if err != nil {
-			t.Fatalf("error downloading aci: %v", err)
+			t.Fatalf("error fetching aci: %v", err)
 		}
 		defer os.Remove(aciFile.Name())
 
@@ -259,7 +259,7 @@ func TestFetchImage(t *testing.T) {
 		}
 	}))
 	defer ts.Close()
-	_, err = fetchImage(fmt.Sprintf("%s/app.aci", ts.URL), ds, ks, true)
+	_, err = fetchImage(fmt.Sprintf("%s/app.aci", ts.URL), "", ds, ks, true)
 	if err != nil {
 		t.Fatalf("unexpected error %v", err)
 	}
