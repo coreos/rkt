@@ -17,6 +17,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -33,14 +34,7 @@ import (
 var (
 	defaultStage1Image string // either set by linker, or guessed in init()
 
-	flagStage1Image          string
-	flagVolumes              volumeList
-	flagPrivateNet           bool
-	flagSpawnMetadataService bool
-	flagInheritEnv           bool
-	flagExplicitEnv          envMap
-	flagInteractive          bool
-	cmdRun                   = &Command{
+	cmdRun = &Command{
 		Name:    "run",
 		Summary: "Run image(s) in an application container in rocket",
 		Usage:   "[--volume name,kind=host,...] IMAGE [-- image-args...[---]]...",
@@ -50,8 +44,17 @@ They will be checked in that order and the first match will be used.
 An "--" may be used to inhibit rkt run's parsing of subsequent arguments,
 which will instead be appended to the preceding image app's exec arguments.
 End the image arguments with a lone "---" to resume argument parsing.`,
-		Run: runRun,
+		Run:   runRun,
+		Flags: &runFlags,
 	}
+	runFlags                 flag.FlagSet
+	flagStage1Image          string
+	flagVolumes              volumeList
+	flagPrivateNet           bool
+	flagSpawnMetadataService bool
+	flagInheritEnv           bool
+	flagExplicitEnv          envMap
+	flagInteractive          bool
 )
 
 func init() {
@@ -65,13 +68,13 @@ func init() {
 		}
 	}
 
-	cmdRun.Flags.StringVar(&flagStage1Image, "stage1-image", defaultStage1Image, `image to use as stage1. Local paths and http/https URLs are supported. If empty, Rocket will look for a file called "stage1.aci" in the same directory as rkt itself`)
-	cmdRun.Flags.Var(&flagVolumes, "volume", "volumes to mount into the shared container environment")
-	cmdRun.Flags.BoolVar(&flagPrivateNet, "private-net", false, "give container a private network")
-	cmdRun.Flags.BoolVar(&flagSpawnMetadataService, "spawn-metadata-svc", false, "launch metadata svc if not running")
-	cmdRun.Flags.BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
-	cmdRun.Flags.Var(&flagExplicitEnv, "set-env", "an environment variable to set for apps in the form name=value")
-	cmdRun.Flags.BoolVar(&flagInteractive, "interactive", false, "the container is interactive")
+	runFlags.StringVar(&flagStage1Image, "stage1-image", defaultStage1Image, `image to use as stage1. Local paths and http/https URLs are supported. If empty, Rocket will look for a file called "stage1.aci" in the same directory as rkt itself`)
+	runFlags.Var(&flagVolumes, "volume", "volumes to mount into the shared container environment")
+	runFlags.BoolVar(&flagPrivateNet, "private-net", false, "give container a private network")
+	runFlags.BoolVar(&flagSpawnMetadataService, "spawn-metadata-svc", false, "launch metadata svc if not running")
+	runFlags.BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
+	runFlags.Var(&flagExplicitEnv, "set-env", "an environment variable to set for apps in the form name=value")
+	runFlags.BoolVar(&flagInteractive, "interactive", false, "the container is interactive")
 	flagVolumes = volumeList{}
 }
 
@@ -138,7 +141,9 @@ func findImage(img string, ds *cas.Store, ks *keystore.Keystore, discover bool) 
 }
 
 // parseAppArgs looks through the remaining arguments for support of per-app argument lists delimited with "--" and "---"
-func parseAppArgs(args []string) ([][]string, []string, error) {
+// between per-app argument lists flags.Parse() is called using the supplied FlagSet
+// anything not consumed by flags.Parse() and not found to be a per-app argument list is treated as an image.
+func parseAppArgs(args []string, flags *flag.FlagSet) ([][]string, []string, error) {
 	// valid args here may either be:
 	// not-"--"; an image specifier
 	// "--"; image arguments begin
@@ -190,7 +195,7 @@ func runRun(args []string) (exit int) {
 		}
 	}
 
-	appArgs, images, err := parseAppArgs(args)
+	appArgs, images, err := parseAppArgs(args, &runFlags)
 	if err != nil {
 		stderr("run: error parsing app image arguments")
 		return 1

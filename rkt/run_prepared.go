@@ -17,6 +17,7 @@
 package main
 
 import (
+	"flag"
 	"io/ioutil"
 	"log"
 
@@ -35,14 +36,16 @@ var (
 		Usage:       "UUID",
 		Description: "UUID must have been acquired via `rkt prepare`",
 		Run:         runRunPrepared,
+		Flags:       &runPreparedFlags,
 	}
+	runPreparedFlags flag.FlagSet
 )
 
 func init() {
 	commands = append(commands, cmdRunPrepared)
-	cmdRunPrepared.Flags.BoolVar(&flagPrivateNet, "private-net", false, "give container a private network")
-	cmdRunPrepared.Flags.BoolVar(&flagSpawnMetadataService, "spawn-metadata-svc", false, "launch metadata svc if not running")
-	cmdRunPrepared.Flags.BoolVar(&flagInteractive, "interactive", false, "the container is interactive")
+	runPreparedFlags.BoolVar(&flagPrivateNet, "private-net", false, "give container a private network")
+	runPreparedFlags.BoolVar(&flagSpawnMetadataService, "spawn-metadata-svc", false, "launch metadata svc if not running")
+	runPreparedFlags.BoolVar(&flagInteractive, "interactive", false, "the container is interactive")
 }
 
 func runRunPrepared(args []string) (exit int) {

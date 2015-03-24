@@ -20,6 +20,7 @@ import (
 	"crypto/sha512"
 	"encoding/base64"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -45,6 +46,7 @@ var (
 		Summary: "Run metadata service",
 		Usage:   "[--src-addr CIDR] [--listen-port PORT] [--no-idle]",
 		Run:     runMetadataService,
+		Flags:   &metadataServiceFlags,
 	}
 )
 
@@ -60,9 +62,10 @@ var (
 	containerByUID = make(map[types.UUID]*mdsContainer)
 	hmacKey        [sha512.Size]byte
 
-	flagListenPort int
-	flagSrcAddrs   string
-	flagNoIdle     bool
+	flagListenPort       int
+	flagSrcAddrs         string
+	flagNoIdle           bool
+	metadataServiceFlags flag.FlagSet
 
 	exitCh = make(chan os.Signal, 1)
 )
@@ -73,9 +76,9 @@ const (
 
 func init() {
 	commands = append(commands, cmdMetadataService)
-	cmdMetadataService.Flags.StringVar(&flagSrcAddrs, "src-addr", "0.0.0.0/0", "source address/range for iptables")
-	cmdMetadataService.Flags.IntVar(&flagListenPort, "listen-port", common.MetadataServicePrvPort, "listen port")
-	cmdMetadataService.Flags.BoolVar(&flagNoIdle, "no-idle", false, "exit when last container is unregistered")
+	metadataServiceFlags.StringVar(&flagSrcAddrs, "src-addr", "0.0.0.0/0", "source address/range for iptables")
+	metadataServiceFlags.IntVar(&flagListenPort, "listen-port", common.MetadataServicePrvPort, "listen port")
+	metadataServiceFlags.BoolVar(&flagNoIdle, "no-idle", false, "exit when last container is unregistered")
 }
 
 func modifyIPTables(action string) error {

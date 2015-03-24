@@ -17,6 +17,7 @@
 package main
 
 import (
+	"flag"
 	"os"
 	"syscall"
 	"time"
@@ -28,20 +29,22 @@ const (
 )
 
 var (
-	flagGracePeriod        time.Duration
-	flagPreparedExpiration time.Duration
-	cmdGC                  = &Command{
+	cmdGC = &Command{
 		Name:    "gc",
 		Summary: "Garbage-collect rkt containers no longer in use",
 		Usage:   "[--grace-period=duration] [--expire-prepared=duration]",
 		Run:     runGC,
+		Flags:   &gcFlags,
 	}
+	gcFlags                flag.FlagSet
+	flagGracePeriod        time.Duration
+	flagPreparedExpiration time.Duration
 )
 
 func init() {
 	commands = append(commands, cmdGC)
-	cmdGC.Flags.DurationVar(&flagGracePeriod, "grace-period", defaultGracePeriod, "duration to wait before discarding inactive containers from garbage")
-	cmdGC.Flags.DurationVar(&flagPreparedExpiration, "expire-prepared", defaultPreparedExpiration, "duration to wait before expiring prepared containers")
+	gcFlags.DurationVar(&flagGracePeriod, "grace-period", defaultGracePeriod, "duration to wait before discarding inactive containers from garbage")
+	gcFlags.DurationVar(&flagPreparedExpiration, "expire-prepared", defaultPreparedExpiration, "duration to wait before expiring prepared containers")
 }
 
 func runGC(args []string) (exit int) {
