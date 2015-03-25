@@ -30,6 +30,7 @@ var (
 type rktApp struct {
 	image string   // the image as-supplied by the user on the cli
 	args  []string // any arguments the user supplied for this app
+	asc   string   // signature file override for image verification (if fetching occurs)
 
 	imageID types.Hash // resolved image identifier
 }
@@ -66,6 +67,16 @@ func (al *rktApps) last() *rktApp {
 // appendArg appends another argument onto the app
 func (a *rktApp) appendArg(arg string) {
 	a.args = append(a.args, arg)
+}
+
+// sets the ascii-armored signature file path for the app
+func (a *rktApp) setAsc(asc string) {
+	a.asc = asc
+}
+
+// gets the ascii-armored signature file path for the app
+func (a *rktApp) getAsc() string {
+	return a.asc
 }
 
 // parseApps looks through the args for support of per-app argument lists delimited with "--" and "---".
@@ -169,3 +180,33 @@ func (al *rktApps) getImageIDs() []types.Hash {
 	}
 	return hl
 }
+
+// Value interface implementations for the various per-app fields we provide flags for
+
+// appAsc is for aci --signature overrides
+type appAsc rktApps
+
+func (al *appAsc) Set(s string) error {
+	app := (*rktApps)(al).last()
+	if app == nil {
+		return fmt.Errorf("--signature must follow an image")
+	}
+
+	if app.getAsc() != "" {
+		return fmt.Errorf("--signature specified multiple times for the same image")
+	}
+
+	app.setAsc(s)
+
+	return nil
+}
+
+func (al *appAsc) String() string {
+	app := (*rktApps)(al).last()
+	if app == nil {
+		return ""
+	}
+	return app.getAsc()
+}
+
+// TODO(vc): --mount, --set-env, etc.
