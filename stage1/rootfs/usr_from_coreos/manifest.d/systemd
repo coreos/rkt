@@ -20,6 +20,8 @@ bin/systemd-sysusers
 bin/systemd-tmpfiles
 bin/systemd-tty-ask-password-agent
 lib
+lib64/libnss_files.so.2
+lib64/libnss_files-2.17.so
 lib64/ld-2.17.so
 lib64/ld-linux-x86-64.so.2
 lib64/libattr.so

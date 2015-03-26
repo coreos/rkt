@@ -145,6 +145,38 @@ func (p *Pod) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest, inte
 		return fmt.Errorf("unable to write environment file: %v", err)
 	}
 
+	// Create the Unix user and group
+	var prefix string
+	var username, groupname string
+
+	if app.User == "root" || app.User == "0" {
+		username = "root"
+	} else {
+		username = "u" + app.User
+	}
+	if app.Group == "root" || app.Group == "0" {
+		groupname = "root"
+	} else {
+		// if app.User == app.Group, then systemd-sysusers requires that
+		// username == groupname because it automatically creates a
+		// group for the new user.
+		groupname = "u" + app.Group
+	}
+
+	if err := os.MkdirAll(path.Join(common.Stage1RootfsPath(p.Root), "usr/lib/sysusers.d"), 0755); err != nil {
+		return err
+	}
+
+	sysusersConfig := fmt.Sprintf("%su %s %s \"%s\"\n%sg %s %s\n",
+		prefix, username, app.User, username,
+		prefix, groupname, app.Group)
+
+	err := ioutil.WriteFile(path.Join(common.Stage1RootfsPath(p.Root), "usr/lib/sysusers.d", ServiceUnitName(id)+".conf"),
+		[]byte(sysusersConfig), 0640)
+	if err != nil {
+		return err
+	}
+
 	// - prepare-app bind mounted stage1's diagexec on "/.diagexec" in stage2
 	// - use systemd option "RootDirectory" for chrooting the application,
 	//   so diagexec does not have to chroot. Pass "" as chroot parameter.
@@ -162,8 +194,8 @@ func (p *Pod) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest, inte
 		newUnitOption("Unit", "Wants", "exit-watcher.service"),
 		newUnitOption("Service", "Restart", "no"),
 		newUnitOption("Service", "ExecStart", execStart),
-		newUnitOption("Service", "User", app.User),
-		newUnitOption("Service", "Group", app.Group),
+		newUnitOption("Service", "User", username),
+		newUnitOption("Service", "Group", groupname),
 		newUnitOption("Service", "RootDirectory", common.RelAppRootfsPath(id)),
 		newUnitOption("Service", "EnvironmentFile", RelEnvFilePath(id)),
 	}
@@ -235,6 +267,9 @@ func (p *Pod) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest, inte
 
 	opts = append(opts, newUnitOption("Unit", "Requires", InstantiatedPrepareAppUnitName(id)))
 	opts = append(opts, newUnitOption("Unit", "After", InstantiatedPrepareAppUnitName(id)))
+
+	opts = append(opts, newUnitOption("Unit", "Requires", "sysusers.service"))
+	opts = append(opts, newUnitOption("Unit", "After", "sysusers.service"))
 
 	file, err := os.OpenFile(ServiceUnitPath(p.Root, id), os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
