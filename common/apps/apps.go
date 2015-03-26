@@ -17,20 +17,24 @@
 package apps
 
 import (
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 )
 
 type App struct {
-	Image string   // the image reference as supplied by the user on the cli
-	Args  []string // any arguments the user supplied for this app
-	Asc   string   // signature file override for image verification (if fetching occurs)
+	Image  string         // the image reference as supplied by the user on the cli
+	Args   []string       // any arguments the user supplied for this app
+	Asc    string         // signature file override for image verification (if fetching occurs)
+	Mounts []schema.Mount // mounts for this app (superceding any mounts in rktApps.mounts of same MountPoint)
 
 	// TODO(jonboulle): These images are partially-populated hashes, this should be clarified.
 	ImageID types.Hash // resolved image identifier
 }
 
 type Apps struct {
-	apps []App
+	apps    []App
+	Mounts  []schema.Mount // global mounts applied to all apps
+	Volumes []types.Volume // volumes available to all apps
 }
 
 // Reset creates a new slice for al.apps, needed by tests

@@ -39,9 +39,14 @@ var (
 	cmdRun = &Command{
 		Name:    "run",
 		Summary: "Run image(s) in a pod in rkt",
-		Usage:   "[--volume name,kind=host,...] IMAGE [-- image-args...[---]]...",
+		Usage:   "[--volume VOL,kind=host,...] [--mount volume=VOL,target=PATH] IMAGE [-- image-args...[---]]...",
 		Description: `IMAGE should be a string referencing an image; either a hash, local file on disk, or URL.
 They will be checked in that order and the first match will be used.
+
+Volumes are made available to the container via --volume.
+Mounts bind volumes into each image's root within the container via --mount.
+--mount is position-sensitive; occuring before any images applies to all images,
+occuring after any images applies only to the nearest preceding image.
 
 An "--" may be used to inhibit rkt run's parsing of subsequent arguments,
 which will instead be appended to the preceding image app's exec arguments.
@@ -52,7 +57,6 @@ End the image arguments with a lone "---" to resume argument parsing.`,
 	}
 	runFlags        flag.FlagSet
 	flagStage1Image string
-	flagVolumes     volumeList
 	flagPorts       portList
 	flagPrivateNet  bool
 	flagInheritEnv  bool
@@ -74,7 +78,6 @@ func init() {
 	}
 
 	runFlags.StringVar(&flagStage1Image, "stage1-image", defaultStage1Image, `image to use as stage1. Local paths and http/https URLs are supported. If empty, rkt will look for a file called "stage1.aci" in the same directory as rkt itself`)
-	runFlags.Var(&flagVolumes, "volume", "volumes to mount into the pod")
 	runFlags.Var(&flagPorts, "port", "ports to expose on the host (requires --private-net)")
 	runFlags.BoolVar(&flagPrivateNet, "private-net", false, "give pod a private network")
 	runFlags.BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
@@ -83,7 +86,8 @@ func init() {
 	runFlags.BoolVar(&flagInteractive, "interactive", false, "run pod interactively")
 	runFlags.Var((*appAsc)(&rktApps), "signature", "local signature file to use in validating the preceding image")
 	runFlags.BoolVar(&flagLocal, "local", false, "use only local images (do not discover or download from remote URLs)")
-	flagVolumes = volumeList{}
+	runFlags.Var((*appsVolume)(&rktApps), "volume", "volumes to make available in the pod")
+	runFlags.Var((*appMount)(&rktApps), "mount", "mount point binding a volume to a path within an app")
 	flagPorts = portList{}
 }
 
@@ -167,7 +171,6 @@ func runRun(args []string) (exit int) {
 	pcfg := stage0.PrepareConfig{
 		CommonConfig: cfg,
 		Apps:         &rktApps,
-		Volumes:      []types.Volume(flagVolumes),
 		Ports:        []types.ExposedPort(flagPorts),
 		InheritEnv:   flagInheritEnv,
 		ExplicitEnv:  flagExplicitEnv.Strings(),
@@ -202,28 +205,6 @@ func runRun(args []string) (exit int) {
 	stage0.Run(rcfg, p.path()) // execs, never returns
 
 	return 1
-}
-
-// volumeList implements the flag.Value interface to contain a set of mappings
-// from mount label --> mount path
-type volumeList []types.Volume
-
-func (vl *volumeList) Set(s string) error {
-	vol, err := types.VolumeFromString(s)
-	if err != nil {
-		return err
-	}
-
-	*vl = append(*vl, *vol)
-	return nil
-}
-
-func (vl *volumeList) String() string {
-	var vs []string
-	for _, v := range []types.Volume(*vl) {
-		vs = append(vs, v.String())
-	}
-	return strings.Join(vs, " ")
 }
 
 // portList implements the flag.Value interface to contain a set of mappings

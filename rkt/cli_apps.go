@@ -19,7 +19,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net/url"
+	"strings"
 
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/common/apps"
 )
 
@@ -126,4 +130,76 @@ func (al *appAsc) String() string {
 	return app.Asc
 }
 
-// TODO(vc): --mount, --set-env, etc.
+// appMount is for --mount flags in the form of: --mount volume=VOLNAME,target=MNTNAME
+type appMount apps.Apps
+
+func (al *appMount) Set(s string) error {
+	mount := schema.Mount{}
+
+	// this is intentionally made similar to types.VolumeFromString()
+	m, err := url.ParseQuery(strings.Replace(s, ",", "&", -1))
+	if err != nil {
+		return err
+	}
+
+	for key, val := range m {
+		if len(val) > 1 {
+			return fmt.Errorf("label %s with multiple values %q", key, val)
+		}
+		switch key {
+		// FIXME(vc): ACName seems a bit restrictive for naming volumes and mountpoints...
+		case "volume":
+			mv, err := types.NewACName(val[0])
+			if err != nil {
+				return err
+			}
+			mount.Volume = *mv
+		case "target":
+			mp, err := types.NewACName(val[0])
+			if err != nil {
+				return err
+			}
+			mount.MountPoint = *mp
+		default:
+			return fmt.Errorf("unknown mount parameter %q", key)
+		}
+	}
+
+	if (*apps.Apps)(al).Count() == 0 {
+		(*apps.Apps)(al).Mounts = append((*apps.Apps)(al).Mounts, mount)
+	} else {
+		app := (*apps.Apps)(al).Last()
+		app.Mounts = append(app.Mounts, mount)
+	}
+
+	return nil
+}
+
+func (al *appMount) String() string {
+	var ms []string
+	for _, m := range ((*apps.Apps)(al)).Mounts {
+		ms = append(ms, m.Volume.String(), ":", m.MountPoint.String())
+	}
+	return strings.Join(ms, " ")
+}
+
+// appsVolume is for --volume flags in the form name,kind=host,source=/tmp,readOnly=true (defined by appc)
+type appsVolume apps.Apps
+
+func (al *appsVolume) Set(s string) error {
+	vol, err := types.VolumeFromString(s)
+	if err != nil {
+		return err
+	}
+
+	(*apps.Apps)(al).Volumes = append((*apps.Apps)(al).Volumes, *vol)
+	return nil
+}
+
+func (al *appsVolume) String() string {
+	var vs []string
+	for _, v := range (*apps.Apps)(al).Volumes {
+		vs = append(vs, v.String())
+	}
+	return strings.Join(vs, " ")
+}
