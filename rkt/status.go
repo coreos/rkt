@@ -16,14 +16,20 @@
 
 package main
 
+import (
+	"flag"
+)
+
 var (
 	cmdStatus = &Command{
 		Name:    cmdStatusName,
 		Summary: "Check the status of a rkt container",
 		Usage:   "[--wait] UUID",
 		Run:     runStatus,
+		Flags:   &statusFlags,
 	}
-	flagWait bool
+	statusFlags flag.FlagSet
+	flagWait    bool
 )
 
 const (
@@ -34,7 +40,7 @@ const (
 
 func init() {
 	commands = append(commands, cmdStatus)
-	cmdStatus.Flags.BoolVar(&flagWait, "wait", false, "toggle waiting for the container to exit")
+	statusFlags.BoolVar(&flagWait, "wait", false, "toggle waiting for the container to exit")
 }
 
 func runStatus(args []string) (exit int) {

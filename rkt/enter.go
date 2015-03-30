@@ -17,6 +17,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
@@ -34,7 +35,9 @@ var (
 		Summary: "Enter the namespaces of an app within a rkt container",
 		Usage:   "[--imageid IMAGEID] UUID [CMD [ARGS ...]]",
 		Run:     runEnter,
+		Flags:   &enterFlags,
 	}
+	enterFlags     flag.FlagSet
 	flagAppImageID types.Hash
 )
 
@@ -45,7 +48,7 @@ const (
 
 func init() {
 	commands = append(commands, cmdEnter)
-	cmdEnter.Flags.Var(&flagAppImageID, "imageid", "imageid of the app to enter within the specified container")
+	enterFlags.Var(&flagAppImageID, "imageid", "imageid of the app to enter within the specified container")
 }
 
 func runEnter(args []string) (exit int) {

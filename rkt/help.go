@@ -30,7 +30,9 @@ var (
 		Usage:       "[COMMAND]",
 		Description: "Show a list of commands or detailed help for one command",
 		Run:         runHelp,
+		Flags:       &helpFlags,
 	}
+	helpFlags flag.FlagSet
 
 	globalUsageTemplate  *template.Template
 	commandUsageTemplate *template.Template
@@ -126,7 +128,7 @@ func printCommandUsage(cmd *Command) {
 	}{
 		cliName,
 		cmd,
-		getFlags(&cmd.Flags),
+		getFlags(cmd.Flags),
 	})
 	tabOut.Flush()
 }
