@@ -788,3 +788,22 @@ func (c *container) getExitStatuses() (map[string]int, error) {
 	}
 	return stats, nil
 }
+
+//stop stops the container
+func (c *container) stop() (err error) {
+	if c.isExited {
+		return fmt.Errorf("already stopped")
+	}
+
+	pid, err := c.getPID()
+	if err != nil {
+		return err
+	}
+
+	err = syscall.Kill(pid, syscall.SIGSTOP)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
