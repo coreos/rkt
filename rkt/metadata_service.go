@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/schema"
@@ -57,6 +58,7 @@ type mdsContainer struct {
 var (
 	containerByIP  = make(map[string]*mdsContainer)
 	containerByUID = make(map[types.UUID]*mdsContainer)
+	mutex          = sync.Mutex{}
 	hmacKey        [sha512.Size]byte
 
 	flagListenPort int
@@ -111,8 +113,10 @@ func handleRegisterContainer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	mutex.Lock()
 	containerByIP[containerIP] = c
 	containerByUID[*uuid] = c
+	mutex.Unlock()
 
 	w.WriteHeader(http.StatusOK)
 }
@@ -127,18 +131,32 @@ func handleUnregisterContainer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c, ok := containerByUID[*uuid]
-	if !ok {
+	var lastOne bool
+	err = func() error {
+		mutex.Lock()
+		defer mutex.Unlock()
+
+		c, ok := containerByUID[*uuid]
+		if !ok {
+			return fmt.Errorf("Container with given UUID not found")
+		}
+
+		delete(containerByUID, *uuid)
+		delete(containerByIP, c.ip)
+
+		lastOne = (len(containerByUID) == 0)
+		return nil
+	}()
+
+	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprint(w, "Container with given UUID not found")
+		fmt.Fprint(w, err)
 		return
 	}
 
-	delete(containerByUID, *uuid)
-	delete(containerByIP, c.ip)
 	w.WriteHeader(http.StatusOK)
 
-	if flagNoIdle && len(containerByUID) == 0 {
+	if flagNoIdle && lastOne {
 		// TODO(eyakubovich): this is very racy
 		// It's possible for last container to get unregistered
 		// and svc gets flagged to shutdown. Then another container
@@ -163,13 +181,6 @@ func handleRegisterApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c, ok := containerByUID[*uuid]
-	if !ok {
-		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprint(w, "Container with given UUID not found")
-		return
-	}
-
 	an := mux.Vars(r)["app"]
 
 	app := &schema.ImageManifest{}
@@ -179,7 +190,24 @@ func handleRegisterApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c.apps[an] = app
+	err = func() error {
+		mutex.Lock()
+		defer mutex.Unlock()
+
+		c, ok := containerByUID[*uuid]
+		if !ok {
+			return fmt.Errorf("Container with given UUID not found")
+		}
+
+		c.apps[an] = app
+		return nil
+	}()
+
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, err)
+		return
+	}
 
 	w.WriteHeader(http.StatusOK)
 }
@@ -187,7 +215,11 @@ func handleRegisterApp(w http.ResponseWriter, r *http.Request) {
 func containerGet(h func(w http.ResponseWriter, r *http.Request, c *mdsContainer)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		remoteIP := strings.Split(r.RemoteAddr, ":")[0]
+
+		mutex.Lock()
 		c, ok := containerByIP[remoteIP]
+		mutex.Unlock()
+
 		if !ok {
 			w.WriteHeader(http.StatusNotFound)
 			fmt.Fprintf(w, "container by remoteIP (%v) not found", remoteIP)
@@ -202,7 +234,11 @@ func appGet(h func(w http.ResponseWriter, r *http.Request, c *mdsContainer, _ *s
 	return containerGet(func(w http.ResponseWriter, r *http.Request, c *mdsContainer) {
 		appname := mux.Vars(r)["app"]
 
-		if im, ok := c.apps[appname]; ok {
+		mutex.Lock()
+		im, ok := c.apps[appname]
+		mutex.Unlock()
+
+		if ok {
 			h(w, r, c, im)
 		} else {
 			w.WriteHeader(http.StatusNotFound)
@@ -350,7 +386,11 @@ func handleContainerSign(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	remoteIP := strings.Split(r.RemoteAddr, ":")[0]
+
+	mutex.Lock()
 	c, ok := containerByIP[remoteIP]
+	mutex.Unlock()
+
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "Metadata by remoteIP (%v) not found", remoteIP)
