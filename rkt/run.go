@@ -110,24 +110,8 @@ func findImage(img string, ds *cas.Store, ks *keystore.Keystore, discover bool) 
 		return h, nil
 	}
 
-	// import the local file if it exists
-	file, err := os.Open(img)
-	if err == nil {
-		key, err := ds.WriteACI(file, false)
-		file.Close()
-		if err != nil {
-			return nil, fmt.Errorf("%s: %v", img, err)
-		}
-		h, err := types.NewHash(key)
-		if err != nil {
-			// should never happen
-			panic(err)
-		}
-		return h, nil
-	}
-
-	// try fetching remotely
-	key, err := fetchImage(img, ds, ks, discover)
+	// try fetching the image, potentially remotely
+	key, err := fetchImage(img, "" /* TODO(vc): wire up --signature */, ds, ks, discover)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +195,7 @@ func runRun(args []string) (exit int) {
 	}
 	ks := getKeystore()
 
-	s1img, err := findImage(flagStage1Image, ds, ks, false)
+	s1img, err := findImage(flagStage1Image, ds, nil, false)
 	if err != nil {
 		stderr("Error finding stage1 image %q: %v", flagStage1Image, err)
 		return 1
