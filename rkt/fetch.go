@@ -144,10 +144,16 @@ func downloadImage(aciURL string, ascURL string, scheme string, ds *cas.Store, k
 	if err != nil {
 		return "", err
 	}
-	if !ok {
-		entity, aciFile, err := download(aciURL, ascURL, ds, ks)
+	if !ok || (rem.CacheControl != nil && !rem.CacheControl.UseCachedImage()) {
+		rem = cas.NewRemote(aciURL, ascURL)
+		entity, aciFile, useCachedACI, err := download(rem, ds, ks)
 		if err != nil {
 			return "", err
+		}
+		// I added useCachedACI var to avoid one extra round trip with http requests
+		if useCachedACI {
+			fmt.Printf("rkt: using cached aci image\n")
+			return rem.BlobKey, nil
 		}
 		defer os.Remove(aciFile.Name())
 
@@ -161,14 +167,17 @@ func downloadImage(aciURL string, ascURL string, scheme string, ds *cas.Store, k
 		if err != nil {
 			return "", err
 		}
-		rem = cas.NewRemote(aciURL, ascURL)
+
 		rem.BlobKey = key
 		err = ds.WriteRemote(rem)
 		if err != nil {
 			return "", err
 		}
 
+	} else {
+		fmt.Printf("rkt: using cached aci image\n")
 	}
+
 	return rem.BlobKey, nil
 }
 
@@ -176,31 +185,36 @@ func downloadImage(aciURL string, ascURL string, scheme string, ds *cas.Store, k
 // If Keystore is nil signature verification will be skipped.
 // Download returns the signer, an *os.File representing the ACI, and an error if any.
 // err will be nil if the ACI downloads successfully and the ACI is verified.
-func download(aciURL string, ascURL string, ds *cas.Store, ks *keystore.Keystore) (*openpgp.Entity, *os.File, error) {
-	var entity *openpgp.Entity
+func download(r *cas.Remote, ds *cas.Store, ks *keystore.Keystore) (*openpgp.Entity, *os.File, bool, error) {
+	var (
+		entity       *openpgp.Entity
+		useCachedACI = false
+		aciURL       = r.ACIURL
+		ascURL       = r.SigURL
+	)
 	u, err := url.Parse(aciURL)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error parsing ACI url: %v", err)
+		return nil, nil, useCachedACI, fmt.Errorf("error parsing ACI url: %v", err)
 	}
 	if u.Scheme == "docker" {
 		registryURL := strings.TrimPrefix(aciURL, "docker://")
 
 		tmpDir, err := tmpDir()
 		if err != nil {
-			return nil, nil, fmt.Errorf("error creating temporary dir for docker to ACI conversion: %v", err)
+			return nil, nil, useCachedACI, fmt.Errorf("error creating temporary dir for docker to ACI conversion: %v", err)
 		}
 
 		acis, err := docker2aci.Convert(registryURL, true, tmpDir)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error converting docker image to ACI: %v", err)
+			return nil, nil, useCachedACI, fmt.Errorf("error converting docker image to ACI: %v", err)
 		}
 
 		aciFile, err := os.Open(acis[0])
 		if err != nil {
-			return nil, nil, fmt.Errorf("error opening squashed ACI file: %v", err)
+			return nil, nil, useCachedACI, fmt.Errorf("error opening squashed ACI file: %v", err)
 		}
 
-		return nil, aciFile, nil
+		return nil, aciFile, useCachedACI, nil
 	}
 
 	var sigTempFile *os.File
@@ -208,60 +222,49 @@ func download(aciURL string, ascURL string, ds *cas.Store, ks *keystore.Keystore
 		stdout("Downloading signature from %v\n", ascURL)
 		sigTempFile, err = downloadSignatureFile(ascURL)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error downloading the signature file: %v", err)
+			return nil, nil, useCachedACI, fmt.Errorf("error downloading the signature file: %v", err)
 		}
 		defer sigTempFile.Close()
 		defer os.Remove(sigTempFile.Name())
 	}
 
-	acif, err := downloadACI(ds, aciURL)
+	acif, useCachedACI, err := downloadACI(r, *ds)
 	if err != nil {
-		return nil, acif, fmt.Errorf("error downloading the aci image: %v", err)
+		return nil, acif, useCachedACI, fmt.Errorf("error downloading the aci image: %v", err)
 	}
 
 	if ks != nil {
 		manifest, err := aci.ManifestFromImage(acif)
 		if err != nil {
-			return nil, acif, err
+			return nil, acif, useCachedACI, err
 		}
 
 		if _, err := acif.Seek(0, 0); err != nil {
-			return nil, acif, err
+			return nil, acif, useCachedACI, err
 		}
 		if _, err := sigTempFile.Seek(0, 0); err != nil {
-			return nil, acif, err
+			return nil, acif, useCachedACI, err
 		}
 		if entity, err = ks.CheckSignature(manifest.Name.String(), acif, sigTempFile); err != nil {
-			return nil, acif, err
+			return nil, acif, useCachedACI, err
 		}
 	}
 
 	if _, err := acif.Seek(0, 0); err != nil {
-		return nil, acif, err
+		return nil, acif, useCachedACI, err
 	}
-	return entity, acif, nil
+	return entity, acif, useCachedACI, nil
 }
 
 // downloadACI gets the aci specified at aciurl
-func downloadACI(ds *cas.Store, aciurl string) (*os.File, error) {
-	return downloadHTTP(aciurl, "ACI", tmpFile)
-}
-
-// downloadSignatureFile gets the signature specified at sigurl
-func downloadSignatureFile(sigurl string) (*os.File, error) {
-	getTemp := func() (*os.File, error) {
-		return ioutil.TempFile("", "")
-	}
-
-	return downloadHTTP(sigurl, "signature", getTemp)
-}
-
-// downloadHTTP retrieves url, creating a temp file using getTempFile
-// file:// http:// and https:// urls supported
-func downloadHTTP(url, label string, getTempFile func() (*os.File, error)) (*os.File, error) {
-	tmp, err := getTempFile()
+func downloadACI(r *cas.Remote, ds cas.Store) (*os.File, bool, error) {
+	var (
+		useCachedACI = false
+		aciurl       = r.ACIURL
+	)
+	tmp, err := tmpFile()
 	if err != nil {
-		return nil, fmt.Errorf("error downloading %s: %v", label, err)
+		return nil, useCachedACI, fmt.Errorf("error downloading ACI: %v", err)
 	}
 	defer func() {
 		if err != nil {
@@ -270,13 +273,85 @@ func downloadHTTP(url, label string, getTempFile func() (*os.File, error)) (*os.
 		}
 	}()
 
-	res, err := http.Get(url)
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", aciurl, nil)
+	if r.ETag != "" {
+		req.Header.Add("If-None-Match", r.ETag)
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, useCachedACI, err
+	}
+	defer res.Body.Close()
+
+	prefix := "Downloading ACI"
+	fmtBytesSize := 18
+	barSize := int64(80 - len(prefix) - fmtBytesSize)
+	bar := ioprogress.DrawTextFormatBar(barSize)
+	fmtfunc := func(progress, total int64) string {
+		return fmt.Sprintf(
+			"%s: %s %s",
+			prefix,
+			bar(progress, total),
+			ioprogress.DrawTextFormatBytes(progress, total),
+		)
+	}
+
+	reader := &ioprogress.Reader{
+		Reader:       res.Body,
+		Size:         res.ContentLength,
+		DrawFunc:     ioprogress.DrawTerminalf(os.Stdout, fmtfunc),
+		DrawInterval: time.Second,
+	}
+
+	// TODO(jonboulle): handle http more robustly (redirects?)
+	if res.StatusCode == http.StatusNotModified || res.StatusCode == http.StatusOK {
+		r.ETag = res.Header.Get("ETag")
+		r.CacheControl = cas.NewCache(res.Header.Get("Cache-Control"))
+
+		useCachedACI = (res.StatusCode == http.StatusNotModified)
+		if useCachedACI {
+			return nil, useCachedACI, nil
+		}
+
+		if _, err := io.Copy(tmp, reader); err != nil {
+			return nil, useCachedACI, fmt.Errorf("error copying ACI: %v", err)
+		}
+
+		if err := tmp.Sync(); err != nil {
+			return nil, useCachedACI, fmt.Errorf("error writing ACI: %v", err)
+		}
+	} else {
+		return nil, useCachedACI, fmt.Errorf("bad HTTP status code: %d", res.StatusCode)
+	}
+
+	if err = ds.WriteRemote(r); err != nil {
+		return nil, useCachedACI, err
+	}
+
+	return tmp, useCachedACI, nil
+}
+
+// downloadSignatureFile gets the signature specified at sigurl
+func downloadSignatureFile(sigurl string) (*os.File, error) {
+	tmp, err := ioutil.TempFile("", "")
+	if err != nil {
+		return nil, fmt.Errorf("error downloading signature: %v", err)
+	}
+	defer func() {
+		if err != nil {
+			os.Remove(tmp.Name())
+			tmp.Close()
+		}
+	}()
+
+	res, err := http.Get(sigurl)
 	if err != nil {
 		return nil, err
 	}
 	defer res.Body.Close()
 
-	prefix := "Downloading " + label
+	prefix := "Downloading signature"
 	fmtBytesSize := 18
 	barSize := int64(80 - len(prefix) - fmtBytesSize)
 	bar := ioprogress.DrawTextFormatBar(barSize)
@@ -302,11 +377,11 @@ func downloadHTTP(url, label string, getTempFile func() (*os.File, error)) (*os.
 	}
 
 	if _, err := io.Copy(tmp, reader); err != nil {
-		return nil, fmt.Errorf("error copying %s: %v", label, err)
+		return nil, fmt.Errorf("error copying signature: %v", err)
 	}
 
 	if err := tmp.Sync(); err != nil {
-		return nil, fmt.Errorf("error writing %s: %v", label, err)
+		return nil, fmt.Errorf("error writing signature: %v", err)
 	}
 
 	return tmp, nil

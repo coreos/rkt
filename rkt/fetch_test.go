@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -34,6 +35,10 @@ import (
 
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/discovery"
 	"github.com/coreos/rocket/Godeps/_workspace/src/github.com/appc/spec/schema/types"
+)
+
+const (
+	StatusNotModified = 304
 )
 
 func TestNewDiscoveryApp(t *testing.T) {
@@ -183,7 +188,8 @@ func TestDownloading(t *testing.T) {
 		if tt.hit == true && !ok {
 			t.Fatalf("expected a hit got a miss")
 		}
-		_, aciFile, err := download(tt.ACIURL, tt.SigURL, ds, nil)
+		rem := cas.NewRemote(tt.ACIURL, tt.SigURL)
+		_, aciFile, _, err := download(rem, ds, nil)
 		if err != nil {
 			t.Fatalf("error downloading aci: %v", err)
 		}
@@ -193,7 +199,6 @@ func TestDownloading(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected err: %v", err)
 		}
-		rem := cas.NewRemote(tt.ACIURL, tt.SigURL)
 		rem.BlobKey = key
 		err = ds.WriteRemote(rem)
 		if err != nil {
@@ -263,6 +268,109 @@ func TestFetchImage(t *testing.T) {
 	_, err = fetchImage(fmt.Sprintf("%s/app.aci", ts.URL), ds, ks, true)
 	if err != nil {
 		t.Fatalf("unexpected error %v", err)
+	}
+}
+
+func TestFetchImageCache(t *testing.T) {
+	dir, err := ioutil.TempDir("", "fetch-image-cache")
+	if err != nil {
+		t.Fatalf("error creating tempdir: %v", err)
+	}
+	defer os.RemoveAll(dir)
+	ds, err := cas.NewStore(dir)
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+	defer ds.Dump(false)
+
+	ks, ksPath, err := keystore.NewTestKeystore()
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+	defer os.RemoveAll(ksPath)
+
+	key := keystoretest.KeyMap["example.com/app"]
+	if _, err := ks.StoreTrustedKeyPrefix("example.com/app", bytes.NewBufferString(key.ArmoredPublicKey)); err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+	a, err := aci.NewBasicACI(dir, "example.com/app")
+	defer a.Close()
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+
+	// Rewind the ACI
+	if _, err := a.Seek(0, 0); err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+
+	sig, err := aci.NewDetachedSignature(key.ArmoredPrivateKey, a)
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+
+	// Rewind the ACI.
+	if _, err := a.Seek(0, 0); err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch filepath.Ext(r.URL.Path) {
+		case ".aci":
+			w.Header().Set("Cache-Control", "max-age=10")
+			w.Header().Set("ETag", "123456789")
+			if cc := r.Header.Get("If-None-Match"); cc == "123456789" {
+				w.WriteHeader(StatusNotModified)
+			} else {
+				io.Copy(w, a)
+			}
+			return
+		case ".sig":
+			io.Copy(w, sig)
+			return
+		}
+	}))
+	defer ts.Close()
+
+	urlRemote, _ := url.Parse(fmt.Sprintf("%s/app.aci", ts.URL))
+	blobKey, err := downloadImage(urlRemote.String(), ascURLFromImgURL(urlRemote.String()), "", ds, nil, true)
+	if err != nil {
+		t.Fatalf("Error downloading image from: %v\n", err)
+	}
+	if blobKey == "" {
+		t.Errorf("expected remote to download an image")
+	}
+	// Recover Remote information for validation
+	rem, _, err := ds.GetRemote(urlRemote.String())
+	if err != nil {
+		t.Fatalf("Error getting remote info: %v\n", err)
+	}
+	if rem.ETag != "123456789" {
+		t.Errorf("expected remote to have a ETag header argument")
+	}
+	if rem.CacheControl.MaxAge != 10 {
+		t.Errorf("expected max-age header argument to be '10'")
+	}
+
+	// Test download of a cached image when using If-None-Match header
+	cachedBlobKey := rem.BlobKey
+	rem.BlobKey, err = downloadImage(urlRemote.String(), ascURLFromImgURL(urlRemote.String()), "", ds, ks, true)
+	if err != nil {
+		t.Fatalf("Error downloading image from %s: %v\n", ts.URL, err)
+	}
+	if rem.BlobKey != cachedBlobKey {
+		t.Errorf("expected remote to download an image")
+	}
+	// Recover Remote information for validation
+	rem, _, err = ds.GetRemote(urlRemote.String())
+	if err != nil {
+		t.Fatalf("Error getting remote info: %v\n", err)
+	}
+	if rem.ETag != "123456789" {
+		t.Errorf("expected remote to have a ETag header argument")
+	}
+	if rem.CacheControl.MaxAge != 10 {
+		t.Errorf("expected max-age header argument to be '10'")
 	}
 }
 

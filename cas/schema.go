@@ -17,7 +17,7 @@ var dbCreateStmts = [...]string{
 	fmt.Sprintf("INSERT INTO version VALUES (%d)", dbVersion),
 
 	// remote table. The primary key is "aciurl".
-	"CREATE TABLE IF NOT EXISTS remote (aciurl string, sigurl string, etag string, blobkey string);",
+	"CREATE TABLE IF NOT EXISTS remote (aciurl string, sigurl string, etag string, blobkey string, maxage int, downloaded time);",
 	"CREATE UNIQUE INDEX IF NOT EXISTS aciurlidx ON remote (aciurl)",
 
 	// aciinfo table. The primary key is "blobkey" and it matches the key used to save that aci in the blob store

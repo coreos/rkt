@@ -39,6 +39,7 @@ func TestNewRemote(t *testing.T) {
 	// Create our first Remote, and simulate Store() to create row in the table
 	na := NewRemote(u1, "")
 	na.BlobKey = data
+	na.CacheControl = NewCache("max-age=10")
 	ds.WriteRemote(na)
 
 	// Get a new remote w the same parameters, reading from table should be fine

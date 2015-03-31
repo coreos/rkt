@@ -206,6 +206,7 @@ func TestGetAci(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 	ds, err := NewStore(dir)
+
 	if err != nil {
 		t.Fatalf("unexpected error %v", err)
 	}
@@ -346,9 +347,9 @@ func TestTreeStore(t *testing.T) {
 
 	imj := `
 		{
-		    "acKind": "ImageManifest",
-		    "acVersion": "0.5.1",
-		    "name": "example.com/test01"
+				"acKind": "ImageManifest",
+				"acVersion": "0.5.1",
+				"name": "example.com/test01"
 		}
 	`
 
@@ -449,5 +450,4 @@ func TestTreeStore(t *testing.T) {
 	if err == nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
 }
