@@ -19,8 +19,12 @@ package main
 import (
 	"flag"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"syscall"
 	"time"
+
+	"github.com/coreos/rkt/common"
 )
 
 const (
@@ -109,6 +113,8 @@ func emptyExitedGarbage(gracePeriod time.Duration) error {
 				return
 			}
 			stdout("Garbage collecting pod %q", p.uuid)
+
+			runGCHooks(p)
 			if err := os.RemoveAll(gp); err != nil {
 				stderr("Unable to remove pod %q: %v", p.uuid, err)
 			}
@@ -174,4 +180,32 @@ func emptyGarbage() error {
 	}
 
 	return nil
+}
+
+// runs registered gc hooks. can only be invoked as part
+// of exited-garbage collection and pod dir needs to be
+// under exclusive lock
+func runGCHooks(p *pod) {
+	hooks, err := p.getGCHooks()
+	if err != nil {
+		stderr("Pod %q: error getting list of gc hooks: %v", p.uuid, err)
+		return
+	}
+
+	for _, hook := range hooks {
+		// we're under exclusive lock, it's ok to grab the full path
+		hp := common.GCHooksPath(p.path())
+		hp = filepath.Join(hp, hook)
+
+		c := exec.Cmd{
+			Path:   hp,
+			Args:   []string{hook, p.uuid.String()},
+			Stderr: os.Stderr,
+			Dir:    p.path(),
+		}
+
+		if err = c.Run(); err != nil {
+			stderr("Pod %q: error running GC hook %q: %v", p.uuid, hook, err)
+		}
+	}
 }
