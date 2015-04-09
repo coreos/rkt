@@ -54,4 +54,18 @@ if [ -n "${vetRes}" ]; then
 	exit 255
 fi
 
+# Functional tests are more dangerous than unit tests: they use 'sudo' and use
+# /var/lib/rkt/ directly. Only run them inside well-known Continuous
+# Integration Services.
+if [ "$CI" == true ] ; then
+	if [ "${CIRCLECI}" == true -o "${SEMAPHORE}" == true ] ; then
+		echo "Checking functional tests..."
+		(cd tests && ./test)
+	else
+		echo "Functional tests disabled."
+	fi
+else
+	echo "Functional tests disabled."
+fi
+
 echo "Success"

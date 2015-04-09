@@ -1,0 +1,5 @@
+test:
+  override:
+    - ./tests/install-deps.sh
+    - RKT_STAGE1_USR_FROM=src ./build
+    - ./test

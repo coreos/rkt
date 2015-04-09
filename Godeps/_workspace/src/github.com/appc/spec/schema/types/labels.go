@@ -92,6 +92,16 @@ func (l Labels) Get(name string) (val string, ok bool) {
 	return "", false
 }
 
+// ToMap creates a map[ACName]string.
+func (l Labels) ToMap() map[ACName]string {
+	labelsMap := make(map[ACName]string)
+	for _, lbl := range l {
+		labelsMap[lbl.Name] = lbl.Value
+	}
+	return labelsMap
+}
+
+// LabelsFromMap creates Labels from a map[ACName]string
 func LabelsFromMap(labelsMap map[ACName]string) (Labels, error) {
 	labels := Labels{}
 	for n, v := range labelsMap {

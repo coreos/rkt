@@ -1,0 +1,39 @@
+{
+    "acKind": "ImageManifest",
+    "acVersion": "0.5.1",
+    "name": "coreos.com/rkt-inspect",
+    "labels": [
+        {
+            "name": "version",
+            "value": "1.0.0"
+        },
+        {
+            "name": "arch",
+            "value": "amd64"
+        },
+        {
+            "name": "os",
+            "value": "linux"
+        }
+    ],
+    "app": {
+        "exec": [
+            "/inspect", "--print-msg=Hello", "--exit-code=20"
+        ],
+        "user": "0",
+        "group": "0",
+        "workingDirectory": "/",
+        "environment": [
+            {
+                "name": "MY_VARIABLE",
+                "value": "manifest"
+            }
+        ],
+        "isolators": [
+        ],
+        "mountPoints": [
+        ],
+        "ports": [
+        ]
+    }
+}

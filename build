@@ -66,3 +66,6 @@ if [[ "$OSTYPE" == "linux-gnu" ]]; then
 	echo "Building rootfs (stage1) using ${JOBS} CPUs..."
 	make -C stage1/rootfs -j ${JOBS}
 fi
+
+echo "Building functional tests..."
+(cd tests && ./build)

@@ -1,0 +1,4 @@
+spawn ../bin/rkt --debug --insecure-skip-verify  run ./rkt-inspect-failure.aci
+expect Hello
+expect "main process exited, code=exited, status=20"
+expect eof

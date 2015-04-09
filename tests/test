@@ -1,0 +1,25 @@
+#!/bin/bash
+
+red=`tput setaf 1`
+green=`tput setaf 2`
+reset=`tput sgr0`
+
+run_test() {
+	EXPECT_SCRIPT=$1
+	NAME=$2
+	LOG_FILE=${EXPECT_SCRIPT}.log
+	sudo expect -f $1 &> $LOG_FILE
+	RC=$?
+	if [ $RC == 0 ] ; then
+		echo "${green} [OK] ${reset} $NAME"
+	else
+		echo "${red} [FAIL] ${reset} $NAME"
+		echo
+		cat $LOG_FILE
+		exit $RC
+	fi
+}
+
+for i in test-*.expect ; do
+	run_test $i $i
+done

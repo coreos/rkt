@@ -30,7 +30,7 @@ var (
 		Usage:       "[--type=TYPE] FILE...",
 		Run:         runValidate,
 	}
-	types = []string{
+	validateTypes = []string{
 		typeAppImage,
 		typeImageLayout,
 		typeManifest,
@@ -39,7 +39,7 @@ var (
 
 func init() {
 	cmdValidate.Flags.StringVar(&valType, "type", "",
-		fmt.Sprintf(`Type of file to validate. If unset, actool will try to detect the type. One of "%s"`, strings.Join(types, ",")))
+		fmt.Sprintf(`Type of file to validate. If unset, actool will try to detect the type. One of "%s"`, strings.Join(validateTypes, ",")))
 }
 
 func runValidate(args []string) (exit int) {
