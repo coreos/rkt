@@ -65,3 +65,12 @@ func NewAppFromString(app string) (*App, error) {
 	}
 	return a, nil
 }
+
+// String returns the URL-like image name
+func (a *App) String() string {
+	img := a.Name.String()
+	for n, v := range a.Labels {
+		img += fmt.Sprintf(",%s=%s", n, v)
+	}
+	return img
+}

@@ -1,0 +1,9 @@
+spawn ../bin/rkt --debug --insecure-skip-verify  run ./rkt-inspect-success.aci
+expect "Hello"
+while {1} {
+  expect {
+    "main process exited, code=exited, status="   {exit 1}
+    "Shutting down."                              {break}
+  }
+}
+expect eof

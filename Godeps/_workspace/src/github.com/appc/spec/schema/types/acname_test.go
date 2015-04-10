@@ -54,6 +54,29 @@ func TestNewACNameBad(t *testing.T) {
 	}
 }
 
+func TestMustACName(t *testing.T) {
+	for i, in := range goodNames {
+		l := MustACName(in)
+		if l == nil {
+			t.Errorf("#%d: got l=nil, want non-nil", i)
+		}
+	}
+}
+
+func expectPanicMustACName(i int, in string, t *testing.T) {
+	defer func() {
+		recover()
+	}()
+	_ = MustACName(in)
+	t.Errorf("#%d: panic expected", i)
+}
+
+func TestMustACNameBad(t *testing.T) {
+	for i, in := range badNames {
+		expectPanicMustACName(i, in, t)
+	}
+}
+
 func TestSanitizeACName(t *testing.T) {
 	tests := map[string]string{
 		"foo#":                                             "foo",

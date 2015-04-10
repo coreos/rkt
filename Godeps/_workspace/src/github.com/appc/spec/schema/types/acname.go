@@ -65,6 +65,16 @@ func NewACName(s string) (*ACName, error) {
 	return &n, nil
 }
 
+// MustACName generates a new ACName from a string, If the given string is
+// not a valid ACName, it panics.
+func MustACName(s string) *ACName {
+	n, err := NewACName(s)
+	if err != nil {
+		panic(err)
+	}
+	return n
+}
+
 func (n ACName) assertValid() error {
 	s := string(n)
 	if len(s) == 0 {

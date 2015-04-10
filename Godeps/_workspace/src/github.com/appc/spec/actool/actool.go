@@ -47,8 +47,10 @@ func init() {
 	out.Init(os.Stdout, 0, 8, 1, '\t', 0)
 	commands = []*Command{
 		cmdBuild,
+		cmdCatManifest,
 		cmdDiscover,
 		cmdHelp,
+		cmdPatchManifest,
 		cmdValidate,
 		cmdVersion,
 	}

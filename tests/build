@@ -1,0 +1,16 @@
+#!/bin/bash -e
+
+if [ ! -e ./image/manifest ] ; then
+	echo "Wrong directory"
+	exit 1
+fi
+
+(cd inspect && go build)
+
+mkdir -p image/rootfs
+cp inspect/inspect image/rootfs/
+../bin/actool build          --overwrite image rkt-inspect.aci
+../bin/actool patch-manifest --overwrite --exec="/inspect --print-msg=Hello --exit-code=0"  rkt-inspect.aci rkt-inspect-success.aci
+../bin/actool patch-manifest --overwrite --exec="/inspect --print-msg=Hello --exit-code=20" rkt-inspect.aci rkt-inspect-failure.aci
+../bin/actool patch-manifest --overwrite --exec="/inspect --print-msg=Hello --print-env=MY_VARIABLE" rkt-inspect.aci rkt-inspect-env.aci
+

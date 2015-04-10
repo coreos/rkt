@@ -1,0 +1,9 @@
+spawn ../bin/rkt --debug --insecure-skip-verify  run ./rkt-inspect-env.aci
+expect "Hello"
+expect "MY_VARIABLE=manifest"
+expect eof
+
+spawn ../bin/rkt --debug --insecure-skip-verify  run --set-env=MY_VARIABLE=cmdline ./rkt-inspect-env.aci
+expect "Hello"
+expect "MY_VARIABLE=cmdline"
+expect eof

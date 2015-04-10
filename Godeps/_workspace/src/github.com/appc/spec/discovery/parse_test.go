@@ -74,3 +74,48 @@ func TestNewAppFromString(t *testing.T) {
 		}
 	}
 }
+
+func TestAppString(t *testing.T) {
+	tests := []struct {
+		a   *App
+		out string
+	}{
+		{
+			&App{
+				Name:   "example.com/reduce-worker",
+				Labels: map[types.ACName]string{},
+			},
+			"example.com/reduce-worker",
+		},
+		{
+			&App{
+				Name: "example.com/reduce-worker",
+				Labels: map[types.ACName]string{
+					"version": "1.0.0",
+				},
+			},
+			"example.com/reduce-worker:1.0.0",
+		},
+		{
+			&App{
+				Name: "example.com/reduce-worker",
+				Labels: map[types.ACName]string{
+					"channel": "alpha",
+					"label":   "value",
+				},
+			},
+			"example.com/reduce-worker,channel=alpha,label=value",
+		},
+	}
+	for i, tt := range tests {
+		appString := tt.a.String()
+
+		g, err := NewAppFromString(appString)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if !reflect.DeepEqual(g, tt.a) {
+			t.Errorf("#%d: got %#v, want %#v", i, g, tt.a)
+		}
+	}
+}

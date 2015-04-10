@@ -139,6 +139,7 @@ func getACIFiles(img Image, ap ACIProvider, allFiles map[string]struct{}, pwlm m
 	hash := sha512.New()
 	r := io.TeeReader(rs, hash)
 
+	thispwlm := pwlToMap(img.Im.PathWhitelist)
 	ra := &ACIFiles{FileMap: make(map[string]struct{})}
 	if err = Walk(tar.NewReader(r), func(hdr *tar.Header) error {
 		name := hdr.Name
@@ -153,7 +154,6 @@ func getACIFiles(img Image, ap ACIProvider, allFiles map[string]struct{}, pwlm m
 		// If the file is a directory continue also if not in PathWhiteList
 		if hdr.Typeflag != tar.TypeDir {
 			if len(img.Im.PathWhitelist) > 0 {
-				thispwlm := pwlToMap(img.Im.PathWhitelist)
 				if _, ok := thispwlm[cleanName]; !ok {
 					return nil
 				}
@@ -199,8 +199,7 @@ func pwlToMap(pwl []string) map[string]struct{} {
 	}
 	m := make(map[string]struct{}, len(pwl))
 	for _, name := range pwl {
-		cleanName := filepath.Clean(name)
-		relpath := filepath.Join("rootfs/", cleanName)
+		relpath := filepath.Join("rootfs", name)
 		m[relpath] = struct{}{}
 	}
 	return m
