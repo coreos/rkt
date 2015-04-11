@@ -62,15 +62,40 @@ End the image arguments with a lone "---" to resume argument parsing.`,
 	flagLocal       bool
 )
 
+//
+// Search a series of directories for a stage1 image
+//
+
+var stage1ImagePath = []string{
+	"./",
+	"/usr/libexec/rkt",
+	"/usr/lib/rkt",
+	"/var/lib/rkt",
+}
+
+func findDefaultStage1Image() (string) {
+
+	if exePath, err := os.Readlink("/proc/self/exe"); err == nil {
+		stage1ImagePath[0] = filepath.Dir(exePath)
+	}
+
+	var testfile string; 
+	for i := 0 ; i < len(stage1ImagePath) ; i++ {
+		testfile = filepath.Join(stage1ImagePath[i], "stage1.aci")
+		if _, err := os.Stat(testfile); err == nil {
+			return testfile
+		}
+	}
+	return filepath.Join(stage1ImagePath[0], "stage1.aci")
+}
+
 func init() {
 	commands = append(commands, cmdRun)
 
 	// if not set by linker, try discover the directory rkt is running
 	// from, and assume the default stage1.aci is stored alongside it.
 	if defaultStage1Image == "" {
-		if exePath, err := os.Readlink("/proc/self/exe"); err == nil {
-			defaultStage1Image = filepath.Join(filepath.Dir(exePath), "stage1.aci")
-		}
+		defaultStage1Image = findDefaultStage1Image()
 	}
 
 	runFlags.StringVar(&flagStage1Image, "stage1-image", defaultStage1Image, `image to use as stage1. Local paths and http/https URLs are supported. If empty, rkt will look for a file called "stage1.aci" in the same directory as rkt itself`)
