@@ -168,6 +168,13 @@ func newPod() (*pod, error) {
 		return nil, err
 	}
 
+	// p.FileLock was just opened so it can't be in closed state
+	fd, _ := p.Fd()
+	err = syscall.Mkdirat(fd, common.GCHooksPath("."), 0700)
+	if err != nil {
+		return nil, err
+	}
+
 	err = p.xToPreparing()
 	if err != nil {
 		return nil, err
@@ -799,4 +806,9 @@ func (p *pod) getExitStatuses() (map[string]int, error) {
 		stats[name] = s
 	}
 	return stats, nil
+}
+
+// getGCHooks returns the registered gc hooks found in gchooks dir
+func (p *pod) getGCHooks() ([]string, error) {
+	return p.getDirNames(common.GCHooksPath("."))
 }

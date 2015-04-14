@@ -62,6 +62,11 @@ func PodManifestPath(root string) string {
 	return filepath.Join(root, "pod")
 }
 
+// GCHooksPath returns the path of the directory with installed gc hooks
+func GCHooksPath(root string) string {
+	return filepath.Join(root, "gchooks")
+}
+
 // AppImagesPath returns the path where the app images live
 func AppImagesPath(root string) string {
 	return filepath.Join(Stage1RootfsPath(root), stage2Dir)
