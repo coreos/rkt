@@ -101,7 +101,7 @@ func parseApps(al *apps.Apps, args []string, flags *flag.FlagSet, allowAppArgs b
 		}
 	}
 
-	return nil
+	return al.Validate()
 }
 
 // Value interface implementations for the various per-app fields we provide flags for

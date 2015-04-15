@@ -17,6 +17,8 @@
 package apps
 
 import (
+	"fmt"
+
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 )
@@ -58,6 +60,35 @@ func (al *Apps) Last() *App {
 		return nil
 	}
 	return &al.apps[len(al.apps)-1]
+}
+
+// Validate validates al for things like referential integrity of mounts<->volumes.
+func (al *Apps) Validate() error {
+	vs := map[types.ACName]struct{}{}
+	for _, v := range al.Volumes {
+		vs[v.Name] = struct{}{}
+	}
+
+	f := func(mnts []schema.Mount) error {
+		for _, m := range mnts {
+			_, ok := vs[m.Volume]
+			if !ok {
+				return fmt.Errorf("dangling mount point %q: volume %q not found", m.MountPoint, m.Volume)
+			}
+		}
+		return nil
+	}
+
+	if err := f(al.Mounts); err != nil {
+		return err
+	}
+
+	err := al.Walk(func(app *App) error {
+		return f(app.Mounts)
+	})
+
+	/* TODO(vc): in debug/verbose mode say something about unused volumes? */
+	return err
 }
 
 // Walk iterates on al.apps calling f for each app
