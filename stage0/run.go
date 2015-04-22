@@ -52,7 +52,6 @@ type PrepareConfig struct {
 	Apps        *apps.Apps          // apps to prepare
 	InheritEnv  bool                // inherit parent environment into apps
 	ExplicitEnv []string            // always set these environment variables for all the apps
-	Volumes     []types.Volume      // list of volumes that rkt can provide to applications
 	Ports       []types.ExposedPort // list of ports that rkt will expose on the host
 	UseOverlay  bool                // prepare pod with overlay fs
 }
@@ -100,6 +99,14 @@ func MergeEnvs(appEnv *types.Environment, inheritEnv bool, setEnv []string) {
 	}
 }
 
+// MergeMounts combines the global and per-app mount slices
+func MergeMounts(mounts []schema.Mount, appMounts []schema.Mount) []schema.Mount {
+	ml := mounts
+	ml = append(ml, appMounts...)
+	// TODO(vc): deduplicate mountpoint collisions? (prioritize appMounts?)
+	return ml
+}
+
 // Prepare sets up a pod based on the given config.
 func Prepare(cfg PrepareConfig, dir string, uuid *types.UUID) error {
 	log.Printf("Preparing stage1")
@@ -138,6 +145,7 @@ func Prepare(cfg PrepareConfig, dir string, uuid *types.UUID) error {
 				ID:   img,
 			},
 			Annotations: am.Annotations,
+			Mounts:      MergeMounts(cfg.Apps.Mounts, app.Mounts),
 		}
 
 		if execAppends := app.Args; execAppends != nil {
@@ -159,7 +167,7 @@ func Prepare(cfg PrepareConfig, dir string, uuid *types.UUID) error {
 
 	// TODO(jonboulle): check that app mountpoint expectations are
 	// satisfied here, rather than waiting for stage1
-	cm.Volumes = cfg.Volumes
+	cm.Volumes = cfg.Apps.Volumes
 	cm.Ports = cfg.Ports
 
 	cdoc, err := json.Marshal(cm)

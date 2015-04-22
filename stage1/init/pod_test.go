@@ -115,9 +115,17 @@ func TestAppToNspawnArgsOverridesImageManifestReadOnly(t *testing.T) {
 				},
 			},
 		}
+		appManifest := &schema.RuntimeApp{
+			Mounts: []schema.Mount{
+				{
+					Volume:     "foo-mount",
+					MountPoint: "foo-mount",
+				},
+			},
+		}
 
 		p := &Pod{Manifest: podManifest}
-		output, err := p.appToNspawnArgs(&schema.RuntimeApp{}, imageManifest)
+		output, err := p.appToNspawnArgs(appManifest, imageManifest)
 		if err != nil {
 			t.Errorf("#%d: unexpected error: `%v`", i, err)
 		}

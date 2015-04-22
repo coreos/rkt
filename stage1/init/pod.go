@@ -292,20 +292,24 @@ func (p *Pod) appToNspawnArgs(ra *schema.RuntimeApp, am *schema.ImageManifest) (
 
 	vols := make(map[types.ACName]types.Volume)
 
-	// TODO(philips): this is implicitly creating a mapping from MountPoint
-	// to volumes. This is a nice convenience for users but we will need to
-	// introduce a --mount flag so they can control which mountPoint maps to
-	// which volume.
-
+	// Here we bind the volumes to the mountpoints via runtime mounts (--mount)
 	for _, v := range p.Manifest.Volumes {
 		vols[v.Name] = v
 	}
 
+	mnts := make(map[types.ACName]types.ACName)
+	for _, m := range ra.Mounts {
+		mnts[m.MountPoint] = m.Volume
+	}
+
 	for _, mp := range app.MountPoints {
-		key := mp.Name
+		key, ok := mnts[mp.Name]
+		if !ok {
+			return nil, fmt.Errorf("no mount for mountpoint %q in app %q", mp.Name, name)
+		}
 		vol, ok := vols[key]
 		if !ok {
-			return nil, fmt.Errorf("no volume for mountpoint %q in app %q", key, name)
+			return nil, fmt.Errorf("no volume for mount %q:%q in app %q", mp.Name, key, name)
 		}
 		opt := make([]string, 4)
 

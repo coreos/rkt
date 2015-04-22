@@ -17,20 +17,26 @@
 package apps
 
 import (
+	"fmt"
+
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 )
 
 type App struct {
-	Image string   // the image reference as supplied by the user on the cli
-	Args  []string // any arguments the user supplied for this app
-	Asc   string   // signature file override for image verification (if fetching occurs)
+	Image  string         // the image reference as supplied by the user on the cli
+	Args   []string       // any arguments the user supplied for this app
+	Asc    string         // signature file override for image verification (if fetching occurs)
+	Mounts []schema.Mount // mounts for this app (superceding any mounts in rktApps.mounts of same MountPoint)
 
 	// TODO(jonboulle): These images are partially-populated hashes, this should be clarified.
 	ImageID types.Hash // resolved image identifier
 }
 
 type Apps struct {
-	apps []App
+	apps    []App
+	Mounts  []schema.Mount // global mounts applied to all apps
+	Volumes []types.Volume // volumes available to all apps
 }
 
 // Reset creates a new slice for al.apps, needed by tests
@@ -54,6 +60,35 @@ func (al *Apps) Last() *App {
 		return nil
 	}
 	return &al.apps[len(al.apps)-1]
+}
+
+// Validate validates al for things like referential integrity of mounts<->volumes.
+func (al *Apps) Validate() error {
+	vs := map[types.ACName]struct{}{}
+	for _, v := range al.Volumes {
+		vs[v.Name] = struct{}{}
+	}
+
+	f := func(mnts []schema.Mount) error {
+		for _, m := range mnts {
+			_, ok := vs[m.Volume]
+			if !ok {
+				return fmt.Errorf("dangling mount point %q: volume %q not found", m.MountPoint, m.Volume)
+			}
+		}
+		return nil
+	}
+
+	if err := f(al.Mounts); err != nil {
+		return err
+	}
+
+	err := al.Walk(func(app *App) error {
+		return f(app.Mounts)
+	})
+
+	/* TODO(vc): in debug/verbose mode say something about unused volumes? */
+	return err
 }
 
 // Walk iterates on al.apps calling f for each app

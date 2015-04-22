@@ -50,13 +50,14 @@ End the image arguments with a lone "---" to resume argument parsing.`,
 func init() {
 	commands = append(commands, cmdPrepare)
 	prepareFlags.StringVar(&flagStage1Image, "stage1-image", defaultStage1Image, `image to use as stage1. Local paths and http/https URLs are supported. If empty, rkt will look for a file called "stage1.aci" in the same directory as rkt itself`)
-	prepareFlags.Var(&flagVolumes, "volume", "volumes to mount into the pod")
 	prepareFlags.Var(&flagPorts, "port", "ports to expose on the host (requires --private-net)")
 	prepareFlags.BoolVar(&flagQuiet, "quiet", false, "suppress superfluous output on stdout, print only the UUID on success")
 	prepareFlags.BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
 	prepareFlags.BoolVar(&flagNoOverlay, "no-overlay", false, "disable overlay filesystem")
 	prepareFlags.Var(&flagExplicitEnv, "set-env", "an environment variable to set for apps in the form name=value")
 	prepareFlags.BoolVar(&flagLocal, "local", false, "use only local images (do not discover or download from remote URLs)")
+	prepareFlags.Var((*appsVolume)(&rktApps), "volume", "volumes to make available in the pod")
+	prepareFlags.Var((*appMount)(&rktApps), "mount", "mount point binding a volume to a path within an app")
 }
 
 func runPrepare(args []string) (exit int) {
@@ -133,7 +134,6 @@ func runPrepare(args []string) (exit int) {
 			Stage1Image: *s1img,
 			UUID:        p.uuid,
 		},
-		Volumes:     []types.Volume(flagVolumes),
 		Ports:       []types.ExposedPort(flagPorts),
 		InheritEnv:  flagInheritEnv,
 		ExplicitEnv: flagExplicitEnv.Strings(),
