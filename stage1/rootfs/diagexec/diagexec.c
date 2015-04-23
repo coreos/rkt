@@ -146,13 +146,14 @@ static void diag(const char *exe)
 }
 
 /* Read environment from env and make it our own. */
-/* The environment file must exist, may be empty, and is expected to be of the format:
- * key=value\0key=value\0...
+/* The environment file must exist, may be empty, and is expected to be of the
+ * same format as systemd's EnvironmentFile option:
+ * key=value\nkey=value\n...
  */
 static void load_env(const char *env)
 {
 	struct stat		st;
-	char			*map, *k, *v;
+	char			*map, *k, *v, *endl;
 	typeof(st.st_size)	i;
 
 	map_file(env, PROT_READ|PROT_WRITE, MAP_PRIVATE, &st, (void **)&map);
@@ -163,21 +164,28 @@ static void load_env(const char *env)
 	if(!st.st_size)
 		return;
 
-	map[st.st_size - 1] = '\0'; /* ensure the mapping is null-terminated */
+	map[st.st_size - 1] = '\n'; /* ensure the mapping is '\n'-terminated */
 
 	for(i = 0; i < st.st_size;) {
 		k = &map[i];
-		i += strlen(k) + 1;
+		exit_if((endl = strchr(k, '\n')) == NULL,
+			"Malformed environment entry: \"%s\"", k);
+		i += endl - k + 1;
 		exit_if((v = strchr(k, '=')) == NULL,
 			"Malformed environment entry: \"%s\"", k);
 		/* a private writable map is used permitting s/=/\0/ */
 		*v = '\0';
+		*endl = '\0';
 		v++;
 		pexit_if(setenv(k, v, 1) == -1,
 			"Unable to set env variable: \"%s\"=\"%s\"", k, v);
 	}
 }
 
+/* diagexec can be executed from:
+ * - a systemd unit file as a specific user (maybe not root)
+ * - rkt enter, as root
+ */
 int main(int argc, char *argv[])
 {
 	const char *root, *cwd, *env, *exe;
@@ -189,10 +197,16 @@ int main(int argc, char *argv[])
 	env = argv[3];
 	exe = argv[4];
 
-	load_env(env);
+	if (env[0] != '\0') {
+		load_env(env);
+	}
 
-	pexit_if(chroot(root) == -1, "Chroot \"%s\" failed", root);
-	pexit_if(chdir(cwd) == -1, "Chdir \"%s\" failed", cwd);
+	if (root[0] != '\0') {
+		pexit_if(chroot(root) == -1, "Chroot \"%s\" failed", root);
+	}
+	if (cwd[0] != '\0') {
+		pexit_if(chdir(cwd) == -1, "Chdir \"%s\" failed", cwd);
+	}
 
 	/* XXX(vc): note that since execvp() is happening post-chroot, the
 	 * app's environment settings correctly affect the PATH search.

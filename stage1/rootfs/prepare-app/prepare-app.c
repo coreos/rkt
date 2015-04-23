@@ -81,6 +81,7 @@ int main(int argc, char *argv[])
 	int rootfd;
 	char to[4096];
 	int i;
+	int fd;
 
 	exit_if(argc < 2,
 		"Usage: %s /path/to/root", argv[0]);
@@ -140,7 +141,6 @@ int main(int argc, char *argv[])
 	 */
 	for (i = 0; devnodes[i]; i++) {
 		const char *from = devnodes[i];
-		int fd;
 
 		/* If the file does not exist, skip it. It might be because
 		 * the kernel does not provide it (e.g. kernel compiled without
@@ -178,6 +178,16 @@ int main(int argc, char *argv[])
 		"Path too long: \"%s\"", to);
 	pexit_if(symlink("/dev/pts/ptmx", to) == -1,
 		"Failed to create /dev/ptmx symlink");
+
+	/* diagexec */
+	exit_if(snprintf(to, sizeof(to), "%s/.diagexec", root) >= sizeof(to),
+		"Path too long: \"%s\"", to);
+	fd = open(to, O_WRONLY|O_CREAT|O_CLOEXEC|O_NOCTTY, 0755);
+	if (fd != -1)
+		close(fd);
+	pexit_if(mount("/diagexec", to, "bind", MS_BIND, NULL) == -1,
+			"Mounting /diagexec on \"%s\" failed", to);
+
 
 	return EXIT_SUCCESS;
 }

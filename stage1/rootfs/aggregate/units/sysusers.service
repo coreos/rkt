@@ -1,0 +1,11 @@
+[Unit]
+Description=Create /etc/passwd
+DefaultDependencies=false
+OnFailureJobMode=fail
+
+[Service]
+Type=oneshot
+Restart=no
+ExecStart=/usr/bin/systemd-sysusers
+User=0
+Group=0
