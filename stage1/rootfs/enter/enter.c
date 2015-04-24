@@ -13,23 +13,25 @@
 // limitations under the License.
 
 #define _GNU_SOURCE
+#include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <sched.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 static int errornum;
-#define exit_if(_cond, _fmt, _args...)			\
-	errornum++;					\
-	if(_cond) {					\
-		fprintf(stderr, _fmt "\n", ##_args);	\
-		exit(errornum);				\
+#define exit_if(_cond, _fmt, _args...)                                    \
+	errornum++;                                                       \
+	if(_cond) {                                                       \
+		fprintf(stderr, _fmt ": %s\n", ##_args, strerror(errno)); \
+		exit(errornum);                                           \
 	}
 
 static int openpidfd(int pid, char *which) {
