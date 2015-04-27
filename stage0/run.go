@@ -192,9 +192,6 @@ func validatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 			return nil, fmt.Errorf("error: multiple apps with name %s", app.Name)
 		}
 		appNames[app.Name] = struct{}{}
-		if !app.Name.Equals(am.Name) {
-			return nil, fmt.Errorf("error: image has a different name from the app (%q vs %q)", am.Name, app.Name)
-		}
 		if am.App == nil {
 			return nil, fmt.Errorf("error: image %s has no app section", img)
 		}
