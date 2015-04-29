@@ -14,13 +14,10 @@ export GOPATH=${PWD}/gopath
 eval $(go env)
 
 # set default stage1 usr style and validate potential override
-export RKT_STAGE1_USR_FROM="${RKT_STAGE1_USR_FROM:-coreos}"
+export RKT_STAGE1_USR_FROM="${RKT_STAGE1_USR_FROM:-src}"
 case "${RKT_STAGE1_USR_FROM}" in
 	none)
 		echo "stage1 build disabled"
-		;;
-	coreos)
-		echo "stage1 will reuse coreos image"
 		;;
 	src)
 		export RKT_STAGE1_SYSTEMD_SRC="${RKT_STAGE1_SYSTEMD_SRC:-git://anongit.freedesktop.org/systemd/systemd}"

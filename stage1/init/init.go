@@ -122,7 +122,7 @@ func machinedRegister() bool {
 		// machined v215 supports methods "RegisterMachine" and "CreateMachine" called by nspawn v215.
 		// machined v216+ (since commit 5aa4bb) additionally supports methods "CreateMachineWithNetwork"
 		// and "RegisterMachineWithNetwork", called by nspawn v216+.
-		// TODO(alban): write checks for both versions in order to register on machined v215?
+		// we use nspawn v219 so only  care about the latter.
 		for _, method := range iface.Methods {
 			if method.Name == "CreateMachineWithNetwork" || method.Name == "RegisterMachineWithNetwork" {
 				found++
@@ -144,24 +144,6 @@ func getArgsEnv(p *Pod, debug bool) ([]string, []string, error) {
 	}
 
 	switch flavor {
-	case "coreos":
-		// when running the coreos-derived stage1 with unpatched systemd-nspawn we need some ld-linux hackery
-		args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), interpBin))
-		args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), nspawnBin))
-		args = append(args, "--boot") // Launch systemd in the pod
-
-		// Note: the coreos flavor uses systemd-nspawn v215 but machinedRegister()
-		// checks for the nspawn registration method used since v216. So we will
-		// not register when the host has systemd v215.
-		if machinedRegister() {
-			args = append(args, fmt.Sprintf("--register=true"))
-		} else {
-			args = append(args, fmt.Sprintf("--register=false"))
-		}
-
-		env = append(env, "LD_PRELOAD="+filepath.Join(common.Stage1RootfsPath(p.Root), "fakesdboot.so"))
-		env = append(env, "LD_LIBRARY_PATH="+filepath.Join(common.Stage1RootfsPath(p.Root), "usr/lib"))
-
 	case "src":
 		args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), nspawnBin))
 		args = append(args, "--boot") // Launch systemd in the pod

@@ -16,10 +16,8 @@ Use the following build commands:
 ```
 ./tests/install-deps.sh         # Setup
 ./tests/run-build.sh none       # Thread 1
-./tests/run-build.sh coreos     # Thread 2
-./tests/run-build.sh src v215   # Thread 1
-./tests/run-build.sh src v219   # Thread 2
 ./tests/run-build.sh src master # Thread 1
+./tests/run-build.sh src v219   # Thread 2
 git clean -ffdx                 # Post Thread
 ```
 
