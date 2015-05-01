@@ -49,13 +49,14 @@ import (
 type PrepareConfig struct {
 	CommonConfig
 	// TODO(jonboulle): These images are partially-populated hashes, this should be clarified.
-	Apps        *apps.Apps          // apps to prepare
-	InheritEnv  bool                // inherit parent environment into apps
-	ExplicitEnv []string            // always set these environment variables for all the apps
-	Volumes     []types.Volume      // list of volumes that rkt can provide to applications
-	Ports       []types.ExposedPort // list of ports that rkt will expose on the host
-	UseOverlay  bool                // prepare pod with overlay fs
-	PodManifest string              // use the pod manifest specified by the user, this will ignore flags such as '--volume', '--port', etc.
+	Apps            *apps.Apps          // apps to prepare
+	InheritEnv      bool                // inherit parent environment into apps
+	ExplicitEnv     []string            // always set these environment variables for all the apps
+	Volumes         []types.Volume      // list of volumes that rkt can provide to applications
+	Ports           []types.ExposedPort // list of ports that rkt will expose on the host
+	UseOverlay      bool                // prepare pod with overlay fs
+	PodManifest     string              // use the pod manifest specified by the user, this will ignore flags such as '--volume', '--port', etc.
+	InjectedVolumes InjectedVolumes     // list of volumes that are injected into pod at runtime
 }
 
 // configuration parameters needed by Run
@@ -136,6 +137,7 @@ func generatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 				ID:   img,
 			},
 			Annotations: am.Annotations,
+			App:         am.App,
 		}
 
 		if execAppends := app.Args; execAppends != nil {
@@ -159,19 +161,23 @@ func generatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 	// satisfied here, rather than waiting for stage1
 	pm.Volumes = cfg.Volumes
 	pm.Ports = cfg.Ports
-
-	pmb, err := json.Marshal(pm)
+	// inject volumes into the manifest
+	pmi, err := cfg.InjectedVolumes.inject(pm)
+	if err != nil {
+		return nil, err
+	}
+	pmb, err := json.Marshal(pmi)
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling pod manifest: %v", err)
 	}
 	return pmb, nil
 }
 
-// validatePodManifest reads the user-specified pod manifest, prepares the app images
+// preparePodManifest reads the user-specified pod manifest, prepares the app images
 // and validates the pod manifest. If the pod manifest passes validation, it returns
-// the manifest as []byte.
+// prepared manifest as []byte.
 // TODO(yifan): More validation in the future.
-func validatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
+func preparePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 	pmb, err := ioutil.ReadFile(cfg.PodManifest)
 	if err != nil {
 		return nil, fmt.Errorf("error reading pod manifest: %v", err)
@@ -182,7 +188,7 @@ func validatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 	}
 
 	appNames := make(map[types.ACName]struct{})
-	for _, app := range pm.Apps {
+	for i, app := range pm.Apps {
 		img := app.Image
 		am, err := prepareAppImage(cfg, img.ID, dir, cfg.UseOverlay)
 		if err != nil {
@@ -198,8 +204,16 @@ func validatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 		if am.App == nil {
 			return nil, fmt.Errorf("error: image %s has no app section", img)
 		}
+		if pm.Apps[i].App == nil {
+			pm.Apps[i].App = am.App
+		}
 	}
-	return pmb, nil
+	// inject volumes into the manifest
+	pmi, err := cfg.InjectedVolumes.inject(pm)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(pmi)
 }
 
 // Prepare sets up a pod based on the given config.
@@ -212,7 +226,7 @@ func Prepare(cfg PrepareConfig, dir string, uuid *types.UUID) error {
 	var pmb []byte
 	var err error
 	if len(cfg.PodManifest) > 0 {
-		pmb, err = validatePodManifest(cfg, dir)
+		pmb, err = preparePodManifest(cfg, dir)
 	} else {
 		pmb, err = generatePodManifest(cfg, dir)
 	}
