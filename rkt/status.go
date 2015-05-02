@@ -91,14 +91,16 @@ func printStatus(p *pod) error {
 			return err
 		}
 
-		stats, err := p.getExitStatuses()
-		if err != nil {
-			return err
-		}
+		if p.isExited {
+			stats, err := p.getExitStatuses()
+			if err != nil {
+				return err
+			}
 
-		stdout("pid=%d\nexited=%t", pid, p.isExited)
-		for app, stat := range stats {
-			stdout("%s=%d", app, stat)
+			stdout("pid=%d\nexited=%t", pid, p.isExited)
+			for app, stat := range stats {
+				stdout("%s=%d", app, stat)
+			}
 		}
 	}
 	return nil
