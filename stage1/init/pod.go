@@ -1,4 +1,5 @@
 // Copyright 2014 CoreOS, Inc.
+// Copyright 2015 Intel Corp
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -388,6 +389,17 @@ func (p *Pod) PodToNspawnArgs() ([]string, error) {
 			return nil, fmt.Errorf("failed to construct args for app %q: %v", am.Name, err)
 		}
 		args = append(args, aa...)
+	}
+
+	return args, nil
+}
+
+// PodToKvmArgs renders a prepared Pod as a lkvm
+// argument list ready to be executed
+func (p *Pod) PodToKvmArgs() ([]string, error) {
+	args := []string{
+		"--name=" + "rkt-" + p.UUID.String(),
+		"--disk=" + common.Stage1RootfsPath(p.Root),
 	}
 
 	return args, nil

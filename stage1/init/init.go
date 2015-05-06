@@ -1,4 +1,5 @@
 // Copyright 2014 CoreOS, Inc.
+// Copyright 2015 Intel Corp
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,10 +30,9 @@ import (
 	"path/filepath"
 	"runtime"
 	"syscall"
+	"strings"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/godbus/dbus"
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/godbus/dbus/introspect"
 
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/networking"
@@ -42,6 +42,9 @@ import (
 const (
 	// Path to systemd-nspawn binary within the stage1 rootfs
 	nspawnBin = "/usr/bin/systemd-nspawn"
+	// Path to lkvm binary within the stage1 rootfs
+	lkvmBin = "/usr/bin/lkvm"
+	bzImg = "/usr/lib/kernel/vmlinuz.container"
 	// Path to the interpreter within the stage1 rootfs
 	interpBin = "/usr/lib/ld-linux-x86-64.so.2"
 	// Path to the localtime file/symlink in host
@@ -86,12 +89,18 @@ var (
 	debug       bool
 	privNet     bool
 	interactive bool
+	virtualisation string
 )
 
 func init() {
 	flag.BoolVar(&debug, "debug", false, "Run in debug mode")
 	flag.BoolVar(&privNet, "private-net", false, "Setup private network")
 	flag.BoolVar(&interactive, "interactive", false, "The pod is interactive")
+	flag.StringVar(&virtualisation, "containment-type", "kvm", "Containment type to use: nspawn or kvm (default)")
+
+	if os.Getenv("RKT_CONTAINMENT_TYPE") != "" {
+		virtualisation = os.Getenv("RKT_CONTAINMENT_TYPE")
+	}
 
 	// this ensures that main runs only on main thread (thread group leader).
 	// since namespace ops (unshare, setns) are done for a single thread, we
@@ -99,90 +108,24 @@ func init() {
 	runtime.LockOSThread()
 }
 
-// machinedRegister checks if nspawn should register the pod to machined
-func machinedRegister() bool {
-	// machined has a D-Bus interface following versioning guidelines, see:
-	// http://www.freedesktop.org/wiki/Software/systemd/machined/
-	// Therefore we can just check if the D-Bus method we need exists and we
-	// don't need to check the signature.
-	var found int
-
-	conn, err := dbus.SystemBus()
-	if err != nil {
-		return false
-	}
-	node, err := introspect.Call(conn.Object("org.freedesktop.machine1", "/org/freedesktop/machine1"))
-	if err != nil {
-		return false
-	}
-	for _, iface := range node.Interfaces {
-		if iface.Name != "org.freedesktop.machine1.Manager" {
-			continue
-		}
-		// machined v215 supports methods "RegisterMachine" and "CreateMachine" called by nspawn v215.
-		// machined v216+ (since commit 5aa4bb) additionally supports methods "CreateMachineWithNetwork"
-		// and "RegisterMachineWithNetwork", called by nspawn v216+.
-		// TODO(alban): write checks for both versions in order to register on machined v215?
-		for _, method := range iface.Methods {
-			if method.Name == "CreateMachineWithNetwork" || method.Name == "RegisterMachineWithNetwork" {
-				found++
-			}
-		}
-		break
-	}
-	return found == 2
-}
-
-// getArgsEnv returns the nspawn args and env according to the usr used
-func getArgsEnv(p *Pod, debug bool) ([]string, []string, error) {
+// getArgsEnvNspawn returns the nspawn args and env according to the usr used
+func getArgsEnvNspawn(p *Pod) ([]string, []string, error) {
 	args := []string{}
 	env := os.Environ()
 
-	flavor, err := os.Readlink(filepath.Join(common.Stage1RootfsPath(p.Root), "flavor"))
+	args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), nspawnBin))
+	args = append(args, "--boot") // Launch systemd in the pod
+	out, err := os.Getwd()
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to determine stage1 flavor: %v", err)
+		return nil, nil, err
 	}
-
-	switch flavor {
-	case "coreos":
-		// when running the coreos-derived stage1 with unpatched systemd-nspawn we need some ld-linux hackery
-		args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), interpBin))
-		args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), nspawnBin))
-		args = append(args, "--boot") // Launch systemd in the pod
-
-		// Note: the coreos flavor uses systemd-nspawn v215 but machinedRegister()
-		// checks for the nspawn registration method used since v216. So we will
-		// not register when the host has systemd v215.
-		if machinedRegister() {
-			args = append(args, fmt.Sprintf("--register=true"))
-		} else {
-			args = append(args, fmt.Sprintf("--register=false"))
-		}
-
-		env = append(env, "LD_PRELOAD="+filepath.Join(common.Stage1RootfsPath(p.Root), "fakesdboot.so"))
-		env = append(env, "LD_LIBRARY_PATH="+filepath.Join(common.Stage1RootfsPath(p.Root), "usr/lib"))
-
-	case "src":
-		args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), nspawnBin))
-		args = append(args, "--boot") // Launch systemd in the pod
-		out, err := os.Getwd()
-		if err != nil {
-			return nil, nil, err
-		}
-		lfd, err := common.GetRktLockFD()
-		if err != nil {
-			return nil, nil, err
-		}
-		args = append(args, fmt.Sprintf("--pid-file=%v", filepath.Join(out, "pid")))
-		args = append(args, fmt.Sprintf("--keep-fd=%v", lfd))
-		if machinedRegister() {
-			args = append(args, fmt.Sprintf("--register=true"))
-		} else {
-			args = append(args, fmt.Sprintf("--register=false"))
-		}
-	default:
-		return nil, nil, fmt.Errorf("unrecognized stage1 flavor: %q", flavor)
+	lfd, err := common.GetRktLockFD()
+	if err != nil {
+		return nil, nil, err
 	}
+	args = append(args, fmt.Sprintf("--pid-file=%v", filepath.Join(out, "pid")))
+	args = append(args, fmt.Sprintf("--keep-fd=%v", lfd))
+	args = append(args, fmt.Sprintf("--register=true"))
 
 	if !debug {
 		args = append(args, "--quiet") // silence most nspawn output (log_warning is currently not covered by this)
@@ -194,15 +137,63 @@ func getArgsEnv(p *Pod, debug bool) ([]string, []string, error) {
 	}
 	args = append(args, nsargs...)
 
-	// Arguments to systemd
 	args = append(args, "--")
-	args = append(args, "--default-standard-output=tty") // redirect all service logs straight to tty
+	args = append(args, "--default-standard-output=tty")
+
 	if !debug {
-		args = append(args, "--log-target=null") // silence systemd output inside pod
-		args = append(args, "--show-status=0")   // silence systemd initialization status output
+		args = append(args, "--log-target=null")
+		args = append(args, "--show-status=0")
 	}
 
 	return args, env, nil
+}
+
+func getArgsEnvKvm(p *Pod) ([]string, []string, error) {
+	args := []string{}
+	kargs := []string{}
+	env := os.Environ()
+
+	args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), lkvmBin))
+	args = append(args, "run")
+
+	args = append(args, "-m 1024")
+	args = append(args, "-c 6")
+
+	args = append(args, fmt.Sprintf("--kernel=%v", filepath.Join(common.Stage1RootfsPath(p.Root), bzImg)))
+	args = append(args, "--console=virtio")
+	kargs = append(kargs, "console=hvc0")
+
+	kargs = append(kargs, "init=/usr/lib/systemd/systemd")
+
+	nsargs, err := p.PodToKvmArgs()
+	if err != nil {
+		return nil, nil, fmt.Errorf("Failed to generate kvm args: %v", err)
+	}
+	args = append(args, nsargs...)
+
+	// Arguments to systemd
+	kargs = append(kargs, "systemd.default_standard_output=tty")
+	if !debug {
+		kargs = append(kargs, "systemd.log_target=null")
+		kargs = append(kargs, "systemd.show-status=0")
+		kargs = append(kargs, "quiet") // silence most nspawn output (log_warning is currently not covered by this)
+	}
+
+	args = append(args, "--param")
+	args = append(args, strings.Join(kargs, " "))
+
+	return args, env, nil
+}
+
+func getArgsEnv(p *Pod) ([]string, []string, error) {
+	switch virtualisation {
+	case "nspawn":
+		return getArgsEnvNspawn(p)
+	case "kvm":
+		return getArgsEnvKvm(p)
+	default:
+		return nil, nil, fmt.Errorf("unrecognized containment type: %v", virtualisation)
+	}
 }
 
 func withClearedCloExec(lfd int, f func() error) error {
@@ -311,7 +302,7 @@ func stage1() int {
 		return 2
 	}
 
-	args, env, err := getArgsEnv(p, debug)
+	args, env, err := getArgsEnv(p)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get execution parameters: %v\n", err)
 		return 3
@@ -337,7 +328,7 @@ func stage1() int {
 
 	err = withClearedCloExec(lfd, execFn)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to execute nspawn: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to execute containment: %v\n", err)
 		return 5
 	}
 
