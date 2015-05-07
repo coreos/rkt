@@ -39,6 +39,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -59,6 +60,8 @@ const (
 	nspawnBin = "/usr/bin/systemd-nspawn"
 	// Path to the interpreter within the stage1 rootfs
 	interpBin = "/usr/lib/ld-linux-x86-64.so.2"
+	// Path to pid-file-writer within the stage1 rootfs
+	pidFileWriterBin = "/pid-file-writer"
 	// Path to the localtime file/symlink in host
 	localtimePath = "/etc/localtime"
 )
@@ -180,15 +183,10 @@ func getArgsEnv(p *Pod, debug bool) ([]string, []string, error) {
 	case "src":
 		args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), nspawnBin))
 		args = append(args, "--boot") // Launch systemd in the pod
-		out, err := os.Getwd()
-		if err != nil {
-			return nil, nil, err
-		}
 		lfd, err := common.GetRktLockFD()
 		if err != nil {
 			return nil, nil, err
 		}
-		args = append(args, fmt.Sprintf("--pid-file=%v", filepath.Join(out, "pid")))
 		args = append(args, fmt.Sprintf("--keep-fd=%v", lfd))
 		if machinedRegister() {
 			args = append(args, fmt.Sprintf("--register=true"))
@@ -339,6 +337,44 @@ func stage1() int {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get execution parameters: %v\n", err)
 		return 3
+	}
+
+	// setup babysitter process to get X_NSPAWN_LEADER_PID from systemd-nspawn
+
+	notifyConn, err := net.ListenUnixgram("unixgram", &net.UnixAddr{
+		Name: "", // empty string should trigger the autobind feature as described on unix(7), see TestUnixgramAutobind
+		Net:  "unixgram",
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to listen on sdnotify socket: %v\n", err)
+		return 6
+	}
+	autoAddr := notifyConn.LocalAddr().(*net.UnixAddr)
+	notifyFile, err := notifyConn.File()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get sdnotify file descriptor: %v\n", err)
+		return 7
+	}
+	notifyFd := notifyFile.Fd()
+
+	os.Setenv("NOTIFY_SOCKET", autoAddr.Name)
+	env = append(env, fmt.Sprintf("NOTIFY_SOCKET=%s", autoAddr.Name))
+
+	out, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Cannot get current working directory: %v\n", err)
+		return 8
+	}
+
+	cmd := exec.Command(
+		filepath.Join(common.Stage1RootfsPath(p.Root), pidFileWriterBin),
+		fmt.Sprintf("%d", notifyFd),
+		filepath.Join(out, "pid"))
+
+	err = withClearedCloExec(int(notifyFd), cmd.Start)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Cannot start pid-file-writer: %v\n", err)
+		return 9
 	}
 
 	var execFn func() error

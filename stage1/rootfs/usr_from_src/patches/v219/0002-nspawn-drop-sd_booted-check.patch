@@ -1,7 +1,7 @@
-From ac144a4dd0406c929a7e85d357a269dedac61780 Mon Sep 17 00:00:00 2001
+From 07706ab9c1e55ab155c0af9cd319b0c6e6223eb0 Mon Sep 17 00:00:00 2001
 From: Lennart Poettering <lennart@poettering.net>
 Date: Tue, 31 Mar 2015 15:34:01 +0200
-Subject: [PATCH 3/4] nspawn: drop sd_booted() check
+Subject: [PATCH 2/4] nspawn: drop sd_booted() check
 
 We have no such check in any of the other tools, hence don't have one in
 nspawn either.
@@ -16,10 +16,10 @@ check for running it like that. You are still on your own if you do...
  1 file changed, 6 deletions(-)
 
 diff --git a/src/nspawn/nspawn.c b/src/nspawn/nspawn.c
-index 5ea07c4..5a30bdd 100644
+index b7c9da5..27521ce 100644
 --- a/src/nspawn/nspawn.c
 +++ b/src/nspawn/nspawn.c
-@@ -3626,12 +3626,6 @@ int main(int argc, char *argv[]) {
+@@ -3611,12 +3611,6 @@ int main(int argc, char *argv[]) {
                  goto finish;
          }
  

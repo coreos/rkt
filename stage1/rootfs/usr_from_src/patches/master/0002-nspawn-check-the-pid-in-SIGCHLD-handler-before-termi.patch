@@ -1,0 +1,131 @@
+From efdb7cffadfa2ff1cd2182871d241cd66d99e360 Mon Sep 17 00:00:00 2001
+From: Alban Crequy <alban@endocode.com>
+Date: Thu, 7 May 2015 21:35:43 -0700
+Subject: [PATCH 2/2] nspawn: check the pid in SIGCHLD handler before
+ terminating the container
+
+From: Alban Crequy <alban@endocode.com>
+
+When a process starts systemd-nspawn with exec*() without fork(),
+systemd-nspawn can be the parent process of children processes unknown
+to systemd-nspawn. It can then receive the signal SIGCHLD for both the
+container leader process and the previously started processes. So it
+should distinguish them.
+---
+ src/nspawn/nspawn.c | 55 +++++++++++++++++++++++++++++++++++++++++++++++------
+ 1 file changed, 49 insertions(+), 6 deletions(-)
+
+diff --git a/src/nspawn/nspawn.c b/src/nspawn/nspawn.c
+index c64d258..2dc15d6 100644
+--- a/src/nspawn/nspawn.c
++++ b/src/nspawn/nspawn.c
+@@ -23,6 +23,7 @@
+ #include <sched.h>
+ #include <unistd.h>
+ #include <sys/types.h>
++#include <sys/wait.h>
+ #include <sys/mount.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -3523,6 +3524,12 @@ static int change_uid_gid(char **_home) {
+         return 0;
+ }
+ 
++typedef struct SigChildData {
++        pid_t leader_pid;
++        siginfo_t leader_status;
++        bool terminated;
++} SigChildData;
++
+ /*
+  * Return values:
+  * < 0 : wait_for_terminate() failed to get the state of the
+@@ -3540,13 +3547,17 @@ static int change_uid_gid(char **_home) {
+  * That is, success is indicated by a return value of zero, and an
+  * error is indicated by a non-zero value.
+  */
+-static int wait_for_container(pid_t pid, ContainerStatus *container) {
++static int wait_for_container(SigChildData *sigchld_ctx, pid_t pid, ContainerStatus *container) {
+         siginfo_t status;
+         int r;
+ 
+-        r = wait_for_terminate(pid, &status);
+-        if (r < 0)
+-                return log_warning_errno(r, "Failed to wait for container: %m");
++        if (sigchld_ctx->terminated) {
++                status = sigchld_ctx->leader_status;
++        } else {
++                r = wait_for_terminate(pid, &status);
++                if (r < 0)
++                        return log_warning_errno(r, "Failed to wait for container: %m");
++        }
+ 
+         switch (status.si_code) {
+ 
+@@ -3606,6 +3617,35 @@ static int on_orderly_shutdown(sd_event_source *s, const struct signalfd_siginfo
+         return 0;
+ }
+ 
++static int on_sigchld(sd_event_source *s, const struct signalfd_siginfo *si, void *userdata) {
++        SigChildData *ctx = userdata;
++        pid_t leader_pid = ctx->leader_pid;
++
++        /* several terminated children could be merged in a single SIGCHLD, so
++         * don't rely on si->ssi_pid. */
++
++        while (1) {
++                int r;
++                siginfo_t status;
++
++                zero(status);
++                r = waitid(P_ALL, -1, &status, WEXITED | WNOHANG);
++                if (r < 0)
++                        break;
++
++                if (status.si_pid <= 0)
++                        break;
++
++                if (status.si_pid == leader_pid) {
++                        ctx->leader_status = status;
++                        ctx->terminated = true;
++                        return sd_event_exit(sd_event_source_get_event(s), 0);
++                }
++        }
++
++        return 0;
++}
++
+ static int determine_names(void) {
+         int r;
+ 
+@@ -3961,6 +4001,7 @@ int main(int argc, char *argv[]) {
+                         .sa_handler = nop_handler,
+                         .sa_flags = SA_NOCLDSTOP,
+                 };
++                SigChildData sigchld_ctx = {0,};
+ 
+                 r = barrier_create(&barrier);
+                 if (r < 0) {
+@@ -4430,7 +4471,9 @@ int main(int argc, char *argv[]) {
+                                 }
+ 
+                                 /* simply exit on sigchld */
+-                                sd_event_add_signal(event, NULL, SIGCHLD, NULL, NULL);
++                                sigchld_ctx.leader_pid = pid;
++                                sigchld_ctx.terminated = false;
++                                sd_event_add_signal(event, NULL, SIGCHLD,  on_sigchld , &sigchld_ctx);
+ 
+                                 if (arg_expose_ports) {
+                                         r = watch_rtnl(event, rtnl_socket_pair[0], &exposed, &rtnl);
+@@ -4469,7 +4512,7 @@ int main(int argc, char *argv[]) {
+                 /* Normally redundant, but better safe than sorry */
+                 kill(pid, SIGKILL);
+ 
+-                r = wait_for_container(pid, &container_status);
++                r = wait_for_container(&sigchld_ctx, pid, &container_status);
+                 pid = 0;
+ 
+                 if (r < 0)
+-- 
+2.1.4
+

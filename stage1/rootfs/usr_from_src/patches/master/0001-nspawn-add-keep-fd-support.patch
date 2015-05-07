@@ -1,4 +1,4 @@
-From d8677552a0e1f5364432cd90a8fbeab337fb49de Mon Sep 17 00:00:00 2001
+From 2ed4cb50f94342469f78fac5513587854560865c Mon Sep 17 00:00:00 2001
 From: Vito Caputo <vito.caputo@coreos.com>
 Date: Mon, 16 Mar 2015 15:10:15 -0700
 Subject: [PATCH 1/2] nspawn: add --keep-fd support
@@ -15,7 +15,7 @@ triggered at container exit.
  1 file changed, 44 insertions(+)
 
 diff --git a/src/nspawn/nspawn.c b/src/nspawn/nspawn.c
-index f43ffd9..d458ab4 100644
+index 05d2c71..c64d258 100644
 --- a/src/nspawn/nspawn.c
 +++ b/src/nspawn/nspawn.c
 @@ -174,6 +174,7 @@ static bool arg_quiet = false;
@@ -65,7 +65,7 @@ index f43ffd9..d458ab4 100644
                  case ARG_PERSONALITY:
  
                          arg_personality = personality_from_string(optarg);
-@@ -3726,9 +3738,41 @@ int main(int argc, char *argv[]) {
+@@ -3735,9 +3747,41 @@ int main(int argc, char *argv[]) {
                          goto finish;
                  }
          }
