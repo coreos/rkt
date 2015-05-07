@@ -321,7 +321,7 @@ Work in progress. Please contribute!
 
 rkt has a built-in garbage collection command that is designed to be run periodically from a timer or cron job. Stopped pods are moved to the garbage and cleaned up during a subsequent garbage collection pass. Each `gc` pass removes any pods remaining in the garbage past the grace period. [Read more about the pod lifecycle][gc-docs].
 
-[gc-docs]: pod-lifecycle.md#garbage-collection
+[gc-docs]: devel/pod-lifecycle.md#garbage-collection
 
 ```
 $ rkt gc --grace-period=30m0s

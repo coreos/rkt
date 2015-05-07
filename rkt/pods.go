@@ -35,7 +35,7 @@ import (
 	"github.com/coreos/rkt/pkg/sys"
 )
 
-// see Documentation/pod-lifecycle.md for some explanation
+// see Documentation/devel/pod-lifecycle.md for some explanation
 
 type pod struct {
 	*lock.FileLock
