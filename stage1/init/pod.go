@@ -394,12 +394,75 @@ func (p *Pod) PodToNspawnArgs() ([]string, error) {
 	return args, nil
 }
 
+// appToKvmArgs transforms the given app manifest, with the given associated
+// app image id, into a subset of applicable lkvm argument
+func (p *Pod) appToKvmArgs(ra *schema.RuntimeApp, am *schema.ImageManifest) ([]string, error) {
+	args := []string{}
+	name := ra.Name.String()
+	app := am.App
+	if ra.App != nil {
+		app = ra.App
+	}
+
+	vols := make(map[types.ACName]types.Volume)
+
+	// TODO(philips): this is implicitly creating a mapping from MountPoint
+	// to volumes. This is a nice convenience for users but we will need to
+	// introduce a --mount flag so they can control which mountPoint maps to
+	// which volume.
+
+	for _, v := range p.Manifest.Volumes {
+		vols[v.Name] = v
+	}
+
+	for _, mp := range app.MountPoints {
+		key := mp.Name
+		vol, ok := vols[key]
+		if !ok {
+			return nil, fmt.Errorf("no volume for mountpoint %q in app %q", key, name)
+		}
+		opt := make([]string, 4)
+
+		// If the readonly flag in the pod manifest is not nil,
+		// then use it to override the readonly flag in the image manifest.
+		readOnly := mp.ReadOnly
+		if vol.ReadOnly != nil {
+			readOnly = *vol.ReadOnly
+		}
+
+		if readOnly {
+			return nil, fmt.Errorf("readonly volumes not supported yet, requested for mountpoint %q in app %q", key, name)
+		}
+
+		opt[0] = "--9p="
+		opt[1] = vol.Source
+		opt[2] = ","
+		opt[3] = mp.Name.String()
+
+		args = append(args, strings.Join(opt, ""))
+	}
+
+	return args, nil
+}
+
 // PodToKvmArgs renders a prepared Pod as a lkvm
 // argument list ready to be executed
 func (p *Pod) PodToKvmArgs() ([]string, error) {
 	args := []string{
 		"--name=" + "rkt-" + p.UUID.String(),
 		"--disk=" + common.Stage1RootfsPath(p.Root),
+	}
+
+	for _, am := range p.Apps {
+		ra := p.Manifest.Apps.Get(am.Name)
+		if ra == nil {
+			panic("could not find app in pod manifest!")
+		}
+		aa, err := p.appToKvmArgs(ra, am)
+		if err != nil {
+			return nil, fmt.Errorf("failed to construct args for app %q: %v", am.Name, err)
+		}
+		args = append(args, aa...)
 	}
 
 	return args, nil
