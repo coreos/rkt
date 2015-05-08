@@ -1,4 +1,4 @@
-// Copyright 2014 CoreOS, Inc.
+// Copyright 2014 The rkt Authors
 // Copyright 2015 Intel Corp
 //
 // Licensed under the Apache License, Version 2.0 (the "License");

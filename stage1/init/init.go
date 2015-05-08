@@ -1,4 +1,4 @@
-// Copyright 2014 CoreOS, Inc.
+// Copyright 2014 The rkt Authors
 // Copyright 2015 Intel Corp
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,21 @@
 //+build linux
 
 package main
+
+// #cgo LDFLAGS: -ldl
+// #include <dlfcn.h>
+// #include <sys/types.h>
+//
+// int
+// my_sd_pid_get_owner_uid(void *f, pid_t pid, uid_t *uid)
+// {
+//   int (*sd_pid_get_owner_uid)(pid_t, uid_t *);
+//
+//   sd_pid_get_owner_uid = (int (*)(pid_t, uid_t *))f;
+//   return sd_pid_get_owner_uid(pid, uid);
+// }
+//
+import "C"
 
 // this implements /init of stage1/nspawn+systemd
 
@@ -129,6 +144,15 @@ func getArgsEnvNspawn(p *Pod) ([]string, []string, error) {
 
 	if !debug {
 		args = append(args, "--quiet") // silence most nspawn output (log_warning is currently not covered by this)
+	}
+
+	keepUnit, err := runningFromUnitFile()
+	if err != nil {
+		return nil, nil, fmt.Errorf("error determining if we're running from a unit file: %v", err)
+	}
+
+	if keepUnit {
+		args = append(args, "--keep-unit")
 	}
 
 	nsargs, err := p.PodToNspawnArgs()
@@ -333,6 +357,43 @@ func stage1() int {
 	}
 
 	return 0
+}
+
+func runningFromUnitFile() (ret bool, err error) {
+	handle := C.dlopen(C.CString("libsystemd-login.so"), C.RTLD_LAZY)
+	if handle == nil {
+		// we can't open libsystemd-login.so so we assume systemd is not
+		// installed and we're not running from a unit file
+		ret = false
+		return
+	}
+	defer func() {
+		if r := C.dlclose(handle); r != 0 {
+			err = fmt.Errorf("error closing libsystemd-login.so")
+		}
+	}()
+
+	sd_pid_get_owner_uid := C.dlsym(handle, C.CString("sd_pid_get_owner_uid"))
+	if sd_pid_get_owner_uid == nil {
+		err = fmt.Errorf("error resolving sd_pid_get_owner_uid function")
+		return
+	}
+
+	var uid C.uid_t
+	errno := C.my_sd_pid_get_owner_uid(sd_pid_get_owner_uid, 0, &uid)
+	// when we're running from a unit file, sd_pid_get_owner_uid returns
+	// ENOENT (systemd <220) or ENXIO (systemd >=220)
+	switch {
+	case errno >= 0:
+		ret = false
+		return
+	case syscall.Errno(-errno) == syscall.ENOENT || syscall.Errno(-errno) == syscall.ENXIO:
+		ret = true
+		return
+	default:
+		err = fmt.Errorf("error calling sd_pid_get_owner_uid: %v", syscall.Errno(-errno))
+		return
+	}
 }
 
 func main() {
