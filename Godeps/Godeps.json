@@ -103,8 +103,8 @@
 		},
 		{
 			"ImportPath": "github.com/coreos/go-systemd/unit",
-			"Comment": "v2-41-g415a79c4bfa3",
-			"Rev": "415a79c4bfa377b484b16c632347b3925a0f35ff"
+			"Comment": "v2-53-g2688e91",
+			"Rev": "2688e91251d9d8e404e86dd8f096e23b2f086958"
 		},
 		{
 			"ImportPath": "github.com/coreos/ioprogress",
