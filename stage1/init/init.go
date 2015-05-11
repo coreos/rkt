@@ -183,11 +183,6 @@ func getArgsEnv(p *Pod, debug bool) ([]string, []string, error) {
 	case "src":
 		args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), nspawnBin))
 		args = append(args, "--boot") // Launch systemd in the pod
-		lfd, err := common.GetRktLockFD()
-		if err != nil {
-			return nil, nil, err
-		}
-		args = append(args, fmt.Sprintf("--keep-fd=%v", lfd))
 		if machinedRegister() {
 			args = append(args, fmt.Sprintf("--register=true"))
 		} else {

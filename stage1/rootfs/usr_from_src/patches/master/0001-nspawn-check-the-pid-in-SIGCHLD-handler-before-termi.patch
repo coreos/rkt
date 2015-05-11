@@ -1,7 +1,7 @@
-From 0d49c94ee8d3d26885651e301192b97e0346392c Mon Sep 17 00:00:00 2001
+From a8db2e4e556cc4afabef4bb6d5818a4d01b4d260 Mon Sep 17 00:00:00 2001
 From: Alban Crequy <alban@endocode.com>
 Date: Thu, 7 May 2015 21:35:43 -0700
-Subject: [PATCH 4/4] nspawn: check the pid in SIGCHLD handler before
+Subject: [PATCH 1/2] nspawn: check the pid in SIGCHLD handler before
  terminating the container
 
 From: Alban Crequy <alban@endocode.com>
@@ -16,18 +16,18 @@ should distinguish them.
  1 file changed, 49 insertions(+), 6 deletions(-)
 
 diff --git a/src/nspawn/nspawn.c b/src/nspawn/nspawn.c
-index 27521ce..0e3c325 100644
+index 05d2c71..71a6239 100644
 --- a/src/nspawn/nspawn.c
 +++ b/src/nspawn/nspawn.c
-@@ -24,6 +24,7 @@
+@@ -23,6 +23,7 @@
+ #include <sched.h>
  #include <unistd.h>
  #include <sys/types.h>
- #include <sys/syscall.h>
 +#include <sys/wait.h>
  #include <sys/mount.h>
- #include <sys/wait.h>
  #include <stdlib.h>
-@@ -3430,6 +3431,12 @@ static int change_uid_gid(char **_home) {
+ #include <string.h>
+@@ -3511,6 +3512,12 @@ static int change_uid_gid(char **_home) {
          return 0;
  }
  
@@ -40,7 +40,7 @@ index 27521ce..0e3c325 100644
  /*
   * Return values:
   * < 0 : wait_for_terminate() failed to get the state of the
-@@ -3447,13 +3454,17 @@ static int change_uid_gid(char **_home) {
+@@ -3528,13 +3535,17 @@ static int change_uid_gid(char **_home) {
   * That is, success is indicated by a return value of zero, and an
   * error is indicated by a non-zero value.
   */
@@ -62,7 +62,7 @@ index 27521ce..0e3c325 100644
  
          switch (status.si_code) {
  
-@@ -3513,6 +3524,35 @@ static int on_orderly_shutdown(sd_event_source *s, const struct signalfd_siginfo
+@@ -3594,6 +3605,35 @@ static int on_orderly_shutdown(sd_event_source *s, const struct signalfd_siginfo
          return 0;
  }
  
@@ -98,7 +98,7 @@ index 27521ce..0e3c325 100644
  static int determine_names(void) {
          int r;
  
-@@ -3828,6 +3868,7 @@ int main(int argc, char *argv[]) {
+@@ -3917,6 +3957,7 @@ int main(int argc, char *argv[]) {
                          .sa_handler = nop_handler,
                          .sa_flags = SA_NOCLDSTOP,
                  };
@@ -106,7 +106,7 @@ index 27521ce..0e3c325 100644
  
                  r = barrier_create(&barrier);
                  if (r < 0) {
-@@ -4253,7 +4294,9 @@ int main(int argc, char *argv[]) {
+@@ -4386,7 +4427,9 @@ int main(int argc, char *argv[]) {
                                  }
  
                                  /* simply exit on sigchld */
@@ -117,7 +117,7 @@ index 27521ce..0e3c325 100644
  
                                  if (arg_expose_ports) {
                                          r = watch_rtnl(event, rtnl_socket_pair[0], &exposed, &rtnl);
-@@ -4292,7 +4335,7 @@ int main(int argc, char *argv[]) {
+@@ -4425,7 +4468,7 @@ int main(int argc, char *argv[]) {
                  /* Normally redundant, but better safe than sorry */
                  kill(pid, SIGKILL);
  
