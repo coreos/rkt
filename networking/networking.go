@@ -51,12 +51,12 @@ type Networking struct {
 
 // Setup creates a new networking namespace and executes network plugins to
 // setup private networking. It returns in the new pod namespace
-func Setup(podRoot string, podID types.UUID, fps []ForwardedPort) (*Networking, error) {
+func Setup(rktRoot string, podID types.UUID, fps []ForwardedPort) (*Networking, error) {
 	// TODO(jonboulle): currently podRoot is _always_ ".", and behaviour in other
 	// circumstances is untested. This should be cleaned up.
 	n := Networking{
 		podEnv: podEnv{
-			podRoot: podRoot,
+			rktRoot: rktRoot,
 			podID:   podID,
 		},
 	}
@@ -102,11 +102,11 @@ func Setup(podRoot string, podID types.UUID, fps []ForwardedPort) (*Networking, 
 
 // Load creates the Networking object from saved state.
 // Assumes the current netns is that of the host.
-func Load(podRoot string, podID *types.UUID) (*Networking, error) {
+func Load(rktRoot string, podID *types.UUID) (*Networking, error) {
 	// the current directory is pod root
-	pdirfd, err := syscall.Open(podRoot, syscall.O_RDONLY|syscall.O_DIRECTORY, 0)
+	pdirfd, err := syscall.Open(rktRoot, syscall.O_RDONLY|syscall.O_DIRECTORY, 0)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to open pod root directory (%v): %v", podRoot, err)
+		return nil, fmt.Errorf("Failed to open pod root directory (%v): %v", rktRoot, err)
 	}
 	defer syscall.Close(pdirfd)
 
@@ -140,7 +140,7 @@ func Load(podRoot string, podID *types.UUID) (*Networking, error) {
 
 	return &Networking{
 		podEnv: podEnv{
-			podRoot: podRoot,
+			rktRoot: rktRoot,
 			podID:   *podID,
 		},
 		hostNS: hostNS,
@@ -217,7 +217,7 @@ func (e *Networking) Save() error {
 		nis = append(nis, *n.runtime)
 	}
 
-	return netinfo.Save(e.podRoot, nis)
+	return netinfo.Save(e.rktRoot, nis)
 }
 
 func newNetNS() (hostNS, childNS *os.File, err error) {
