@@ -321,7 +321,7 @@ func stage1() int {
 		defer unregisterPod(p)
 	}
 
-	if err = p.PodToSystemd(interactive); err != nil {
+	if err = p.PodToSystemd(interactive, virtualisation); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to configure systemd: %v\n", err)
 		return 2
 	}

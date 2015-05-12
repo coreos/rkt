@@ -126,7 +126,7 @@ func newUnitOption(section, name, value string) *unit.UnitOption {
 }
 
 // appToSystemd transforms the provided RuntimeApp+ImageManifest into systemd units
-func (p *Pod) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest, interactive bool) error {
+func (p *Pod) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest, interactive bool, virtualisation string) error {
 	name := ra.Name.String()
 	id := ra.Image.ID
 	app := am.App
@@ -250,6 +250,33 @@ func (p *Pod) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest, inte
 	opts = append(opts, newUnitOption("Unit", "Requires", InstantiatedPrepareAppUnitName(id)))
 	opts = append(opts, newUnitOption("Unit", "After", InstantiatedPrepareAppUnitName(id)))
 
+	if (virtualisation == "kvm") {
+		// need to mount p9 qemu mount_tags
+		for _, mp := range app.MountPoints {
+			mnt_what := mp.Name.String()
+			mnt_where := filepath.Join(common.RelAppRootfsPath(id), mp.Path)
+			mnt_name := unit.UnitNamePathEscape(mnt_where)+".mount"
+			mnt_opts := []*unit.UnitOption{
+				newUnitOption("Mount", "What", mnt_what),
+				newUnitOption("Mount", "Where", mnt_where),
+				newUnitOption("Mount", "Type", "9p"),
+				newUnitOption("Mount", "Options", "trans=virtio"),
+			}
+
+			file, err := os.OpenFile(UnitPath(p.Root, mnt_name), os.O_WRONLY|os.O_CREATE, 0644)
+			if err != nil {
+				return fmt.Errorf("failed to create mount unit file: %v", err)
+			}
+			defer file.Close()
+
+			if _, err = io.Copy(file, unit.Serialize(mnt_opts)); err != nil {
+				return fmt.Errorf("failed to write mount unit file: %v", err)
+			}
+
+			opts = append(opts, newUnitOption("Unit", "Requires", mnt_name))
+		}
+	}
+
 	file, err := os.OpenFile(ServiceUnitPath(p.Root, id), os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to create service unit file: %v", err)
@@ -287,14 +314,14 @@ func (p *Pod) writeEnvFile(env types.Environment, id types.Hash) error {
 
 // PodToSystemd creates the appropriate systemd service unit files for
 // all the constituent apps of the Pod
-func (p *Pod) PodToSystemd(interactive bool) error {
+func (p *Pod) PodToSystemd(interactive bool, virtualisation string) error {
 	for _, am := range p.Apps {
 		ra := p.Manifest.Apps.Get(am.Name)
 		if ra == nil {
 			// should never happen
 			panic("app not found in pod manifest")
 		}
-		if err := p.appToSystemd(ra, am, interactive); err != nil {
+		if err := p.appToSystemd(ra, am, interactive, virtualisation); err != nil {
 			return fmt.Errorf("failed to transform app %q into systemd service: %v", am.Name, err)
 		}
 	}
