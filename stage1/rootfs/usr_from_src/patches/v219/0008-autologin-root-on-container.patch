@@ -1,0 +1,25 @@
+From 443a0bfca386c7ab659b82804092dece3e55841b Mon Sep 17 00:00:00 2001
+From: Krzesimir Nowak <krzesimir@endocode.com>
+Date: Tue, 12 May 2015 16:28:39 +0200
+Subject: [PATCH] autologin root on container
+
+---
+ units/container-getty@.service.m4.in | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/units/container-getty@.service.m4.in b/units/container-getty@.service.m4.in
+index e126f3a..f2b5236 100644
+--- a/units/container-getty@.service.m4.in
++++ b/units/container-getty@.service.m4.in
+@@ -17,7 +17,7 @@ IgnoreOnIsolate=yes
+ ConditionPathExists=/dev/pts/%I
+ 
+ [Service]
+-ExecStart=-/sbin/agetty --noclear --keep-baud pts/%I 115200,38400,9600 $TERM
++ExecStart=-/sbin/agetty --autologin root --noclear --keep-baud pts/%I 115200,38400,9600 $TERM
+ Type=idle
+ Restart=always
+ RestartSec=0
+-- 
+2.1.0
+
