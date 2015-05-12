@@ -12,8 +12,10 @@ rootfs/usr_from_coreos/rootfs/
 rootfs/usr_from_coreos/usr.done
 rootfs/usr_from_coreos/usr.squashfs
 rootfs/usr_from_src/bash.done
+rootfs/usr_from_src/dirs.done
 rootfs/usr_from_src/host_deps.txt
 rootfs/usr_from_src/install
+rootfs/usr_from_src/installed
 rootfs/usr_from_src/systemd.done
 rootfs/usr_from_src/systemd.src
 rootfs/usr_from_src/systemd/
