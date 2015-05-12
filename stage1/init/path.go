@@ -42,6 +42,11 @@ func ServiceUnitPath(root string, imageID types.Hash) string {
 	return filepath.Join(common.Stage1RootfsPath(root), unitsDir, ServiceUnitName(imageID))
 }
 
+// UnitPath returns the path to a systemd unit file for a given root
+func UnitPath(root string, unit_name string) string {
+	return filepath.Join(common.Stage1RootfsPath(root), unitsDir, unit_name)
+}
+
 // RelEnvFilePath returns the path to the environment file for the given imageID
 // relative to the pod's root
 func RelEnvFilePath(imageID types.Hash) string {

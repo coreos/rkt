@@ -126,7 +126,7 @@ func newUnitOption(section, name, value string) *unit.UnitOption {
 }
 
 // appToSystemd transforms the provided RuntimeApp+ImageManifest into systemd units
-func (p *Pod) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest, interactive bool) error {
+func (p *Pod) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest, interactive bool, virtualisation string) error {
 	name := ra.Name.String()
 	id := ra.Image.ID
 	app := am.App
@@ -250,6 +250,33 @@ func (p *Pod) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest, inte
 	opts = append(opts, newUnitOption("Unit", "Requires", InstantiatedPrepareAppUnitName(id)))
 	opts = append(opts, newUnitOption("Unit", "After", InstantiatedPrepareAppUnitName(id)))
 
+	if (virtualisation == "kvm") {
+		// need to mount p9 qemu mount_tags
+		for _, mp := range app.MountPoints {
+			mnt_what := mp.Name.String()
+			mnt_where := filepath.Join(common.RelAppRootfsPath(id), mp.Path)
+			mnt_name := unit.UnitNamePathEscape(mnt_where)+".mount"
+			mnt_opts := []*unit.UnitOption{
+				newUnitOption("Mount", "What", mnt_what),
+				newUnitOption("Mount", "Where", mnt_where),
+				newUnitOption("Mount", "Type", "9p"),
+				newUnitOption("Mount", "Options", "trans=virtio"),
+			}
+
+			file, err := os.OpenFile(UnitPath(p.Root, mnt_name), os.O_WRONLY|os.O_CREATE, 0644)
+			if err != nil {
+				return fmt.Errorf("failed to create mount unit file: %v", err)
+			}
+			defer file.Close()
+
+			if _, err = io.Copy(file, unit.Serialize(mnt_opts)); err != nil {
+				return fmt.Errorf("failed to write mount unit file: %v", err)
+			}
+
+			opts = append(opts, newUnitOption("Unit", "Requires", mnt_name))
+		}
+	}
+
 	file, err := os.OpenFile(ServiceUnitPath(p.Root, id), os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to create service unit file: %v", err)
@@ -287,14 +314,14 @@ func (p *Pod) writeEnvFile(env types.Environment, id types.Hash) error {
 
 // PodToSystemd creates the appropriate systemd service unit files for
 // all the constituent apps of the Pod
-func (p *Pod) PodToSystemd(interactive bool) error {
+func (p *Pod) PodToSystemd(interactive bool, virtualisation string) error {
 	for _, am := range p.Apps {
 		ra := p.Manifest.Apps.Get(am.Name)
 		if ra == nil {
 			// should never happen
 			panic("app not found in pod manifest")
 		}
-		if err := p.appToSystemd(ra, am, interactive); err != nil {
+		if err := p.appToSystemd(ra, am, interactive, virtualisation); err != nil {
 			return fmt.Errorf("failed to transform app %q into systemd service: %v", am.Name, err)
 		}
 	}
@@ -394,12 +421,75 @@ func (p *Pod) PodToNspawnArgs() ([]string, error) {
 	return args, nil
 }
 
+// appToKvmArgs transforms the given app manifest, with the given associated
+// app image id, into a subset of applicable lkvm argument
+func (p *Pod) appToKvmArgs(ra *schema.RuntimeApp, am *schema.ImageManifest) ([]string, error) {
+	args := []string{}
+	name := ra.Name.String()
+	app := am.App
+	if ra.App != nil {
+		app = ra.App
+	}
+
+	vols := make(map[types.ACName]types.Volume)
+
+	// TODO(philips): this is implicitly creating a mapping from MountPoint
+	// to volumes. This is a nice convenience for users but we will need to
+	// introduce a --mount flag so they can control which mountPoint maps to
+	// which volume.
+
+	for _, v := range p.Manifest.Volumes {
+		vols[v.Name] = v
+	}
+
+	for _, mp := range app.MountPoints {
+		key := mp.Name
+		vol, ok := vols[key]
+		if !ok {
+			return nil, fmt.Errorf("no volume for mountpoint %q in app %q", key, name)
+		}
+		opt := make([]string, 4)
+
+		// If the readonly flag in the pod manifest is not nil,
+		// then use it to override the readonly flag in the image manifest.
+		readOnly := mp.ReadOnly
+		if vol.ReadOnly != nil {
+			readOnly = *vol.ReadOnly
+		}
+
+		if readOnly {
+			return nil, fmt.Errorf("readonly volumes not supported yet, requested for mountpoint %q in app %q", key, name)
+		}
+
+		opt[0] = "--9p="
+		opt[1] = vol.Source
+		opt[2] = ","
+		opt[3] = mp.Name.String()
+
+		args = append(args, strings.Join(opt, ""))
+	}
+
+	return args, nil
+}
+
 // PodToKvmArgs renders a prepared Pod as a lkvm
 // argument list ready to be executed
 func (p *Pod) PodToKvmArgs() ([]string, error) {
 	args := []string{
 		"--name=" + "rkt-" + p.UUID.String(),
 		"--disk=" + common.Stage1RootfsPath(p.Root),
+	}
+
+	for _, am := range p.Apps {
+		ra := p.Manifest.Apps.Get(am.Name)
+		if ra == nil {
+			panic("could not find app in pod manifest!")
+		}
+		aa, err := p.appToKvmArgs(ra, am)
+		if err != nil {
+			return nil, fmt.Errorf("failed to construct args for app %q: %v", am.Name, err)
+		}
+		args = append(args, aa...)
 	}
 
 	return args, nil
