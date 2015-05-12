@@ -59,7 +59,7 @@ const (
 	nspawnBin = "/usr/bin/systemd-nspawn"
 	// Path to lkvm binary within the stage1 rootfs
 	lkvmBin = "/usr/bin/lkvm"
-	bzImg = "/usr/lib/kernel/vmlinuz.container"
+	bzImg = "/usr/lib/kernel/vmlinux.container"
 	// Path to the interpreter within the stage1 rootfs
 	interpBin = "/usr/lib/ld-linux-x86-64.so.2"
 	// Path to the localtime file/symlink in host
