@@ -51,7 +51,7 @@ func init() {
 }
 
 func runFetch(cmd *cobra.Command, args []string) (exit int) {
-	rktApps := CreateAppsList(flagImage, flagSign)
+	rktApps := CreateAppsList(flagImage, flagSign, flagImageArgs)
 
 	if rktApps.Count() < 1 {
 		stderr("fetch: must provide at least one image")

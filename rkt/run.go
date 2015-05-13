@@ -80,6 +80,8 @@ func init() {
 	cmdRun.Flags().StringVar(&flagPodManifest, "pod-manifest", "", "the path to the pod manifest. If it's non-empty, then only '--private-net', '--no-overlay' and '--interactive' will have effects")
 	cmdRun.Flags().VarP(flagImage, "image", "i", "image for image specific options")
 	cmdRun.Flags().VarP(flagSign, "signature", "s", "local signature file to use in validating the preceding image")
+	cmdRun.Flags().VarP(flagImageArgs, "image-args", "g", "arguments to pass to image")
+
 	flagVolumes = volumeList{}
 	flagPorts = portList{}
 }
@@ -90,7 +92,7 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	rktApps := CreateAppsList(flagImage, flagSign)
+	rktApps := CreateAppsList(flagImage, flagSign, flagImageArgs)
 	if len(flagPodManifest) > 0 && (len(flagVolumes) > 0 || len(flagPorts) > 0 || flagInheritEnv || !flagExplicitEnv.IsEmpty() || rktApps.Count() > 0 || flagLocal) {
 		stderr("conflicting flags set with --pod-manifest (see --help)")
 		return 1

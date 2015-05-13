@@ -15,7 +15,8 @@
 package main
 
 import (
-	"flag"
+	"fmt"
+	flag "github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/pflag"
 	"reflect"
 	"strings"
 	"testing"
@@ -24,7 +25,6 @@ import (
 )
 
 func TestParseAppArgs(t *testing.T) {
-	flags := flag.NewFlagSet("test", flag.ExitOnError)
 	tests := []struct {
 		in     string
 		images []string
@@ -32,7 +32,7 @@ func TestParseAppArgs(t *testing.T) {
 		werr   bool
 	}{
 		{
-			"example.com/foo example.com/bar -- --help --- example.com/baz -- --verbose",
+			"-i example.com/foo -i example.com/bar --image-args='--help' -i example.com/baz --image-args='--verbose'",
 			[]string{"example.com/foo", "example.com/bar", "example.com/baz"},
 			[][]string{
 				nil,
@@ -42,7 +42,7 @@ func TestParseAppArgs(t *testing.T) {
 			false,
 		},
 		{
-			"example.com/foo --- example.com/bar --- example.com/baz ---",
+			"-i example.com/foo -i example.com/bar -i example.com/baz",
 			[]string{"example.com/foo", "example.com/bar", "example.com/baz"},
 			[][]string{
 				nil,
@@ -52,7 +52,7 @@ func TestParseAppArgs(t *testing.T) {
 			false,
 		},
 		{
-			"example.com/foo example.com/bar example.com/baz",
+			"-i example.com/foo -i example.com/bar -i example.com/baz",
 			[]string{"example.com/foo", "example.com/bar", "example.com/baz"},
 			[][]string{
 				nil,
@@ -64,8 +64,19 @@ func TestParseAppArgs(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		rktApps.Reset()
-		err := parseApps(&rktApps, strings.Split(tt.in, " "), flags, true)
+		flags := flag.NewFlagSet("test", flag.ExitOnError)
+		flagImage := NewMulti("image")
+		flagImageArgs := NewBuddy(flagImage, "image-args")
+		flagSign := NewBuddy(flagImage, "signature")
+
+		flags.VarP(flagImage, "image", "i", "image")
+		flags.VarP(flagImageArgs, "image-args", "g", "arguments to pass to image")
+
+		err := flags.Parse(strings.Split(tt.in, " "))
+		if err != nil {
+			fmt.Printf("error=%v", err)
+		}
+		rktApps := CreateAppsList(flagImage, flagSign, flagImageArgs)
 		ga := rktApps.GetArgs()
 		gi := rktApps.GetImages()
 		if gerr := (err != nil); gerr != tt.werr {

@@ -55,6 +55,7 @@ func init() {
 	cmdPrepare.Flags().StringVar(&flagPodManifest, "pod-manifest", "", "the path to the pod manifest. If it's non-empty, then only '--quiet' and '--no-overlay' will have effects")
 	cmdPrepare.Flags().VarP(flagImage, "image", "i", "image to fetch")
 	cmdPrepare.Flags().VarP(flagSign, "signature", "s", "local signature file to use in validating the preceding image")
+	cmdPrepare.Flags().VarP(flagImageArgs, "image-args", "g", "arguments to pass to image")
 
 	rktCmd.AddCommand(cmdPrepare)
 }
@@ -74,7 +75,7 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	rktApps := CreateAppsList(flagImage, flagSign)
+	rktApps := CreateAppsList(flagImage, flagSign, flagImageArgs)
 
 	if rktApps.Count() < 1 && len(flagPodManifest) == 0 {
 		stderr("prepare: must provide at least one image or specify the pod manifest")

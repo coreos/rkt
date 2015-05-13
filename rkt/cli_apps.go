@@ -19,6 +19,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"strings"
 
 	"github.com/coreos/rkt/common/apps"
 )
@@ -126,11 +127,18 @@ func (al *appAsc) String() string {
 	return app.Asc
 }
 
-func CreateAppsList(imageFlags *Multi, signFlags *Buddy) apps.Apps {
+func CreateAppsList(imageFlags *Multi, signFlags *Buddy, argsFlag *Buddy) apps.Apps {
 	var al apps.Apps
-	for idx, imageName := range (*flagImage).v {
+	for idx, imageName := range (*imageFlags).v {
 		al.Create(imageName)
-		al.Last().Asc = (*flagSign).v[idx]
+		al.Last().Asc = (*signFlags).v[idx]
+
+		args, ok := (*argsFlag).v[idx]
+		if ok {
+			args = strings.Trim(args, "'")
+			args = strings.Trim(args, `"`)
+			al.Last().Args = strings.Fields(args)
+		}
 	}
 	return al
 }

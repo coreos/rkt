@@ -49,8 +49,9 @@ var (
 	subCmdExitCode         int
 
 	//Global-ish
-	flagImage = NewMulti("image")
-	flagSign  = NewBuddy(flagImage, "signature")
+	flagImage     = NewMulti("image")
+	flagSign      = NewBuddy(flagImage, "signature")
+	flagImageArgs = NewBuddy(flagImage, "image-args")
 
 	tabOut *tabwriter.Writer
 )
