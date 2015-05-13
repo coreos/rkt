@@ -15,51 +15,27 @@
 package main
 
 import (
-	"flag"
-	"os"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
 )
 
 var (
-	cmdImage = &Command{
-		Name:    "image",
-		Summary: "Operate on an image in the local store",
-		Usage:   "SUBCOMMAND IMAGE [args...]",
-		Description: `SUBCOMMAND could be "cat-manifest". IMAGE should be a string referencing an image; either a hash, local file on disk, or URL.
-They will be checked in that order and the first match will be used.`,
-		Run:   runImage,
-		Flags: &imageFlags,
-	}
-	imageFlags flag.FlagSet
+	cmdImage *cobra.Command
 )
 
 func init() {
-	commands = append(commands, cmdImage)
+	cmdImage = &cobra.Command{
+		Use:   "image SUBCOMMAND IMAGE [args...]",
+		Short: "Operate on an image in the local store",
+		Long: `SUBCOMMAND could be "cat-manifest". IMAGE should be a string referencing an image; either a hash, local file on disk, or URL.
+They will be checked in that order and the first match will be used.`,
+		Run: func(cmd *cobra.Command, args []string) {
+			subCmdExitCode = runImage(cmdImage, args)
+		},
+	}
+	rktCmd.AddCommand(cmdImage)
 }
 
-func runImage(args []string) (exit int) {
-	if len(args) < 1 {
-		printCommandUsageByName("image")
-		return 1
-	}
-
-	var subCmd *Command
-	subArgs := args[1:]
-
-	// determine which Command should be run
-	for _, c := range subCommands["image"] {
-		if c.Name == args[0] {
-			subCmd = c
-			if err := c.Flags.Parse(subArgs); err != nil {
-				stderr("%v", err)
-				os.Exit(2)
-			}
-			break
-		}
-	}
-
-	if subCmd == nil {
-		stderr("image: unknown subcommand: %q", args[0])
-		os.Exit(2)
-	}
-	return subCmd.Run(subArgs[subCmd.Flags.NFlag():])
+func runImage(cmd *cobra.Command, args []string) (exit int) {
+	cmd.Help()
+	return 1
 }

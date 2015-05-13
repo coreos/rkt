@@ -17,7 +17,7 @@
 package main
 
 import (
-	"flag"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
 	"io/ioutil"
 	"log"
 	"os"
@@ -29,38 +29,37 @@ import (
 )
 
 var (
-	cmdPrepare = &Command{
-		Name:    "prepare",
-		Summary: "Prepare to run image(s) in a pod in rkt",
-		Usage:   "[--volume name,kind=host,...] [--quiet] IMAGE [-- image-args...[---]]...",
-		Description: `Image should be a string referencing an image; either a hash, local file on disk, or URL.
+	cmdPrepare = &cobra.Command{
+		Use:   "prepare [--volume name,kind=host,...] [--quiet] IMAGE [-- image-args...[---]]...",
+		Short: "Prepare to run image(s) in a pod in rkt",
+		Long: `Image should be a string referencing an image; either a hash, local file on disk, or URL.
 They will be checked in that order and the first match will be used.
 
 An "--" may be used to inhibit rkt prepare's parsing of subsequent arguments,
 which will instead be appended to the preceding image app's exec arguments.
 End the image arguments with a lone "---" to resume argument parsing.`,
-		Run:                  runPrepare,
-		Flags:                &prepareFlags,
-		WantsFlagsTerminator: true,
+		Run: func(cmd *cobra.Command, args []string) { runPrepare(cmd, args) },
 	}
-	prepareFlags flag.FlagSet
-	flagQuiet    bool
+	flagQuiet bool
 )
 
 func init() {
-	commands = append(commands, cmdPrepare)
-	prepareFlags.StringVar(&flagStage1Image, "stage1-image", defaultStage1Image, `image to use as stage1. Local paths and http/https URLs are supported. If empty, rkt will look for a file called "stage1.aci" in the same directory as rkt itself`)
-	prepareFlags.Var(&flagVolumes, "volume", "volumes to mount into the pod")
-	prepareFlags.Var(&flagPorts, "port", "ports to expose on the host (requires --private-net)")
-	prepareFlags.BoolVar(&flagQuiet, "quiet", false, "suppress superfluous output on stdout, print only the UUID on success")
-	prepareFlags.BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
-	prepareFlags.BoolVar(&flagNoOverlay, "no-overlay", false, "disable overlay filesystem")
-	prepareFlags.Var(&flagExplicitEnv, "set-env", "an environment variable to set for apps in the form name=value")
-	prepareFlags.BoolVar(&flagLocal, "local", false, "use only local images (do not discover or download from remote URLs)")
-	prepareFlags.StringVar(&flagPodManifest, "pod-manifest", "", "the path to the pod manifest. If it's non-empty, then only '--quiet' and '--no-overlay' will have effects")
+	cmdPrepare.Flags().StringVar(&flagStage1Image, "stage1-image", defaultStage1Image, `image to use as stage1. Local paths and http/https URLs are supported. If empty, rkt will look for a file called "stage1.aci" in the same directory as rkt itself`)
+	cmdPrepare.Flags().Var(&flagVolumes, "volume", "volumes to mount into the pod")
+	cmdPrepare.Flags().Var(&flagPorts, "port", "ports to expose on the host (requires --private-net)")
+	cmdPrepare.Flags().BoolVar(&flagQuiet, "quiet", false, "suppress superfluous output on stdout, print only the UUID on success")
+	cmdPrepare.Flags().BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
+	cmdPrepare.Flags().BoolVar(&flagNoOverlay, "no-overlay", false, "disable overlay filesystem")
+	cmdPrepare.Flags().Var(&flagExplicitEnv, "set-env", "an environment variable to set for apps in the form name=value")
+	cmdPrepare.Flags().BoolVar(&flagLocal, "local", false, "use only local images (do not discover or download from remote URLs)")
+	cmdPrepare.Flags().StringVar(&flagPodManifest, "pod-manifest", "", "the path to the pod manifest. If it's non-empty, then only '--quiet' and '--no-overlay' will have effects")
+	cmdPrepare.Flags().VarP(flagImage, "image", "i", "image to fetch")
+	cmdPrepare.Flags().VarP(flagSign, "signature", "s", "local signature file to use in validating the preceding image")
+
+	rktCmd.AddCommand(cmdPrepare)
 }
 
-func runPrepare(args []string) (exit int) {
+func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 	var err error
 	origStdout := os.Stdout
 	if flagQuiet {
@@ -75,26 +74,23 @@ func runPrepare(args []string) (exit int) {
 		return 1
 	}
 
-	if err = parseApps(&rktApps, args, &prepareFlags, true); err != nil {
-		stderr("prepare: error parsing app image arguments: %v", err)
-		return 1
-	}
+	rktApps := CreateAppsList(flagImage, flagSign)
 
 	if rktApps.Count() < 1 && len(flagPodManifest) == 0 {
 		stderr("prepare: must provide at least one image or specify the pod manifest")
 		return 1
 	}
 
-	if globalFlags.Dir == "" {
+	if flagDataDir == "" {
 		log.Printf("dir unset - using temporary directory")
-		globalFlags.Dir, err = ioutil.TempDir("", "rkt")
+		flagDataDir, err = ioutil.TempDir("", "rkt")
 		if err != nil {
 			stderr("prepare: error creating temporary directory: %v", err)
 			return 1
 		}
 	}
 
-	s, err := store.NewStore(globalFlags.Dir)
+	s, err := store.NewStore(flagDataDir)
 	if err != nil {
 		stderr("prepare: cannot open store: %v", err)
 		return 1
@@ -110,8 +106,8 @@ func runPrepare(args []string) (exit int) {
 			s:                  s,
 			headers:            config.AuthPerHost,
 			dockerAuth:         config.DockerCredentialsPerRegistry,
-			insecureSkipVerify: globalFlags.InsecureSkipVerify,
-			debug:              globalFlags.Debug,
+			insecureSkipVerify: flagInsecureSkipVerify,
+			debug:              flagDebug,
 		},
 		local:    flagLocal,
 		withDeps: false,
@@ -139,7 +135,7 @@ func runPrepare(args []string) (exit int) {
 		Store:       s,
 		Stage1Image: *s1img,
 		UUID:        p.uuid,
-		Debug:       globalFlags.Debug,
+		Debug:       flagDebug,
 	}
 
 	pcfg := stage0.PrepareConfig{

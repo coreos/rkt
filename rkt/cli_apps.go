@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	rktApps apps.Apps // global used by run/prepare for representing the apps expressed via the cli
+//	rktApps apps.Apps // global used by run/prepare for representing the apps expressed via the cli
 )
 
 // parseApps looks through the args for support of per-app argument lists delimited with "--" and "---".
@@ -124,6 +124,15 @@ func (al *appAsc) String() string {
 		return ""
 	}
 	return app.Asc
+}
+
+func CreateAppsList(imageFlags *Multi, signFlags *Buddy) apps.Apps {
+	var al apps.Apps
+	for idx, imageName := range (*flagImage).v {
+		al.Create(imageName)
+		al.Last().Asc = (*flagSign).v[idx]
+	}
+	return al
 }
 
 // TODO(vc): --mount, --set-env, etc.

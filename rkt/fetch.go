@@ -15,12 +15,12 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"runtime"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
 	"github.com/coreos/rkt/common/apps"
 	"github.com/coreos/rkt/store"
 )
@@ -33,33 +33,32 @@ const (
 )
 
 var (
-	cmdFetch = &Command{
-		Name:                 "fetch",
-		Summary:              "Fetch image(s) and store them in the local cache",
-		Usage:                "IMAGE_URL...",
-		Run:                  runFetch,
-		Flags:                &fetchFlags,
-		WantsFlagsTerminator: true,
-	}
-	fetchFlags flag.FlagSet
+	cmdFetch *cobra.Command
 )
 
 func init() {
-	commands = append(commands, cmdFetch)
-	fetchFlags.Var((*appAsc)(&rktApps), "signature", "local signature file to use in validating the preceding image")
+	cmdFetch = &cobra.Command{
+		Use:   "fetch -i IMAGE_URL [-s] ...",
+		Short: "Fetch image(s) and store them in the local cache",
+		Run: func(cmd *cobra.Command, args []string) {
+			subCmdExitCode = runFetch(cmdFetch, args)
+		},
+	}
+
+	cmdFetch.Flags().VarP(flagSign, "signature", "s", "local signature file to use in validating the preceding image")
+	cmdFetch.Flags().VarP(flagImage, "image", "i", "image to fetch")
+	rktCmd.AddCommand(cmdFetch)
 }
 
-func runFetch(args []string) (exit int) {
-	if err := parseApps(&rktApps, args, &fetchFlags, false); err != nil {
-		stderr("fetch: unable to parse arguments: %v", err)
-		return 1
-	}
+func runFetch(cmd *cobra.Command, args []string) (exit int) {
+	rktApps := CreateAppsList(flagImage, flagSign)
+
 	if rktApps.Count() < 1 {
 		stderr("fetch: must provide at least one image")
 		return 1
 	}
 
-	s, err := store.NewStore(globalFlags.Dir)
+	s, err := store.NewStore(flagDataDir)
 	if err != nil {
 		stderr("fetch: cannot open store: %v", err)
 		return 1
@@ -76,8 +75,8 @@ func runFetch(args []string) (exit int) {
 			ks:                 ks,
 			headers:            config.AuthPerHost,
 			dockerAuth:         config.DockerCredentialsPerRegistry,
-			insecureSkipVerify: globalFlags.InsecureSkipVerify,
-			debug:              globalFlags.Debug,
+			insecureSkipVerify: flagInsecureSkipVerify,
+			debug:              flagDebug,
 		},
 		withDeps: true,
 	}

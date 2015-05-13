@@ -17,8 +17,8 @@ package main
 import (
 	"bufio"
 	"crypto/sha1"
-	"flag"
 	"fmt"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
 	"io"
 	"os"
 	"path/filepath"
@@ -35,14 +35,11 @@ const (
 )
 
 var (
-	cmdInstall = &Command{
-		Name:    "install",
-		Summary: "Set up rkt data directories with correct permissions",
-		Usage:   "",
-		Run:     runInstall,
-		Flags:   &installFlags,
+	cmdInstall = &cobra.Command{
+		Use:   "install",
+		Short: "Set up rkt data directories with correct permissions",
+		Run:   func(cmd *cobra.Command, args []string) { subCmdExitCode = runInstall(cmd, args) },
 	}
-	installFlags flag.FlagSet
 
 	// dirs relative to globalFlags.Dir
 	dirs = map[string]os.FileMode{
@@ -69,7 +66,7 @@ type Group struct {
 }
 
 func init() {
-	commands = append(commands, cmdInstall)
+	rktCmd.AddCommand(cmdInstall)
 }
 
 func parseGroupLine(line string, group *Group) {
@@ -174,7 +171,7 @@ func setPermissions(path string, uid int, gid int, perm os.FileMode) error {
 
 func createDirStructure(gid int) error {
 	for dir, perm := range dirs {
-		path := filepath.Join(globalFlags.Dir, dir)
+		path := filepath.Join(flagDataDir, dir)
 
 		if err := os.MkdirAll(path, perm); err != nil {
 			return fmt.Errorf("error creating %q directory: %v", path, err)
@@ -249,7 +246,7 @@ func createDbFiles(casDbPath string, gid int, perm os.FileMode) error {
 	return nil
 }
 
-func runInstall(args []string) (exit int) {
+func runInstall(cmd *cobra.Command, args []string) (exit int) {
 	gid, err := lookupGid(rktGroup)
 	if err != nil {
 		stderr("install: error looking up rkt gid: %v", err)
@@ -262,7 +259,7 @@ func runInstall(args []string) (exit int) {
 	}
 
 	casDirPerm := dirs["cas"]
-	casPath := filepath.Join(globalFlags.Dir, "cas")
+	casPath := filepath.Join(flagDataDir, "cas")
 	if err := setCasDirPermissions(casPath, gid, casDirPerm); err != nil {
 		stderr("install: error setting cas permissions: %v", err)
 		return 1
