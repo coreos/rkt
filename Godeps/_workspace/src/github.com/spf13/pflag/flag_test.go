@@ -2,30 +2,30 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package pflag_test
+package pflag
 
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"sort"
 	"strings"
 	"testing"
 	"time"
-
-	. "github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/pflag"
 )
 
 var (
-	test_bool     = Bool("test_bool", false, "bool value")
-	test_int      = Int("test_int", 0, "int value")
-	test_int64    = Int64("test_int64", 0, "int64 value")
-	test_uint     = Uint("test_uint", 0, "uint value")
-	test_uint64   = Uint64("test_uint64", 0, "uint64 value")
-	test_string   = String("test_string", "0", "string value")
-	test_float64  = Float64("test_float64", 0, "float64 value")
-	test_duration = Duration("test_duration", 0, "time.Duration value")
+	test_bool                    = Bool("test_bool", false, "bool value")
+	test_int                     = Int("test_int", 0, "int value")
+	test_int64                   = Int64("test_int64", 0, "int64 value")
+	test_uint                    = Uint("test_uint", 0, "uint value")
+	test_uint64                  = Uint64("test_uint64", 0, "uint64 value")
+	test_string                  = String("test_string", "0", "string value")
+	test_float64                 = Float64("test_float64", 0, "float64 value")
+	test_duration                = Duration("test_duration", 0, "time.Duration value")
+	normalizeFlagNameInvocations = 0
 )
 
 func boolString(s string) string {
@@ -185,7 +185,9 @@ func TestShorthand(t *testing.T) {
 	boolaFlag := f.BoolP("boola", "a", false, "bool value")
 	boolbFlag := f.BoolP("boolb", "b", false, "bool2 value")
 	boolcFlag := f.BoolP("boolc", "c", false, "bool3 value")
-	stringFlag := f.StringP("string", "s", "0", "string value")
+	booldFlag := f.BoolP("boold", "d", false, "bool4 value")
+	stringaFlag := f.StringP("stringa", "s", "0", "string value")
+	stringzFlag := f.StringP("stringz", "z", "0", "string value")
 	extra := "interspersed-argument"
 	notaflag := "--i-look-like-a-flag"
 	args := []string{
@@ -193,6 +195,8 @@ func TestShorthand(t *testing.T) {
 		extra,
 		"-cs",
 		"hello",
+		"-z=something",
+		"-d=true",
 		"--",
 		notaflag,
 	}
@@ -212,8 +216,14 @@ func TestShorthand(t *testing.T) {
 	if *boolcFlag != true {
 		t.Error("boolc flag should be true, is ", *boolcFlag)
 	}
-	if *stringFlag != "hello" {
-		t.Error("string flag should be `hello`, is ", *stringFlag)
+	if *booldFlag != true {
+		t.Error("boold flag should be true, is ", *booldFlag)
+	}
+	if *stringaFlag != "hello" {
+		t.Error("stringa flag should be `hello`, is ", *stringaFlag)
+	}
+	if *stringzFlag != "something" {
+		t.Error("stringz flag should be `something`, is ", *stringzFlag)
 	}
 	if len(f.Args()) != 2 {
 		t.Error("expected one argument, got", len(f.Args()))
@@ -231,6 +241,112 @@ func TestParse(t *testing.T) {
 
 func TestFlagSetParse(t *testing.T) {
 	testParse(NewFlagSet("test", ContinueOnError), t)
+}
+
+func replaceSeparators(name string, from []string, to string) string {
+	result := name
+	for _, sep := range from {
+		result = strings.Replace(result, sep, to, -1)
+	}
+	// Type convert to indicate normalization has been done.
+	return result
+}
+
+func wordSepNormalizeFunc(f *FlagSet, name string) NormalizedName {
+	seps := []string{"-", "_"}
+	name = replaceSeparators(name, seps, ".")
+	normalizeFlagNameInvocations++
+
+	return NormalizedName(name)
+}
+
+func testWordSepNormalizedNames(args []string, t *testing.T) {
+	f := NewFlagSet("normalized", ContinueOnError)
+	if f.Parsed() {
+		t.Error("f.Parse() = true before Parse")
+	}
+	withDashFlag := f.Bool("with-dash-flag", false, "bool value")
+	// Set this after some flags have been added and before others.
+	f.SetNormalizeFunc(wordSepNormalizeFunc)
+	withUnderFlag := f.Bool("with_under_flag", false, "bool value")
+	withBothFlag := f.Bool("with-both_flag", false, "bool value")
+	if err := f.Parse(args); err != nil {
+		t.Fatal(err)
+	}
+	if !f.Parsed() {
+		t.Error("f.Parse() = false after Parse")
+	}
+	if *withDashFlag != true {
+		t.Error("withDashFlag flag should be true, is ", *withDashFlag)
+	}
+	if *withUnderFlag != true {
+		t.Error("withUnderFlag flag should be true, is ", *withUnderFlag)
+	}
+	if *withBothFlag != true {
+		t.Error("withBothFlag flag should be true, is ", *withBothFlag)
+	}
+}
+
+func TestWordSepNormalizedNames(t *testing.T) {
+	args := []string{
+		"--with-dash-flag",
+		"--with-under-flag",
+		"--with-both-flag",
+	}
+	testWordSepNormalizedNames(args, t)
+
+	args = []string{
+		"--with_dash_flag",
+		"--with_under_flag",
+		"--with_both_flag",
+	}
+	testWordSepNormalizedNames(args, t)
+
+	args = []string{
+		"--with-dash_flag",
+		"--with-under_flag",
+		"--with-both_flag",
+	}
+	testWordSepNormalizedNames(args, t)
+}
+
+func aliasAndWordSepFlagNames(f *FlagSet, name string) NormalizedName {
+	seps := []string{"-", "_"}
+
+	oldName := replaceSeparators("old-valid_flag", seps, ".")
+	newName := replaceSeparators("valid-flag", seps, ".")
+
+	name = replaceSeparators(name, seps, ".")
+	switch name {
+	case oldName:
+		name = newName
+		break
+	}
+
+	return NormalizedName(name)
+}
+
+func TestCustomNormalizedNames(t *testing.T) {
+	f := NewFlagSet("normalized", ContinueOnError)
+	if f.Parsed() {
+		t.Error("f.Parse() = true before Parse")
+	}
+
+	validFlag := f.Bool("valid-flag", false, "bool value")
+	f.SetNormalizeFunc(aliasAndWordSepFlagNames)
+	someOtherFlag := f.Bool("some-other-flag", false, "bool value")
+
+	args := []string{"--old_valid_flag", "--some-other_flag"}
+	if err := f.Parse(args); err != nil {
+		t.Fatal(err)
+	}
+
+	if *validFlag != true {
+		t.Errorf("validFlag is %v even though we set the alias --old_valid_falg", *validFlag)
+	}
+	if *someOtherFlag != true {
+		t.Error("someOtherFlag should be true, is ", *someOtherFlag)
+	}
 }
 
 // Declare a user-defined flag type.
@@ -388,5 +504,89 @@ func TestTermination(t *testing.T) {
 	}
 	if f.Args()[1] != arg2 {
 		t.Errorf("expected argument %q got %q", arg2, f.Args()[1])
+	}
+}
+
+func TestDeprecatedFlagInDocs(t *testing.T) {
+	f := NewFlagSet("bob", ContinueOnError)
+	f.Bool("badflag", true, "always true")
+	f.MarkDeprecated("badflag", "use --good-flag instead")
+
+	out := new(bytes.Buffer)
+	f.SetOutput(out)
+	f.PrintDefaults()
+
+	if strings.Contains(out.String(), "badflag") {
+		t.Errorf("found deprecated flag in usage!")
+	}
+}
+
+func parseReturnStderr(t *testing.T, f *FlagSet, args []string) (string, error) {
+	oldStderr := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+
+	err := f.Parse(args)
+
+	outC := make(chan string)
+	// copy the output in a separate goroutine so printing can't block indefinitely
+	go func() {
+		var buf bytes.Buffer
+		io.Copy(&buf, r)
+		outC <- buf.String()
+	}()
+
+	w.Close()
+	os.Stderr = oldStderr
+	out := <-outC
+
+	return out, err
+}
+
+func TestDeprecatedFlagUsage(t *testing.T) {
+	f := NewFlagSet("bob", ContinueOnError)
+	f.Bool("badflag", true, "always true")
+	usageMsg := "use --good-flag instead"
+	f.MarkDeprecated("badflag", usageMsg)
+
+	args := []string{"--badflag"}
+	out, err := parseReturnStderr(t, f, args)
+	if err != nil {
+		t.Fatal("expected no error; got ", err)
+	}
+
+	if !strings.Contains(out, usageMsg) {
+		t.Errorf("usageMsg not printed when using a deprecated flag!")
+	}
+}
+
+func TestDeprecatedFlagUsageNormalized(t *testing.T) {
+	f := NewFlagSet("bob", ContinueOnError)
+	f.Bool("bad-double_flag", true, "always true")
+	f.SetNormalizeFunc(wordSepNormalizeFunc)
+	usageMsg := "use --good-flag instead"
+	f.MarkDeprecated("bad_double-flag", usageMsg)
+
+	args := []string{"--bad_double_flag"}
+	out, err := parseReturnStderr(t, f, args)
+	if err != nil {
+		t.Fatal("expected no error; got ", err)
+	}
+
+	if !strings.Contains(out, usageMsg) {
+		t.Errorf("usageMsg not printed when using a deprecated flag!")
+	}
+}
+
+// Name normalization function should be called only once on flag addition
+func TestMultipleNormalizeFlagNameInvocations(t *testing.T) {
+	normalizeFlagNameInvocations = 0
+
+	f := NewFlagSet("normalized", ContinueOnError)
+	f.SetNormalizeFunc(wordSepNormalizeFunc)
+	f.Bool("with_under_flag", false, "bool value")
+
+	if normalizeFlagNameInvocations != 1 {
+		t.Fatal("Expected normalizeFlagNameInvocations to be 1; got ", normalizeFlagNameInvocations)
 	}
 }
