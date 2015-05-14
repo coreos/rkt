@@ -206,7 +206,9 @@ func getArgsEnvKvm(p *Pod) ([]string, []string, error) {
 
 	// Arguments to systemd
 	kargs = append(kargs, "systemd.default_standard_output=tty")
-	if !debug {
+	if debug {
+		args = append(args, "--debug")
+	} else {
 		kargs = append(kargs, "systemd.log_target=null")
 		kargs = append(kargs, "systemd.show-status=0")
 		kargs = append(kargs, "quiet") // silence most nspawn output (log_warning is currently not covered by this)
