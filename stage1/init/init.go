@@ -61,7 +61,7 @@ const (
 	lkvmBin = "/usr/bin/lkvm"
 	bzImg = "/usr/lib/kernel/vmlinux.container"
 	// Path to the interpreter within the stage1 rootfs
-	interpBin = "/usr/lib/ld-linux-x86-64.so.2"
+	interpBin = "/usr/lib64/ld-linux-x86-64.so.2"
 	// Path to the localtime file/symlink in host
 	localtimePath = "/etc/localtime"
 )
@@ -128,6 +128,11 @@ func getArgsEnvNspawn(p *Pod) ([]string, []string, error) {
 	args := []string{}
 	env := os.Environ()
 
+	args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), interpBin))
+	args = append(args, "--library-path")
+	args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), "usr/lib64"))
+
+
 	args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), nspawnBin))
 	args = append(args, "--boot") // Launch systemd in the pod
 	out, err := os.Getwd()
@@ -176,6 +181,10 @@ func getArgsEnvKvm(p *Pod) ([]string, []string, error) {
 	args := []string{}
 	kargs := []string{}
 	env := os.Environ()
+
+	args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), interpBin))
+	args = append(args, "--library-path")
+	args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), "usr/lib64"))
 
 	args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), lkvmBin))
 	args = append(args, "run")
