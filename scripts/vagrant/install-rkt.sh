@@ -20,6 +20,7 @@ which unsquash || sudo apt-get install -y squashfs-tools
 
 pushd /vagrant
 ./build
+sudo cp -v bin/* /usr/local/bin
 
 cat << EOF | sudo tee /etc/profile.d/99rkt.sh
   export PATH=$PWD/bin:\$PATH

@@ -106,7 +106,7 @@ func TestVolumes(t *testing.T) {
 		err = child.Expect(tt.expect)
 		if err != nil {
 			fmt.Printf("Command: %s\n", cmd)
-			t.Fatalf("Expected %q but not found #%v", tt.expect, i)
+			t.Fatalf("Expected %q but not found #%v: %v", tt.expect, i, err)
 		}
 
 		err = child.Wait()

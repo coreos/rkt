@@ -272,10 +272,6 @@ func (f *fetcher) fetchImageFromURL(imgurl string, scheme string, ascFile *os.Fi
 }
 
 func (f *fetcher) fetchImageFrom(aciURL, ascURL, scheme string, ascFile *os.File, latest bool) (string, error) {
-	if scheme != "file" || f.debug {
-		stdout("rkt: fetching image from %s", aciURL)
-	}
-
 	if f.insecureSkipVerify {
 		if f.ks != nil {
 			stdout("rkt: warning: signature verification has been disabled")
@@ -290,38 +286,47 @@ func (f *fetcher) fetchImageFrom(aciURL, ascURL, scheme string, ascFile *os.File
 	} else {
 		return "", err
 	}
-	if !ok {
-		if f.local && scheme != "file" {
-			return "", fmt.Errorf("url %s not available in local store", aciURL)
-		}
-		entity, aciFile, err := f.fetch(aciURL, ascURL, ascFile)
-		if err != nil {
-			return "", err
-		}
-		if scheme != "file" {
-			defer os.Remove(aciFile.Name())
-		}
 
-		if entity != nil && !f.insecureSkipVerify {
-			fmt.Println("rkt: signature verified: ")
-			for _, v := range entity.Identities {
-				stdout("  %s", v.Name)
-			}
-		}
-		key, err = f.s.WriteACI(aciFile, latest)
-		if err != nil {
-			return "", err
-		}
+	if ok {
+		stdout("rkt: found image in local store, skipping fetching from %s", aciURL)
+		return key, nil
+	}
 
-		if scheme != "file" {
-			rem = store.NewRemote(aciURL, ascURL)
-			rem.BlobKey = key
-			err = f.s.WriteRemote(rem)
-			if err != nil {
-				return "", err
-			}
+	if scheme != "file" || f.debug {
+		stdout("rkt: fetching image from %s", aciURL)
+	}
+
+	if f.local && scheme != "file" {
+		return "", fmt.Errorf("url %s not available in local store", aciURL)
+	}
+	entity, aciFile, err := f.fetch(aciURL, ascURL, ascFile)
+	if err != nil {
+		return "", err
+	}
+	if scheme != "file" {
+		defer os.Remove(aciFile.Name())
+	}
+
+	if entity != nil && !f.insecureSkipVerify {
+		fmt.Println("rkt: signature verified: ")
+		for _, v := range entity.Identities {
+			stdout("  %s", v.Name)
 		}
 	}
+	key, err = f.s.WriteACI(aciFile, latest)
+	if err != nil {
+		return "", err
+	}
+
+	if scheme != "file" {
+		rem = store.NewRemote(aciURL, ascURL)
+		rem.BlobKey = key
+		err = f.s.WriteRemote(rem)
+		if err != nil {
+			return "", err
+		}
+	}
+
 	return key, nil
 }
 

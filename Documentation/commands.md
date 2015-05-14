@@ -230,48 +230,66 @@ Volumes are defined in each ACI and are referenced by name. Volumes can be expos
 
 [rkt #378]: https://github.com/coreos/rkt/issues/378
 
+
+##### Mounting Host Volumes 
+
 For `host` volumes, the `--volume` flag allows you to specify each mount, its type and the location on the host. The volume is then mounted into each app running to the pod based on information defined in the ACI manifest.
 
-For example, let's say we want to read data from the host directory `/opt/tenant1/work` to power a MapReduce-syle worker. We'll call this volume `work`. Our ACI manifest specifies that `work` is mounted read-only from the host, and is mounted at `work` and `backup` into two apps but not into the third. Here's an appreviated version of the ACI manifest: 
+For example, let's say we want to read data from the host directory `/opt/tenant1/work` to power a MapReduce-style worker. We'll call this app `example.com/reduce-worker`.
+
+We also want this data to be available to a backup application that runs alongside the worker (in the same pod). We'll call this app 'example.com/worker-backup`. The backup application only needs read-only access to the data.
+
+Below we show the abbreviated manifests for the respective applications (recall that the manifest is bundled into the application's ACI):
 
 ```
-"apps": [{
-  "app": "example.com/reduce-worker-1.0.0",
-  "mounts": [
-       {"volume": "work", "mountPoint": "work"}
-  ]
-  ...
-},
 {
-  "app": "example.com/worker-backup-1.0.0",
-  "mounts": [
-       {"volume": "work", "mountPoint": "backup"}
-  ]
-  ...
-},
-{
-  "app": "example.com/reduce-worker-register-1.0.0",
-  ...
-}],
-"volumes": [
-  {
-    "name": "work",
-    "kind": "host",
-    "source": "/opt/tenant1/work",
-    "readOnly": true
-  }
-],
-...
+    "acKind": "ImageManifest",
+    "name": "example.com/reduce-worker",
+    ...
+    "app": {
+        ...
+        "mountPoints": [
+            {
+                "name": "work",
+                "path": "/var/lib/work",
+                "readOnly": false
+            }
+        ],
+    ...
+}
 ```
 
-The corresponding `rkt run` looks like:
+```
+{
+    "acKind": "ImageManifest",
+    "name": "example.com/worker-backup",
+    ...
+    "app": {
+        ...
+        "mountPoints": [
+            {
+                "name": "work",
+                "path": "/backup",
+                "readOnly": true
+            }
+        ],
+    ...
+}
+```
+
+In this case, both apps reference a volume they call "work", and expect it to be made available at `/var/lib/work` and `/backup` within their respective root filesystems. 
+
+Since they reference the volume using an abstract name rather than a specific source path, the same image can be used on a variety of different hosts without being coupled to the host's filesystem layout.
+
+To tie it all together, we use the `rkt run` command-line to provide them with a volume by this name. Here's what it looks like:
 
 ```
 sudo ./rkt run --volume work,kind=host,source=/opt/tenant1/work \
-  example.com/reduce-worker-1.0.0 \
-  example.com/worker-backup-1.0.0 \
-  example.com/reduce-worker-register-1.0.0
+  example.com/reduce-worker \
+  example.com/worker-backup
 ```
+
+Now when the pod is running, the two apps will see the host's `/opt/tenant1/work` directory made available at their expected locations.
 
 #### Customize Networking
 

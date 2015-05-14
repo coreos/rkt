@@ -39,6 +39,23 @@ Replace $SRC with the absolute path to your rkt source code:
 $ sudo docker run -v $SRC:/opt/rkt -i -t golang:1.3 /bin/bash -c "apt-get update && apt-get install -y coreutils cpio squashfs-tools realpath && cd /opt/rkt && go get github.com/appc/spec/... && ./build"
 ```
 
+### Alternative stage1 paths
+
+rkt is designed and intended to be modular, using a [staged architecture](devel/architecture.md).
+
+`rkt run` determines the stage1 image it should use via its `-stage1-image` flag.
+By default, if this flag is unset at runtime, rkt will default to looking for a file called `stage1.aci` that is in the same directory as the rkt binary itself.
+
+However, a default value can be set for this parameter at build time by setting the environment variable `RKT_STAGE1_IMAGE` (i.e when invoking ./build).
+This is useful for those packaging rkt for distribution who will provide the stage1 in a fixed/known location.
+
+The variable should be set to the fully qualified path at which rkt can find the stage1 image - for example:
+
+	RKT_STAGE1_IMAGE=/usr/lib/rkt/stage1.aci ./build
+
+rkt will then use this environment variable to set the default value for the `stage1-image` flag.
+
+
 ## Managing Dependencies
 
 rkt uses [`godep`](https://github.com/tools/godep) to manage third-party dependencies.

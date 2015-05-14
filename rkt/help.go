@@ -34,9 +34,10 @@ var (
 	}
 	helpFlags flag.FlagSet
 
-	globalUsageTemplate  *template.Template
-	commandUsageTemplate *template.Template
-	templFuncs           = template.FuncMap{
+	globalUsageTemplate     *template.Template
+	commandUsageTemplate    *template.Template
+	subCommandUsageTemplate *template.Template
+	templFuncs              = template.FuncMap{
 		"descToLines": func(s string) []string {
 			// trim leading/trailing whitespace and split into slice of lines
 			return strings.Split(strings.Trim(s, "\n\t "), "\n")
@@ -87,6 +88,20 @@ DESCRIPTION:
 
 {{end}}For help on global options run "{{.Executable}} help"
 `[1:]))
+	subCommandUsageTemplate = template.Must(template.New("subcommand_usage").Funcs(templFuncs).Parse(`
+NAME:
+{{printf "\t%s %s - %s" .CmdName .SubCmd.Name .SubCmd.Summary}}
+
+USAGE:
+{{printf "\t%s %s %s %s" .Executable .CmdName .SubCmd.Name .SubCmd.Usage}}
+
+DESCRIPTION:
+{{range $line := descToLines .SubCmd.Description}}{{printf "\t%s" $line}}
+{{end}}
+{{if .SubCmdFlags}}OPTIONS:{{range .SubCmdFlags}}
+{{printOption .Name .DefValue .Usage}}{{end}}
+{{end}}
+`[1:]))
 }
 
 func runHelp(args []string) (exit int) {
@@ -95,7 +110,17 @@ func runHelp(args []string) (exit int) {
 		return
 	}
 
-	if err := printCommandUsageByName(args[0]); err != nil {
+	if len(args) == 1 {
+		if err := printCommandUsageByName(args[0]); err != nil {
+			printGlobalUsage()
+			stderr("\nHelp error: %v\n", err)
+			return 1
+		}
+		return
+	}
+
+	// Help for sub-commands.
+	if err := printSubCommandUsageByName(args[0], args[1], subCommands[args[0]]); err != nil {
 		printGlobalUsage()
 		stderr("\nHelp error: %v\n", err)
 		return 1
@@ -148,6 +173,40 @@ func printCommandUsageByName(name string) error {
 	}
 
 	printCommandUsage(cmd)
+
+	return nil
+}
+
+func printSubCommandUsage(cmdName string, subCmd *Command) {
+	subCommandUsageTemplate.Execute(tabOut, struct {
+		Executable  string
+		CmdName     string
+		SubCmd      *Command
+		SubCmdFlags []*flag.Flag
+	}{
+		cliName,
+		cmdName,
+		subCmd,
+		getFlags(subCmd.Flags),
+	})
+	tabOut.Flush()
+}
+
+func printSubCommandUsageByName(name, subName string, subCommands []*Command) error {
+	var cmd *Command
+
+	for _, c := range subCommands {
+		if c.Name == subName {
+			cmd = c
+			break
+		}
+	}
+
+	if cmd == nil {
+		return fmt.Errorf("unrecognized sub-command: %s", subName)
+	}
+
+	printSubCommandUsage(name, cmd)
 
 	return nil
 }

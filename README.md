@@ -17,7 +17,8 @@ For more on the background and motivation behind rkt, read the original [launch 
 
 ## App Container
 
-rkt is an implementation of the [App Container spec](Documentation/app-container.md). rkt's native image format ([ACI](Documentation/app-container.md#ACI)) and runtime/execution environment ([pods](Documentation/app-container.md#pods)) are defined in the specification.
+rkt is an implementation of the [App Container spec](Documentation/app-container.md). 
+rkt's native image format ([ACI](Documentation/app-container.md#ACI)) and runtime/execution environment ([pods](Documentation/app-container.md#pods)) are defined in the specification.
 
 ## Project status
 
@@ -53,6 +54,15 @@ vagrant ssh
 Keep in mind while running through the examples that right now `rkt` needs to be run as root for most operations.
 
 ## rkt basics
+
+### Building App Container Images (ACIs)
+
+rkt's native image format is ACI, defined in the [App Container spec](Documentation/app-container.md).
+To build ACIs, a simple way to get started is by using [`actool`](https://github.com/appc/spec/#working-with-the-spec).
+Another good resource is the [appc build repository](https://github.com/appc/build-repository) which has resources for building ACIs from a number of popular projects and languages.
+There are also tools for converting [Docker images to ACIs](https://github.com/appc/docker2aci) (although note that rkt can [also run Docker images natively](Documentation/running-docker-images.md) directly from Docker repositories by using this library internally).
+
+The example below uses a pre-built ACI for [etcd](https://github.com/coreos/etcd) (you can see how this was built [here](https://github.com/coreos/etcd/blob/master/scripts/build-aci)).
 
 ### Downloading an App Container Image (ACI)
 

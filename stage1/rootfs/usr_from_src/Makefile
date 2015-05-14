@@ -29,7 +29,51 @@ bash.done: Makefile systemd.done
 systemd.done: Makefile systemd.src
 	{ [ ! -e systemd_build ] || rm -Rf systemd_build; }
 	mkdir systemd_build
-	cd systemd_build && ../systemd/configure --disable-python-devel --disable-dbus --disable-kmod --disable-blkid --disable-chkconfig --disable-pam --disable-acl --disable-smack --disable-gcrypt --disable-elfutils --disable-libcryptsetup --disable-qrencode --disable-microhttpd --disable-gnutls --disable-binfmt --disable-vconsole --disable-readahead --disable-bootchart --disable-quotacheck --disable-tmpfiles --disable-sysusers --disable-randomseed --disable-backlight --disable-rfkill --disable-logind --disable-machined --disable-timedated --disable-timesyncd --disable-localed --disable-coredump --disable-polkit --disable-resolved --disable-networkd --disable-efi --disable-multi-seat-x --disable-myhostname --disable-gudev --disable-manpages --disable-tests --disable-blkid --disable-hibernate --disable-terminal --disable-hwdb --disable-importd && $(MAKE) && DESTDIR=$${PWD}/installed make install-strip
+	cd systemd_build && ../systemd/configure \
+		--disable-python-devel \
+		--disable-dbus \
+		--disable-kmod \
+		--disable-blkid \
+		--disable-chkconfig \
+		--disable-selinux \
+		--disable-pam \
+		--disable-acl \
+		--disable-smack \
+		--disable-gcrypt \
+		--disable-elfutils \
+		--disable-libcryptsetup \
+		--disable-qrencode \
+		--disable-microhttpd \
+		--disable-gnutls \
+		--disable-binfmt \
+		--disable-vconsole \
+		--disable-bootchart \
+		--disable-quotacheck \
+		--disable-tmpfiles \
+		--disable-sysusers \
+		--disable-randomseed \
+		--disable-backlight \
+		--disable-rfkill \
+		--disable-logind \
+		--disable-machined \
+		--disable-timedated \
+		--disable-timesyncd \
+		--disable-localed \
+		--disable-coredump \
+		--disable-polkit \
+		--disable-resolved \
+		--disable-networkd \
+		--disable-efi \
+		--disable-myhostname \
+		--disable-gudev \
+		--disable-manpages \
+		--disable-tests \
+		--disable-blkid \
+		--disable-hibernate \
+		--disable-terminal \
+		--disable-hwdb \
+		--disable-importd \
+		&& $(MAKE) && DESTDIR=$${PWD}/installed make install-strip
 	touch systemd.done
 
 # TODO(vc): it may make more sense to have the systemd source be a git submodule?

@@ -17,7 +17,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/coreos/rkt/store"
@@ -177,7 +176,7 @@ func runImages(args []string) (exit int) {
 
 	s, err := store.NewStore(globalFlags.Dir)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "fetch: cannot open store: %v\n", err)
+		stderr("images: cannot open store: %v\n", err)
 		return 1
 	}
 
@@ -187,7 +186,7 @@ func runImages(args []string) (exit int) {
 	}
 	aciInfos, err := s.GetAllACIInfos(sortAciinfoFields, bool(flagImagesSortAsc))
 	if err != nil {
-		stderr("Unable to get aci infos: %v", err)
+		stderr("images: unable to get aci infos: %v", err)
 		return
 	}
 

@@ -35,7 +35,7 @@ func TestSuccess(t *testing.T) {
 	}
 	err = child.Expect("Hello")
 	if err != nil {
-		t.Fatalf("Missing hello")
+		t.Fatalf("Missing hello: %v", err)
 	}
 	forbidden := "main process exited, code=exited, status="
 	_, receiver := child.AsyncInteractChannels()
@@ -67,11 +67,11 @@ func TestFailure(t *testing.T) {
 	}
 	err = child.Expect("Hello")
 	if err != nil {
-		t.Fatalf("Missing hello")
+		t.Fatalf("Missing hello: %v", err)
 	}
-	err = child.Expect("main process exited, code=exited, status=20")
+	err = child.Expect("process exited, code=exited, status=20")
 	if err != nil {
-		t.Fatalf("Missing hello")
+		t.Fatalf("Missing exit status: %v", err)
 	}
 
 	err = child.Wait()

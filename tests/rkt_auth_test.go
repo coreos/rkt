@@ -176,7 +176,7 @@ func expectedRunRkt(ctx *rktRunCtx, t *testing.T, host, dir, line string) {
 	}
 	defer child.Wait()
 	if err := child.Expect(line); err != nil {
-		t.Fatalf("Didn't receive expected output %q", line)
+		t.Fatalf("Didn't receive expected output %q: %v", line, err)
 	}
 }
 

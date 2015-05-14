@@ -40,6 +40,7 @@ var (
 	globalFlagset = flag.NewFlagSet(cliName, flag.ExitOnError)
 	tabOut        *tabwriter.Writer
 	commands      []*Command // Commands should register themselves by appending
+	subCommands   = make(map[string][]*Command)
 	globalFlags   = struct {
 		Dir                string
 		SystemConfigDir    string
