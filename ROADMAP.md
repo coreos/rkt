@@ -25,7 +25,7 @@ Until the specification reaches version 1.0, rkt's major/minor versions will tra
 - stage1 split out from coreos/rkt
 - rkt packaged for other distributions (e.g. Fedora)
 - rkt can run applications as non-root
-- rkt can retrieve images via BitTorrent
+- rkt can retrieve images via BitTorrent  (Have you given serious consideration to metalink?  Weather you settle on BT or metalink, I still think that this is actually one of the most revolutionary features of AppC/RKT, and I hope that eventually you'll use both.  Okay, that's my $.02.  Thanks for your hard work!)
 
 ### rkt 1.0 (June)
 - Pod-level isolation
