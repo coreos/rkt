@@ -198,7 +198,7 @@ func TestGetImageManifest(t *testing.T) {
 func TestGetAci(t *testing.T) {
 	type test struct {
 		name     types.ACName
-		labels   types.Labels
+		labels   []types.Label
 		expected int // the aci index to expect or -1 if not result expected,
 	}
 
@@ -263,17 +263,17 @@ func TestGetAci(t *testing.T) {
 			[]test{
 				{
 					"example.com/unexistentaci",
-					types.Labels{},
+					[]types.Label{},
 					-1,
 				},
 				{
 					"example.com/test01",
-					types.Labels{},
+					[]types.Label{},
 					0,
 				},
 				{
 					"example.com/test02",
-					types.Labels{
+					[]types.Label{
 						{
 							Name:  "version",
 							Value: "1.0.0",
@@ -283,7 +283,7 @@ func TestGetAci(t *testing.T) {
 				},
 				{
 					"example.com/test02",
-					types.Labels{
+					[]types.Label{
 						{
 							Name:  "version",
 							Value: "2.0.0",
@@ -293,7 +293,7 @@ func TestGetAci(t *testing.T) {
 				},
 				{
 					"example.com/test02",
-					types.Labels{},
+					[]types.Label{},
 					1,
 				},
 			},

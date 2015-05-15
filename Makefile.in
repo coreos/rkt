@@ -1,0 +1,139 @@
+# These variables are set by configure script
+# Please check configure.ac instead of modifying these manually
+
+# package specific substitution names
+package := @PACKAGE_NAME@
+version := @PACKAGE_VERSION@
+tarname := @PACKAGE_TARNAME@
+distdir := $(tarname)-$(version)
+
+# prefix-specific substitution names
+prefix := @prefix@
+exec_prefix := @exec_prefix@
+bindir := @bindir@
+
+# Setup install scripts for portability
+INSTALL = @INSTALL@
+INSTALL_DATA = @INSTALL_DATA@
+INSTALL_PROGRAM = @INSTALL_PROGRAM@
+INSTALL_SCRIPT = @INSTALL_SCRIPT@
+
+# these are rkt-build specific variables
+
+# binaries we need to build things
+GO := @GOBINARY@
+GOFMT := @GOFMTBINARY@
+GIT := @GIT@
+BASH := @BASH@
+
+# path to rkt source code distro
+ORG_PATH := github.com/coreos
+REPO_PATH := $(ORG_PATH)/rkt
+
+# [STAGE1] build settings
+
+# stage1 build mode
+RKT_STAGE1_USR_FROM := @RKT_STAGE1_USR_FROM@
+# git path to systemd
+RKT_STAGE1_SYSTEMD_SRC := @RKT_STAGE1_SYSTEMD_SRC@
+# systemd build version
+RKT_STAGE1_SYSTEMD_VER := @RKT_STAGE1_SYSTEMD_VER@
+# stage1 image flags (the optional custom path linked into binary set by user)
+RKT_STAGE1_IMAGE_FLAGS := @RKT_STAGE1_IMAGE_FLAGS@
+
+RKT_STAGE1_DBUS := @RKT_STAGE1_DBUS@
+RKT_STAGE1_DBUS_SRC := @RKT_STAGE1_DBUS_SRC@
+RKT_STAGE1_DBUS_VER := @RKT_STAGE1_DBUS_VER@
+NSS_FILES_LIB := @NSS_FILES_LIB@
+
+# /usr/lib (src build) or /usr/lib64 (coreos build)
+USR_LIB_DIR := @RKT_STAGE1_USR_LIB@
+
+# build-related directories and binaries
+BUILDDIR ?= $(shell pwd)/build-$(distdir)
+BUILDDIR := $(abspath $(BUILDDIR))
+
+BINDIR := $(BUILDDIR)$(bindir)
+GOPATH := $(BUILDDIR)/gopath
+GOBIN := $(BUILDDIR)/bin
+ACTOOL := $(GOBIN)/actool
+ROOT = $(BUILDDIR)/aci/rootfs
+ACI = $(BUILDDIR)/aci
+
+# test-related variables
+GO_TEST_COVER := -cover
+GO_TEST_PACKAGES ?= ./...
+GO_TEST_SKIP_DIRS := tests builds
+GO_TEST_FUNC_ARGS ?=
+
+# runtime variables
+OSTYPE := $(shell uname)
+CORES := $(shell grep -c ^processor /proc/cpuinfo)
+
+# export variables to inner makefiles
+export
+
+# include standard librares
+include makelib/*.mk
+
+.PHONY: clean stage0 stage1 stage1-tools stage1-deps stage0-test stage1-test test
+
+# create directories and symlinks needed to for build in advance so we should not worry about them
+$(call make-dirs,$(BINDIR) $(GOPATH)/src/$(ORG_PATH) $(GOBIN) $(BUILDDIR)/src $(BUILDDIR)/install.d $(BUILDDIR)/cache $(ROOT))
+$(call make-dir-symlink,$(shell pwd),$(GOPATH)/src/$(REPO_PATH))
+
+all: stage0 stage1
+
+# stage0 builds rkt binary
+stage0:
+	$(info [STAGE0] building rkt binary...)
+	$(GO) build -o $(GOBIN)/rkt $(RKT_STAGE1_IMAGE_FLAGS) $(REPO_PATH)/rkt
+
+# stage1 builds stage1 image and associated toolset
+ifneq ($(RKT_STAGE1_USR_FROM),none)
+stage1: stage1-tools stage1-rootfs
+else
+stage1:
+	@echo [STAGE1] skiping stage 1 build as configured by user
+endif
+
+stage1-tools:
+	@echo [STAGE1] building stage1 build tools...
+	go build -o $(GOBIN)/actool github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/actool
+
+stage1-rootfs:
+	$(if $(filter-out Linux,$(OSTYPE)),$(error unsupported OS: $(OSTYPE)),@echo building on $(OSTYPE))
+	@echo [STAGE1] building stage1 rootfs using $(CORES) cores...
+	$(MAKE) -C stage1 -j $(CORES) -f stage1.mk
+
+test: stage0-test stage1-test
+	@echo "[STAGE0] [STAGE1] executing tests"
+
+stage0-test: GO_PACKAGES_WITH_TESTS := $(call go-find-packages-with-tests,$(GO_TEST_PACKAGES),$(GO_TEST_SKIP_DIRS))
+stage0-test: GO_PACKAGES_ALL := $(call go-find-packages,$(GO_TEST_PACKAGES),$(GO_TEST_SKIP_DIRS))
+stage0-test:
+	@echo [STAGE0] executing tests...
+	@$(GO) test -timeout 60s $(GO_TEST_COVER) $(GO_PACKAGES_WITH_TESTS) --race
+
+	@echo [STAGE0] checking for gofmt verdict...
+	@set -e; \
+	cd $(GOPATH)/src ;\
+	NEED_FORMATTING="$$(GOPATH=$(GOPATH) $(GOFMT) -l $(GO_PACKAGES_WITH_TESTS))"; \
+	if [ -n "$$NEED_FORMATTING" ] ; then \
+	echo "[STAGE0] ERROR: these packages need formatting: $$NEED_FORMATTING"; \
+	exit 255; \
+	fi;
+
+	@echo [STAGE0] checking for go vet verdict...
+	@set -e; $(GO) vet $(GO_PACKAGES_ALL)
+
+ifeq ($(filter true,$(SEMAPHORE)$(CIRCLE)$(GO_TEST_STAGE1_FORCE)),true)
+stage1-test: stage0 stage1
+	$(MAKE) -C tests -f tests.mk SHELL="/bin/bash -v"
+else
+stage1-test:
+	@echo [STAGE1] skipping tests in unsupported environment...
+endif
+
+clean:
+	rm -rf $(BUILDDIR)

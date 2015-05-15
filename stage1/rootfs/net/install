@@ -1,3 +1,0 @@
-DST="$ROOT/etc/rkt/net.d"
-mkdir -p $DST
-install -m 0755 ../net/*.conf $DST

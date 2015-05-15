@@ -1,1 +1,0 @@
-install -m 0755 ../enter/enter "$ROOT"
