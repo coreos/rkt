@@ -17,7 +17,7 @@
 package main
 
 import (
-	"flag"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
 	"io/ioutil"
 	"log"
 
@@ -25,31 +25,27 @@ import (
 	"github.com/coreos/rkt/store"
 )
 
-const (
-	cmdRunPreparedName = "run-prepared"
-)
-
 var (
-	cmdRunPrepared = &Command{
-		Name:        cmdRunPreparedName,
-		Summary:     "Run a prepared application pod in rkt",
-		Usage:       "UUID",
-		Description: "UUID must have been acquired via `rkt prepare`",
-		Run:         runRunPrepared,
-		Flags:       &runPreparedFlags,
-	}
-	runPreparedFlags flag.FlagSet
+	cmdRunPrepared *cobra.Command
 )
 
 func init() {
-	commands = append(commands, cmdRunPrepared)
-	runPreparedFlags.BoolVar(&flagPrivateNet, "private-net", false, "give pod a private network")
-	runPreparedFlags.BoolVar(&flagInteractive, "interactive", false, "the pod is interactive")
+	cmdRunPrepared = &cobra.Command{
+		Use:   "run-prepared UUID",
+		Short: "Run a prepared application pod in rkt",
+		Long:  "UUID must have been acquired via `rkt prepare`",
+		Run: func(cmd *cobra.Command, args []string) {
+			subCmdExitCode = runRunPrepared(cmd, args)
+		},
+	}
+	cmdRunPrepared.Flags().BoolVar(&flagPrivateNet, "private-net", false, "give pod a private network")
+	cmdRunPrepared.Flags().BoolVar(&flagInteractive, "interactive", false, "the pod is interactive")
+	rktCmd.AddCommand(cmdRunPrepared)
 }
 
-func runRunPrepared(args []string) (exit int) {
+func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 	if len(args) != 1 {
-		printCommandUsageByName(cmdRunPreparedName)
+		cmd.Help()
 		return 1
 	}
 
@@ -59,17 +55,17 @@ func runRunPrepared(args []string) (exit int) {
 		return 1
 	}
 
-	if globalFlags.Dir == "" {
+	if flagDataDir == "" {
 		log.Printf("dir unset - using temporary directory")
 		var err error
-		globalFlags.Dir, err = ioutil.TempDir("", "rkt")
+		flagDataDir, err = ioutil.TempDir("", "rkt")
 		if err != nil {
 			stderr("error creating temporary directory: %v", err)
 			return 1
 		}
 	}
 
-	s, err := store.NewStore(globalFlags.Dir)
+	s, err := store.NewStore(flagDataDir)
 	if err != nil {
 		stderr("prepared-run: cannot open store: %v", err)
 		return 1
@@ -126,7 +122,7 @@ func runRunPrepared(args []string) (exit int) {
 			Store:       s,
 			Stage1Image: *s1img,
 			UUID:        p.uuid,
-			Debug:       globalFlags.Debug,
+			Debug:       flagDebug,
 		},
 		PrivateNet:  flagPrivateNet,
 		LockFd:      lfd,

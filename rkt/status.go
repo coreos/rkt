@@ -17,35 +17,32 @@
 package main
 
 import (
-	"flag"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
 )
 
 var (
-	cmdStatus = &Command{
-		Name:    cmdStatusName,
-		Summary: "Check the status of a rkt pod",
-		Usage:   "[--wait] UUID",
-		Run:     runStatus,
-		Flags:   &statusFlags,
-	}
-	statusFlags flag.FlagSet
-	flagWait    bool
+	cmdStatus *cobra.Command
+	flagWait  bool
 )
 
 const (
 	overlayStatusDirTemplate = "overlay/%s/upper/rkt/status"
 	regularStatusDir         = "stage1/rootfs/rkt/status"
-	cmdStatusName            = "status"
 )
 
 func init() {
-	commands = append(commands, cmdStatus)
-	statusFlags.BoolVar(&flagWait, "wait", false, "toggle waiting for the pod to exit")
+	cmdStatus = &cobra.Command{
+		Use:   "status [--wait] UUID",
+		Short: "Check the status of a rkt pod",
+		Run:   func(cmd *cobra.Command, args []string) { subCmdExitCode = runStatus(cmd, args) },
+	}
+	cmdStatus.Flags().BoolVarP(&flagWait, "wait", "w", false, "toggle waiting for the pod to exit")
+	rktCmd.AddCommand(cmdStatus)
 }
 
-func runStatus(args []string) (exit int) {
+func runStatus(cmd *cobra.Command, args []string) (exit int) {
 	if len(args) != 1 {
-		printCommandUsageByName(cmdStatusName)
+		cmdStatus.Help()
 		return 1
 	}
 

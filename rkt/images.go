@@ -232,7 +232,7 @@ func (f *fetcher) fetchSingleImage(img string, asc string, discover bool) (strin
 			stdout("rkt: searching for app image %s", img)
 			ep, attempts, err := discovery.DiscoverEndpoints(*app, true)
 
-			if globalFlags.Debug {
+			if flagDebug {
 				for _, a := range attempts {
 					stderr("meta tag 'ac-discovery' not found on %s: %v", a.Prefix, a.Error)
 				}

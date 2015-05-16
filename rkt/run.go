@@ -17,8 +17,8 @@
 package main
 
 import (
-	"flag"
 	"fmt"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
 	"io/ioutil"
 	"log"
 	"os"
@@ -35,21 +35,13 @@ import (
 var (
 	defaultStage1Image string // either set by linker, or guessed in init()
 
-	cmdRun = &Command{
-		Name:    "run",
-		Summary: "Run image(s) in a pod in rkt",
-		Usage:   "[--volume name,kind=host,...] IMAGE [-- image-args...[---]]...",
-		Description: `IMAGE should be a string referencing an image; either a hash, local file on disk, or URL.
-They will be checked in that order and the first match will be used.
-
-An "--" may be used to inhibit rkt run's parsing of subsequent arguments,
-which will instead be appended to the preceding image app's exec arguments.
-End the image arguments with a lone "---" to resume argument parsing.`,
-		Run:                  runRun,
-		Flags:                &runFlags,
-		WantsFlagsTerminator: true,
+	cmdRun = &cobra.Command{
+		Use:   "run POD-OPTS --image=IMAGE IMAGE-OPTS...",
+		Short: "Run image(s) in a pod in rkt",
+		Long: `IMAGE should be a string referencing an image; either a hash, local file on disk, or URL.
+They will be checked in that order and the first match will be used.`,
+		Run: func(cmd *cobra.Command, args []string) { subCmdExitCode = runRun(cmd, args) },
 	}
-	runFlags        flag.FlagSet
 	flagStage1Image string
 	flagVolumes     volumeList
 	flagPorts       portList
@@ -60,10 +52,13 @@ End the image arguments with a lone "---" to resume argument parsing.`,
 	flagNoOverlay   bool
 	flagLocal       bool
 	flagPodManifest string
+	//Declared in pkg
+	//flagImage       = NewMulti("image")
+	//flagSign        = NewBuddy(flagImage, "signature")
 )
 
 func init() {
-	commands = append(commands, cmdRun)
+	rktCmd.AddCommand(cmdRun)
 
 	// if not set by linker, try discover the directory rkt is running
 	// from, and assume the default stage1.aci is stored alongside it.
@@ -73,46 +68,44 @@ func init() {
 		}
 	}
 
-	runFlags.StringVar(&flagStage1Image, "stage1-image", defaultStage1Image, `image to use as stage1. Local paths and http/https URLs are supported. If empty, rkt will look for a file called "stage1.aci" in the same directory as rkt itself`)
-	runFlags.Var(&flagVolumes, "volume", "volumes to mount into the pod")
-	runFlags.Var(&flagPorts, "port", "ports to expose on the host (requires --private-net)")
-	runFlags.BoolVar(&flagPrivateNet, "private-net", false, "give pod a private network")
-	runFlags.BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
-	runFlags.BoolVar(&flagNoOverlay, "no-overlay", false, "disable overlay filesystem")
-	runFlags.Var(&flagExplicitEnv, "set-env", "an environment variable to set for apps in the form name=value")
-	runFlags.BoolVar(&flagInteractive, "interactive", false, "run pod interactively")
-	runFlags.Var((*appAsc)(&rktApps), "signature", "local signature file to use in validating the preceding image")
-	runFlags.BoolVar(&flagLocal, "local", false, "use only local images (do not discover or download from remote URLs)")
-	runFlags.StringVar(&flagPodManifest, "pod-manifest", "", "the path to the pod manifest. If it's non-empty, then only '--private-net', '--no-overlay' and '--interactive' will have effects")
+	cmdRun.Flags().StringVar(&flagStage1Image, "stage1-image", defaultStage1Image, `image to use as stage1. Local paths and http/https URLs are supported. If empty, rkt will look for a file called "stage1.aci" in the same directory as rkt itself`)
+	cmdRun.Flags().Var(&flagVolumes, "volume", "volumes to mount into the pod")
+	cmdRun.Flags().Var(&flagPorts, "port", "ports to expose on the host (requires --private-net)")
+	cmdRun.Flags().BoolVar(&flagPrivateNet, "private-net", false, "give pod a private network")
+	cmdRun.Flags().BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
+	cmdRun.Flags().BoolVar(&flagNoOverlay, "no-overlay", false, "disable overlay filesystem")
+	cmdRun.Flags().Var(&flagExplicitEnv, "set-env", "an environment variable to set for apps in the form name=value")
+	cmdRun.Flags().BoolVar(&flagInteractive, "interactive", false, "run pod interactively")
+	cmdRun.Flags().BoolVar(&flagLocal, "local", false, "use only local images (do not discover or download from remote URLs)")
+	cmdRun.Flags().StringVar(&flagPodManifest, "pod-manifest", "", "the path to the pod manifest. If it's non-empty, then only '--private-net', '--no-overlay' and '--interactive' will have effects")
+	cmdRun.Flags().VarP(flagImage, "image", "i", "image for image specific options")
+	cmdRun.Flags().VarP(flagSign, "signature", "s", "local signature file to use in validating the preceding image")
+	cmdRun.Flags().VarP(flagImageArgs, "image-args", "g", "arguments to pass to image")
+
 	flagVolumes = volumeList{}
 	flagPorts = portList{}
 }
 
-func runRun(args []string) (exit int) {
+func runRun(cmd *cobra.Command, args []string) (exit int) {
 	if len(flagPorts) > 0 && !flagPrivateNet {
 		stderr("--port flag requires --private-net")
 		return 1
 	}
 
+	rktApps := CreateAppsList(flagImage, flagSign, flagImageArgs)
 	if len(flagPodManifest) > 0 && (len(flagVolumes) > 0 || len(flagPorts) > 0 || flagInheritEnv || !flagExplicitEnv.IsEmpty() || rktApps.Count() > 0 || flagLocal) {
 		stderr("conflicting flags set with --pod-manifest (see --help)")
 		return 1
 	}
 
-	if globalFlags.Dir == "" {
+	if flagDataDir == "" {
 		log.Printf("dir unset - using temporary directory")
 		var err error
-		globalFlags.Dir, err = ioutil.TempDir("", "rkt")
+		flagDataDir, err = ioutil.TempDir("", "rkt")
 		if err != nil {
 			stderr("error creating temporary directory: %v", err)
 			return 1
 		}
-	}
-
-	err := parseApps(&rktApps, args, &runFlags, true)
-	if err != nil {
-		stderr("run: error parsing app image arguments: %v", err)
-		return 1
 	}
 
 	if flagInteractive && rktApps.Count() > 1 {
@@ -125,7 +118,7 @@ func runRun(args []string) (exit int) {
 		return 1
 	}
 
-	s, err := store.NewStore(globalFlags.Dir)
+	s, err := store.NewStore(flagDataDir)
 	if err != nil {
 		stderr("run: cannot open store: %v", err)
 		return 1
@@ -141,8 +134,8 @@ func runRun(args []string) (exit int) {
 			s:                  s,
 			headers:            config.AuthPerHost,
 			dockerAuth:         config.DockerCredentialsPerRegistry,
-			insecureSkipVerify: globalFlags.InsecureSkipVerify,
-			debug:              globalFlags.Debug,
+			insecureSkipVerify: flagInsecureSkipVerify,
+			debug:              flagDebug,
 		},
 		local:    flagLocal,
 		withDeps: false,
@@ -170,7 +163,7 @@ func runRun(args []string) (exit int) {
 		Store:       s,
 		Stage1Image: *s1img,
 		UUID:        p.uuid,
-		Debug:       globalFlags.Debug,
+		Debug:       flagDebug,
 	}
 
 	pcfg := stage0.PrepareConfig{
@@ -240,6 +233,9 @@ func (vl *volumeList) String() string {
 	}
 	return strings.Join(vs, " ")
 }
+func (vl *volumeList) Type() string {
+	return "volumeList"
+}
 
 // portList implements the flag.Value interface to contain a set of mappings
 // from port name --> host port
@@ -278,6 +274,10 @@ func (pl *portList) String() string {
 	return strings.Join(ps, " ")
 }
 
+func (pl *portList) Type() string {
+	return "portList"
+}
+
 // envMap implements the flag.Value interface to contain a set of name=value mappings
 type envMap struct {
 	mapping map[string]string
@@ -312,4 +312,8 @@ func (e *envMap) Strings() []string {
 		env = append(env, n+"="+v)
 	}
 	return env
+}
+
+func (e *envMap) Type() string {
+	return "envMap"
 }

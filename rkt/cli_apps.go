@@ -19,12 +19,13 @@ package main
 import (
 	"flag"
 	"fmt"
+	"strings"
 
 	"github.com/coreos/rkt/common/apps"
 )
 
 var (
-	rktApps apps.Apps // global used by run/prepare for representing the apps expressed via the cli
+//	rktApps apps.Apps // global used by run/prepare for representing the apps expressed via the cli
 )
 
 // parseApps looks through the args for support of per-app argument lists delimited with "--" and "---".
@@ -124,6 +125,22 @@ func (al *appAsc) String() string {
 		return ""
 	}
 	return app.Asc
+}
+
+func CreateAppsList(imageFlags *Multi, signFlags *Buddy, argsFlag *Buddy) apps.Apps {
+	var al apps.Apps
+	for idx, imageName := range (*imageFlags).v {
+		al.Create(imageName)
+		al.Last().Asc = (*signFlags).v[idx]
+
+		args, ok := (*argsFlag).v[idx]
+		if ok {
+			args = strings.Trim(args, "'")
+			args = strings.Trim(args, `"`)
+			al.Last().Args = strings.Fields(args)
+		}
+	}
+	return al
 }
 
 // TODO(vc): --mount, --set-env, etc.

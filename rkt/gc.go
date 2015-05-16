@@ -17,7 +17,7 @@
 package main
 
 import (
-	"flag"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
 	"os"
 	"syscall"
 	"time"
@@ -32,25 +32,25 @@ const (
 )
 
 var (
-	cmdGC = &Command{
-		Name:    "gc",
-		Summary: "Garbage-collect rkt pods no longer in use",
-		Usage:   "[--grace-period=duration] [--expire-prepared=duration]",
-		Run:     runGC,
-		Flags:   &gcFlags,
-	}
-	gcFlags                flag.FlagSet
 	flagGracePeriod        time.Duration
 	flagPreparedExpiration time.Duration
+
+	cmdGC = &cobra.Command{
+		Use:   "gc [--grace-period=duration] [--expire-prepared=duration]",
+		Short: "Garbage-collect rkt pods no longer in use",
+		Run: func(cmd *cobra.Command, args []string) {
+			subCmdExitCode = runGC(cmd, args)
+		},
+	}
 )
 
 func init() {
-	commands = append(commands, cmdGC)
-	gcFlags.DurationVar(&flagGracePeriod, "grace-period", defaultGracePeriod, "duration to wait before discarding inactive pods from garbage")
-	gcFlags.DurationVar(&flagPreparedExpiration, "expire-prepared", defaultPreparedExpiration, "duration to wait before expiring prepared pods")
+	cmdGC.Flags().DurationVarP(&flagGracePeriod, "grace-period", "g", defaultGracePeriod, "duration to wait before discarding inactive pods from garbage")
+	cmdGC.Flags().DurationVarP(&flagPreparedExpiration, "expire-prepared", "e", defaultPreparedExpiration, "duration to wait before expiring prepared pods")
+	rktCmd.AddCommand(cmdGC)
 }
 
-func runGC(args []string) (exit int) {
+func runGC(cmd *cobra.Command, args []string) (exit int) {
 	if err := renameExited(); err != nil {
 		stderr("Failed to rename exited pods: %v", err)
 		return 1
@@ -113,7 +113,7 @@ func emptyExitedGarbage(gracePeriod time.Duration) error {
 			}
 			stdout("Garbage collecting pod %q", p.uuid)
 
-			s, err := store.NewStore(globalFlags.Dir)
+			s, err := store.NewStore(flagDataDir)
 			if err != nil {
 				stderr("Cannot open store: %v", err)
 				return
@@ -126,7 +126,7 @@ func emptyExitedGarbage(gracePeriod time.Duration) error {
 			stage1RootFS := s.GetTreeStoreRootFS(stage1ID.String())
 
 			// execute stage1's GC
-			if err := stage0.GC(p.path(), p.uuid, stage1RootFS, globalFlags.Debug); err != nil {
+			if err := stage0.GC(p.path(), p.uuid, stage1RootFS, flagDebug); err != nil {
 				stderr("Stage1 GC of pod %q failed: %v", p.uuid, err)
 				return
 			}

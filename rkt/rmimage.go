@@ -15,8 +15,8 @@
 package main
 
 import (
-	"flag"
 	"fmt"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
 
 	"github.com/coreos/rkt/store"
 
@@ -24,27 +24,24 @@ import (
 )
 
 var (
-	cmdRmImage = &Command{
-		Name:    "rmimage",
-		Summary: "Remove image(s) with the given key(s) from the local store",
-		Usage:   "IMAGEID...",
-		Run:     runRmImage,
-		Flags:   &rmImageFlags,
+	cmdRmImage = &cobra.Command{
+		Use:   "rmimage IMAGEID...",
+		Short: "Remove image(s) with the given key(s) from the local store",
+		Run:   func(cmd *cobra.Command, args []string) { subCmdExitCode = runRmImage(cmd, args) },
 	}
-	rmImageFlags flag.FlagSet
 )
 
 func init() {
-	commands = append(commands, cmdRmImage)
+	rktCmd.AddCommand(cmdRmImage)
 }
 
-func runRmImage(args []string) (exit int) {
+func runRmImage(cmd *cobra.Command, args []string) (exit int) {
 	if len(args) < 1 {
 		stderr("rkt: Must provide at least one image key")
 		return 1
 	}
 
-	s, err := store.NewStore(globalFlags.Dir)
+	s, err := store.NewStore(flagDataDir)
 	if err != nil {
 		stderr("rkt: cannot open store: %v\n", err)
 		return 1

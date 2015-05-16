@@ -15,8 +15,8 @@
 package main
 
 import (
-	"flag"
 	"fmt"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
 	"strings"
 
 	"github.com/coreos/rkt/store"
@@ -90,6 +90,10 @@ func (ifs *ImagesFields) String() string {
 	return strings.Join(*ifs, ",")
 }
 
+func (ifs *ImagesFields) Type() string {
+	return "ImagesFields"
+}
+
 type ImagesSortFields []string
 
 func (isf *ImagesSortFields) Set(s string) error {
@@ -116,6 +120,9 @@ func (isf *ImagesSortFields) Set(s string) error {
 func (isf *ImagesSortFields) String() string {
 	return strings.Join(*isf, ",")
 }
+func (isf *ImagesSortFields) Type() string {
+	return "ImagesSortFields"
+}
 
 type ImagesSortAsc bool
 
@@ -137,16 +144,18 @@ func (isa *ImagesSortAsc) String() string {
 	}
 	return "desc"
 }
+func (isa *ImagesSortAsc) Type() string {
+	return "ImagesSortAsc"
+}
 
 var (
-	cmdImages = &Command{
-		Name:    "images",
-		Summary: "List images in the local store",
-		Usage:   "",
-		Run:     runImages,
-		Flags:   &imagesFlags,
+	cmdImages = &cobra.Command{
+		Use:   "images",
+		Short: "List images in the local store",
+		Run: func(cmd *cobra.Command, args []string) {
+			subCmdExitCode = runImages(cmd, args)
+		},
 	}
-	imagesFlags          flag.FlagSet
 	flagImagesFields     ImagesFields
 	flagImagesSortFields ImagesSortFields
 	flagImagesSortAsc    ImagesSortAsc
@@ -158,14 +167,14 @@ func init() {
 	flagImagesSortFields = []string{importTimeField}
 	flagImagesSortAsc = true
 
-	commands = append(commands, cmdImages)
-	imagesFlags.Var(&flagImagesFields, "fields", `comma separated list of fields to display. Accepted values: "key", "appname", "importtime", "latest"`)
-	imagesFlags.Var(&flagImagesSortFields, "sort", `sort the output according to the provided comma separated list of fields. Accepted valies: "appname", "importtime"`)
-	imagesFlags.Var(&flagImagesSortAsc, "order", `choose the sorting order if at least one sort field is provided (--sort). Accepted values: "asc", "desc"`)
-	imagesFlags.BoolVar(&flagNoLegend, "no-legend", false, "suppress a legend with the list")
+	cmdImages.Flags().VarP(&flagImagesFields, "fields", "f", `comma separated list of fields to display. Accepted values: "key", "appname", "importtime", "latest"`)
+	cmdImages.Flags().VarP(&flagImagesSortFields, "sort", "s", `sort the output according to the provided comma separated list of fields. Accepted valies: "appname", "importtime"`)
+	cmdImages.Flags().VarP(&flagImagesSortAsc, "order", "o", `choose the sorting order if at least one sort field is provided (--sort). Accepted values: "asc", "desc"`)
+	cmdImages.Flags().BoolVarP(&flagNoLegend, "no-legend", "n", false, "suppress a legend with the list")
+	rktCmd.AddCommand(cmdImages)
 }
 
-func runImages(args []string) (exit int) {
+func runImages(cmd *cobra.Command, args []string) (exit int) {
 	if !flagNoLegend {
 		headerFields := []string{}
 		for _, f := range flagImagesFields {
@@ -174,7 +183,7 @@ func runImages(args []string) (exit int) {
 		fmt.Fprintf(tabOut, "%s\n", strings.Join(headerFields, "\t"))
 	}
 
-	s, err := store.NewStore(globalFlags.Dir)
+	s, err := store.NewStore(flagDataDir)
 	if err != nil {
 		stderr("images: cannot open store: %v\n", err)
 		return 1

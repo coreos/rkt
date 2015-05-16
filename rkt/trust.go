@@ -20,8 +20,8 @@ package main
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -35,19 +35,7 @@ import (
 )
 
 var (
-	cmdTrust = &Command{
-		Name:    cmdTrustName,
-		Summary: "Trust a key for image verification",
-		Usage:   "[--prefix PREFIX] [--insecure-allow-http] [--root] [PUBKEY ...]",
-		Description: `Adds keys to the local keystore for use in verifying signed images.
-PUBKEY may be either a local file or URL,
-PREFIX scopes the applicability of PUBKEY to image names sharing PREFIX.
-Meta discovery of PUBKEY at PREFIX will be attempted if no PUBKEY is specified.
---root must be specified to add keys with no prefix.`,
-		Run:   runTrust,
-		Flags: &trustFlags,
-	}
-	trustFlags    flag.FlagSet
+	cmdTrust      *cobra.Command
 	flagPrefix    string
 	flagRoot      bool
 	flagAllowHTTP bool
@@ -58,18 +46,28 @@ const (
 )
 
 func init() {
-	commands = append(commands, cmdTrust)
-	trustFlags.StringVar(&flagPrefix, "prefix", "", "prefix to limit trust to")
-	trustFlags.BoolVar(&flagRoot, "root", false, "add root key without a prefix")
-	trustFlags.BoolVar(&flagAllowHTTP, "insecure-allow-http", false, "allow HTTP use for key discovery and/or retrieval")
+	cmdTrust = &cobra.Command{
+		Use:   "trust [--prefix PREFIX] [--insecure-allow-http] [--root] [PUBKEY ...]",
+		Short: "Trust a key for image verification",
+		Long: `Adds keys to the local keystore for use in verifying signed images.
+PUBKEY may be either a local file or URL,
+PREFIX scopes the applicability of PUBKEY to image names sharing PREFIX.
+Meta discovery of PUBKEY at PREFIX will be attempted if no PUBKEY is specified.
+--root must be specified to add keys with no prefix.`,
+		Run: func(cmd *cobra.Command, args []string) { subCmdExitCode = runTrust(cmd, args) },
+	}
+	cmdTrust.Flags().StringVarP(&flagPrefix, "prefix", "", "", "prefix to limit trust to")
+	cmdTrust.Flags().BoolVarP(&flagRoot, "root", "", false, "add root key without a prefix")
+	cmdTrust.Flags().BoolVarP(&flagAllowHTTP, "insecure-allow-http", "", false, "allow HTTP use for key discovery and/or retrieval")
+	rktCmd.AddCommand(cmdTrust)
 }
 
-func runTrust(args []string) (exit int) {
+func runTrust(cmd *cobra.Command, args []string) (exit int) {
 	if flagPrefix == "" && !flagRoot {
 		if len(args) != 0 {
 			stderr("--root required for non-prefixed (root) keys")
 		} else {
-			printCommandUsageByName(cmdTrustName)
+			cmdTrust.Help()
 		}
 		return 1
 	}
@@ -109,7 +107,7 @@ func addKeys(pkls []string, prefix string) error {
 		}
 		defer pk.Close()
 
-		accepted, err := reviewKey(prefix, pkl, pk, globalFlags.InsecureSkipVerify)
+		accepted, err := reviewKey(prefix, pkl, pk, flagInsecureSkipVerify)
 		if err != nil {
 			return fmt.Errorf("error reviewing key: %v", err)
 		}
@@ -178,7 +176,7 @@ func metaDiscoverPubKeyLocations(prefix string) ([]string, error) {
 		return nil, err
 	}
 
-	if globalFlags.Debug {
+	if flagDebug {
 		for _, a := range attempts {
 			fmt.Fprintf(os.Stderr, "meta tag 'ac-discovery-pubkeys' not found on %s: %v\n", a.Prefix, a.Error)
 		}

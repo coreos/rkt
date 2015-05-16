@@ -16,38 +16,34 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
 
 	"github.com/coreos/rkt/store"
 )
 
 var (
-	cmdImageCatManifest = &Command{
-		Name:    "cat-manifest",
-		Summary: "Inspect and print the image manifest",
-		Usage:   "IMAGE",
-		Description: `IMAGE should be a string referencing an image; either a hash, local file on disk, or URL.
+	cmdImageCatManifest = &cobra.Command{
+		Use:   "cat-manifest IMAGE",
+		Short: "Operate on an image in the local store",
+		Long: `IMAGE should be a string referencing an image; either a hash, local file on disk, or URL.
 They will be checked in that order and the first match will be used.`,
-		Run:   runImageCatManifest,
-		Flags: &imageCatManifestFlag,
+		Run: func(cmd *cobra.Command, args []string) { runImageCatManifest(cmd, args) },
 	}
-	imageCatManifestFlag flag.FlagSet
-	flagPrettyPrint      bool
+	flagPrettyPrint bool
 )
 
 func init() {
-	subCommands["image"] = append(subCommands["image"], cmdImageCatManifest)
-
-	imageCatManifestFlag.BoolVar(&flagPrettyPrint, "pretty-print", false, "apply indent to format the output")
+	cmdImage.AddCommand(cmdImageCatManifest)
+	cmdImageCatManifest.Flags().BoolVar(&flagPrettyPrint, "pretty-print", false, "apply indent to format the output")
 }
 
-func runImageCatManifest(args []string) (exit int) {
+func runImageCatManifest(cmd *cobra.Command, args []string) (exit int) {
 	if len(args) != 1 {
-		printSubCommandUsageByName("image", "cat-manifest", subCommands["image"])
+		cmd.Help()
 		return 1
 	}
 
-	s, err := store.NewStore(globalFlags.Dir)
+	s, err := store.NewStore(flagDataDir)
 	if err != nil {
 		stderr("image cat-manifest: cannot open store: %v\n", err)
 		return 1
@@ -59,7 +55,7 @@ func runImageCatManifest(args []string) (exit int) {
 			s:                  s,
 			ks:                 ks,
 			insecureSkipVerify: true,
-			debug:              globalFlags.Debug,
+			debug:              flagDebug,
 		},
 		local:    true,
 		withDeps: false,

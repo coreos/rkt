@@ -160,6 +160,10 @@
 			"Rev": "e444e69cbd2e2e3e0749a2f3c717cec491552bbf"
 		},
 		{
+			"ImportPath": "github.com/inconshreveable/mousetrap",
+			"Rev": "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
+		},
+		{
 			"ImportPath": "github.com/kballard/go-shellquote",
 			"Rev": "e5c918b80c17694cbc49aab32a759f9a40067f5d"
 		},
@@ -177,8 +181,12 @@
 			"Rev": "508f5671a72eeaef05cf8c24abe7fbc1c07faf69"
 		},
 		{
+			"ImportPath": "github.com/spf13/cobra",
+			"Rev": "bba56042cf767e329430e7c7f68c3f9f640b4b8b"
+		},
+		{
 			"ImportPath": "github.com/spf13/pflag",
-			"Rev": "370c3171201099fa6b466db45c8a032cbce33d8d"
+			"Rev": "0ed81a961505a7dfaab5490049a7a324743e6f03"
 		},
 		{
 			"ImportPath": "github.com/syndtr/gocapability/capability",

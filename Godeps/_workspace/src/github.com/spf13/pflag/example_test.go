@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	flag "github.com/ogier/pflag"
+	flag "github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/pflag"
 )
 
 // Example 1: A single string flag called "species" with default value "gopher".
