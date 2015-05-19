@@ -1,0 +1,54 @@
+From c62a6f1f2058675aac87a3139dfcf1f2ee6d44fb Mon Sep 17 00:00:00 2001
+From: Alban Crequy <alban@endocode.com>
+Date: Mon, 11 May 2015 15:05:00 +0200
+Subject: [PATCH 4/4] nspawn: cloexec extraneous fds
+
+From: Alban Crequy <alban@endocode.com>
+
+When systemd-nspawn gets exec*()ed, it inherits the followings file
+descriptors:
+- 0, 1, 2: stdin, stdout, stderr
+- SD_LISTEN_FDS_START, ... SD_LISTEN_FDS_START+LISTEN_FDS: file
+  descriptors passed by the system manager (useful for socket
+  activation). They are passed to the child process (process leader).
+- extra lock fd: rkt passes a locked directory as an extra fd, so the
+  directory remains locked as long as the container is alive.
+
+systemd-nspawn used to close all open fds except 0, 1, 2 and the
+SD_LISTEN_FDS_START..SD_LISTEN_FDS_START+LISTEN_FDS. This patch just
+cloexecs them instead so they stay open in the systemd-nspawn process
+but they are not passed to the process leader.
+---
+ src/nspawn/nspawn.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/src/nspawn/nspawn.c b/src/nspawn/nspawn.c
+index 7616f19..db6bbd7 100644
+--- a/src/nspawn/nspawn.c
++++ b/src/nspawn/nspawn.c
+@@ -3613,6 +3613,9 @@ int main(int argc, char *argv[]) {
+         bool root_device_rw = true, home_device_rw = true, srv_device_rw = true;
+         _cleanup_close_ int master = -1, image_fd = -1;
+         _cleanup_fdset_free_ FDSet *fds = NULL;
++        _cleanup_fdset_free_ FDSet *misc_fds = NULL;
++        int fd;
++        Iterator i;
+         int r, n_fd_passed, loop_nr = -1;
+         char veth_name[IFNAMSIZ];
+         bool secondary = false, remove_subvol = false;
+@@ -3648,7 +3651,11 @@ int main(int argc, char *argv[]) {
+                         goto finish;
+                 }
+         }
+-        fdset_close_others(fds);
++        fdset_new_fill(&misc_fds);
++        FDSET_FOREACH(fd, fds, i) {
++                fdset_remove(misc_fds, fd);
++        }
++        fdset_cloexec(misc_fds, true);
+         log_open();
+ 
+         if (arg_directory) {
+-- 
+2.1.4
+

@@ -1,0 +1,1 @@
+install -m 0755 ../pid-file-writer/pid-file-writer "$ROOT"
