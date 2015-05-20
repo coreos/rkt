@@ -31,7 +31,7 @@ To prevent the period between first creating a pod's directory and acquiring its
 | Prepared        | "$var/prepared/$uuid"       | -                       | -                        |
 | Run             | "$var/run/$uuid"            | running                 | exited                   |
 | ExitedGarbage   | "$var/exited-garbage/$uuid" | exited+deleting         | exited+gc-marked         |
-| Prepare-failed  | "$var/garbage/$uuid"        | prepare-failed+deleting | prepare-failed+gc-marked |
+| Garbage         | "$var/garbage/$uuid"        | prepare-failed+deleting | prepare-failed+gc-marked |
 
 These phases, their function, and how they proceed through their respective states is explained in more detail below.
 

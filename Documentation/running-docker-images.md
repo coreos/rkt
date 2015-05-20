@@ -13,7 +13,7 @@ As a simple example, let's run the latest `redis` container image from the defau
 ```
 $ rkt --insecure-skip-verify run docker://redis
 rkt: fetching image from docker://redis
-rkt: warning: signature verification has been disabled
+rkt: warning: TLS verification and signature verification has been disabled
 Downloading layer: 511136ea3c5a64f264b78b5433614aec563103b4d4702f3ba7d4d2698e22c158
 ...
 Downloading layer: f2fb89b0a711a7178528c7785d247ba3572924353b0d5e23e9b28f0518253b22
@@ -53,7 +53,7 @@ For example, the following command will fetch an nginx Docker image hosted on qu
 ```
 $ rkt --insecure-skip-verify fetch docker://quay.io/zanui/nginx
 rkt: fetching image from docker://quay.io/zanui/nginx
-rkt: warning: signature verification has been disabled
+rkt: warning: TLS verification and signature verification has been disabled
 Downloading layer: 511136ea3c5a64f264b78b5433614aec563103b4d4702f3ba7d4d2698e22c158
 ...
 Downloading layer: 340951f1240f3dc1189ae32cfa5af35df2dc640e0c92f2397b7a72e174c1a158

@@ -25,6 +25,7 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/cni/pkg/plugin"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
@@ -218,6 +219,11 @@ func loadUserNets() ([]activeNet, error) {
 
 	for _, filename := range files {
 		filepath := path.Join(UserNetPath, filename)
+
+		if !strings.HasSuffix(filepath, ".conf") {
+			continue
+		}
+
 		n, err := loadNet(filepath)
 		if err != nil {
 			return nil, err

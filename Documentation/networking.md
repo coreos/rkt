@@ -78,7 +78,7 @@ Since macvlan interface has its own MAC and is located on the same link segment 
 With the IP address allocated by the real network infrastructure, this makes the pod IP routable in the same way as the host IP. `macvlan` specific configuration fields are:
 
 - **master** (string): the name of host interface to "clone". This field is required.
-- **mode** (string): One of "bridge", "private", "vepa", or "passthru". This controls how traffic is handled between different macvlan interfaces on the same host. See (this guide)[http://www.pocketnix.org/posts/Linux%20Networking:%20MAC%20VLANs%20and%20Virtual%20Ethernets] for discussion of modes. Defaults to "bridge".
+- **mode** (string): One of "bridge", "private", "vepa", or "passthru". This controls how traffic is handled between different macvlan interfaces on the same host. See [this guide](http://www.pocketnix.org/posts/Linux%20Networking:%20MAC%20VLANs%20and%20Virtual%20Ethernets) for discussion of modes. Defaults to "bridge".
 - **mtu** (integer): the size of the MTU in bytes for bridge and veths. Defaults to MTU of the master device.
 - **ipMasq** (boolean): whether to setup IP masquerading on the host. Defaults to false.
 

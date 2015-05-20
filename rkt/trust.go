@@ -293,6 +293,8 @@ func reviewKey(prefix string, location string, key *os.File, forceAccept bool) (
 				stdout("Please enter 'yes' or 'no'")
 			}
 		}
+	} else {
+		stdout("rkt: warning: trust fingerprint verification has been disabled")
 	}
 	return true, nil
 }

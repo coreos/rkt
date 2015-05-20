@@ -14,7 +14,7 @@ hello-0.0.1-linux-amd64.aci
 
 ## Signing ACIs
 
-By default rkt requires ACIs to be signed using a gpg detached signature. The following steps will walk you through the creation of a gpg keypair suitable for signing an ACI. If you have an existing gpg signing key skip to the [Signing the ACI](signing-the-aci) step.  
+By default rkt requires ACIs to be signed using a gpg detached signature. The following steps will walk you through the creation of a gpg keypair suitable for signing an ACI. If you have an existing gpg signing key skip to the [Signing the ACI](#signing-the-aci) step.  
 
 ### Generate a gpg signing key
 
@@ -155,8 +155,8 @@ Host an HTML page with the following meta tags:
 Serve the following files at the locations described in the meta tags:
 
 ```
-https://example.com/images/hello-0.0.1-linux-amd64.aci.asc
-https://example.com/images/hello-0.0.1-linux-amd64.aci
+https://example.com/images/example.com/hello-0.0.1-linux-amd64.aci.asc
+https://example.com/images/example.com/hello-0.0.1-linux-amd64.aci
 https://example.com/pubkeys.gpg
 ```
 
@@ -310,13 +310,13 @@ rkt: example.com/hello:0.0.1 verified signed by:
 ^]^]Container stage1 terminated by signal KILL.
 ```
 
-Use the `-insecure-skip-verify` flag to disable image verification for a single run:
+Use the `-insecure-skip-verify` flag to disable all verification for a single run:
 
 ```
 $ sudo rkt -insecure-skip-verify run example.com/hello:0.0.1
 rkt: starting to discover app img example.com/hello:0.0.1
 rkt: starting to fetch img from http://example.com/images/example.com/hello-0.0.1-linux-amd64.aci
-rkt: warning: signature verification has been disabled
+rkt: warning: TLS verification and signature verification has been disabled
 Downloading aci: [=                                            ] 32.8 KB/1.26 MB
 /etc/localtime is not a symlink, not updating container timezone.
 ^]^]Container stage1 terminated by signal KILL.
@@ -325,7 +325,7 @@ Downloading aci: [=                                            ] 32.8 KB/1.26 MB
 Notice when the `-insecure-skip-verify` flag is used, rkt will print the following warning:
 
 ```
-rkt: warning: signature verification has been disabled
+rkt: warning: TLS verification and signature verification has been disabled
 ```
 
 #### Download and verify an ACI
@@ -343,13 +343,13 @@ rkt: example.com/hello:0.0.1 verified signed by:
 sha512-b3f138e10482d4b5f334294d69ae5c40
 ```
 
-As before, use the `-insecure-skip-verify` flag to disable image verification:
+As before, use the `-insecure-skip-verify` flag to disable tls and image verification:
 
 ```
 $ sudo rkt -insecure-skip-verify fetch example.com/hello:0.0.1
 rkt: starting to discover app img example.com/hello:0.0.1
 rkt: starting to fetch img from http://example.com/images/example.com/hello-0.0.1-linux-amd64.aci
-rkt: warning: signature verification has been disabled
+rkt: warning: TLS verification and signature verification has been disabled
 Downloading aci: [                                             ] 4.34 KB/1.26 MB
 sha512-b3f138e10482d4b5f334294d69ae5c40
 ```

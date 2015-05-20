@@ -274,7 +274,7 @@ func (f *fetcher) fetchImageFromURL(imgurl string, scheme string, ascFile *os.Fi
 func (f *fetcher) fetchImageFrom(aciURL, ascURL, scheme string, ascFile *os.File, latest bool) (string, error) {
 	if f.insecureSkipVerify {
 		if f.ks != nil {
-			stdout("rkt: warning: signature verification has been disabled")
+			stdout("rkt: warning: TLS verification and signature verification has been disabled")
 		}
 	} else if scheme == "docker" {
 		return "", fmt.Errorf("signature verification for docker images is not supported (try --insecure-skip-verify)")

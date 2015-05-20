@@ -371,16 +371,16 @@ func stage1() int {
 }
 
 func runningFromUnitFile() (ret bool, err error) {
-	handle := C.dlopen(C.CString("libsystemd-login.so"), C.RTLD_LAZY)
+	handle := C.dlopen(C.CString("libsystemd.so"), C.RTLD_LAZY)
 	if handle == nil {
-		// we can't open libsystemd-login.so so we assume systemd is not
+		// we can't open libsystemd.so so we assume systemd is not
 		// installed and we're not running from a unit file
 		ret = false
 		return
 	}
 	defer func() {
 		if r := C.dlclose(handle); r != 0 {
-			err = fmt.Errorf("error closing libsystemd-login.so")
+			err = fmt.Errorf("error closing libsystemd.so")
 		}
 	}()
 
