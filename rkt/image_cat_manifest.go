@@ -61,7 +61,7 @@ func runImageCatManifest(args []string) (exit int) {
 			insecureSkipVerify: true,
 			debug:              globalFlags.Debug,
 		},
-		local:    true,
+		local:    false,
 		withDeps: false,
 	}
 
