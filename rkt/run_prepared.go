@@ -43,7 +43,7 @@ var (
 
 func init() {
 	commands = append(commands, cmdRunPrepared)
-	runPreparedFlags.BoolVar(&flagPrivateNet, "private-net", false, "give pod a private network")
+	runPreparedFlags.Var(&flagPrivateNet, "private-net", "give pod a private network")
 	runPreparedFlags.BoolVar(&flagInteractive, "interactive", false, "the pod is interactive")
 }
 
@@ -128,7 +128,7 @@ func runRunPrepared(args []string) (exit int) {
 			UUID:        p.uuid,
 			Debug:       globalFlags.Debug,
 		},
-		PrivateNet:  flagPrivateNet,
+		PrivateNet:  flagPrivateNet.String(),
 		LockFd:      lfd,
 		Interactive: flagInteractive,
 		Images:      imgs,

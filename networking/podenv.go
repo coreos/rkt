@@ -58,13 +58,13 @@ type activeNet struct {
 }
 
 // Loads nets specified by user and default one from stage1
-func (e *podEnv) loadNets() ([]activeNet, error) {
-	nets, err := loadUserNets()
+func (e *Networking) loadNets() ([]activeNet, error) {
+	nets, err := loadUserNets(e.netsLoadList)
 	if err != nil {
 		return nil, err
 	}
 
-	if !netExists(nets, "default") {
+	if !netExists(nets, "default") && (e.netsLoadList["default"] || e.netsLoadList["true"]) {
 		defPath := path.Join(common.Stage1RootfsPath(e.podRoot), DefaultNetPath)
 		n, err := loadNet(defPath)
 		if err != nil {
@@ -207,7 +207,7 @@ func copyFileToDir(src, dstdir string) (string, error) {
 	return dst, err
 }
 
-func loadUserNets() ([]activeNet, error) {
+func loadUserNets(netsLoadList map[string]bool) ([]activeNet, error) {
 	files, err := listFiles(UserNetPath)
 	if err != nil {
 		return nil, err
@@ -227,6 +227,10 @@ func loadUserNets() ([]activeNet, error) {
 		n, err := loadNet(filepath)
 		if err != nil {
 			return nil, err
+		}
+
+		if !(netsLoadList["true"] || netsLoadList[n.conf.Name]) {
+			continue
 		}
 
 		// "default" is slightly special
