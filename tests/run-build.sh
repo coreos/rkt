@@ -17,7 +17,9 @@ git clone --depth 1 ../ $BUILD_DIR
 
 cd $BUILD_DIR
 
-sudo -E PATH="$PATH" ./test
+./autogen.sh
+./configure --with-stage1=$RKT_STAGE1_USR_FROM --with-stage1-systemd-version=$RKT_STAGE1_SYSTEMD_VER
+make test
 
 cd ..
 

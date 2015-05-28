@@ -7,3 +7,9 @@ tests/image/rootfs/
 tests/inspect/inspect
 tests/*.aci
 tests/*.log
+autom4te.cache
+Makefile
+config.log
+config.status
+build-*
+*.test

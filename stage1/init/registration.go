@@ -57,12 +57,12 @@ func registerPod(p *Pod, ip net.IP) error {
 		ampath := common.ImageManifestPath(p.Root, app.Image.ID)
 		amf, err := os.Open(ampath)
 		if err != nil {
-			fmt.Errorf("failed reading app manifest %q: %v", ampath, err)
+			return fmt.Errorf("failed reading app manifest %q: %v", ampath, err)
 		}
 		defer amf.Close()
 
 		if err := registerApp(uuid, app.Name.String(), amf); err != nil {
-			fmt.Errorf("failed to register app with metadata svc: %v", err)
+			return fmt.Errorf("failed to register app with metadata svc: %v", err)
 		}
 	}
 
