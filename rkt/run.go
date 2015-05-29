@@ -49,17 +49,18 @@ End the image arguments with a lone "---" to resume argument parsing.`,
 		Flags:                &runFlags,
 		WantsFlagsTerminator: true,
 	}
-	runFlags        flag.FlagSet
-	flagStage1Image string
-	flagVolumes     volumeList
-	flagPorts       portList
-	flagPrivateNet  bool
-	flagInheritEnv  bool
-	flagExplicitEnv envMap
-	flagInteractive bool
-	flagNoOverlay   bool
-	flagLocal       bool
-	flagPodManifest string
+	runFlags            flag.FlagSet
+	flagStage1Image     string
+	flagVolumes         volumeList
+	flagInjectedVolumes injectedVolumeList
+	flagPorts           portList
+	flagPrivateNet      bool
+	flagInheritEnv      bool
+	flagExplicitEnv     envMap
+	flagInteractive     bool
+	flagNoOverlay       bool
+	flagLocal           bool
+	flagPodManifest     string
 )
 
 func init() {
@@ -75,6 +76,7 @@ func init() {
 
 	runFlags.StringVar(&flagStage1Image, "stage1-image", defaultStage1Image, `image to use as stage1. Local paths and http/https URLs are supported. If empty, rkt will look for a file called "stage1.aci" in the same directory as rkt itself`)
 	runFlags.Var(&flagVolumes, "volume", "volumes to mount into the pod")
+	runFlags.Var(&flagInjectedVolumes, "inject-volume", "inject arbitrary volumes to mount into the pod, e.g. --inject-volume=kind=host,source=/opt/tenant1/work,dest=/mnt/data1")
 	runFlags.Var(&flagPorts, "port", "ports to expose on the host (requires --private-net)")
 	runFlags.BoolVar(&flagPrivateNet, "private-net", false, "give pod a private network")
 	runFlags.BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
@@ -85,6 +87,7 @@ func init() {
 	runFlags.BoolVar(&flagLocal, "local", false, "use only local images (do not discover or download from remote URLs)")
 	runFlags.StringVar(&flagPodManifest, "pod-manifest", "", "the path to the pod manifest. If it's non-empty, then only '--private-net', '--no-overlay' and '--interactive' will have effects")
 	flagVolumes = volumeList{}
+	flagInjectedVolumes = injectedVolumeList{}
 	flagPorts = portList{}
 }
 
@@ -178,6 +181,7 @@ func runRun(args []string) (exit int) {
 		UseOverlay:   !flagNoOverlay && common.SupportsOverlay(),
 	}
 
+	pcfg.InjectedVolumes = stage0.InjectedVolumes(flagInjectedVolumes)
 	if len(flagPodManifest) > 0 {
 		pcfg.PodManifest = flagPodManifest
 	} else {
@@ -236,6 +240,26 @@ func (vl *volumeList) Set(s string) error {
 func (vl *volumeList) String() string {
 	var vs []string
 	for _, v := range []types.Volume(*vl) {
+		vs = append(vs, v.String())
+	}
+	return strings.Join(vs, " ")
+}
+
+type injectedVolumeList []stage0.InjectedVolume
+
+func (vl *injectedVolumeList) Set(s string) error {
+	vol, err := stage0.InjectedVolumeFromString(s)
+	if err != nil {
+		return err
+	}
+
+	*vl = append(*vl, *vol)
+	return nil
+}
+
+func (vl *injectedVolumeList) String() string {
+	var vs []string
+	for _, v := range []stage0.InjectedVolume(*vl) {
 		vs = append(vs, v.String())
 	}
 	return strings.Join(vs, " ")
