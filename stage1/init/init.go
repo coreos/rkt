@@ -101,13 +101,13 @@ func mirrorLocalZoneInfo(root string) {
 
 var (
 	debug       bool
-	privNet     bool
+	privNet     string
 	interactive bool
 )
 
 func init() {
 	flag.BoolVar(&debug, "debug", false, "Run in debug mode")
-	flag.BoolVar(&privNet, "private-net", false, "Setup private network")
+	flag.StringVar(&privNet, "private-net", "", "Setup private network")
 	flag.BoolVar(&interactive, "interactive", false, "The pod is interactive")
 
 	// this ensures that main runs only on main thread (thread group leader).
@@ -326,14 +326,14 @@ func stage1() int {
 
 	mirrorLocalZoneInfo(p.Root)
 
-	if privNet {
+	if privNet != "" {
 		fps, err := forwardedPorts(p)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err.Error())
 			return 6
 		}
 
-		n, err := networking.Setup(root, p.UUID, fps)
+		n, err := networking.Setup(root, p.UUID, fps, privNet)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to setup network: %v\n", err)
 			return 6
@@ -378,7 +378,7 @@ func stage1() int {
 
 	var execFn func() error
 
-	if privNet {
+	if privNet != "" {
 		cmd := exec.Cmd{
 			Path:   args[0],
 			Args:   args,

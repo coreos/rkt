@@ -53,7 +53,7 @@ End the image arguments with a lone "---" to resume argument parsing.`,
 	flagStage1Image string
 	flagVolumes     volumeList
 	flagPorts       portList
-	flagPrivateNet  bool
+	flagPrivateNet  privateNetList
 	flagInheritEnv  bool
 	flagExplicitEnv envMap
 	flagInteractive bool
@@ -76,7 +76,7 @@ func init() {
 	runFlags.StringVar(&flagStage1Image, "stage1-image", defaultStage1Image, `image to use as stage1. Local paths and http/https URLs are supported. If empty, rkt will look for a file called "stage1.aci" in the same directory as rkt itself`)
 	runFlags.Var(&flagVolumes, "volume", "volumes to mount into the pod")
 	runFlags.Var(&flagPorts, "port", "ports to expose on the host (requires --private-net)")
-	runFlags.BoolVar(&flagPrivateNet, "private-net", false, "give pod a private network")
+	runFlags.Var(&flagPrivateNet, "private-net", "give pod a private network that defaults to the default network plus all user networks. Can be limited to a a comma separated list of network names")
 	runFlags.BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
 	runFlags.BoolVar(&flagNoOverlay, "no-overlay", false, "disable overlay filesystem")
 	runFlags.Var(&flagExplicitEnv, "set-env", "an environment variable to set for apps in the form name=value")
@@ -89,7 +89,7 @@ func init() {
 }
 
 func runRun(args []string) (exit int) {
-	if len(flagPorts) > 0 && !flagPrivateNet {
+	if len(flagPorts) > 0 && flagPrivateNet == "" {
 		stderr("--port flag requires --private-net")
 		return 1
 	}
@@ -209,7 +209,7 @@ func runRun(args []string) (exit int) {
 
 	rcfg := stage0.RunConfig{
 		CommonConfig: cfg,
-		PrivateNet:   flagPrivateNet,
+		PrivateNet:   flagPrivateNet.String(),
 		LockFd:       lfd,
 		Interactive:  flagInteractive,
 		Images:       rktApps.GetImageIDs(),
@@ -312,4 +312,19 @@ func (e *envMap) Strings() []string {
 		env = append(env, n+"="+v)
 	}
 	return env
+}
+
+// privateNetList implements the flag.Value interface to allow specification
+// of -private-net with and without values
+type privateNetList string
+
+func (i *privateNetList) IsBoolFlag() bool { return true }
+
+func (l *privateNetList) String() string {
+	return string(*l)
+}
+
+func (l *privateNetList) Set(value string) error {
+	*l = privateNetList(value)
+	return nil
 }

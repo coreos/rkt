@@ -16,11 +16,19 @@ For all of the private networking options the metadata service, launched via `rk
 The service will listen on 0.0.0.0:2375 by default and provides the private networking containers the metadata services described in the App Container Spec.
 Ideally this metadata service is launched via your systems init system.
 
-If `rkt run` is started with `--private-net`, the pod will be executed with its own network stack.
-By default, rkt will create a loopback device and a veth device. The veth pair creates a point-to-point link between the pod and the host.
+If `rkt run` is started with the `--private-net` flag, the pod will be executed with its own network stack, with the default network plus all configured networks.
+Passing a list of comma separated network names as in `--private-net=net1,net2,net3,...` restricts the network stack to the specified networks.
+This can be useful for grouping certain pods together while separating others.
+If the list of network names contains no known networks the pod will end up with loop networking only.
+
+### The default network
+The default network consists of a loopback device and a veth device.
+The veth pair creates a point-to-point link between the pod and the host.
 rkt will allocate an IPv4 /31 (2 IP addresses) out of 172.16.28.0/24 and assign one IP to each end of the veth pair.
 It will additionally set a route for metadata service (169.254.169.255/32) and default route in the pod namespace.
 Finally, it will enable IP masquerading on the host to NAT the egress traffic.
+
+**Note**: The default network must be explicitly listed in order to be loaded when `-private-net=...` is specified with a list of network names.
 
 ### Setting up additional networks
 

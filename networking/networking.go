@@ -19,6 +19,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strings"
 	"syscall"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/cni/pkg/ns"
@@ -47,11 +48,13 @@ type Networking struct {
 
 	hostNS *os.File
 	nets   []activeNet
+
+	netsLoadList map[string]bool
 }
 
 // Setup creates a new networking namespace and executes network plugins to
 // setup private networking. It returns in the new pod namespace
-func Setup(podRoot string, podID types.UUID, fps []ForwardedPort) (*Networking, error) {
+func Setup(podRoot string, podID types.UUID, fps []ForwardedPort, privateNetArg string) (*Networking, error) {
 	// TODO(jonboulle): currently podRoot is _always_ ".", and behaviour in other
 	// circumstances is untested. This should be cleaned up.
 	n := Networking{
@@ -59,6 +62,7 @@ func Setup(podRoot string, podID types.UUID, fps []ForwardedPort) (*Networking, 
 			podRoot: podRoot,
 			podID:   podID,
 		},
+		netsLoadList: evalPrivateNetArg(privateNetArg),
 	}
 
 	hostNS, podNS, err := basicNetNS()
@@ -289,4 +293,12 @@ func bindMountFile(src, dst string) error {
 	f.Close()
 
 	return syscall.Mount(src, dst, "none", syscall.MS_BIND, "")
+}
+
+func evalPrivateNetArg(arg string) map[string]bool {
+	m := make(map[string]bool)
+	for _, net := range strings.Split(arg, ",") {
+		m[net] = true
+	}
+	return m
 }
