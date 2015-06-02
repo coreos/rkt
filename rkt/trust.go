@@ -66,7 +66,13 @@ func init() {
 func runTrust(args []string) (exit int) {
 	if flagPrefix == "" && !flagRoot {
 		if len(args) != 0 {
-			stderr("--root required for non-prefixed (root) keys")
+			rootKeyName := args[0]
+			stderr(`Prevented potentially dangerous unbounded trust of all containers signed by keys from "%s"
+To continue trusting this root domain:
+  rkt %s --root "%s"
+Or, establish a smaller scope with a prefix:
+  rkt %s --prefix "example.com/hello" "%s"
+  rkt $s --prefix "example.com/foo/*" "%s"`, rootKeyName, cmdTrustName, rootKeyName, cmdTrustName, rootKeyName, cmdTrustName, rootKeyName)
 		} else {
 			printCommandUsageByName(cmdTrustName)
 		}
