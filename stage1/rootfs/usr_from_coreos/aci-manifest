@@ -1,0 +1,57 @@
+{
+    "acKind": "ImageManifest",
+    "acVersion": "0.5.2",
+    "name": "coreos.com/rkt/stage1",
+    "labels": [
+        {
+            "name": "version",
+            "value": "0.0.1"
+        },
+        {
+            "name": "arch",
+            "value": "amd64"
+        },
+        {
+            "name": "os",
+            "value": "linux"
+        }
+    ],
+    "annotations": [
+        {
+            "name": "coreos.com/rkt/stage1/run",
+            "value": "/init"
+        },
+        {
+            "name": "coreos.com/rkt/stage1/enter",
+            "value": "/enter"
+        },
+        {
+            "name": "coreos.com/rkt/stage1/gc",
+            "value": "/gc"
+        },
+        {
+            "name": "coreos.com/rkt/stage1/flavor",
+            "value": "coreos"
+        },
+        {
+            "name": "coreos.com/rkt/stage1/nspawn",
+            "value": "/usr/bin/systemd-nspawn"
+        },
+        {
+            "name": "coreos.com/rkt/stage1/systemdversion",
+            "value": "v215"
+        },
+        {
+            "name": "coreos.com/rkt/stage1/ld.so",
+            "value": "/usr/lib/ld-linux-x86-64.so.2"
+        },
+        {
+            "name": "coreos.com/rkt/stage1/ld-path",
+            "value": "/usr/lib"
+        },
+        {
+            "name": "coreos.com/rkt/stage1/shim",
+            "value": "/fakesdboot.so"
+        }
+    ]
+}

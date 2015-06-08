@@ -1,4 +1,2 @@
 mkdir -p "$ROOT"
 cp -a ../usr_from_coreos/rootfs/. "$ROOT"
-ln -sf "coreos" "$ROOT/flavor"
-echo "v215" > "$ROOT/systemd-version"

@@ -3,7 +3,7 @@
 # make needs to use bash for nullglob
 SHELL := /bin/bash
 
-usr.done: Makefile install
+usr.done: Makefile aci-manifest install
 	cp -f install ../aggregate/install.d/00usr
 	touch usr.done
 
@@ -12,9 +12,11 @@ install: Makefile host_deps.txt
 	echo mkdir -p "\$${ROOT}" > install.tmp
 	echo cp -af ../usr_from_src/systemd_build/installed/. \"\$${ROOT}\" >> install.tmp
 	cat host_deps.txt | while read dep; do echo install -D \"$${dep}\" \"\$${ROOT}/$${dep}\"; done >> install.tmp
-	echo ln -sf src \"\$${ROOT}/flavor\" >> install.tmp
 	echo "echo $(RKT_STAGE1_SYSTEMD_VER) > \"\$${ROOT}/systemd-version\"" >> install.tmp
 	mv install.tmp install
+
+aci-manifest: aci-manifest.in
+	sed 's|#SYSTEMD_VERSION#|$(RKT_STAGE1_SYSTEMD_VER)|' aci-manifest.in > aci-manifest
 
 # discover host library dependencies for all the ELF executables in systemd_build/installed, note the LD_LIBRARY_PATH= to find systemd-produced libraries.
 host_deps.txt: Makefile systemd.done bash.done
@@ -109,7 +111,7 @@ systemd.src: Makefile patches/*
 
 .PHONY: clean distclean
 clean:
-	rm -Rf systemd_build systemd.done bash.done host_deps.txt rootfs usr.done install
+	rm -Rf systemd_build systemd.done bash.done host_deps.txt rootfs usr.done install aci-manifest.in
 
 distclean: clean
 	rm -Rf systemd systemd.src

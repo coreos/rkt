@@ -28,6 +28,10 @@
         {
             "name": "coreos.com/rkt/stage1/gc",
             "value": "/gc"
+        },
+        {
+            "name": "coreos.com/rkt/stage1/flavor",
+            "value": "usr-from-host"
         }
     ]
 }

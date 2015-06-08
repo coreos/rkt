@@ -77,17 +77,10 @@ import (
 	"github.com/coreos/rkt/pkg/sys"
 )
 
-const (
-	// Path to systemd-nspawn binary within the stage1 rootfs
-	nspawnBin = "/usr/bin/systemd-nspawn"
-	// Path to the interpreter within the stage1 rootfs
-	interpBin = "/usr/lib/ld-linux-x86-64.so.2"
-	// Path to the localtime file/symlink in host
-	localtimePath = "/etc/localtime"
-)
-
 // mirrorLocalZoneInfo tries to reproduce the /etc/localtime target in stage1/ to satisfy systemd-nspawn
 func mirrorLocalZoneInfo(root string) {
+	const localtimePath = "/etc/localtime"
+
 	zif, err := os.Readlink(localtimePath)
 	if err != nil {
 		return
@@ -223,88 +216,53 @@ func installAssets() error {
 	return proj2aci.PrepareAssets(assets, "./stage1/rootfs/", nil)
 }
 
-// getArgsEnv returns the nspawn args and env according to the usr used
-func getArgsEnv(p *Pod, flavor string, systemdStage1Version string, debug bool) ([]string, []string, error) {
+// getNspawnArgsEnv returns the nspawn args and env according to the usr used
+func getNspawnArgsEnv(p *Pod, debug bool) ([]string, []string, error) {
 	args := []string{}
 	env := os.Environ()
 
-	switch flavor {
-	case "coreos":
-		// when running the coreos-derived stage1 with unpatched systemd-nspawn we need some ld-linux hackery
-		args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), interpBin))
-		args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), nspawnBin))
-		args = append(args, "--boot") // Launch systemd in the pod
+	// To be truelly stand alone, we should use ld.so & library
+	// path from within the stage1 rootfs, to avoid loading host
+	// libraries, or worse not finding libraries on the host,
+	// whilst present in the stage1 rootfs.
+	if p.Stage1Options.interpBin != "" && p.Stage1Options.interpPath != "" {
+		args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), p.Stage1Options.interpBin))
+		args = append(args, "--library-path")
+		args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), p.Stage1Options.interpPath))
+	}
 
-		// Note: the coreos flavor uses systemd-nspawn v215 but machinedRegister()
-		// checks for the nspawn registration method used since v216. So we will
-		// not register when the host has systemd v215.
-		if machinedRegister() {
-			args = append(args, fmt.Sprintf("--register=true"))
-		} else {
-			args = append(args, fmt.Sprintf("--register=false"))
-		}
+	args = append(args, p.Stage1Options.nspawnBin)
+	args = append(args, "--boot") // Launch systemd in the pod
 
+	// Note: when using systemd-nspawn machinedRegister() checks
+	// for the nspawn registration method used since v216. So we
+	// will not register when the host has systemd v215.
+	if machinedRegister() {
+		args = append(args, fmt.Sprintf("--register=true"))
+	} else {
+		args = append(args, fmt.Sprintf("--register=false"))
+	}
+
+	// when running old & unpatched systemd-nspawn we need some
+	// ld-linux hackery, specifically to trick systemd-nspawn <<
+	// v220 that e.g. the "host" is "booted" with systemd.
+	if p.Stage1Options.shimPath != "" {
 		env = append(env, "LD_PRELOAD="+filepath.Join(common.Stage1RootfsPath(p.Root), "fakesdboot.so"))
-		env = append(env, "LD_LIBRARY_PATH="+filepath.Join(common.Stage1RootfsPath(p.Root), "usr/lib"))
+	}
 
-	case "src":
-		args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), nspawnBin))
-		args = append(args, "--boot") // Launch systemd in the pod
-
-		switch systemdStage1Version {
-		case "v215":
-			lfd, err := common.GetRktLockFD()
-			if err != nil {
-				return nil, nil, err
-			}
-			args = append(args, fmt.Sprintf("--keep-fd=%v", lfd))
-		case "v219":
-			// --keep-fd is not needed thanks to
-			// stage1/rootfs/usr_from_src/patches/v219/0005-nspawn-close-extra-fds-before-execing-init.patch
-		default:
-			// since systemd-nspawn v220 (commit 6b7d2e, "nspawn: close extra fds
-			// before execing init"), fds remain open, so --keep-fd is not needed.
-		}
-
-		if machinedRegister() {
-			args = append(args, fmt.Sprintf("--register=true"))
-		} else {
-			args = append(args, fmt.Sprintf("--register=false"))
-		}
-
-	case "usr-from-host":
-		hostNspawnBin, err := lookupPath("systemd-nspawn", os.Getenv("PATH"))
+	// when using src flavor (aka patched nspawn), without a shim,
+	// nor patches, we should instruct to keep extra rkt fd.
+	if p.Stage1Options.flavor == "src" && p.Stage1Options.systemdversion == "v215" {
+		lfd, err := common.GetRktLockFD()
 		if err != nil {
 			return nil, nil, err
 		}
-
-		// Check dynamically which version is installed on the host
-		// Only support v220 for now.
-		versionBytes, err := exec.Command(hostNspawnBin, "--version").CombinedOutput()
-		if err != nil {
-			return nil, nil, fmt.Errorf("unable to probe %s version: %v", hostNspawnBin, err)
-		}
-		version := strings.SplitN(string(versionBytes), "\n", 2)[0]
-		if version != "systemd 220" {
-			return nil, nil, fmt.Errorf("%s version not supported: %v", hostNspawnBin, version)
-		}
-
-		// Copy systemd, bash, etc. in stage1 at run-time
-		if err := installAssets(); err != nil {
-			return nil, nil, fmt.Errorf("cannot install assets from the host: %v", err)
-		}
-
-		args = append(args, hostNspawnBin)
-		args = append(args, "--boot") // Launch systemd in the pod
-		args = append(args, fmt.Sprintf("--register=true"))
-
-	default:
-		return nil, nil, fmt.Errorf("unrecognized stage1 flavor: %q", flavor)
+		args = append(args, fmt.Sprintf("--keep-fd=%v", lfd))
 	}
 
 	// link journal only if the host is running systemd and stage1 supports
 	// linking
-	if util.IsRunningSystemd() && systemdSupportsJournalLinking(systemdStage1Version) {
+	if util.IsRunningSystemd() && p.Stage1Options.systemdSupportsJournalLinking {
 		// we write /etc/machine-id here because systemd-nspawn needs it to link
 		// the container's journal to the host
 		mPath := filepath.Join(common.Stage1RootfsPath(p.Root), "etc", "machine-id")
@@ -345,6 +303,12 @@ func getArgsEnv(p *Pod, flavor string, systemdStage1Version string, debug bool) 
 	}
 
 	return args, env, nil
+}
+
+// This for now, supports nspawn only. lkvm/vm support will be added
+// later but refactor this now, for ease of integrating lkvm patch set
+func getArgsEnv(p *Pod, debug bool) ([]string, []string, error) {
+	return getNspawnArgsEnv(p, debug)
 }
 
 func withClearedCloExec(lfd int, f func() error) error {
@@ -469,13 +433,7 @@ func stage1() int {
 		defer unregisterPod(p)
 	}
 
-	flavor, systemdStage1Version, err := p.getFlavor()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to get stage1 flavor: %v\n", err)
-		return 3
-	}
-
-	if err = p.WritePrepareAppTemplate(systemdStage1Version); err != nil {
+	if err = p.WritePrepareAppTemplate(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to write prepare-app service template: %v\n", err)
 		return 2
 	}
@@ -485,7 +443,7 @@ func stage1() int {
 		return 2
 	}
 
-	args, env, err := getArgsEnv(p, flavor, systemdStage1Version, debug)
+	args, env, err := getArgsEnv(p, debug)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		return 3
@@ -494,7 +452,7 @@ func stage1() int {
 	// The systemd version shipped with CoreOS (v215) doesn't allow the
 	// external mounting of cgroups
 	// TODO remove this check when CoreOS updates systemd to v220
-	if flavor != "coreos" {
+	if p.Stage1Options.flavor != "coreos" {
 		appHashes := p.GetAppHashes()
 		s1Root := common.Stage1RootfsPath(p.Root)
 		machineID := p.GetMachineID()
@@ -652,19 +610,6 @@ func runningFromUnitFile() (ret bool, err error) {
 	default:
 		err = fmt.Errorf("error calling sd_pid_get_owner_uid: %v", syscall.Errno(-errno))
 		return
-	}
-}
-
-func systemdSupportsJournalLinking(version string) bool {
-	switch {
-	case version == "v219":
-		fallthrough
-	case version == "v220":
-		fallthrough
-	case version == "master":
-		return true
-	default:
-		return false
 	}
 }
 
