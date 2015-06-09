@@ -1,4 +1,5 @@
 USR=usr_from_$(subst usr-from-,,$(RKT_STAGE1_USR_FROM))
+export USR
 _SUBDIRS=$(USR) waiter shim diagexec prepare-app enter net-plugins net init gc
 SUBDIRS=$(_SUBDIRS) aggregate
 export CFLAGS=-Wall -Os

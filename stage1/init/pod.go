@@ -23,6 +23,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -39,6 +40,8 @@ type Pod struct {
 	Root               string // root directory where the pod will be located
 	UUID               types.UUID
 	Manifest           *schema.PodManifest
+	Stage1Manifest     *schema.ImageManifest
+	Stage1Options      *Stage1Option
 	Apps               map[string]*schema.ImageManifest
 	MetadataServiceURL string
 	Networks           []string
@@ -54,9 +57,31 @@ var (
 	}
 )
 
+const (
+	nspawnEntrypoint     = "coreos.com/rkt/stage1/nspawn"
+	versionEntrypoint    = "coreos.com/rkt/stage1/systemdversion"
+	interpBinEntrypoint  = "coreos.com/rkt/stage1/ld.so"
+	interpPathEntrypoint = "coreos.com/rkt/stage1/ld-path"
+	shimEntrypoint       = "coreos.com/rkt/stage1/shim"
+	// flavor could be dropped in favor of piggy-backing onto lack of shim ?!
+	flavorEntrypoint = "coreos.com/rkt/stage1/flavor"
+)
+
+type Stage1Option struct {
+	nspawnBin                     string
+	systemdversion                string
+	interpBin                     string
+	interpPath                    string
+	shimPath                      string
+	flavor                        string
+	systemdSupportsJournalLinking bool
+}
+
 // LoadPod loads a Pod Manifest (as prepared by stage0) and
 // its associated Application Manifests, under $root/stage1/opt/stage1/$apphash
 func LoadPod(root string, uuid *types.UUID) (*Pod, error) {
+	var ok bool
+
 	p := &Pod{
 		Root: root,
 		UUID: *uuid,
@@ -74,6 +99,17 @@ func LoadPod(root string, uuid *types.UUID) (*Pod, error) {
 	}
 	p.Manifest = pm
 
+	buf, err = ioutil.ReadFile(common.Stage1ManifestPath(p.Root))
+	if err != nil {
+		return nil, fmt.Errorf("failed reading stage1 manifest: %v", err)
+	}
+
+	s1m := &schema.ImageManifest{}
+	if err := json.Unmarshal(buf, s1m); err != nil {
+		return nil, fmt.Errorf("failed unmarshalling stage1 manifest: %v", err)
+	}
+	p.Stage1Manifest = s1m
+
 	for _, app := range p.Manifest.Apps {
 		ampath := common.ImageManifestPath(p.Root, app.Image.ID)
 		buf, err := ioutil.ReadFile(ampath)
@@ -90,6 +126,26 @@ func LoadPod(root string, uuid *types.UUID) (*Pod, error) {
 			return nil, fmt.Errorf("got multiple definitions for app: %s", name)
 		}
 		p.Apps[name] = am
+	}
+
+	s1o := &Stage1Option{}
+	// not mandatory, if using host binaries
+	s1o.nspawnBin, _ = s1m.Annotations.Get(nspawnEntrypoint)
+	// mandatory, but asserted in populateDefaults, because of usr-from-host flavor
+	s1o.systemdversion, _ = s1m.Annotations.Get(versionEntrypoint)
+	// not mandatory, if using host linker
+	s1o.interpBin, _ = s1m.Annotations.Get(interpBinEntrypoint)
+	s1o.interpPath, _ = s1m.Annotations.Get(interpPathEntrypoint)
+	// not mandatory, if using patched systemd
+	s1o.shimPath, _ = s1m.Annotations.Get(shimEntrypoint)
+	s1o.flavor, ok = s1m.Annotations.Get(flavorEntrypoint)
+	if !ok {
+		return nil, fmt.Errorf("unable to determine stage1 flavor.")
+	}
+	p.Stage1Options = s1o
+
+	if err = populateDefaults(p); err != nil {
+		return nil, fmt.Errorf("unable to populate stage1 options: %v", err)
 	}
 
 	return p, nil
@@ -124,7 +180,7 @@ func newUnitOption(section, name, value string) *unit.UnitOption {
 	return &unit.UnitOption{Section: section, Name: name, Value: value}
 }
 
-func (p *Pod) WritePrepareAppTemplate(version string) error {
+func (p *Pod) WritePrepareAppTemplate() error {
 	opts := []*unit.UnitOption{
 		newUnitOption("Unit", "Description", "Prepare minimum environment for chrooted applications"),
 		newUnitOption("Unit", "DefaultDependencies", "false"),
@@ -137,7 +193,7 @@ func (p *Pod) WritePrepareAppTemplate(version string) error {
 		newUnitOption("Service", "CapabilityBoundingSet", "CAP_SYS_ADMIN CAP_DAC_OVERRIDE"),
 	}
 
-	if systemdSupportsJournalLinking(version) {
+	if p.Stage1Options.systemdSupportsJournalLinking {
 		opts = append(opts, newUnitOption("Unit", "Requires", "systemd-journald.service"))
 		opts = append(opts, newUnitOption("Unit", "After", "systemd-journald.service"))
 	}
@@ -213,16 +269,11 @@ func (p *Pod) appToSystemd(ra *schema.RuntimeApp, am *schema.ImageManifest, inte
 		newUnitOption("Service", "Group", "0"),
 	}
 
-	_, systemdStage1Version, err := p.getFlavor()
-	if err != nil {
-		return fmt.Errorf("Failed to get stage1 flavor: %v\n", err)
-	}
-
 	if interactive {
 		opts = append(opts, newUnitOption("Service", "StandardInput", "tty"))
 		opts = append(opts, newUnitOption("Service", "StandardOutput", "tty"))
 		opts = append(opts, newUnitOption("Service", "StandardError", "tty"))
-	} else if systemdSupportsJournalLinking(systemdStage1Version) {
+	} else if p.Stage1Options.systemdSupportsJournalLinking {
 		opts = append(opts, newUnitOption("Service", "StandardOutput", "journal+console"))
 		opts = append(opts, newUnitOption("Service", "StandardError", "journal+console"))
 		opts = append(opts, newUnitOption("Service", "SyslogIdentifier", filepath.Base(app.Exec[0])))
@@ -460,25 +511,6 @@ func (p *Pod) PodToNspawnArgs() ([]string, error) {
 	return args, nil
 }
 
-func (p *Pod) getFlavor() (flavor string, systemdVersion string, err error) {
-	flavor, err = os.Readlink(filepath.Join(common.Stage1RootfsPath(p.Root), "flavor"))
-	if err != nil {
-		return "", "", fmt.Errorf("unable to determine stage1 flavor: %v", err)
-	}
-
-	if flavor == "usr-from-host" {
-		// This flavor does not contain systemd, so don't return systemdVersion
-		return flavor, "", nil
-	}
-
-	systemdVersionBytes, err := ioutil.ReadFile(filepath.Join(common.Stage1RootfsPath(p.Root), "systemd-version"))
-	if err != nil {
-		return "", "", fmt.Errorf("unable to determine stage1's systemd version: %v", err)
-	}
-	systemdVersion = strings.Trim(string(systemdVersionBytes), " \n")
-	return flavor, systemdVersion, nil
-}
-
 // GetAppHashes returns a list of hashes of the apps in this pod
 func (p *Pod) GetAppHashes() []types.Hash {
 	var names []types.Hash
@@ -493,4 +525,55 @@ func (p *Pod) GetAppHashes() []types.Hash {
 // systemd-nspawn
 func (p *Pod) GetMachineID() string {
 	return "rkt-" + p.UUID.String()
+}
+
+func systemdSupportsJournalLinking(version string) bool {
+	switch {
+	case version == "v219":
+		fallthrough
+	case version == "v220":
+		fallthrough
+	case version == "master":
+		return true
+	default:
+		return false
+	}
+}
+
+func populateDefaults(p *Pod) error {
+	switch p.Stage1Options.flavor {
+	case "usr-from-host":
+		hostNspawnBin, err := lookupPath("systemd-nspawn", os.Getenv("PATH"))
+		if err != nil {
+			return fmt.Errorf("unable to find host systemd-nspawn binary: %v", err)
+		}
+		p.Stage1Options.nspawnBin = hostNspawnBin
+
+		// Check dynamically which version is installed on the host
+		// Only support v220 for now.
+		versionBytes, err := exec.Command(hostNspawnBin, "--version").CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("unable to probe %s version: %v", hostNspawnBin, err)
+		}
+		version := strings.SplitN(strings.SplitN(string(versionBytes), "\n", 2)[0], " ", 2)
+		if version[0] != "systemd" {
+			return fmt.Errorf("%s version not supported: %v", hostNspawnBin, version)
+		}
+		p.Stage1Options.systemdversion = "v" + version[1]
+
+		// Copy systemd, bash, etc. in stage1 at run-time
+		if err := installAssets(); err != nil {
+			return fmt.Errorf("cannot install assets from the host: %v", err)
+		}
+	default:
+		p.Stage1Options.nspawnBin = filepath.Join(common.Stage1RootfsPath(p.Root), p.Stage1Options.nspawnBin)
+	}
+
+	if p.Stage1Options.systemdversion == "" {
+		return fmt.Errorf("unable to determine stage1's systemd version.")
+	}
+
+	p.Stage1Options.systemdSupportsJournalLinking = systemdSupportsJournalLinking(p.Stage1Options.systemdversion)
+
+	return nil
 }

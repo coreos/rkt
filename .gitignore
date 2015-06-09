@@ -7,3 +7,4 @@ tests/image/rootfs/
 tests/inspect/inspect
 tests/*.aci
 tests/*.log
+stage1/rootfs/usr_from_src/aci-manifest

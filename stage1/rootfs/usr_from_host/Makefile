@@ -2,7 +2,6 @@
 
 usr.done install: Makefile
 	echo mkdir -p "\$${ROOT}" > install.tmp
-	echo ln -sf usr-from-host \"\$${ROOT}/flavor\" >> install.tmp
 	mv install.tmp install
 	cp -f install ../aggregate/install.d/00usr
 	touch usr.done

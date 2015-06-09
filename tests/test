@@ -24,7 +24,7 @@ if [ $(basename $(sudo readlink /proc/1/exe)) == systemd ] ; then
 fi
 
 STAGE1_SRC_FROM_HOST=0
-if tar tvf ../bin/stage1.aci rootfs/flavor|grep -q usr-from-host ; then
+if tar xOvf ../bin/stage1.aci manifest|grep -q usr-from-host ; then
 	STAGE1_SRC_FROM_HOST=1
 fi
 

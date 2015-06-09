@@ -1,0 +1,45 @@
+{
+    "acKind": "ImageManifest",
+    "acVersion": "0.5.2",
+    "name": "coreos.com/rkt/stage1",
+    "labels": [
+        {
+            "name": "version",
+            "value": "0.0.1"
+        },
+        {
+            "name": "arch",
+            "value": "amd64"
+        },
+        {
+            "name": "os",
+            "value": "linux"
+        }
+    ],
+    "annotations": [
+        {
+            "name": "coreos.com/rkt/stage1/run",
+            "value": "/init"
+        },
+        {
+            "name": "coreos.com/rkt/stage1/enter",
+            "value": "/enter"
+        },
+        {
+            "name": "coreos.com/rkt/stage1/gc",
+            "value": "/gc"
+        },
+        {
+            "name": "coreos.com/rkt/stage1/flavor",
+            "value": "src"
+        },
+        {
+            "name": "coreos.com/rkt/stage1/nspawn",
+            "value": "/usr/bin/systemd-nspawn"
+        },
+        {
+            "name": "coreos.com/rkt/stage1/systemdversion",
+            "value": "#SYSTEMD_VERSION#"
+        }
+    ]
+}
