@@ -2,7 +2,6 @@ package stage0
 
 import (
 	"fmt"
-	"net/url"
 	"strconv"
 	"strings"
 
@@ -21,9 +20,15 @@ type InjectedVolume struct {
 func InjectedVolumeFromString(s string) (*InjectedVolume, error) {
 	var vol InjectedVolume
 
-	v, err := url.ParseQuery(strings.Replace(s, ",", "&", -1))
-	if err != nil {
-		return nil, err
+	v := make(map[string][]string)
+	pairs := strings.Split(s, ",")
+	for _, p := range pairs {
+		sp := strings.Split(p, "=")
+		if len(sp) != 2 {
+			return nil, fmt.Errorf(
+				"expected comma separated list of key=val pairs")
+		}
+		v[sp[0]] = append(v[sp[0]], sp[1])
 	}
 
 	for key, val := range v {
