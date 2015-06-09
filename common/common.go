@@ -133,6 +133,15 @@ func SupportsOverlay() bool {
 	return false
 }
 
+// SupportsUserNS returns whether the kernel has CONFIG_USER_NS set
+func SupportsUserNS() bool {
+	if _, err := os.Stat("/proc/self/uid_map"); os.IsNotExist(err) {
+		return false
+	}
+
+	return true
+}
+
 // PrivateNetList implements the flag.Value interface to allow specification
 // of -private-net with and without values
 type PrivateNetList struct {
