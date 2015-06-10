@@ -34,6 +34,8 @@ const (
 	stage1Dir = "/stage1"
 	stage2Dir = "/opt/stage2"
 
+	sharedVolumesDir = "/sharedVolumes"
+
 	EnvLockFd               = "RKT_LOCK_FD"
 	Stage1IDFilename        = "stage1ID"
 	OverlayPreparedFilename = "overlay-prepared"
@@ -44,6 +46,11 @@ const (
 	DefaultLocalConfigDir  = "/etc/rkt"
 	DefaultSystemConfigDir = "/usr/lib/rkt"
 )
+
+// Stage1SharedVolumesDir returns the path where shared (empty) volumes exist on the host.
+func Stage1SharedVolumesDir(root string) string {
+	return filepath.Join(root, sharedVolumesDir)
+}
 
 // Stage1ImagePath returns the path where the stage1 app image (unpacked ACI) is rooted,
 // (i.e. where its contents are extracted during stage0).
