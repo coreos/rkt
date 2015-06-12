@@ -7,7 +7,7 @@ import (
 )
 
 var ValidOSArch = map[string][]string{
-	"linux":   {"amd64", "i386", "aarch64", "armv7l", "armv7b"},
+	"linux":   {"amd64", "i386", "aarch64", "aarch64_be", "armv7l", "armv7b"},
 	"freebsd": {"amd64", "i386", "arm"},
 	"darwin":  {"x86_64", "i386"},
 }
@@ -17,12 +17,12 @@ type Labels []Label
 type labels Labels
 
 type Label struct {
-	Name  ACName `json:"name"`
-	Value string `json:"value"`
+	Name  ACIdentifier `json:"name"`
+	Value string       `json:"value"`
 }
 
 func (l Labels) assertValid() error {
-	seen := map[ACName]string{}
+	seen := map[ACIdentifier]string{}
 	for _, lbl := range l {
 		if lbl.Name == "name" {
 			return fmt.Errorf(`invalid label name: "name"`)
@@ -92,17 +92,17 @@ func (l Labels) Get(name string) (val string, ok bool) {
 	return "", false
 }
 
-// ToMap creates a map[ACName]string.
-func (l Labels) ToMap() map[ACName]string {
-	labelsMap := make(map[ACName]string)
+// ToMap creates a map[ACIdentifier]string.
+func (l Labels) ToMap() map[ACIdentifier]string {
+	labelsMap := make(map[ACIdentifier]string)
 	for _, lbl := range l {
 		labelsMap[lbl.Name] = lbl.Value
 	}
 	return labelsMap
 }
 
-// LabelsFromMap creates Labels from a map[ACName]string
-func LabelsFromMap(labelsMap map[ACName]string) (Labels, error) {
+// LabelsFromMap creates Labels from a map[ACIdentifier]string
+func LabelsFromMap(labelsMap map[ACIdentifier]string) (Labels, error) {
 	labels := Labels{}
 	for n, v := range labelsMap {
 		labels = append(labels, Label{Name: n, Value: v})

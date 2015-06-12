@@ -9,15 +9,15 @@ import (
 )
 
 type App struct {
-	Name   types.ACName
-	Labels map[types.ACName]string
+	Name   types.ACIdentifier
+	Labels map[types.ACIdentifier]string
 }
 
-func NewApp(name string, labels map[types.ACName]string) (*App, error) {
+func NewApp(name string, labels map[types.ACIdentifier]string) (*App, error) {
 	if labels == nil {
-		labels = make(map[types.ACName]string, 0)
+		labels = make(map[types.ACIdentifier]string, 0)
 	}
-	acn, err := types.NewACName(name)
+	acn, err := types.NewACIdentifier(name)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func NewApp(name string, labels map[types.ACName]string) (*App, error) {
 func NewAppFromString(app string) (*App, error) {
 	var (
 		name   string
-		labels map[types.ACName]string
+		labels map[types.ACIdentifier]string
 	)
 
 	app = strings.Replace(app, ":", ",version=", -1)
@@ -44,7 +44,7 @@ func NewAppFromString(app string) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	labels = make(map[types.ACName]string, 0)
+	labels = make(map[types.ACIdentifier]string, 0)
 	for key, val := range v {
 		if len(val) > 1 {
 			return nil, fmt.Errorf("label %s with multiple values %q", key, val)
@@ -53,7 +53,7 @@ func NewAppFromString(app string) (*App, error) {
 			name = val[0]
 			continue
 		}
-		labelName, err := types.NewACName(key)
+		labelName, err := types.NewACIdentifier(key)
 		if err != nil {
 			return nil, err
 		}
@@ -64,6 +64,17 @@ func NewAppFromString(app string) (*App, error) {
 		return nil, err
 	}
 	return a, nil
+}
+
+func (a *App) Copy() *App {
+	ac := &App{
+		Name:   a.Name,
+		Labels: make(map[types.ACIdentifier]string, 0),
+	}
+	for k, v := range a.Labels {
+		ac.Labels[k] = v
+	}
+	return ac
 }
 
 // String returns the URL-like image name

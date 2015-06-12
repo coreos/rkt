@@ -19,7 +19,7 @@ func TestNewAppFromString(t *testing.T) {
 
 			&App{
 				Name: "example.com/reduce-worker",
-				Labels: map[types.ACName]string{
+				Labels: map[types.ACIdentifier]string{
 					"version": "1.0.0",
 				},
 			},
@@ -30,7 +30,7 @@ func TestNewAppFromString(t *testing.T) {
 
 			&App{
 				Name: "example.com/reduce-worker",
-				Labels: map[types.ACName]string{
+				Labels: map[types.ACIdentifier]string{
 					"channel": "alpha",
 					"label":   "value",
 				},
@@ -83,14 +83,14 @@ func TestAppString(t *testing.T) {
 		{
 			&App{
 				Name:   "example.com/reduce-worker",
-				Labels: map[types.ACName]string{},
+				Labels: map[types.ACIdentifier]string{},
 			},
 			"example.com/reduce-worker",
 		},
 		{
 			&App{
 				Name: "example.com/reduce-worker",
-				Labels: map[types.ACName]string{
+				Labels: map[types.ACIdentifier]string{
 					"version": "1.0.0",
 				},
 			},
@@ -99,7 +99,7 @@ func TestAppString(t *testing.T) {
 		{
 			&App{
 				Name: "example.com/reduce-worker",
-				Labels: map[types.ACName]string{
+				Labels: map[types.ACIdentifier]string{
 					"channel": "alpha",
 					"label":   "value",
 				},
@@ -116,6 +116,46 @@ func TestAppString(t *testing.T) {
 		}
 		if !reflect.DeepEqual(g, tt.a) {
 			t.Errorf("#%d: got %#v, want %#v", i, g, tt.a)
+		}
+	}
+}
+
+func TestAppCopy(t *testing.T) {
+	tests := []struct {
+		a   *App
+		out string
+	}{
+		{
+			&App{
+				Name:   "example.com/reduce-worker",
+				Labels: map[types.ACIdentifier]string{},
+			},
+			"example.com/reduce-worker",
+		},
+		{
+			&App{
+				Name: "example.com/reduce-worker",
+				Labels: map[types.ACIdentifier]string{
+					"version": "1.0.0",
+				},
+			},
+			"example.com/reduce-worker:1.0.0",
+		},
+		{
+			&App{
+				Name: "example.com/reduce-worker",
+				Labels: map[types.ACIdentifier]string{
+					"channel": "alpha",
+					"label":   "value",
+				},
+			},
+			"example.com/reduce-worker,channel=alpha,label=value",
+		},
+	}
+	for i, tt := range tests {
+		appCopy := tt.a.Copy()
+		if !reflect.DeepEqual(appCopy, tt.a) {
+			t.Errorf("#%d: got %#v, want %#v", i, appCopy, tt.a)
 		}
 	}
 }

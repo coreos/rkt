@@ -67,7 +67,7 @@ func TestDiscoverEndpoints(t *testing.T) {
 			true,
 			App{
 				Name: "example.com/myapp",
-				Labels: map[types.ACName]string{
+				Labels: map[types.ACIdentifier]string{
 					"version": "1.0.0",
 					"os":      "linux",
 					"arch":    "amd64",
@@ -90,7 +90,7 @@ func TestDiscoverEndpoints(t *testing.T) {
 			true,
 			App{
 				Name: "example.com/myapp/foobar",
-				Labels: map[types.ACName]string{
+				Labels: map[types.ACIdentifier]string{
 					"version": "1.0.0",
 					"os":      "linux",
 					"arch":    "amd64",
@@ -113,7 +113,7 @@ func TestDiscoverEndpoints(t *testing.T) {
 			false,
 			App{
 				Name: "example.com/myapp/foobar/bazzer",
-				Labels: map[types.ACName]string{
+				Labels: map[types.ACIdentifier]string{
 					"version": "1.0.0",
 					"os":      "linux",
 					"arch":    "amd64",
@@ -130,7 +130,7 @@ func TestDiscoverEndpoints(t *testing.T) {
 			true,
 			App{
 				Name: "example.com/myapp",
-				Labels: map[types.ACName]string{
+				Labels: map[types.ACIdentifier]string{
 					"version": "1.0.0",
 				},
 			},
@@ -149,7 +149,7 @@ func TestDiscoverEndpoints(t *testing.T) {
 			false,
 			App{
 				Name:   "example.com/myapp",
-				Labels: map[types.ACName]string{},
+				Labels: map[types.ACIdentifier]string{},
 			},
 			[]ACIEndpoint{
 				ACIEndpoint{
@@ -165,7 +165,7 @@ func TestDiscoverEndpoints(t *testing.T) {
 			false,
 			App{
 				Name: "example.com/myapp",
-				Labels: map[types.ACName]string{
+				Labels: map[types.ACIdentifier]string{
 					"name":    "labelcalledname",
 					"version": "1.0.0",
 				},
@@ -181,7 +181,7 @@ func TestDiscoverEndpoints(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		httpGet = tt.get
+		httpGet = &mockHttpGetter{getter: tt.get}
 		de, _, err := DiscoverEndpoints(tt.app, true)
 		if err != nil && !tt.expectDiscoverySuccess {
 			continue

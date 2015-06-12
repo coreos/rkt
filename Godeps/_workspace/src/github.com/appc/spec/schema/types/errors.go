@@ -20,6 +20,13 @@ func (e ACVersionError) Error() string {
 	return string(e)
 }
 
+// An ACIdentifierError is returned when a bad value is used for an ACIdentifier
+type ACIdentifierError string
+
+func (e ACIdentifierError) Error() string {
+	return string(e)
+}
+
 // An ACNameError is returned when a bad value is used for an ACName
 type ACNameError string
 
