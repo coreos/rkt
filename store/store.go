@@ -524,7 +524,7 @@ func (s Store) GetImageManifest(key string) (*schema.ImageManifest, error) {
 // last one imported in the store).
 // If no version label is requested, ACIs marked as latest in the ACIInfo are
 // preferred.
-func (s Store) GetACI(name types.ACName, labels types.Labels) (string, error) {
+func (s Store) GetACI(name types.ACIdentifier, labels types.Labels) (string, error) {
 	var curaciinfo *ACIInfo
 	versionRequested := false
 	if _, ok := labels.Get("version"); ok {
