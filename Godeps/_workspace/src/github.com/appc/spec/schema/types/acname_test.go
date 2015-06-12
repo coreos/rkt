@@ -11,14 +11,14 @@ var (
 		"asdf",
 		"foo-bar-baz",
 		"database",
-		"example.com/database",
-		"example.com/ourapp-1.0.0",
-		"sub-domain.example.com/org/product/release-1.0.0",
 	}
 	badNames = []string{
 		"",
 		"foo#",
+		"example.com",
 		"EXAMPLE.com",
+		"example/database",
+		"example/database-1.0.0",
 		"foo.com/BAR",
 		"example.com/app_1",
 		"/app",
@@ -80,9 +80,9 @@ func TestMustACNameBad(t *testing.T) {
 func TestSanitizeACName(t *testing.T) {
 	tests := map[string]string{
 		"foo#":                                             "foo",
-		"EXAMPLE.com":                                      "example.com",
-		"foo.com/BAR":                                      "foo.com/bar",
-		"example.com/app_1":                                "example.com/app-1",
+		"EXAMPLE.com":                                      "example-com",
+		"foo.com/BAR":                                      "foo-com-bar",
+		"example.com/app_1":                                "example-com-app-1",
 		"/app":                                             "app",
 		"app/":                                             "app",
 		"-app":                                             "app",
@@ -91,8 +91,8 @@ func TestSanitizeACName(t *testing.T) {
 		"app.":                                             "app",
 		"app///":                                           "app",
 		"-/.app..":                                         "app",
-		"-/app.name-test/-/":                               "app.name-test",
-		"sub-domain.example.com/org/product/release-1.0.0": "sub-domain.example.com/org/product/release-1.0.0",
+		"-/app.name-test/-/":                               "app-name-test",
+		"sub-domain.example.com/org/product/release-1.0.0": "sub-domain-example-com-org-product-release-1-0-0",
 	}
 	for in, ex := range tests {
 		o, err := SanitizeACName(in)
@@ -107,8 +107,8 @@ func TestSanitizeACName(t *testing.T) {
 
 func TestACNameSetGood(t *testing.T) {
 	tests := map[string]ACName{
-		"blargh":                   ACName("blargh"),
-		"example.com/ourapp-1.0.0": ACName("example.com/ourapp-1.0.0"),
+		"blargh":               ACName("blargh"),
+		"example-ourapp-1-0-0": ACName("example-ourapp-1-0-0"),
 	}
 	for in, w := range tests {
 		// Ensure an empty name is set appropriately
@@ -200,8 +200,8 @@ func TestACNameUnmarshalBad(t *testing.T) {
 
 func TestACNameUnmarshalGood(t *testing.T) {
 	tests := map[string]ACName{
-		`"example"`:     ACName("example"),
-		`"foo.com/bar"`: ACName("foo.com/bar"),
+		`"example"`: ACName("example"),
+		`"foo-bar"`: ACName("foo-bar"),
 	}
 	for in, w := range tests {
 		var a ACName
@@ -216,11 +216,11 @@ func TestACNameUnmarshalGood(t *testing.T) {
 
 func TestACNameMarshalBad(t *testing.T) {
 	tests := map[string]error{
-		"Foo":          ErrInvalidChar,
-		"foo#":         ErrInvalidChar,
-		"/foo":         ErrInvalidEdge,
-		"example.com/": ErrInvalidEdge,
-		"":             ErrEmptyACName,
+		"Foo":      ErrInvalidCharInACName,
+		"foo#":     ErrInvalidCharInACName,
+		"-foo":     ErrInvalidEdgeInACName,
+		"example-": ErrInvalidEdgeInACName,
+		"":         ErrEmptyACName,
 	}
 	for in, werr := range tests {
 		a := ACName(in)

@@ -86,7 +86,7 @@ func getIsolatorStr(name, value string) string {
 func patchManifest(im *schema.ImageManifest) error {
 
 	if patchName != "" {
-		name, err := types.NewACName(patchName)
+		name, err := types.NewACIdentifier(patchName)
 		if err != nil {
 			return err
 		}

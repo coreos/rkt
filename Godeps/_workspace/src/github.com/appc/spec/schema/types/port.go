@@ -46,11 +46,11 @@ func (p Port) MarshalJSON() ([]byte, error) {
 func (p Port) assertValid() error {
 	// Although there are no guarantees, most (if not all)
 	// transport protocols use 16 bit ports
-	if p.Port > 65535 {
-		return errors.New("port must be in 0-65535 range")
+	if p.Port > 65535 || p.Port < 1 {
+		return errors.New("port must be in 1-65535 range")
 	}
 	if p.Port+p.Count > 65536 {
-		return errors.New("end of port range must be in 0-65535 range")
+		return errors.New("end of port range must be in 1-65535 range")
 	}
 	return nil
 }

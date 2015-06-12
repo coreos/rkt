@@ -140,7 +140,7 @@ type RuntimeApp struct {
 
 // RuntimeImage describes an image referenced in a RuntimeApp
 type RuntimeImage struct {
-	Name   *types.ACName `json:"name,omitempty"`
-	ID     types.Hash    `json:"id"`
-	Labels types.Labels  `json:"labels,omitempty"`
+	Name   *types.ACIdentifier `json:"name,omitempty"`
+	ID     types.Hash          `json:"id"`
+	Labels types.Labels        `json:"labels,omitempty"`
 }
