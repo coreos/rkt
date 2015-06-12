@@ -148,15 +148,15 @@ func (custom *GoCustomizations) GetAssets(aciBinDir string) ([]string, error) {
 	return []string{GetAssetString(aciAsset, localAsset)}, nil
 }
 
-func (custom *GoCustomizations) GetImageACName() (*types.ACName, error) {
-	imageACName := custom.Configuration.Project
-	if filepath.Base(imageACName) == "..." {
-		imageACName = filepath.Dir(imageACName)
+func (custom *GoCustomizations) GetImageName() (*types.ACIdentifier, error) {
+	imageName := custom.Configuration.Project
+	if filepath.Base(imageName) == "..." {
+		imageName = filepath.Dir(imageName)
 		if custom.Configuration.UseBinary != "" {
-			imageACName += "-" + custom.Configuration.UseBinary
+			imageName += "-" + custom.Configuration.UseBinary
 		}
 	}
-	return types.NewACName(strings.ToLower(imageACName))
+	return types.NewACIdentifier(strings.ToLower(imageName))
 }
 
 func (custom *GoCustomizations) GetBinaryName() (string, error) {

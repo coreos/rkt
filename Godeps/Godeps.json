@@ -65,7 +65,7 @@
 		},
 		{
 			"ImportPath": "github.com/appc/goaci/proj2aci",
-			"Rev": "f99814ac2ac967bc202afd1c923cde30a65811ed"
+			"Rev": "333820b419dc7930374b38e40660a45156a7b4c8"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/aci",
