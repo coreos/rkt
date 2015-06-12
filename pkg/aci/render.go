@@ -35,7 +35,7 @@ func RenderACIWithImageID(imageID types.Hash, dir string, ap acirenderer.ACIRegi
 
 // Given an image app name and optional labels, get the best matching image
 // available in the store, build its dependency list and render it inside dir
-func RenderACI(name types.ACName, labels types.Labels, dir string, ap acirenderer.ACIRegistry) error {
+func RenderACI(name types.ACIdentifier, labels types.Labels, dir string, ap acirenderer.ACIRegistry) error {
 	renderedACI, err := acirenderer.GetRenderedACI(name, labels, ap)
 	if err != nil {
 		return err
