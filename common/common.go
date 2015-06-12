@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/aci"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 )
 
@@ -135,6 +136,19 @@ func SupportsOverlay() bool {
 		}
 	}
 	return false
+}
+
+// GetAppByImageName retrieves an app from the AppList whose image has the
+// specified name; if there is no such app, nil is returned. The returned
+// *RuntimeApp MUST be considered read-only.
+func GetAppByImageName(al schema.AppList, name types.ACIdentifier) *schema.RuntimeApp {
+	for _, a := range al {
+		if name.Equals(*a.Image.Name) {
+			aa := a
+			return &aa
+		}
+	}
+	return nil
 }
 
 // PrivateNetList implements the flag.Value interface to allow specification
