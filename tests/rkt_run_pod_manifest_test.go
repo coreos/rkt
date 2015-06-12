@@ -29,7 +29,7 @@ import (
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 )
 
-const baseAppName = "coreos.com/rkt-inspect"
+const baseAppName = "rkt-inspect"
 
 func importImageAndFetchHash(t *testing.T, ctx *rktRunCtx, img string) string {
 	// Import the test image into store manually.
@@ -314,7 +314,7 @@ func TestPodManifest(t *testing.T) {
 		tt.podManifest.ACKind = schema.PodManifestKind
 		tt.podManifest.ACVersion = schema.AppContainerVersion
 
-		imgName := types.MustACName(tt.imageName)
+		imgName := types.MustACIdentifier(tt.imageName)
 		imgID, err := types.NewHash(hash)
 		if err != nil {
 			t.Fatalf("Cannot generate types.Hash from %v: %v", hash, err)
