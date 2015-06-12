@@ -103,6 +103,18 @@ func MergeEnvs(appEnv *types.Environment, inheritEnv bool, setEnv []string) {
 	}
 }
 
+func imageNameToAppName(name types.ACIdentifier) (*types.ACName, error) {
+	parts := strings.Split(name.String(), "/")
+	last := parts[len(parts)-1]
+
+	sn, err := types.SanitizeACName(last)
+	if err != nil {
+		return nil, err
+	}
+
+	return types.MustACName(sn), nil
+}
+
 // generatePodManifest creates the pod manifest from the command line input.
 // It returns the pod manifest as []byte on success.
 // This is invoked if no pod manifest is specified at the command line.
@@ -124,7 +136,11 @@ func generatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 		if err != nil {
 			return fmt.Errorf("error setting up image %s: %v", img, err)
 		}
-		if pm.Apps.Get(am.Name) != nil {
+		appName, err := imageNameToAppName(am.Name)
+		if err != nil {
+			return fmt.Errorf("error converting image name to app name: %v", err)
+		}
+		if pm.Apps.Get(*appName) != nil {
 			return fmt.Errorf("error: multiple apps with name %s", am.Name)
 		}
 		if am.App == nil {
@@ -132,7 +148,7 @@ func generatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 		}
 		ra := schema.RuntimeApp{
 			// TODO(vc): leverage RuntimeApp.Name for disambiguating the apps
-			Name: am.Name,
+			Name: *appName,
 			App:  am.App,
 			Image: schema.RuntimeImage{
 				Name: &am.Name,
@@ -191,11 +207,6 @@ func validatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 			return nil, fmt.Errorf("error: multiple apps with name %s", ra.Name)
 		}
 		appNames[ra.Name] = struct{}{}
-
-		// TODO(yifan): Loose this restriction. See https://github.com/coreos/rkt/pull/833.
-		if !ra.Name.Equals(am.Name) {
-			return nil, fmt.Errorf("error: image has a different name from the app (%q vs %q)", am.Name, ra.Name)
-		}
 		if ra.App == nil && am.App == nil {
 			return nil, fmt.Errorf("error: no app section in the pod manifest or the image manifest")
 		}
