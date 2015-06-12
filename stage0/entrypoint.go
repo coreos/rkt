@@ -26,9 +26,9 @@ import (
 )
 
 const (
-	enterEntrypoint = "coreos.com/rkt/stage1/enter"
-	runEntrypoint   = "coreos.com/rkt/stage1/run"
-	gcEntrypoint    = "coreos.com/rkt/stage1/gc"
+	enterEntrypoint = "rkt-stage1-enter"
+	runEntrypoint   = "rkt-stage1-run"
+	gcEntrypoint    = "rkt-stage1-gc"
 )
 
 // getStage1Entrypoint retrieves the named entrypoint from the stage1 manifest for a given pod
