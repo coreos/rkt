@@ -57,50 +57,50 @@
 		},
 		{
 			"ImportPath": "github.com/appc/docker2aci/lib",
-			"Rev": "06ed1491dee087e5a83984239e8e11577d8a6131"
+			"Rev": "7261e05a82af26ad9f1f6bdcd9f2ae67d52cd986"
 		},
 		{
 			"ImportPath": "github.com/appc/docker2aci/tarball",
-			"Rev": "06ed1491dee087e5a83984239e8e11577d8a6131"
+			"Rev": "7261e05a82af26ad9f1f6bdcd9f2ae67d52cd986"
 		},
 		{
 			"ImportPath": "github.com/appc/goaci/proj2aci",
-			"Rev": "f99814ac2ac967bc202afd1c923cde30a65811ed"
+			"Rev": "333820b419dc7930374b38e40660a45156a7b4c8"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/aci",
-			"Comment": "v0.5.2",
-			"Rev": "1d31afed77b39d52145ffd368d4c62eef675cbdf"
+			"Comment": "v0.6.0",
+			"Rev": "d427c5c1c3c40eacb71605b389dfab941437a809"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/actool",
-			"Comment": "v0.5.2",
-			"Rev": "1d31afed77b39d52145ffd368d4c62eef675cbdf"
+			"Comment": "v0.6.0",
+			"Rev": "d427c5c1c3c40eacb71605b389dfab941437a809"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/discovery",
-			"Comment": "v0.5.2",
-			"Rev": "1d31afed77b39d52145ffd368d4c62eef675cbdf"
+			"Comment": "v0.6.0",
+			"Rev": "d427c5c1c3c40eacb71605b389dfab941437a809"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/pkg/acirenderer",
-			"Comment": "v0.5.2",
-			"Rev": "1d31afed77b39d52145ffd368d4c62eef675cbdf"
+			"Comment": "v0.6.0",
+			"Rev": "d427c5c1c3c40eacb71605b389dfab941437a809"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/pkg/device",
-			"Comment": "v0.5.2",
-			"Rev": "1d31afed77b39d52145ffd368d4c62eef675cbdf"
+			"Comment": "v0.6.0",
+			"Rev": "d427c5c1c3c40eacb71605b389dfab941437a809"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/pkg/tarheader",
-			"Comment": "v0.5.2",
-			"Rev": "1d31afed77b39d52145ffd368d4c62eef675cbdf"
+			"Comment": "v0.6.0",
+			"Rev": "d427c5c1c3c40eacb71605b389dfab941437a809"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/schema",
-			"Comment": "v0.5.2",
-			"Rev": "1d31afed77b39d52145ffd368d4c62eef675cbdf"
+			"Comment": "v0.6.0",
+			"Rev": "d427c5c1c3c40eacb71605b389dfab941437a809"
 		},
 		{
 			"ImportPath": "github.com/camlistore/lock",

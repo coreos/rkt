@@ -79,11 +79,11 @@ func (ks *Keystore) CheckSignature(prefix string, signed, signature io.Reader) (
 }
 
 func checkSignature(ks *Keystore, prefix string, signed, signature io.Reader) (*openpgp.Entity, error) {
-	acname, err := types.NewACName(prefix)
+	acidentifier, err := types.NewACIdentifier(prefix)
 	if err != nil {
 		return nil, err
 	}
-	keyring, err := ks.loadKeyring(acname.String())
+	keyring, err := ks.loadKeyring(acidentifier.String())
 	if err != nil {
 		return nil, fmt.Errorf("keystore: error loading keyring %v", err)
 	}
@@ -97,20 +97,20 @@ func checkSignature(ks *Keystore, prefix string, signed, signature io.Reader) (*
 
 // DeleteTrustedKeyPrefix deletes the prefix trusted key identified by fingerprint.
 func (ks *Keystore) DeleteTrustedKeyPrefix(prefix, fingerprint string) error {
-	acname, err := types.NewACName(prefix)
+	acidentifier, err := types.NewACIdentifier(prefix)
 	if err != nil {
 		return err
 	}
-	return os.Remove(path.Join(ks.LocalPrefixPath, acname.String(), fingerprint))
+	return os.Remove(path.Join(ks.LocalPrefixPath, acidentifier.String(), fingerprint))
 }
 
 // MaskTrustedKeySystemPrefix masks the system prefix trusted key identified by fingerprint.
 func (ks *Keystore) MaskTrustedKeySystemPrefix(prefix, fingerprint string) (string, error) {
-	acname, err := types.NewACName(prefix)
+	acidentifier, err := types.NewACIdentifier(prefix)
 	if err != nil {
 		return "", err
 	}
-	dst := path.Join(ks.LocalPrefixPath, acname.String(), fingerprint)
+	dst := path.Join(ks.LocalPrefixPath, acidentifier.String(), fingerprint)
 	return dst, ioutil.WriteFile(dst, []byte(""), 0644)
 }
 
@@ -127,11 +127,11 @@ func (ks *Keystore) MaskTrustedKeySystemRoot(fingerprint string) (string, error)
 
 // StoreTrustedKeyPrefix stores the contents of public key r as a prefix trusted key.
 func (ks *Keystore) StoreTrustedKeyPrefix(prefix string, r io.Reader) (string, error) {
-	acname, err := types.NewACName(prefix)
+	acidentifier, err := types.NewACIdentifier(prefix)
 	if err != nil {
 		return "", err
 	}
-	return storeTrustedKey(path.Join(ks.LocalPrefixPath, acname.String()), r)
+	return storeTrustedKey(path.Join(ks.LocalPrefixPath, acidentifier.String()), r)
 }
 
 // StoreTrustedKeyRoot stores the contents of public key r as a root trusted key.
@@ -181,22 +181,22 @@ func entityFromFile(path string) (*openpgp.Entity, error) {
 }
 
 func (ks *Keystore) loadKeyring(prefix string) (openpgp.KeyRing, error) {
-	acname, err := types.NewACName(prefix)
+	acidentifier, err := types.NewACIdentifier(prefix)
 	if err != nil {
 		return nil, err
 	}
 	var keyring openpgp.EntityList
 	trustedKeys := make(map[string]*openpgp.Entity)
 
-	prefixRoot := strings.Split(acname.String(), "/")[0]
+	prefixRoot := strings.Split(acidentifier.String(), "/")[0]
 	paths := []struct {
 		root     string
 		fullPath string
 	}{
 		{ks.SystemRootPath, ks.SystemRootPath},
 		{ks.LocalRootPath, ks.LocalRootPath},
-		{path.Join(ks.SystemPrefixPath, prefixRoot), path.Join(ks.SystemPrefixPath, acname.String())},
-		{path.Join(ks.LocalPrefixPath, prefixRoot), path.Join(ks.LocalPrefixPath, acname.String())},
+		{path.Join(ks.SystemPrefixPath, prefixRoot), path.Join(ks.SystemPrefixPath, acidentifier.String())},
+		{path.Join(ks.LocalPrefixPath, prefixRoot), path.Join(ks.LocalPrefixPath, acidentifier.String())},
 	}
 	for _, p := range paths {
 		err := filepath.Walk(p.root, func(path string, info os.FileInfo, err error) error {

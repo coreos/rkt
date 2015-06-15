@@ -15,7 +15,7 @@ const (
 type ImageManifest struct {
 	ACKind        types.ACKind       `json:"acKind"`
 	ACVersion     types.SemVer       `json:"acVersion"`
-	Name          types.ACName       `json:"name"`
+	Name          types.ACIdentifier `json:"name"`
 	Labels        types.Labels       `json:"labels,omitempty"`
 	App           *types.App         `json:"app,omitempty"`
 	Annotations   types.Annotations  `json:"annotations,omitempty"`

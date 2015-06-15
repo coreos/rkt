@@ -18,15 +18,15 @@
     ],
     "annotations": [
         {
-            "name": "coreos.com/rkt/stage1/run",
+            "name": "rkt-stage1-run",
             "value": "/init"
         },
         {
-            "name": "coreos.com/rkt/stage1/enter",
+            "name": "rkt-stage1-enter",
             "value": "/enter"
         },
         {
-            "name": "coreos.com/rkt/stage1/gc",
+            "name": "rkt-stage1-gc",
             "value": "/gc"
         }
     ]

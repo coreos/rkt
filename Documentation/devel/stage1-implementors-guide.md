@@ -23,7 +23,7 @@ Stage 2 is the destination application images and stage 1 is the vehicle for get
 Entrypoints
 -----------
 
-### `rkt run` => "coreos.com/rkt/stage1/run"
+### `rkt run` => "rkt-stage1-run"
 
 0. rkt prepares the pod's stage 1 and stage 2 images and Pod Manifest under "/var/lib/rkt/pods/$uuid", acquiring an exclusive advisory lock on the directory.
 1. chdirs to "/var/lib/rkt/pods/$uuid"
@@ -48,7 +48,7 @@ The resolved entrypoint must inform rkt of its PID for the benefit of `rkt enter
 * --private-net to trigger the creation of a private network
 
 
-### `rkt enter` => "coreos.com/rkt/stage1/enter"
+### `rkt enter` => "rkt-stage1-enter"
 
 0. rkt verifies the pod and image to enter are valid and running
 1. chdirs to "/var/lib/rkt/pods/$uuid"
