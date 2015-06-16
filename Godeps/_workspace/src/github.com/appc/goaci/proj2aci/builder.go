@@ -49,7 +49,7 @@ type BuilderCustomizations interface {
 	PrepareProject() error
 	GetPlaceholderMapping() map[string]string
 	GetAssets(aciBinDir string) ([]string, error)
-	GetImageACName() (*types.ACName, error)
+	GetImageName() (*types.ACIdentifier, error)
 	GetBinaryName() (string, error)
 	GetRepoPath() (string, error)
 	GetImageFileName() (string, error)
@@ -239,7 +239,7 @@ func (cmd *Builder) copyAssets() error {
 }
 
 func (cmd *Builder) prepareManifest() error {
-	name, err := cmd.custom.GetImageACName()
+	name, err := cmd.custom.GetImageName()
 	if err != nil {
 		return err
 	}
@@ -300,7 +300,7 @@ func (cmd *Builder) getLabels() (types.Labels, error) {
 }
 
 func newLabel(name, value string) (*types.Label, error) {
-	acName, err := types.NewACName(name)
+	acName, err := types.NewACIdentifier(name)
 	if err != nil {
 		return nil, err
 	}
@@ -322,7 +322,7 @@ func (cmd *Builder) getVCSLabel() (*types.Label, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get VCS info: %v", err)
 	}
-	acname, err := types.NewACName(name)
+	acname, err := types.NewACIdentifier(name)
 	if err != nil {
 		return nil, fmt.Errorf("Invalid VCS label: %v", err)
 	}

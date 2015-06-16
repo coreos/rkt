@@ -22,8 +22,8 @@ func populateHeaderUnix(h *tar.Header, fi os.FileInfo, seen map[uint64]string) {
 	h.Uid = int(st.Uid)
 	h.Gid = int(st.Gid)
 	if st.Mode&syscall.S_IFMT == syscall.S_IFBLK || st.Mode&syscall.S_IFMT == syscall.S_IFCHR {
-		h.Devminor = int64(device.Minor(st.Rdev))
-		h.Devmajor = int64(device.Major(st.Rdev))
+		h.Devminor = int64(device.Minor(uint64(st.Rdev)))
+		h.Devmajor = int64(device.Major(uint64(st.Rdev)))
 	}
 	// If we have already seen this inode, generate a hardlink
 	p, ok := seen[uint64(st.Ino)]

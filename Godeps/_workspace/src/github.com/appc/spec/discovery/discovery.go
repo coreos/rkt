@@ -110,6 +110,7 @@ func createTemplateVars(app App) []string {
 }
 
 func doDiscover(pre string, app App, insecure bool) (*Endpoints, error) {
+	app = *app.Copy()
 	if app.Labels["version"] == "" {
 		app.Labels["version"] = defaultVersion
 	}

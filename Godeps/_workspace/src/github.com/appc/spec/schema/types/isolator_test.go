@@ -157,7 +157,7 @@ func TestIsolatorsGetByName(t *testing.T) {
 	`
 
 	tests := []struct {
-		name     ACName
+		name     ACIdentifier
 		wlimit   int64
 		wrequest int64
 		wset     []LinuxCapability

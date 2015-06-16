@@ -72,7 +72,7 @@ func (ms *ConversionStore) GetImageManifest(key string) (*schema.ImageManifest, 
 	return aci.ImageManifest, nil
 }
 
-func (ms *ConversionStore) GetACI(name types.ACName, labels types.Labels) (string, error) {
+func (ms *ConversionStore) GetACI(name types.ACIdentifier, labels types.Labels) (string, error) {
 	for _, aci := range ms.acis {
 		// we implement this function to comply with the interface so don't
 		// bother implementing a proper label check
