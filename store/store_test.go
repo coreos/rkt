@@ -197,7 +197,7 @@ func TestGetImageManifest(t *testing.T) {
 
 func TestGetAci(t *testing.T) {
 	type test struct {
-		name     types.ACName
+		name     types.ACIdentifier
 		labels   types.Labels
 		expected int // the aci index to expect or -1 if not result expected,
 	}

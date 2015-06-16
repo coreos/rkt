@@ -43,7 +43,6 @@ func MountPointFromString(mp string) (*MountPoint, error) {
 			return nil, fmt.Errorf("label %s with multiple values %q", key, val)
 		}
 
-		// TOOD(philips): make this less hardcoded
 		switch key {
 		case "name":
 			acn, err := NewACName(val[0])

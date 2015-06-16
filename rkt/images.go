@@ -153,7 +153,7 @@ func (f *fetcher) addImageDeps(hash string, imgsl *list.List, seen map[string]st
 		return err
 	}
 	for _, d := range dependencies {
-		app, err := discovery.NewApp(d.App.String(), d.Labels.ToMap())
+		app, err := discovery.NewApp(d.ImageName.String(), d.Labels.ToMap())
 		if err != nil {
 			return err
 		}

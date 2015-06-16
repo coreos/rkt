@@ -10,7 +10,12 @@ const (
 	LinuxCapabilitiesRevokeSetName = "os/linux/capabilities-remove-set"
 )
 
+var LinuxIsolatorNames = make(map[ACIdentifier]struct{})
+
 func init() {
+	AddIsolatorName(LinuxCapabilitiesRetainSetName, LinuxIsolatorNames)
+	AddIsolatorName(LinuxCapabilitiesRevokeSetName, LinuxIsolatorNames)
+
 	AddIsolatorValueConstructor(LinuxCapabilitiesRetainSetName, NewLinuxCapabilitiesRetainSet)
 	AddIsolatorValueConstructor(LinuxCapabilitiesRevokeSetName, NewLinuxCapabilitiesRevokeSet)
 }

@@ -182,15 +182,15 @@ func (custom *CmakeCustomizations) getBinDir() (string, error) {
 	return "", fmt.Errorf("Could not find any bin directory")
 }
 
-func (custom *CmakeCustomizations) GetImageACName() (*types.ACName, error) {
-	imageACName := custom.Configuration.Project
-	if filepath.Base(imageACName) == "..." {
-		imageACName = filepath.Dir(imageACName)
+func (custom *CmakeCustomizations) GetImageName() (*types.ACIdentifier, error) {
+	imageName := custom.Configuration.Project
+	if filepath.Base(imageName) == "..." {
+		imageName = filepath.Dir(imageName)
 		if custom.Configuration.UseBinary != "" {
-			imageACName += "-" + custom.Configuration.UseBinary
+			imageName += "-" + custom.Configuration.UseBinary
 		}
 	}
-	return types.NewACName(strings.ToLower(imageACName))
+	return types.NewACIdentifier(strings.ToLower(imageName))
 }
 
 func (custom *CmakeCustomizations) GetBinaryName() (string, error) {

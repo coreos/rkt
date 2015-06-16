@@ -6,7 +6,7 @@ import (
 )
 
 func makeAnno(n, v string) Annotation {
-	name, err := NewACName(n)
+	name, err := NewACIdentifier(n)
 	if err != nil {
 		panic(err)
 	}
@@ -191,7 +191,7 @@ func TestAnnotationsSet(t *testing.T) {
 
 	a.Set("foo", "bar")
 	w := Annotations{
-		Annotation{ACName("foo"), "bar"},
+		Annotation{ACIdentifier("foo"), "bar"},
 	}
 	if !reflect.DeepEqual(w, a) {
 		t.Fatalf("want %v, got %v", w, a)
@@ -199,17 +199,19 @@ func TestAnnotationsSet(t *testing.T) {
 
 	a.Set("dog", "woof")
 	w = Annotations{
-		Annotation{ACName("foo"), "bar"},
-		Annotation{ACName("dog"), "woof"},
+		Annotation{ACIdentifier("foo"), "bar"},
+		Annotation{ACIdentifier("dog"), "woof"},
 	}
 	if !reflect.DeepEqual(w, a) {
 		t.Fatalf("want %v, got %v", w, a)
 	}
 
 	a.Set("foo", "baz")
+	a.Set("example.com/foo_bar", "quux")
 	w = Annotations{
-		Annotation{ACName("foo"), "baz"},
-		Annotation{ACName("dog"), "woof"},
+		Annotation{ACIdentifier("foo"), "baz"},
+		Annotation{ACIdentifier("dog"), "woof"},
+		Annotation{ACIdentifier("example.com/foo_bar"), "quux"},
 	}
 	if !reflect.DeepEqual(w, a) {
 		t.Fatalf("want %v, got %v", w, a)

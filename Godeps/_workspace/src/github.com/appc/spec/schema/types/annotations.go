@@ -10,12 +10,12 @@ type Annotations []Annotation
 type annotations Annotations
 
 type Annotation struct {
-	Name  ACName `json:"name"`
-	Value string `json:"value"`
+	Name  ACIdentifier `json:"name"`
+	Value string       `json:"value"`
 }
 
 func (a Annotations) assertValid() error {
-	seen := map[ACName]string{}
+	seen := map[ACIdentifier]string{}
 	for _, anno := range a {
 		_, ok := seen[anno.Name]
 		if ok {
@@ -74,7 +74,7 @@ func (a Annotations) Get(name string) (val string, ok bool) {
 }
 
 // Set sets the value of an annotation by the given name, overwriting if one already exists.
-func (a *Annotations) Set(name ACName, value string) {
+func (a *Annotations) Set(name ACIdentifier, value string) {
 	for i, anno := range *a {
 		if anno.Name.Equals(name) {
 			(*a)[i] = Annotation{

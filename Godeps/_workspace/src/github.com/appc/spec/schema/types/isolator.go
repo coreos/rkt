@@ -5,23 +5,27 @@ import (
 )
 
 var (
-	isolatorMap map[ACName]IsolatorValueConstructor
+	isolatorMap map[ACIdentifier]IsolatorValueConstructor
 )
 
 func init() {
-	isolatorMap = make(map[ACName]IsolatorValueConstructor)
+	isolatorMap = make(map[ACIdentifier]IsolatorValueConstructor)
 }
 
 type IsolatorValueConstructor func() IsolatorValue
 
-func AddIsolatorValueConstructor(n ACName, i IsolatorValueConstructor) {
+func AddIsolatorValueConstructor(n ACIdentifier, i IsolatorValueConstructor) {
 	isolatorMap[n] = i
+}
+
+func AddIsolatorName(n ACIdentifier, ns map[ACIdentifier]struct{}) {
+	ns[n] = struct{}{}
 }
 
 type Isolators []Isolator
 
 // GetByName returns the last isolator in the list by the given name.
-func (is *Isolators) GetByName(name ACName) *Isolator {
+func (is *Isolators) GetByName(name ACIdentifier) *Isolator {
 	var i Isolator
 	for j := len(*is) - 1; j >= 0; j-- {
 		i = []Isolator(*is)[j]
@@ -50,7 +54,7 @@ type IsolatorValue interface {
 	AssertValid() error
 }
 type Isolator struct {
-	Name     ACName           `json:"name"`
+	Name     ACIdentifier     `json:"name"`
 	ValueRaw *json.RawMessage `json:"value"`
 	value    IsolatorValue
 }

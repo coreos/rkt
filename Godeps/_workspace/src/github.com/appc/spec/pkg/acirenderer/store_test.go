@@ -61,7 +61,7 @@ func (ts *TestStore) GetImageManifest(key string) (*schema.ImageManifest, error)
 	return aci.ImageManifest, nil
 
 }
-func (ts *TestStore) GetACI(name types.ACName, labels types.Labels) (string, error) {
+func (ts *TestStore) GetACI(name types.ACIdentifier, labels types.Labels) (string, error) {
 	for _, aci := range ts.acis {
 		if aci.ImageManifest.Name.String() == name.String() {
 			return aci.key, nil

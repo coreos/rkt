@@ -20,6 +20,18 @@ func TestLabels(t *testing.T) {
 			"",
 		},
 		{
+			`[{"name": "os", "value": "linux"}, {"name": "arch", "value": "arm64"}]`,
+			`bad arch "arm64" for linux`,
+		},
+		{
+			`[{"name": "os", "value": "linux"}, {"name": "arch", "value": "aarch64_be"}]`,
+			"",
+		},
+		{
+			`[{"name": "os", "value": "linux"}, {"name": "arch", "value": "arm64_be"}]`,
+			`bad arch "arm64_be" for linux`,
+		},
+		{
 			`[{"name": "os", "value": "linux"}, {"name": "arch", "value": "armv7l"}]`,
 			"",
 		},

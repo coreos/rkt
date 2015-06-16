@@ -10,6 +10,15 @@ import (
 	"testing"
 )
 
+// mockHttpGetter defines a wrapper that allows returning a mocked response.
+type mockHttpGetter struct {
+	getter func(url string) (resp *http.Response, err error)
+}
+
+func (m *mockHttpGetter) Get(url string) (resp *http.Response, err error) {
+	return m.getter(url)
+}
+
 func fakeHttpOrHttpsGet(filename string, httpSuccess bool, httpsSuccess bool, httpErrorCode int) func(uri string) (*http.Response, error) {
 	return func(uri string) (*http.Response, error) {
 		f, err := os.Open(filename)
@@ -108,7 +117,7 @@ func TestHttpsOrHTTP(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		httpGet = tt.get
+		httpGet = &mockHttpGetter{getter: tt.get}
 		urlStr, body, err := httpsOrHTTP(tt.name, tt.insecure)
 		if tt.expectSuccess {
 			if err != nil {

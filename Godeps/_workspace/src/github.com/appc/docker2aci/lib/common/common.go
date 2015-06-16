@@ -105,11 +105,11 @@ func GenerateManifest(layerData types.DockerImageData, dockerURL *types.ParsedDo
 		appURL = dockerURL.IndexURL + "/"
 	}
 	appURL += dockerURL.ImageName + "-" + layerData.ID
-	appURL, err := appctypes.SanitizeACName(appURL)
+	appURL, err := appctypes.SanitizeACIdentifier(appURL)
 	if err != nil {
 		return nil, err
 	}
-	name := appctypes.MustACName(appURL)
+	name := appctypes.MustACIdentifier(appURL)
 	genManifest.Name = *name
 
 	acVersion, err := appctypes.NewSemVer(schemaVersion)
@@ -126,35 +126,35 @@ func GenerateManifest(layerData types.DockerImageData, dockerURL *types.ParsedDo
 		annotations  appctypes.Annotations
 	)
 
-	layer := appctypes.MustACName("layer")
+	layer := appctypes.MustACIdentifier("layer")
 	labels = append(labels, appctypes.Label{Name: *layer, Value: layerData.ID})
 
 	tag := dockerURL.Tag
-	version := appctypes.MustACName("version")
+	version := appctypes.MustACIdentifier("version")
 	labels = append(labels, appctypes.Label{Name: *version, Value: tag})
 
 	if layerData.OS != "" {
-		os := appctypes.MustACName("os")
+		os := appctypes.MustACIdentifier("os")
 		labels = append(labels, appctypes.Label{Name: *os, Value: layerData.OS})
 		parentLabels = append(parentLabels, appctypes.Label{Name: *os, Value: layerData.OS})
 
 		if layerData.Architecture != "" {
-			arch := appctypes.MustACName("arch")
+			arch := appctypes.MustACIdentifier("arch")
 			parentLabels = append(parentLabels, appctypes.Label{Name: *arch, Value: layerData.Architecture})
 		}
 	}
 
 	if layerData.Author != "" {
-		authorsKey := appctypes.MustACName("authors")
+		authorsKey := appctypes.MustACIdentifier("authors")
 		annotations = append(annotations, appctypes.Annotation{Name: *authorsKey, Value: layerData.Author})
 	}
 	epoch := time.Unix(0, 0)
 	if !layerData.Created.Equal(epoch) {
-		createdKey := appctypes.MustACName("created")
+		createdKey := appctypes.MustACIdentifier("created")
 		annotations = append(annotations, appctypes.Annotation{Name: *createdKey, Value: layerData.Created.Format(time.RFC3339)})
 	}
 	if layerData.Comment != "" {
-		commentKey := appctypes.MustACName("docker/comment")
+		commentKey := appctypes.MustACIdentifier("docker-comment")
 		annotations = append(annotations, appctypes.Annotation{Name: *commentKey, Value: layerData.Comment})
 	}
 
@@ -193,14 +193,14 @@ func GenerateManifest(layerData types.DockerImageData, dockerURL *types.ParsedDo
 	}
 
 	if layerData.Parent != "" {
-		parentAppNameString := dockerURL.IndexURL + "/" + dockerURL.ImageName + "-" + layerData.Parent
-		parentAppNameString, err := appctypes.SanitizeACName(parentAppNameString)
+		parentImageNameString := dockerURL.IndexURL + "/" + dockerURL.ImageName + "-" + layerData.Parent
+		parentImageNameString, err := appctypes.SanitizeACIdentifier(parentImageNameString)
 		if err != nil {
 			return nil, err
 		}
-		parentAppName := appctypes.MustACName(parentAppNameString)
+		parentImageName := appctypes.MustACIdentifier(parentImageNameString)
 
-		genManifest.Dependencies = append(genManifest.Dependencies, appctypes.Dependency{App: *parentAppName, Labels: parentLabels})
+		genManifest.Dependencies = append(genManifest.Dependencies, appctypes.Dependency{ImageName: *parentImageName, Labels: parentLabels})
 	}
 
 	return genManifest, nil
@@ -247,8 +247,13 @@ func parseDockerPort(dockerPort string) (*appctypes.Port, error) {
 		return nil, fmt.Errorf("error parsing port %q: %v", portString, err)
 	}
 
+	sn, err := appctypes.SanitizeACName(dockerPort)
+	if err != nil {
+		return nil, err
+	}
+
 	appcPort := &appctypes.Port{
-		Name:     *appctypes.MustACName(dockerPort),
+		Name:     *appctypes.MustACName(sn),
 		Protocol: proto,
 		Port:     uint(port),
 	}
@@ -261,7 +266,7 @@ func convertVolumesToMPs(dockerVolumes map[string]struct{}) ([]appctypes.MountPo
 	dup := make(map[string]int)
 
 	for p := range dockerVolumes {
-		n := filepath.Join("volume-", p)
+		n := filepath.Join("volume", p)
 		sn, err := appctypes.SanitizeACName(n)
 		if err != nil {
 			return nil, err

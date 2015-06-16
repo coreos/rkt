@@ -14,10 +14,19 @@ const (
 )
 
 var (
-	// httpGet is the function used by discovery to retrieve URLs; it is
+	// Client is the default http.Client used for discovery requests.
+	Client *http.Client
+
+	// httpGet is the internal object used by discovery to retrieve URLs; it is
 	// defined here so it can be overridden for testing
-	httpGet func(url string) (resp *http.Response, err error)
+	httpGet httpGetter
 )
+
+// httpGetter is an interface used to wrap http.Client for real requests and
+// allow easy mocking in local tests.
+type httpGetter interface {
+	Get(url string) (resp *http.Response, err error)
+}
 
 func init() {
 	t := &http.Transport{
@@ -26,10 +35,10 @@ func init() {
 			return net.DialTimeout(n, a, defaultDialTimeout)
 		},
 	}
-	c := &http.Client{
+	Client = &http.Client{
 		Transport: t,
 	}
-	httpGet = c.Get
+	httpGet = Client
 }
 
 func httpsOrHTTP(name string, insecure bool) (urlStr string, body io.ReadCloser, err error) {
@@ -40,7 +49,7 @@ func httpsOrHTTP(name string, insecure bool) (urlStr string, body io.ReadCloser,
 		}
 		u.RawQuery = "ac-discovery=1"
 		urlStr = u.String()
-		res, err = httpGet(urlStr)
+		res, err = httpGet.Get(urlStr)
 		return
 	}
 	closeBody := func(res *http.Response) {

@@ -342,17 +342,12 @@ func (p *Pod) writeEnvFile(env types.Environment, id types.Hash) error {
 // PodToSystemd creates the appropriate systemd service unit files for
 // all the constituent apps of the Pod
 func (p *Pod) PodToSystemd(interactive bool) error {
-	for _, am := range p.Apps {
-		ra := p.Manifest.Apps.Get(am.Name)
-		if ra == nil {
-			// should never happen
-			panic("app not found in pod manifest")
-		}
+	for i := range p.Manifest.Apps {
+		ra := &p.Manifest.Apps[i]
 		if err := p.appToSystemd(ra, interactive); err != nil {
-			return fmt.Errorf("failed to transform app %q into systemd service: %v", am.Name, err)
+			return fmt.Errorf("failed to transform app %q into systemd service: %v", ra.Name, err)
 		}
 	}
-
 	return nil
 }
 
@@ -439,12 +434,8 @@ func (p *Pod) PodToNspawnArgs() ([]string, error) {
 		"--directory=" + common.Stage1RootfsPath(p.Root),
 	}
 
-	for _, am := range p.Apps {
-		ra := p.Manifest.Apps.Get(am.Name)
-		if ra == nil {
-			panic("could not find app in pod manifest!")
-		}
-		aa, err := p.appToNspawnArgs(ra)
+	for i := range p.Manifest.Apps {
+		aa, err := p.appToNspawnArgs(&p.Manifest.Apps[i])
 		if err != nil {
 			return nil, err
 		}

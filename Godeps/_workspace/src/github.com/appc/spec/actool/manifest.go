@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -31,6 +32,8 @@ var (
 	patchGroup        string
 	patchCaps         string
 	patchMounts       string
+	patchPorts        string
+	patchIsolators    string
 
 	catPrettyPrint bool
 
@@ -45,6 +48,8 @@ var (
 		  [--user=uid] [--group=gid]
 		  [--capability=CAP_SYS_ADMIN,CAP_NET_ADMIN]
 		  [--mounts=work,path=/opt,readOnly=true[:work2,...]]
+		  [--ports=query,protocol=tcp,port=8080[:query2,...]]
+		  [--isolators=resource/cpu,request=50,limit=100[:resource/memory,...]]
 		  [--replace]
 		  INPUT_ACI_FILE
 		  [OUTPUT_ACI_FILE]`,
@@ -71,6 +76,8 @@ func init() {
 	cmdPatchManifest.Flags.StringVar(&patchGroup, "group", "", "Replace group")
 	cmdPatchManifest.Flags.StringVar(&patchCaps, "capability", "", "Replace capability")
 	cmdPatchManifest.Flags.StringVar(&patchMounts, "mounts", "", "Replace mount points")
+	cmdPatchManifest.Flags.StringVar(&patchPorts, "ports", "", "Replace ports")
+	cmdPatchManifest.Flags.StringVar(&patchIsolators, "isolators", "", "Replace isolators")
 
 	cmdCatManifest.Flags.BoolVar(&catPrettyPrint, "pretty-print", false, "Print with better style")
 }
@@ -83,10 +90,41 @@ func getIsolatorStr(name, value string) string {
                 }`, name, value)
 }
 
+func isolatorStrFromString(is string) (types.ACIdentifier, string, error) {
+	is = "name=" + is
+	v, err := url.ParseQuery(strings.Replace(is, ",", "&", -1))
+	if err != nil {
+		return "", "", err
+	}
+
+	var name string
+	var values []string
+	var acn *types.ACIdentifier
+
+	for key, val := range v {
+		if len(val) > 1 {
+			return "", "", fmt.Errorf("label %s with multiple values %q", key, val)
+		}
+
+		switch key {
+		case "name":
+			acn, err = types.NewACIdentifier(val[0])
+			if err != nil {
+				return "", "", err
+			}
+			name = val[0]
+		default:
+			// (TODO)yifan: Not support the default boolean yet.
+			values = append(values, fmt.Sprintf(`"%s": "%s"`, key, val[0]))
+		}
+	}
+	return *acn, getIsolatorStr(name, strings.Join(values, ", ")), nil
+}
+
 func patchManifest(im *schema.ImageManifest) error {
 
 	if patchName != "" {
-		name, err := types.NewACName(patchName)
+		name, err := types.NewACIdentifier(patchName)
 		if err != nil {
 			return err
 		}
@@ -104,11 +142,15 @@ func patchManifest(im *schema.ImageManifest) error {
 		im.App.Group = patchGroup
 	}
 
-	if patchCaps != "" {
-		app := im.App
+	var app *types.App
+	if patchCaps != "" || patchMounts != "" || patchPorts != "" || patchIsolators != "" {
+		app = im.App
 		if app == nil {
 			return fmt.Errorf("no app in the manifest")
 		}
+	}
+
+	if patchCaps != "" {
 		isolator := app.Isolators.GetByName(types.LinuxCapabilitiesRetainSetName)
 		if isolator != nil {
 			return fmt.Errorf("isolator already exists")
@@ -126,23 +168,50 @@ func patchManifest(im *schema.ImageManifest) error {
 		isolator = &types.Isolator{}
 		err := isolator.UnmarshalJSON([]byte(isolatorStr))
 		if err != nil {
-			return err
+			return fmt.Errorf("cannot parse capability %q: %v", patchCaps, err)
 		}
 		app.Isolators = append(app.Isolators, *isolator)
 	}
 
 	if patchMounts != "" {
-		app := im.App
-		if app == nil {
-			return fmt.Errorf("no app in the manifest")
-		}
 		mounts := strings.Split(patchMounts, ":")
 		for _, m := range mounts {
 			mountPoint, err := types.MountPointFromString(m)
 			if err != nil {
-				return fmt.Errorf("cannot parse mount point %q", m)
+				return fmt.Errorf("cannot parse mount point %q: %v", m, err)
 			}
 			app.MountPoints = append(app.MountPoints, *mountPoint)
+		}
+	}
+
+	if patchPorts != "" {
+		ports := strings.Split(patchPorts, ":")
+		for _, p := range ports {
+			port, err := types.PortFromString(p)
+			if err != nil {
+				return fmt.Errorf("cannot parse port %q: %v", p, err)
+			}
+			app.Ports = append(app.Ports, *port)
+		}
+	}
+
+	if patchIsolators != "" {
+		isolators := strings.Split(patchIsolators, ":")
+		for _, is := range isolators {
+			name, isolatorStr, err := isolatorStrFromString(is)
+			if err != nil {
+				return fmt.Errorf("cannot parse isolator %q: %v", is, err)
+			}
+
+			if _, ok := types.ResourceIsolatorNames[name]; !ok {
+				return fmt.Errorf("isolator %s is not supported for patching", name)
+			}
+
+			isolator := &types.Isolator{}
+			if err := isolator.UnmarshalJSON([]byte(isolatorStr)); err != nil {
+				return fmt.Errorf("cannot unmarshal isolator %v: %v", isolatorStr, err)
+			}
+			app.Isolators = append(app.Isolators, *isolator)
 		}
 	}
 	return nil

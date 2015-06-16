@@ -11,6 +11,8 @@ var (
 	ErrDefaultTrue     = errors.New("default must be false")
 	ErrDefaultRequired = errors.New("default must be true")
 	ErrRequestNonEmpty = errors.New("request not supported by this resource, must be empty")
+
+	ResourceIsolatorNames = make(map[ACIdentifier]struct{})
 )
 
 const (
@@ -22,6 +24,12 @@ const (
 )
 
 func init() {
+	AddIsolatorName(ResourceBlockBandwidthName, ResourceIsolatorNames)
+	AddIsolatorName(ResourceBlockIOPSName, ResourceIsolatorNames)
+	AddIsolatorName(ResourceCPUName, ResourceIsolatorNames)
+	AddIsolatorName(ResourceMemoryName, ResourceIsolatorNames)
+	AddIsolatorName(ResourceNetworkBandwidthName, ResourceIsolatorNames)
+
 	AddIsolatorValueConstructor(ResourceBlockBandwidthName, NewResourceBlockBandwidth)
 	AddIsolatorValueConstructor(ResourceBlockIOPSName, NewResourceBlockIOPS)
 	AddIsolatorValueConstructor(ResourceCPUName, NewResourceCPU)
