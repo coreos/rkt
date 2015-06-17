@@ -39,8 +39,8 @@ a pod manifest compliant with the ACE spec will be generated, and the filesystem
 /stage1/manifest
 /stage1/rootfs/init
 /stage1/rootfs/opt
-/stage1/rootfs/opt/stage2/sha512-648db489d57363b29f1597d4312b2129
-/stage1/rootfs/opt/stage2/sha512-0c45e8c0ab2b3cdb9ec6649073d5c6c4
+/stage1/rootfs/opt/stage2/0
+/stage1/rootfs/opt/stage2/1
 ```
 
 where:
