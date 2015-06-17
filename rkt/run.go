@@ -189,7 +189,7 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		pcfg.Apps = &rktApps
 	}
 
-	err = stage0.Prepare(pcfg, p.path(), p.uuid)
+	pm, err := stage0.Prepare(pcfg, p.path(), p.uuid)
 	if err != nil {
 		stderr("run: error setting up stage0: %v", err)
 		return 1
@@ -214,17 +214,10 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		LockFd:       lfd,
 		Interactive:  flagInteractive,
 	}
-
-	if len(flagPodManifest) > 0 {
-		imgs, err := p.getAppsHashes()
-		if err != nil {
-			stderr("run: cannot get the image hashes in the pod manifest: %v", err)
-			return 1
-		}
-		rcfg.Images = imgs
-	} else {
-		rcfg.Images = rktApps.GetImageIDs()
+	for i := range pm.Apps {
+		rcfg.Images = append(rcfg.Images, pm.Apps[i].Image.ID)
 	}
+
 	stage0.Run(rcfg, p.path()) // execs, never returns
 
 	return 1
