@@ -20,8 +20,10 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"text/tabwriter"
 
 	"github.com/coreos/rkt/common"
@@ -105,9 +107,19 @@ func main() {
 	}
 
 	if cmd == nil {
-		stderr("%v: unknown subcommand: %q", cliName, args[0])
-		stderr("Run '%v help' for usage.", cliName)
-		os.Exit(2)
+		subCommand := "rkt-" + args[0]
+		path, err := exec.LookPath(subCommand)
+		if err != nil {
+			stderr("%v: unknown subcommand: %q", cliName, args[0])
+			stderr("Run '%v help' for usage.", cliName)
+			os.Exit(2)
+		}
+
+		if err := syscall.Exec(path, args, os.Environ()); err != nil {
+			stderr("sub-command failure: %s: %v", subCommand, err)
+			os.Exit(-1)
+		}
+		// exec does not return on success
 	}
 
 	if !globalFlags.Debug {
