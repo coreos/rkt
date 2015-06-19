@@ -938,6 +938,15 @@ func (p *pod) getExitStatuses() (map[string]int, error) {
 		return nil, fmt.Errorf("unable to read status directory: %v", err)
 	}
 
+	pm := schema.PodManifest{}
+	podManifile, err := p.readFile(common.PodManifestPath(""))
+	if err != nil {
+		return nil, fmt.Errorf("unable to read pod manifest: %v", err)
+	}
+	if err := pm.UnmarshalJSON(podManifile); err != nil {
+		return nil, fmt.Errorf("unable to load pod manifest: %v", err)
+	}
+
 	stats := make(map[string]int)
 	for _, name := range ls {
 		s, err := p.readIntFromFile(filepath.Join(statusDir, name))
@@ -945,7 +954,12 @@ func (p *pod) getExitStatuses() (map[string]int, error) {
 			stderr("Unable to get status of app %q: %v", name, err)
 			continue
 		}
-		stats[name] = s
+		index, err := strconv.Atoi(name)
+		if err != nil {
+			stderr("Invalid status file name: %q, should be an integer", name)
+			continue
+		}
+		stats[pm.Apps[index].Name.String()] = s
 	}
 	return stats, nil
 }
