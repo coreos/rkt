@@ -86,10 +86,6 @@ func LoadPod(root string, uuid *types.UUID) (*Pod, error) {
 		if err = json.Unmarshal(buf, am); err != nil {
 			return nil, fmt.Errorf("failed unmarshalling app manifest %q: %v", ampath, err)
 		}
-		name := am.Name.String()
-		if _, ok := p.Apps[name]; ok {
-			return nil, fmt.Errorf("got multiple definitions for app: %s", name)
-		}
 		if app.App == nil {
 			p.Manifest.Apps[i].App = am.App
 		}
