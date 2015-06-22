@@ -27,7 +27,7 @@ case "${RKT_STAGE1_USR_FROM}" in
 		;;
 	src)
 		export RKT_STAGE1_SYSTEMD_SRC="${RKT_STAGE1_SYSTEMD_SRC:-https://github.com/systemd/systemd.git}"
-		export RKT_STAGE1_SYSTEMD_VER="${RKT_STAGE1_SYSTEMD_VER:-v220}"
+		export RKT_STAGE1_SYSTEMD_VER="${RKT_STAGE1_SYSTEMD_VER:-v221}"
 		echo "stage1 will be built from sources: $RKT_STAGE1_SYSTEMD_SRC $RKT_STAGE1_SYSTEMD_VER"
 		;;
 	*)

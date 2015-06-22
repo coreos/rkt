@@ -704,6 +704,8 @@ func systemdSupportsJournalLinking(version string) bool {
 		fallthrough
 	case version == "v220":
 		fallthrough
+	case version == "v221":
+		fallthrough
 	case version == "master":
 		return true
 	default:
