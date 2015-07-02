@@ -152,6 +152,7 @@ Docker images do not support signature verification.
 ## Running Pods
 
 rkt can run ACIs based on name, hash, local file on disk or URL. If an ACI hasn't been cached on disk, rkt will attempt to find and download it.
+Prior to running pods, ensure that the [metadata service](https://github.com/coreos/rkt/blob/master/Documentation/metadata-service.md) is running.
 
 ### rkt run
 
@@ -290,15 +291,26 @@ sudo ./rkt run --volume=work,kind=host,source=/opt/tenant1/work \
 
 Now when the pod is running, the two apps will see the host's `/opt/tenant1/work` directory made available at their expected locations.
 
+#### Disabling metadata service registration
+
+By default, `rkt run` will register the pod with the [metadata service](https://github.com/coreos/rkt/blob/master/Documentation/metadata-service.md).
+If the metadata service is not running, it is possible to disable this behavior with `--register-mds=false` command line option.
+
 #### Customize Networking
 
-The default networking configuration for rkt is "host networking". This means that the apps within the pod will share the network stack and the interfaces with the host machine. Since the metadata service uses the pod IP for identity, rkt will not register the pod with the metadata service in this mode.
+The default networking configuration for rkt is "host networking".
+This means that the apps within the pod will share the network stack and the interfaces with the host machine.
 
 ##### Private Networking
 
-Another common configuration, "private networking", means the pod will be executed with its own network stack. This is similar to how other container tools work. The [metadata service](metadata-service.md) (launched via `rkt metadata-service`) must be running to use private networking.
+Another common configuration, "private networking", means the pod will be executed with its own network stack.
+This is similar to how other container tools work.
 
-By default, rkt private networking will create a loopback device and a veth device. The veth pair creates a point-to-point link between the pod and the host. rkt will allocate an IPv4 /31 (2 IP addresses) out of 172.16.28.0/24 and assign one IP to each end of the veth pair. It will additionally set a route for metadata service (169.254.169.255/32) and default route in the pod namespace. Finally, it will enable IP masquerading on the host to NAT the egress traffic.
+By default, rkt private networking will create a loopback device and a veth device.
+The veth pair creates a point-to-point link between the pod and the host.
+rkt will allocate an IPv4 /31 (2 IP addresses) out of 172.16.28.0/24 and assign one IP to each end of the veth pair.
+It will additionally set a default route in the pod namespace.
+Finally, it will enable IP masquerading on the host to NAT the egress traffic.
 
 ```
 sudo ./rkt run --private-net coreos.com/etcd:v2.0.0

@@ -18,6 +18,7 @@ package stage0
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -29,6 +30,13 @@ import (
 // /gc can expect to have its CWD set to the pod root.
 // stage1Path is the path of the stage1 rootfs
 func GC(pdir string, uuid *types.UUID, stage1Path string, debug bool) error {
+	err := unregisterPod(uuid)
+	if err != nil {
+		// We can't be sure if pod was registered or even if MDS is running.
+		// Therefore all we can do is log a warning
+		log.Printf("Warning: could not unregister pod with metadata service: %v", err)
+	}
+
 	ep, err := getStage1Entrypoint(pdir, gcEntrypoint)
 	if err != nil {
 		return fmt.Errorf("error determining gc entrypoint: %v", err)

@@ -44,8 +44,9 @@ The resolved entrypoint must inform rkt of its PID for the benefit of `rkt enter
 2. Writing to "/var/lib/rkt/pods/$uuid/ppid" the PID of the parent of the process that is PID 1 in the container. This assumes it has only one child.
 
 #### Arguments
-* --debug to activate debugging
-* --private-net to trigger the creation of a private network
+* `--debug` to activate debugging
+* `--private-net` to trigger the creation of a private network
+* `--mds-token=$TOKEN` passes the auth token to the apps via `AC_METADATA_URL` env var
 
 
 ### `rkt enter` => "coreos.com/rkt/stage1/enter"
