@@ -9,6 +9,13 @@ TST_GOFMT_DIRS := $(foreach d,$(TST_DIRS_WITH_GOFILES),./$d)
 TST_GO_VET_PACKAGES := $(foreach d,$(TST_DIRS_WITH_GOFILES),$(REPO_PATH)/$d)
 TST_GO_TEST_PACKAGES := $(foreach d,$(TST_DIRS_WITH_TESTGOFILES),$(REPO_PATH)/$d)
 
+# Workaround for https://github.com/golang/go/issues/6820
+# Disable go vet on Semaphore for store/store_test.go
+# TODO: remove this when Semaphore updates their go installation
+ifeq ($(SEMAPHORE),true)
+TST_GO_VET_PACKAGES := $(subst github.com/coreos/rkt/store,,$(TST_GO_VET_PACKAGES))
+endif
+
 $(TST_SHORT_TESTS_STAMP): TST_GOFMT_DIRS := $(TST_GOFMT_DIRS)
 $(TST_SHORT_TESTS_STAMP): TST_GO_VET_PACKAGES := $(TST_GO_VET_PACKAGES)
 $(TST_SHORT_TESTS_STAMP): TST_GO_TEST_PACKAGES := $(TST_GO_TEST_PACKAGES)
