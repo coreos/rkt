@@ -2,7 +2,6 @@
 
 set -e
 
-oldpwd=$(pwd)
 topdir=$(dirname $0)
 cd $topdir
 
