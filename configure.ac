@@ -150,7 +150,22 @@ AC_PROG_INSTALL
 RKT_REQ_PROG([GIT],[git],[git])
 RKT_REQ_PROG([GOBINARY],[go],[go])
 RKT_REQ_PROG([GOFMTBINARY],[gofmt],[gofmt])
+
+
+# Checks for perl and its modules
 RKT_REQ_PROG([PERL], [perl], [perl])
+AS_VAR_IF([PERL], [perl],
+	[for module in Capture::Tiny; do
+		have_perl_module=no
+		AC_MSG_CHECKING([for Perl $module module])
+		AS_IF([perl -e "use $module" 2>/dev/null],
+			[have_perl_module=yes])
+		AC_MSG_RESULT([$have_perl_module])
+		AS_IF([test "$have_perl_module" != "yes"],
+			AC_MSG_ERROR([*** perl module '$module' not found]))
+	done]
+)
+
 
 AC_CONFIG_FILES([makelib/variables.mk])
 AC_OUTPUT
