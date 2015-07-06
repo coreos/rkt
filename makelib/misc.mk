@@ -55,6 +55,8 @@ endef
 # 1 - test packages
 # 2 - go list format item
 # 3 - excluded directories
+# Note: sed on _TST_ESCAPED_REPO_PATH_ requires that the rkt sources are
+#       installed in a directory ending with github.com/coreos/rkt.
 define go-find-directories-unstripped
 $(eval _TST_ESCAPED_REPO_PATH_ := $(REPO_PATH)) \
 $(eval _TST_ESCAPED_REPO_PATH_ := $(subst .,\.,$(_TST_ESCAPED_REPO_PATH_))) \
