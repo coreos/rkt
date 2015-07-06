@@ -11,7 +11,6 @@ if [ "${CI-}" == true ] ; then
 		# they should be removed from here to save time.
 
 		sudo apt-get update -qq || true
-		sudo apt-get install -y libseccomp-dev libseccomp2 # systemd deps
 		sudo apt-get install -y libcapture-tiny-perl # used by tools/
 	fi
 
