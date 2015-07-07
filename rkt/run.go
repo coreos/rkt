@@ -221,11 +221,12 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 	}
 
 	rcfg := stage0.RunConfig{
-		CommonConfig: cfg,
-		PrivateNet:   flagPrivateNet,
-		LockFd:       lfd,
-		Interactive:  flagInteractive,
-		MDSRegister:  flagMDSRegister,
+		CommonConfig:        cfg,
+		PrivateNet:          flagPrivateNet,
+		LockFd:              lfd,
+		Interactive:         flagInteractive,
+		MDSRegister:         flagMDSRegister,
+		MDSRegisterSockPath: filepath.Join(globalFlags.RunDir, common.MetadataServiceRegSock),
 	}
 
 	imgs, err := p.getApps()

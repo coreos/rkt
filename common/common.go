@@ -39,7 +39,7 @@ const (
 	OverlayPreparedFilename = "overlay-prepared"
 
 	MetadataServicePort    = 2375
-	MetadataServiceRegSock = "/run/rkt/metadata-svc.sock"
+	MetadataServiceRegSock = "metadata-svc.sock"
 
 	DefaultLocalConfigDir  = "/etc/rkt"
 	DefaultSystemConfigDir = "/usr/lib/rkt"

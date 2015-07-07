@@ -23,14 +23,16 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/coreos/rkt/common"
+
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 )
 
 // GC enters the pod by fork/exec()ing the stage1's /gc similar to /init.
 // /gc can expect to have its CWD set to the pod root.
 // stage1Path is the path of the stage1 rootfs
-func GC(pdir string, uuid *types.UUID, stage1Path string, debug bool) error {
-	err := unregisterPod(uuid)
+func GC(runDir, pdir string, uuid *types.UUID, stage1Path string, debug bool) error {
+	err := unregisterPod(filepath.Join(runDir, common.MetadataServiceRegSock), uuid)
 	if err != nil {
 		// We can't be sure if pod was registered or even if MDS is running.
 		// Therefore all we can do is log a warning

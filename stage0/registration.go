@@ -45,7 +45,7 @@ see https://github.com/coreos/rkt/blob/master/Documentation/metadata-service.md`
 
 // registerPod registers pod with metadata service.
 // Returns authentication token to be passed in the URL
-func registerPod(root string, uuid *types.UUID, apps schema.AppList) (token string, rerr error) {
+func registerPod(sockPath, root string, uuid *types.UUID, apps schema.AppList) (token string, rerr error) {
 	u := uuid.String()
 
 	var err error
@@ -63,7 +63,7 @@ func registerPod(root string, uuid *types.UUID, apps schema.AppList) (token stri
 	}
 
 	pth := fmt.Sprintf("/pods/%v?token=%v", u, token)
-	err = httpRequest("PUT", pth, pmf)
+	err = httpRequest(sockPath, "PUT", pth, pmf)
 	pmf.Close()
 	if err != nil {
 		rerr = fmt.Errorf("failed to register pod with metadata svc: %v", err)
@@ -72,7 +72,7 @@ func registerPod(root string, uuid *types.UUID, apps schema.AppList) (token stri
 
 	defer func() {
 		if rerr != nil {
-			unregisterPod(uuid)
+			unregisterPod(sockPath, uuid)
 		}
 	}()
 
@@ -84,7 +84,7 @@ func registerPod(root string, uuid *types.UUID, apps schema.AppList) (token stri
 			return
 		}
 
-		err = registerApp(u, app.Name.String(), amf)
+		err = registerApp(sockPath, u, app.Name.String(), amf)
 		amf.Close()
 		if err != nil {
 			rerr = fmt.Errorf("failed to register app with metadata svc: %v", err)
@@ -96,9 +96,9 @@ func registerPod(root string, uuid *types.UUID, apps schema.AppList) (token stri
 }
 
 // unregisterPod unregisters pod with the metadata service.
-func unregisterPod(uuid *types.UUID) error {
+func unregisterPod(sockPath string, uuid *types.UUID) error {
 	pth := path.Join("/pods", uuid.String())
-	return httpRequest("DELETE", pth, nil)
+	return httpRequest(sockPath, "DELETE", pth, nil)
 }
 
 func generateMDSToken() (string, error) {
@@ -110,17 +110,17 @@ func generateMDSToken() (string, error) {
 	return fmt.Sprintf("%x", bytes), nil
 }
 
-func registerApp(uuid, app string, r io.Reader) error {
+func registerApp(sockPath, uuid, app string, r io.Reader) error {
 	pth := path.Join("/pods", uuid, app)
-	return httpRequest("PUT", pth, r)
+	return httpRequest(sockPath, "PUT", pth, r)
 }
 
-func httpRequest(method, pth string, body io.Reader) error {
+func httpRequest(sockPath, method, pth string, body io.Reader) error {
 	uri := "http://unixsock" + pth
 
 	t := &http.Transport{
 		Dial: func(_, _ string) (net.Conn, error) {
-			return net.Dial("unix", common.MetadataServiceRegSock)
+			return net.Dial("unix", sockPath)
 		},
 	}
 

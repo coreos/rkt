@@ -64,11 +64,12 @@ type PrepareConfig struct {
 // configuration parameters needed by Run
 type RunConfig struct {
 	CommonConfig
-	PrivateNet  common.PrivateNetList // pod should have its own network stack
-	LockFd      int                   // lock file descriptor
-	Interactive bool                  // whether the pod is interactive or not
-	MDSRegister bool                  // whether to register with metadata service or not
-	Images      schema.AppList        // application images (prepare gets them via Apps)
+	PrivateNet          common.PrivateNetList // pod should have its own network stack
+	LockFd              int                   // lock file descriptor
+	Interactive         bool                  // whether the pod is interactive or not
+	MDSRegister         bool                  // whether to register with metadata service or not
+	MDSRegisterSockPath string                // whether to register with metadata service or not
+	Images              schema.AppList        // application images (prepare gets them via Apps)
 }
 
 // configuration shared by both Run and Prepare
@@ -338,7 +339,7 @@ func Run(cfg RunConfig, dir string) {
 		args = append(args, "--interactive")
 	}
 	if cfg.MDSRegister {
-		mdsToken, err := registerPod(".", cfg.UUID, cfg.Images)
+		mdsToken, err := registerPod(cfg.MDSRegisterSockPath, ".", cfg.UUID, cfg.Images)
 		if err != nil {
 			log.Fatalf("failed to register the pod: %v", err)
 		}

@@ -582,15 +582,14 @@ func unixListener() (net.Listener, error) {
 
 		return net.FileListener(os.NewFile(uintptr(listenFdsStart), "listen"))
 	} else {
-		dir := filepath.Dir(common.MetadataServiceRegSock)
-		err := os.MkdirAll(dir, 0755)
+		err := os.MkdirAll(globalFlags.RunDir, 0755)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to create %v: %v", dir, err)
+			return nil, fmt.Errorf("Failed to create %v: %v", globalFlags.RunDir, err)
 		}
 
 		return net.ListenUnix("unix", &net.UnixAddr{
 			Net:  "unix",
-			Name: common.MetadataServiceRegSock,
+			Name: filepath.Join(globalFlags.RunDir, common.MetadataServiceRegSock),
 		})
 	}
 }
