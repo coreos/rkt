@@ -37,7 +37,7 @@ var memoryTest = struct {
 }{
 	`Check memory isolator`,
 	[]string{"--exec=/inspect --print-memorylimit"},
-	`--insecure-skip-verify run rkt-inspect-isolators.aci`,
+	`--insecure-skip-verify run ./rkt-inspect-isolators.aci`,
 }
 
 var cpuTest = struct {
@@ -47,7 +47,7 @@ var cpuTest = struct {
 }{
 	`Check CPU quota`,
 	[]string{"--exec=/inspect --print-cpuquota"},
-	`--insecure-skip-verify run rkt-inspect-isolators.aci`,
+	`--insecure-skip-verify run ./rkt-inspect-isolators.aci`,
 }
 
 func TestAppIsolatorMemory(t *testing.T) {
