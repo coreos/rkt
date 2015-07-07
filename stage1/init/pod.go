@@ -450,7 +450,7 @@ func (p *Pod) getFlavor() (flavor string, systemdVersion string, err error) {
 		return "", "", fmt.Errorf("unable to determine stage1 flavor: %v", err)
 	}
 
-	if flavor == "usr-from-host" {
+	if flavor == "host" {
 		// This flavor does not contain systemd, so don't return systemdVersion
 		return flavor, "", nil
 	}

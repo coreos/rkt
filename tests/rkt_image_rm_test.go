@@ -30,20 +30,19 @@ const (
 
 	unreferencedACI = "rkt-unreferencedACI.aci"
 	unreferencedApp = "coreos.com/rkt-unreferenced.aci"
-	referencedACI   = "rkt-inspect.aci"
 	referencedApp   = "coreos.com/rkt-inspect"
 
 	stage1App = "coreos.com/rkt/stage1"
 )
 
 func TestImageRm(t *testing.T) {
-	patchTestACI(unreferencedACI, fmt.Sprintf("--name=%s", unreferencedApp))
-	defer os.Remove(unreferencedACI)
+	imageFile := patchTestACI(unreferencedACI, fmt.Sprintf("--name=%s", unreferencedApp))
+	defer os.Remove(imageFile)
 	ctx := newRktRunCtx()
 	defer ctx.cleanup()
 
-	cmd := fmt.Sprintf("%s --insecure-skip-verify fetch %s", ctx.cmd(), unreferencedACI)
-	t.Logf("Fetching %s: %v", unreferencedACI, cmd)
+	cmd := fmt.Sprintf("%s --insecure-skip-verify fetch %s", ctx.cmd(), imageFile)
+	t.Logf("Fetching %s: %v", imageFile, cmd)
 	child, err := gexpect.Spawn(cmd)
 	if err != nil {
 		t.Fatalf("Cannot exec: %v", err)
@@ -52,6 +51,8 @@ func TestImageRm(t *testing.T) {
 		t.Fatalf("rkt didn't terminate correctly: %v", err)
 	}
 
+	// at this point we know that RKT_INSPECT_IMAGE env var is not empty
+	referencedACI := os.Getenv("RKT_INSPECT_IMAGE")
 	cmd = fmt.Sprintf("%s --insecure-skip-verify run %s", ctx.cmd(), referencedACI)
 	t.Logf("Running %s: %v", referencedACI, cmd)
 	child, err = gexpect.Spawn(cmd)

@@ -269,7 +269,7 @@ func getArgsEnv(p *Pod, flavor string, systemdStage1Version string, debug bool) 
 			args = append(args, fmt.Sprintf("--register=false"))
 		}
 
-	case "usr-from-host":
+	case "host":
 		hostNspawnBin, err := lookupPath("systemd-nspawn", os.Getenv("PATH"))
 		if err != nil {
 			return nil, nil, err

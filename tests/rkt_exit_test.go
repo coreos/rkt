@@ -25,17 +25,19 @@ import (
 func TestExitCode(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		t.Logf("%d\n", i)
-		patchTestACI("rkt-inspect-exit.aci", fmt.Sprintf("--exec=/inspect --print-msg=Hello --exit-code=%d", i))
-		defer os.Remove("rkt-inspect-exit.aci")
+		imageFile := patchTestACI("rkt-inspect-exit.aci", fmt.Sprintf("--exec=/inspect --print-msg=Hello --exit-code=%d", i))
+		defer os.Remove(imageFile)
 		ctx := newRktRunCtx()
 		defer ctx.cleanup()
 
 		cmd := fmt.Sprintf(`/bin/sh -c "`+
-			`%s --debug --insecure-skip-verify run ./rkt-inspect-exit.aci ;`+
+			`%s --debug --insecure-skip-verify run %s ;`+
 			`UUID=$(%s list --full|grep exited|awk '{print $1}') ;`+
 			`echo -n 'status=' ;`+
 			`%s status $UUID|grep '^sha512-.*=[0-9]*$'|cut -d= -f2"`,
-			ctx.cmd(), ctx.cmd(), ctx.cmd())
+			ctx.cmd(), imageFile,
+			ctx.cmd(),
+			ctx.cmd())
 		t.Logf("%s\n", cmd)
 		child, err := gexpect.Spawn(cmd)
 		if err != nil {

@@ -1,0 +1,67 @@
+- add proper dependencies on mk files
+  usually each file produced by some mk file should depend on it
+
+- documentation
+  add comments to functions, describe parameters
+  comment trickier parts of bs
+  add a high-level document in Documentation directory about build system
+
+- make install
+  need to think about proper linker flags for finding stage1.aci inside /usr/lib/rkt
+
+- make clean
+  maybe it works, maybe not, but it for sure doesn't work if I remove recursive flags from rm or rmdir
+
+- check stuff in configure:
+  - ln -s (general)
+  - readlink (general)
+  - unsquashfs (coreos)
+  - gzip (coreos)
+  - cpio (coreos)
+  - cat
+  - cmp
+  - rm
+  - mv
+  - sort
+  - file
+  - more?
+
+- split usr_from_coreos.mk
+  into mkbase.mk and maybe others
+
+- rewrite deps gen in go? less dependencies.
+
+- add verbosity feature
+  make V=0 would print only errors
+  make V=1 would print only some shortened messages (CCLD diagexec, GO init)
+  make V=2 would print all shortened messages (MKDIR foo, LN bar)
+  make V=3 would print everything, raw
+  other options: V=silent, V=info?, V=all, V=raw
+
+- add checks for perl version and used modules (Capture::Tiny).
+  if deps generation is rewritten then this point is obsolete
+
+- replace flavor dangling symlinks with one line files
+  dangling symlinks are potentially confusing for make
+
+- check if dep generation of a program can be done in parallel with its compilation
+
+- put looking for testable, formattable or vettable files inside rule,
+  so it will be computed when the rule is executed, not everytime
+  Makefile is parsed.
+
+- write a key-value deps gen
+  will be used to invalidate a rule when building something with different flags
+
+- check if we really cannot copy some variables (git grep deliberat)
+
+- move variables.mk.in to toplevel
+
+- make sure that we clear all the temporary variables
+
+- rename tools directory inside build-dir to something like artifacts-dir
+
+- fix make check so it can run short tests without requiring building stage1
+  currently, as a workaround, we can configure a project with --with-stage1=none
+
+- bail out configure when stage1 is none but we tried to enable functional tests

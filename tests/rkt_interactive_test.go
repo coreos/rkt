@@ -17,6 +17,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -33,42 +34,42 @@ var interactiveTests = []struct {
 	{
 		`Check tty without interactive`,
 		[]string{"--exec=/inspect --check-tty"},
-		`--debug --insecure-skip-verify run rkt-inspect-interactive.aci`,
+		`--debug --insecure-skip-verify run ^INTERACTIVE^`,
 		``,
 		`stdin is not a terminal`,
 	},
 	{
 		`Check tty without interactive (with parameter)`,
 		[]string{"--exec=/inspect"},
-		`--debug --insecure-skip-verify run rkt-inspect-interactive.aci -- --check-tty`,
+		`--debug --insecure-skip-verify run ^INTERACTIVE^ -- --check-tty`,
 		``,
 		`stdin is not a terminal`,
 	},
 	{
 		`Check tty with interactive`,
 		[]string{"--exec=/inspect --check-tty"},
-		`--debug --insecure-skip-verify run --interactive rkt-inspect-interactive.aci`,
+		`--debug --insecure-skip-verify run --interactive ^INTERACTIVE^`,
 		``,
 		`stdin is a terminal`,
 	},
 	{
 		`Check tty with interactive (with parameter)`,
 		[]string{"--exec=/inspect"},
-		`--debug --insecure-skip-verify run --interactive rkt-inspect-interactive.aci -- --check-tty`,
+		`--debug --insecure-skip-verify run --interactive ^INTERACTIVE^ -- --check-tty`,
 		``,
 		`stdin is a terminal`,
 	},
 	{
 		`Reading from stdin`,
 		[]string{"--exec=/inspect --read-stdin"},
-		`--debug --insecure-skip-verify run --interactive rkt-inspect-interactive.aci`,
+		`--debug --insecure-skip-verify run --interactive ^INTERACTIVE^`,
 		`Saluton`,
 		`Received text: Saluton`,
 	},
 	{
 		`Reading from stdin (with parameter)`,
 		[]string{"--exec=/inspect"},
-		`--debug --insecure-skip-verify run --interactive rkt-inspect-interactive.aci -- --read-stdin`,
+		`--debug --insecure-skip-verify run --interactive ^INTERACTIVE^ -- --read-stdin`,
 		`Saluton`,
 		`Received text: Saluton`,
 	},
@@ -81,11 +82,11 @@ func TestInteractive(t *testing.T) {
 	for i, tt := range interactiveTests {
 		t.Logf("Running test #%v: %v", i, tt.testName)
 
-		aciFileName := "rkt-inspect-interactive.aci"
-		patchTestACI(aciFileName, tt.aciBuildArgs...)
+		aciFileName := patchTestACI("rkt-inspect-interactive.aci", tt.aciBuildArgs...)
 		defer os.Remove(aciFileName)
 
 		rktCmd := fmt.Sprintf("%s %s", ctx.cmd(), tt.rktArgs)
+		rktCmd = strings.Replace(rktCmd, "^INTERACTIVE^", aciFileName, -1)
 		t.Logf("Command: %v", rktCmd)
 		child, err := gexpect.Spawn(rktCmd)
 		if err != nil {

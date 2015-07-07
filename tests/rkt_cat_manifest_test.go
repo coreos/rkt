@@ -36,7 +36,6 @@ const (
 // Read some non-existing image manifest via the image name, and verify nothing is found.
 // Read some non-existing image manifest via the image hash, and verify nothing is found.
 func TestCatManifest(t *testing.T) {
-	testImage := "rkt-inspect-image-cat-manifest.aci"
 	testImageName := "coreos.com/rkt-cat-manifest-test"
 	expectManifest := strings.Replace(manifestTemplate, "IMG_NAME", testImageName, -1)
 
@@ -44,12 +43,12 @@ func TestCatManifest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Cannot create temp manifest: %v", err)
 	}
+	defer os.Remove(tmpManifest.Name())
 	if err := ioutil.WriteFile(tmpManifest.Name(), []byte(expectManifest), 0600); err != nil {
 		t.Fatalf("Cannot write to temp manifest: %v", err)
 	}
-	defer os.Remove(tmpManifest.Name())
 
-	patchTestACI(testImage, "--manifest", tmpManifest.Name())
+	testImage := patchTestACI("rkt-inspect-image-cat-manifest.aci", "--manifest", tmpManifest.Name())
 	defer os.Remove(testImage)
 	ctx := newRktRunCtx()
 	defer ctx.cleanup()

@@ -26,9 +26,9 @@ import (
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/ThomasRooney/gexpect"
 )
 
-func preparePidFileRace(t *testing.T, ctx *rktRunCtx) (*gexpect.ExpectSubprocess, *gexpect.ExpectSubprocess, string, string) {
+func preparePidFileRace(t *testing.T, ctx *rktRunCtx, sleepImage string) (*gexpect.ExpectSubprocess, *gexpect.ExpectSubprocess, string, string) {
 	// Start the pod
-	runCmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --interactive ./rkt-inspect-sleep.aci", ctx.cmd())
+	runCmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --interactive %s", ctx.cmd(), sleepImage)
 	t.Logf("%s", runCmd)
 	runChild, err := gexpect.Spawn(runCmd)
 	if err != nil {
@@ -74,13 +74,13 @@ func preparePidFileRace(t *testing.T, ctx *rktRunCtx) (*gexpect.ExpectSubprocess
 
 // Check that "enter" is able to wait for the ppid file to be created
 func TestPidFileDelayedStart(t *testing.T) {
-	patchTestACI("rkt-inspect-sleep.aci", "--exec=/inspect --read-stdin")
-	defer os.Remove("rkt-inspect-sleep.aci")
+	sleepImage := patchTestACI("rkt-inspect-sleep.aci", "--exec=/inspect --read-stdin")
+	defer os.Remove(sleepImage)
 
 	ctx := newRktRunCtx()
 	defer ctx.cleanup()
 
-	runChild, enterChild, pidFileName, pidFileNameBackup := preparePidFileRace(t, ctx)
+	runChild, enterChild, pidFileName, pidFileNameBackup := preparePidFileRace(t, ctx, sleepImage)
 
 	// Restore ppid file so the "enter" command can find it
 	if err := os.Rename(pidFileNameBackup, pidFileName); err != nil {
@@ -109,13 +109,13 @@ func TestPidFileDelayedStart(t *testing.T) {
 
 // Check that "enter" doesn't wait forever for the ppid file when the pod is terminated
 func TestPidFileAbortedStart(t *testing.T) {
-	patchTestACI("rkt-inspect-sleep.aci", "--exec=/inspect --read-stdin")
-	defer os.Remove("rkt-inspect-sleep.aci")
+	sleepImage := patchTestACI("rkt-inspect-sleep.aci", "--exec=/inspect --read-stdin")
+	defer os.Remove(sleepImage)
 
 	ctx := newRktRunCtx()
 	defer ctx.cleanup()
 
-	runChild, enterChild, _, _ := preparePidFileRace(t, ctx)
+	runChild, enterChild, _, _ := preparePidFileRace(t, ctx, sleepImage)
 
 	// Terminate the pod with the escape sequence: ^]^]^]
 	if err := runChild.SendLine("\035\035\035"); err != nil {

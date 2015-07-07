@@ -134,9 +134,13 @@ func (ctx *rktRunCtx) cmd() string {
 	for _, d := range ctx.directories {
 		opts = append(opts, d.rktOption())
 	}
-	abs, err := filepath.Abs("../bin/rkt")
+	rkt := os.Getenv("RKT")
+	if rkt == "" {
+		panic("Cannot run rkt: RKT env var is not specified")
+	}
+	abs, err := filepath.Abs(rkt)
 	if err != nil {
-		abs = "../bin/rkt"
+		abs = rkt
 	}
 	return fmt.Sprintf("%s %s", abs, strings.Join(opts, " "))
 }
@@ -171,16 +175,34 @@ func expectTimeoutWithOutput(p *gexpect.ExpectSubprocess, searchString string, t
 	return expectCommon(p, searchString, timeout)
 }
 
-func patchTestACI(newFileName string, args ...string) {
+func patchTestACI(newFileName string, args ...string) string {
 	var allArgs []string
+
+	image := os.Getenv("RKT_INSPECT_IMAGE")
+	if image == "" {
+		panic("Cannot create ACI: RKT_INSPECT_IMAGE env var is not specified")
+	}
+	actool := os.Getenv("ACTOOL")
+	if actool == "" {
+		panic("Cannot create ACI: ACTOOL env var is not specified")
+	}
+	tmpDir := os.Getenv("FUNCTIONAL_TMP")
+	if tmpDir == "" {
+		panic("Cannot create ACI: FUNCTIONAL_TMP env var is not specified")
+	}
+	imagePath, err := filepath.Abs(filepath.Join(tmpDir, newFileName))
+	if err != nil {
+		panic(fmt.Sprintf("Cannot create ACI: %v\n", err))
+	}
 	allArgs = append(allArgs, "patch-manifest")
 	allArgs = append(allArgs, "--overwrite")
 	allArgs = append(allArgs, args...)
-	allArgs = append(allArgs, "rkt-inspect.aci")
-	allArgs = append(allArgs, newFileName)
+	allArgs = append(allArgs, image)
+	allArgs = append(allArgs, imagePath)
 
-	output, err := exec.Command("../bin/actool", allArgs...).CombinedOutput()
+	output, err := exec.Command(actool, allArgs...).CombinedOutput()
 	if err != nil {
 		panic(fmt.Sprintf("Cannot create ACI: %v: %s\n", err, output))
 	}
+	return imagePath
 }

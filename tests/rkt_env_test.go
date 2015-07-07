@@ -29,56 +29,64 @@ var envTests = []struct {
 	enterCmd  string
 }{
 	{
-		`^RKT_BIN^ --debug --insecure-skip-verify run ./rkt-inspect-print-var-from-manifest.aci`,
+		`^RKT_BIN^ --debug --insecure-skip-verify run ^PRINT_VAR_FROM_MANIFEST^`,
 		"VAR_FROM_MANIFEST=manifest",
-		`^RKT_BIN^ --debug --insecure-skip-verify run --interactive ./rkt-inspect-sleep.aci`,
+		`^RKT_BIN^ --debug --insecure-skip-verify run --interactive ^SLEEP^`,
 		`/bin/sh -c "^RKT_BIN^ --debug enter $(^RKT_BIN^ list --full|grep running|awk '{print $1}') /inspect --print-env=VAR_FROM_MANIFEST"`,
 	},
 	{
-		`^RKT_BIN^ --debug --insecure-skip-verify run --set-env=VAR_OTHER=setenv ./rkt-inspect-print-var-other.aci`,
+		`^RKT_BIN^ --debug --insecure-skip-verify run --set-env=VAR_OTHER=setenv ^PRINT_VAR_OTHER^`,
 		"VAR_OTHER=setenv",
-		`^RKT_BIN^ --debug --insecure-skip-verify run --interactive --set-env=VAR_OTHER=setenv ./rkt-inspect-sleep.aci`,
+		`^RKT_BIN^ --debug --insecure-skip-verify run --interactive --set-env=VAR_OTHER=setenv ^SLEEP^`,
 		`/bin/sh -c "^RKT_BIN^ --debug enter $(^RKT_BIN^ list --full|grep running|awk '{print $1}') /inspect --print-env=VAR_OTHER"`,
 	},
 	{
-		`^RKT_BIN^ --debug --insecure-skip-verify run --set-env=VAR_FROM_MANIFEST=setenv ./rkt-inspect-print-var-from-manifest.aci`,
+		`^RKT_BIN^ --debug --insecure-skip-verify run --set-env=VAR_FROM_MANIFEST=setenv ^PRINT_VAR_FROM_MANIFEST^`,
 		"VAR_FROM_MANIFEST=setenv",
-		`^RKT_BIN^ --debug --insecure-skip-verify run --interactive --set-env=VAR_FROM_MANIFEST=setenv ./rkt-inspect-sleep.aci`,
+		`^RKT_BIN^ --debug --insecure-skip-verify run --interactive --set-env=VAR_FROM_MANIFEST=setenv ^SLEEP^`,
 		`/bin/sh -c "^RKT_BIN^ --debug enter $(^RKT_BIN^ list --full|grep running|awk '{print $1}') /inspect --print-env=VAR_FROM_MANIFEST"`,
 	},
 	{
-		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --inherit-env=true ./rkt-inspect-print-var-other.aci"`,
+		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --inherit-env=true ^PRINT_VAR_OTHER^"`,
 		"VAR_OTHER=host",
-		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --interactive --inherit-env=true ./rkt-inspect-sleep.aci"`,
+		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --interactive --inherit-env=true ^SLEEP^"`,
 		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug enter $(^RKT_BIN^ list --full|grep running|awk '{print $1}') /inspect --print-env=VAR_OTHER"`,
 	},
 	{
-		`/bin/sh -c "export VAR_FROM_MANIFEST=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --inherit-env=true ./rkt-inspect-print-var-from-manifest.aci"`,
+		`/bin/sh -c "export VAR_FROM_MANIFEST=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --inherit-env=true ^PRINT_VAR_FROM_MANIFEST^"`,
 		"VAR_FROM_MANIFEST=manifest",
-		`/bin/sh -c "export VAR_FROM_MANIFEST=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --interactive --inherit-env=true ./rkt-inspect-sleep.aci"`,
+		`/bin/sh -c "export VAR_FROM_MANIFEST=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --interactive --inherit-env=true ^SLEEP^"`,
 		`/bin/sh -c "export VAR_FROM_MANIFEST=host ; ^RKT_BIN^ --debug enter $(^RKT_BIN^ list --full|grep running|awk '{print $1}') /inspect --print-env=VAR_FROM_MANIFEST"`,
 	},
 	{
-		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --inherit-env=true --set-env=VAR_OTHER=setenv ./rkt-inspect-print-var-other.aci"`,
+		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --inherit-env=true --set-env=VAR_OTHER=setenv ^PRINT_VAR_OTHER^"`,
 		"VAR_OTHER=setenv",
-		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --interactive --inherit-env=true --set-env=VAR_OTHER=setenv ./rkt-inspect-sleep.aci"`,
+		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --interactive --inherit-env=true --set-env=VAR_OTHER=setenv ^SLEEP^"`,
 		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug enter $(^RKT_BIN^ list --full|grep running|awk '{print $1}') /inspect --print-env=VAR_OTHER"`,
 	},
 }
 
 func TestEnv(t *testing.T) {
-	patchTestACI("rkt-inspect-print-var-from-manifest.aci", "--exec=/inspect --print-env=VAR_FROM_MANIFEST")
-	defer os.Remove("rkt-inspect-print-var-from-manifest.aci")
-	patchTestACI("rkt-inspect-print-var-other.aci", "--exec=/inspect --print-env=VAR_OTHER")
-	defer os.Remove("rkt-inspect-print-var-other.aci")
-	patchTestACI("rkt-inspect-sleep.aci", "--exec=/inspect --read-stdin")
-	defer os.Remove("rkt-inspect-sleep.aci")
+	printVarFromManifestImage := patchTestACI("rkt-inspect-print-var-from-manifest.aci", "--exec=/inspect --print-env=VAR_FROM_MANIFEST")
+	defer os.Remove(printVarFromManifestImage)
+	printVarOtherImage := patchTestACI("rkt-inspect-print-var-other.aci", "--exec=/inspect --print-env=VAR_OTHER")
+	defer os.Remove(printVarOtherImage)
+	sleepImage := patchTestACI("rkt-inspect-sleep.aci", "--exec=/inspect --read-stdin")
+	defer os.Remove(sleepImage)
 	ctx := newRktRunCtx()
 	defer ctx.cleanup()
 
+	replacePlaceholders := func(cmd string) string {
+		fixed := cmd
+		fixed = strings.Replace(fixed, "^RKT_BIN^", ctx.cmd(), -1)
+		fixed = strings.Replace(fixed, "^PRINT_VAR_FROM_MANIFEST^", printVarFromManifestImage, -1)
+		fixed = strings.Replace(fixed, "^PRINT_VAR_OTHER^", printVarOtherImage, -1)
+		fixed = strings.Replace(fixed, "^SLEEP^", sleepImage, -1)
+		return fixed
+	}
 	for i, tt := range envTests {
 		// 'run' tests
-		runCmd := strings.Replace(tt.runCmd, "^RKT_BIN^", ctx.cmd(), -1)
+		runCmd := replacePlaceholders(tt.runCmd)
 		t.Logf("Running 'run' test #%v: %v", i, runCmd)
 		child, err := gexpect.Spawn(runCmd)
 		if err != nil {
@@ -96,7 +104,7 @@ func TestEnv(t *testing.T) {
 		}
 
 		// 'enter' tests
-		sleepCmd := strings.Replace(tt.sleepCmd, "^RKT_BIN^", ctx.cmd(), -1)
+		sleepCmd := replacePlaceholders(tt.sleepCmd)
 		t.Logf("Running 'enter' test #%v: sleep: %v", i, sleepCmd)
 		child, err = gexpect.Spawn(sleepCmd)
 		if err != nil {
@@ -108,7 +116,7 @@ func TestEnv(t *testing.T) {
 			t.Fatalf("Waited for the prompt but not found #%v: %v", i, err)
 		}
 
-		enterCmd := strings.Replace(tt.enterCmd, "^RKT_BIN^", ctx.cmd(), -1)
+		enterCmd := replacePlaceholders(tt.enterCmd)
 		t.Logf("Running 'enter' test #%v: enter: %v", i, enterCmd)
 		enterChild, err := gexpect.Spawn(enterCmd)
 		if err != nil {

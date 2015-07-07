@@ -144,7 +144,15 @@ func testAuthIgnoreSubdirectories(t *testing.T, server *taas.Server) {
 }
 
 func runServer(t *testing.T, auth taas.Type) *taas.Server {
-	server, err := taas.NewServerWithPaths(auth, 20, "../bin/actool", "go")
+	actool := os.Getenv("ACTOOL")
+	if actool == "" {
+		panic("Cannot run test ACI server: ACTOOL env var is not specified")
+	}
+	gotool := os.Getenv("GO")
+	if gotool == "" {
+		panic("Cannot run test ACI server: GO env var is not specified")
+	}
+	server, err := taas.NewServerWithPaths(auth, 20, actool, gotool)
 	if err != nil {
 		t.Fatalf("Could not start server: %v", err)
 	}

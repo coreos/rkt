@@ -1,0 +1,81 @@
+# @configure_input@
+
+# package specific substitution names
+package := @PACKAGE_NAME@
+version := @PACKAGE_VERSION@
+tarname := @PACKAGE_TARNAME@
+distdir := $(tarname)-$(version)
+
+# prefix-specific substitution names
+prefix := @prefix@
+exec_prefix := @exec_prefix@
+bindir := @bindir@
+
+# Setup install scripts for portability
+INSTALL = @INSTALL@
+INSTALL_DATA = @INSTALL_DATA@
+INSTALL_PROGRAM = @INSTALL_PROGRAM@
+INSTALL_SCRIPT = @INSTALL_SCRIPT@
+
+# these are rkt-build specific variables
+
+# binaries we need to build things
+GO := @GOBINARY@
+GOFMT := @GOFMTBINARY@
+GIT := @GIT@
+BASH := @BASH_SHELL@
+BASH_SHELL := @BASH_SHELL@
+PERL := @PERL@
+ABS_GO := @ABS_GO@
+
+# path to rkt source code distro
+ORG_PATH := github.com/coreos
+REPO_PATH := $(ORG_PATH)/rkt
+
+# [STAGE1] build settings
+
+# selinux tags for rkt and functional tests
+RKT_TAGS := -tags selinux
+# stage1 build mode
+RKT_STAGE1_USR_FROM := @RKT_STAGE1_USR_FROM@
+# git path to systemd
+RKT_STAGE1_SYSTEMD_SRC := @RKT_STAGE1_SYSTEMD_SRC@
+# systemd build version
+RKT_STAGE1_SYSTEMD_VER := @RKT_STAGE1_SYSTEMD_VER@
+# stage1 image flags (the optional custom path linked into binary set by user)
+RKT_STAGE1_IMAGE_FLAGS := @RKT_STAGE1_IMAGE_FLAGS@
+# whether to run functional tests
+RKT_RUN_FUNCTIONAL_TESTS := @RKT_RUN_FUNCTIONAL_TESTS@
+
+# build-related directories and binaries
+BUILDDIR ?= $(MK_TOPLEVEL_ABS_SRCDIR)/build-$(distdir)
+BUILDDIR := $(abspath $(BUILDDIR))
+
+MAKETOOLSDIR := $(MK_TOPLEVEL_SRCDIR)/tools
+STAMPSDIR := $(BUILDDIR)/stamps
+TOOLSDIR := $(BUILDDIR)/tools
+BINDIR := $(BUILDDIR)/bin
+GOPATH := $(BUILDDIR)/gopath
+DEPSDIR := $(BUILDDIR)/deps
+ACIDIR := $(BUILDDIR)/aci-for-$(RKT_STAGE1_USR_FROM)-flavor
+ACIROOTFSDIR := $(ACIDIR)/rootfs
+
+ACTOOL := $(BINDIR)/actool
+GODEPSGENTOOL := $(MAKETOOLSDIR)/go-deps-gen.pl
+DEPSGENTOOL := $(MAKETOOLSDIR)/deps-gen.pl
+
+# test-related variables
+GO_TEST_PACKAGES ?= ./...
+GO_TEST_FUNC_ARGS ?=
+
+GO_ENV := $(strip GOPATH="$(GOPATH)" $(if $(strip $(GOROOT)),GOROOT=$(strip $(GOROOT))))
+
+CREATE_DIRS += \
+	$(BUILDDIR) \
+	$(STAMPSDIR) \
+	$(TOOLSDIR) \
+	$(BINDIR) \
+	$(GOPATH) \
+	$(DEPSDIR) \
+	$(ACIDIR) \
+	$(ACIROOTFSDIR)

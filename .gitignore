@@ -1,9 +1,8 @@
-bin/
-gopath/
-*.sw[ponm]
-.DS_Store
-.vagrant
-tests/image/rootfs/
-tests/inspect/inspect
-tests/*.aci
-tests/*.log
+*~
+
+/autom4te.cache
+/config.log
+/config.status
+/configure
+/makelib/variables.mk
+/build-rkt-*

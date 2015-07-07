@@ -61,8 +61,7 @@ func TestAppIsolatorMemory(t *testing.T) {
 
 	t.Logf("Running test: %v", memoryTest.testName)
 
-	aciFileName := "rkt-inspect-isolators.aci"
-	patchTestACI(aciFileName, memoryTest.aciBuildArgs...)
+	aciFileName := patchTestACI("rkt-inspect-isolators.aci", memoryTest.aciBuildArgs...)
 	defer os.Remove(aciFileName)
 
 	rktCmd := fmt.Sprintf("%s %s", ctx.cmd(), memoryTest.rktArgs)
@@ -93,8 +92,7 @@ func TestAppIsolatorCPU(t *testing.T) {
 
 	t.Logf("Running test: %v", cpuTest.testName)
 
-	aciFileName := "rkt-inspect-isolators.aci"
-	patchTestACI(aciFileName, cpuTest.aciBuildArgs...)
+	aciFileName := patchTestACI("rkt-inspect-isolators.aci", cpuTest.aciBuildArgs...)
 	defer os.Remove(aciFileName)
 
 	rktCmd := fmt.Sprintf("%s %s", ctx.cmd(), cpuTest.rktArgs)

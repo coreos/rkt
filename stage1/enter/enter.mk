@@ -1,0 +1,1 @@
+include makelib/aci_simple_static_c_bin.mk

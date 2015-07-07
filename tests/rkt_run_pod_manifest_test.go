@@ -307,9 +307,9 @@ func TestPodManifest(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		patchTestACI(tt.imageName, tt.imagePatches...)
-		hash := importImageAndFetchHash(t, ctx, tt.imageName)
-		defer os.Remove(tt.imageName)
+		imageFile := patchTestACI(tt.imageName, tt.imagePatches...)
+		hash := importImageAndFetchHash(t, ctx, imageFile)
+		defer os.Remove(imageFile)
 
 		tt.podManifest.ACKind = schema.PodManifestKind
 		tt.podManifest.ACVersion = schema.AppContainerVersion

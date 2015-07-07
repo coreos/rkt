@@ -78,23 +78,22 @@ func TestCaps(t *testing.T) {
 	defer ctx.cleanup()
 
 	for i, tt := range capsTests {
-		var stage1FileName = "rkt-inspect-print-caps-stage1.aci"
-		var stage2FileName = "rkt-inspect-print-caps-stage2.aci"
 		stage1Args := []string{"--exec=/inspect --print-caps-pid=1 --print-user"}
 		stage2Args := []string{"--exec=/inspect --print-caps-pid=0 --print-user"}
 		if tt.capIsolator != "" {
 			stage1Args = append(stage1Args, "--capability="+tt.capIsolator)
 			stage2Args = append(stage2Args, "--capability="+tt.capIsolator)
 		}
-		patchTestACI(stage1FileName, stage1Args...)
-		patchTestACI(stage2FileName, stage2Args...)
+		stage1FileName := patchTestACI("rkt-inspect-print-caps-stage1.aci", stage1Args...)
+		stage2FileName := patchTestACI("rkt-inspect-print-caps-stage2.aci", stage2Args...)
 		defer os.Remove(stage1FileName)
 		defer os.Remove(stage2FileName)
+		stageFileNames := []string{stage1FileName, stage2FileName}
 
 		for _, stage := range []int{1, 2} {
 			t.Logf("Running test #%v: %v [stage %v]", i, tt.testName, stage)
 
-			cmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --set-env=CAPABILITY=%d ./rkt-inspect-print-caps-stage%d.aci", ctx.cmd(), int(tt.capa), stage)
+			cmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --set-env=CAPABILITY=%d %s", ctx.cmd(), int(tt.capa), stageFileNames[stage-1])
 			t.Logf("Command: %v", cmd)
 			child, err := gexpect.Spawn(cmd)
 			if err != nil {
@@ -131,18 +130,16 @@ func TestNonRootCaps(t *testing.T) {
 	defer ctx.cleanup()
 
 	for i, tt := range capsTests {
-		var fileName = "rkt-inspect-print-caps-nonroot.aci"
-		var args []string
-		args = []string{"--exec=/inspect --print-caps-pid=0 --print-user", "--user=9000", "--group=9000"}
+		args := []string{"--exec=/inspect --print-caps-pid=0 --print-user", "--user=9000", "--group=9000"}
 		if tt.capIsolator != "" {
 			args = append(args, "--capability="+tt.capIsolator)
 		}
-		patchTestACI(fileName, args...)
+		fileName := patchTestACI("rkt-inspect-print-caps-nonroot.aci", args...)
 		defer os.Remove(fileName)
 
 		t.Logf("Running test #%v: %v [non-root]", i, tt.testName)
 
-		cmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --set-env=CAPABILITY=%d ./%s", ctx.cmd(), int(tt.capa), fileName)
+		cmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --set-env=CAPABILITY=%d %s", ctx.cmd(), int(tt.capa), fileName)
 		t.Logf("Command: %v", cmd)
 		child, err := gexpect.Spawn(cmd)
 		if err != nil {

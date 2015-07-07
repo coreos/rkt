@@ -14,5 +14,6 @@ install:
  - go get golang.org/x/tools/cmd/vet
 
 script:
- - ./test
-
+ - ./autogen.sh
+ - ./configure --with-stage1=none
+ - make check
