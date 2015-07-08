@@ -1,0 +1,124 @@
+From 1e35f0811aa76be2db902cc6fa1896939cfad6d9 Mon Sep 17 00:00:00 2001
+From: Arjan van de Ven <arjan@linux.intel.com>
+Date: Wed, 11 Feb 2015 16:53:08 -0600
+Subject: [PATCH 06/12] probe
+
+Author:    Arjan van de Ven <arjan@linux.intel.com>
+
+Signed-off-by: Miguel Bernal Marin <miguel.bernal.marin@linux.intel.com>
+---
+ drivers/pci/probe.c | 43 +++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 41 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/pci/probe.c b/drivers/pci/probe.c
+index 23212f8..1f3c7a6 100644
+--- a/drivers/pci/probe.c
++++ b/drivers/pci/probe.c
+@@ -177,6 +177,11 @@ int __pci_read_base(struct pci_dev *dev, enum pci_bar_type type,
+ 
+ 	mask = type ? PCI_ROM_ADDRESS_MASK : ~0;
+ 
++
++	res->name = pci_name(dev);
++
++	printk("Starting probe for %s\n", res->name);
++
+ 	/* No printks while decoding is disabled! */
+ 	if (!dev->mmio_always_on) {
+ 		pci_read_config_word(dev, PCI_COMMAND, &orig_cmd);
+@@ -186,7 +191,6 @@ int __pci_read_base(struct pci_dev *dev, enum pci_bar_type type,
+ 		}
+ 	}
+ 
+-	res->name = pci_name(dev);
+ 
+ 	pci_read_config_dword(dev, pos, &l);
+ 	pci_write_config_dword(dev, pos, l | mask);
+@@ -315,6 +319,8 @@ static void pci_read_bases(struct pci_dev *dev, unsigned int howmany, int rom)
+ {
+ 	unsigned int pos, reg;
+ 
++	printk("pci_read_bases start\n");
++
+ 	for (pos = 0; pos < howmany; pos++) {
+ 		struct resource *res = &dev->resource[pos];
+ 		reg = PCI_BASE_ADDRESS_0 + (pos << 2);
+@@ -323,12 +329,14 @@ static void pci_read_bases(struct pci_dev *dev, unsigned int howmany, int rom)
+ 
+ 	if (rom) {
+ 		struct resource *res = &dev->resource[PCI_ROM_RESOURCE];
++		printk("rom path\n");
+ 		dev->rom_base_reg = rom;
+ 		res->flags = IORESOURCE_MEM | IORESOURCE_PREFETCH |
+ 				IORESOURCE_READONLY | IORESOURCE_CACHEABLE |
+ 				IORESOURCE_SIZEALIGN;
+ 		__pci_read_base(dev, pci_bar_mem32, res, rom);
+ 	}
++	printk("pci_read_bases end\n");
+ }
+ 
+ static void pci_read_bridge_io(struct pci_bus *child)
+@@ -1084,6 +1092,28 @@ int pci_cfg_space_size(struct pci_dev *dev)
+ 
+ #define LEGACY_IO_RESOURCE	(IORESOURCE_IO | IORESOURCE_PCI_FIXED)
+ 
++static int guess_bar_count(int class)
++{
++        if (class == 0x068000)
++            return 0;
++        if (class == 0x020000)
++            return 2;
++        if (class == 0x010000)
++            return 2;
++        if (class == 0x00ff00)
++            return 1;
++        return 6;
++}
++
++static int has_rom(int class, int rom)
++{
++        if (class == 0x020000)
++          return 0;
++        if (class == 0x010000 || class == 0x00ff00)
++          return 0;
++        return rom;
++}
++
+ /**
+  * pci_setup_device - fill in class and map information of a device
+  * @dev: the device structure to fill
+@@ -1102,6 +1132,9 @@ int pci_setup_device(struct pci_dev *dev)
+ 	int pos = 0;
+ 	struct pci_bus_region region;
+ 	struct resource *res;
++	int maxbar;
++
++	printk("pci_setup_device start\n");
+ 
+ 	if (pci_read_config_byte(dev, PCI_HEADER_TYPE, &hdr_type))
+ 		return -EIO;
+@@ -1149,7 +1182,11 @@ int pci_setup_device(struct pci_dev *dev)
+ 		if (class == PCI_CLASS_BRIDGE_PCI)
+ 			goto bad;
+ 		pci_read_irq(dev);
+-		pci_read_bases(dev, 6, PCI_ROM_ADDRESS);
++
++		maxbar = guess_bar_count(dev->class);
++
++		if (class != PCI_CLASS_STORAGE_IDE)
++			pci_read_bases(dev, maxbar, has_rom(dev->class, PCI_ROM_ADDRESS));
+ 		pci_read_config_word(dev, PCI_SUBSYSTEM_VENDOR_ID, &dev->subsystem_vendor);
+ 		pci_read_config_word(dev, PCI_SUBSYSTEM_ID, &dev->subsystem_device);
+ 
+@@ -1234,6 +1271,8 @@ int pci_setup_device(struct pci_dev *dev)
+ 		dev->class = PCI_CLASS_NOT_DEFINED;
+ 	}
+ 
++	printk("pci_setup_device end\n");
++
+ 	/* We found a fine healthy device, go go go... */
+ 	return 0;
+ }
+-- 
+2.3.0
+

@@ -1,0 +1,94 @@
+From 9e9ac045a467dbb12917efebba1978bea4243f24 Mon Sep 17 00:00:00 2001
+From: Arjan van de Ven <arjan@linux.intel.com>
+Date: Sat, 14 Feb 2015 10:05:23 -0600
+Subject: [PATCH 12/12] Turn mmput into an async function
+
+mmput() is part of the process exit() path as well as many
+other parts of the kernel.  The actual work (when count
+hits 0) typically is part of exit() but can happen in all
+other cases as well (due to something opening files in
+/proc/<pid>/ for example).
+
+In the exit() path, the common case, this happens before
+the parent is notified currently, which means that the
+time mmput() takes delays the parent from doing more work.
+(say, make that wants to call another copy of gcc).
+
+The cost of mmput() can be considerable, it will go all the
+way into graphics drivers etc etc... so turning this async
+will take this cost out of the latency sensitive path.
+
+Signed-off-by: Arjan van de Ven <arjan@linux.intel.com>
+Signed-off-by: Miguel Bernal Marin <miguel.bernal.marin@linux.intel.com>
+---
+ kernel/fork.c | 39 +++++++++++++++++++++++----------------
+ 1 file changed, 23 insertions(+), 16 deletions(-)
+
+diff --git a/kernel/fork.c b/kernel/fork.c
+index 4dc2dda..5bd84e5 100644
+--- a/kernel/fork.c
++++ b/kernel/fork.c
+@@ -74,6 +74,7 @@
+ #include <linux/uprobes.h>
+ #include <linux/aio.h>
+ #include <linux/compiler.h>
+ #include <linux/sysctl.h>
++#include <linux/async.h>
+ 
+ #include <asm/pgtable.h>
+ #include <asm/pgalloc.h>
+@@ -643,6 +644,26 @@ void __mmdrop(struct mm_struct *mm)
+ }
+ EXPORT_SYMBOL_GPL(__mmdrop);
+ 
++
++static void mmput_async(void *data, async_cookie_t cookie)
++{
++	struct mm_struct *mm = data;
++	uprobe_clear_state(mm);
++	exit_aio(mm);
++	ksm_exit(mm);
++	khugepaged_exit(mm); /* must run before exit_mmap */
++	exit_mmap(mm);
++	set_mm_exe_file(mm, NULL);
++	if (!list_empty(&mm->mmlist)) {
++		spin_lock(&mmlist_lock);
++		list_del(&mm->mmlist);
++		spin_unlock(&mmlist_lock);
++	}
++	if (mm->binfmt)
++		module_put(mm->binfmt->module);
++	mmdrop(mm);
++}
++
+ /*
+  * Decrement the use count and release all resources for an mm.
+  */
+@@ -650,22 +671,8 @@ void mmput(struct mm_struct *mm)
+ {
+ 	might_sleep();
+ 
+-	if (atomic_dec_and_test(&mm->mm_users)) {
+-		uprobe_clear_state(mm);
+-		exit_aio(mm);
+-		ksm_exit(mm);
+-		khugepaged_exit(mm); /* must run before exit_mmap */
+-		exit_mmap(mm);
+-		set_mm_exe_file(mm, NULL);
+-		if (!list_empty(&mm->mmlist)) {
+-			spin_lock(&mmlist_lock);
+-			list_del(&mm->mmlist);
+-			spin_unlock(&mmlist_lock);
+-		}
+-		if (mm->binfmt)
+-			module_put(mm->binfmt->module);
+-		mmdrop(mm);
+-	}
++	if (atomic_dec_and_test(&mm->mm_users))
++		async_schedule(mmput_async, mm);
+ }
+ EXPORT_SYMBOL_GPL(mmput);
+ 
+-- 
+2.3.0
+

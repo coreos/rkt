@@ -1,0 +1,13 @@
+# kvm install
+# - use exstings rootfs created from coreos pxe image
+# - but append kernel/lkvm binaries
+mkdir -p "$ROOT"
+cp -a ../usr_from_coreos/rootfs/. "$ROOT"
+
+ln -sf "kvm" "$ROOT/flavor"
+echo "v220" > "$ROOT/systemd-version"
+
+
+# lkvm
+install -m 0755 ../usr_from_kvm/kvmtool/lkvm "$ROOT"
+cp ../usr_from_kvm/kernel/bzImage "$ROOT"

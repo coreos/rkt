@@ -1,0 +1,34 @@
+From e2be65436b29f17de76a94e8e29d04d9ce5ccfe4 Mon Sep 17 00:00:00 2001
+From: Arjan van de Ven <arjan@linux.intel.com>
+Date: Thu, 12 Feb 2015 10:37:43 -0600
+Subject: [PATCH 10/12] tweak the scheduler to favor CPU 0
+
+in a virtual machine world, placement only means so much,
+and the serial driver hates getting initialized from CPU != 0.
+
+in general we want to pack to cpu 0 for our VM use case, this
+allows for a more predictable workload on the host.
+
+Author:    Arjan van de Ven <arjan@linux.intel.com>
+
+Signed-off-by: Miguel Bernal Marin <miguel.bernal.marin@linux.intel.com>
+---
+ kernel/sched/fair.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index fe331fc..b349a8f 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -4734,6 +4734,8 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
+ 	int want_affine = 0;
+ 	int sync = wake_flags & WF_SYNC;
+ 
++	prev_cpu = 0;
++
+ 	if (sd_flag & SD_BALANCE_WAKE)
+ 		want_affine = cpumask_test_cpu(cpu, tsk_cpus_allowed(p));
+ 
+-- 
+2.3.0
+

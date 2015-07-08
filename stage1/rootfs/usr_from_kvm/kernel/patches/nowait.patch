@@ -1,0 +1,20 @@
+--- linux-3.19/init/do_mounts.c~	2015-02-08 21:54:22.000000000 -0500
++++ linux-3.19/init/do_mounts.c	2015-04-09 11:32:39.055870752 -0400
+@@ -28,6 +28,7 @@
+ #include <linux/slab.h>
+ #include <linux/ramfs.h>
+ #include <linux/shmem_fs.h>
++#include <linux/async.h>
+ 
+ #include <linux/nfs_fs.h>
+ #include <linux/nfs_fs_sb.h>
+@@ -555,7 +556,8 @@
+ 	 * For example, it is not atypical to wait 5 seconds here
+ 	 * for the touchpad of a laptop to initialize.
+ 	 */
+-	wait_for_device_probe();
++	//wait_for_device_probe();
++	async_synchronize_full();
+ 
+ 	md_run_setup();
+ 

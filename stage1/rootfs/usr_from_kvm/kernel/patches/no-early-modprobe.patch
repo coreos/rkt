@@ -1,0 +1,11 @@
+--- linux-4.0/kernel/kmod.c~	2015-04-28 13:06:48.000000000 -0400
++++ linux-4.0/kernel/kmod.c	2015-05-15 11:25:12.274028307 -0400
+@@ -550,7 +550,7 @@
+ 	DECLARE_COMPLETION_ONSTACK(done);
+ 	int retval = 0;
+ 
+-	if (!sub_info->path) {
++	if (!sub_info->path || system_state == SYSTEM_BOOTING) {
+ 		call_usermodehelper_freeinfo(sub_info);
+ 		return -EINVAL;
+ 	}

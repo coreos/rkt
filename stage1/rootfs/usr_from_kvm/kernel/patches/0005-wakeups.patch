@@ -1,0 +1,28 @@
+From 99033bb28356ef050f5be2a83dd78c26fba52a80 Mon Sep 17 00:00:00 2001
+From: Arjan van de Ven <arjan@linux.intel.com>
+Date: Wed, 11 Feb 2015 16:47:20 -0600
+Subject: [PATCH 05/12] wakeups
+
+Author:    Arjan van de Ven <arjan@linux.intel.com>
+
+Signed-off-by: Miguel Bernal Marin <miguel.bernal.marin@linux.intel.com>
+---
+ mm/vmstat.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mm/vmstat.c b/mm/vmstat.c
+index 1284f89..d2023d5 100644
+--- a/mm/vmstat.c
++++ b/mm/vmstat.c
+@@ -1356,7 +1356,7 @@ static const struct file_operations proc_vmstat_file_operations = {
+ 
+ #ifdef CONFIG_SMP
+ static DEFINE_PER_CPU(struct delayed_work, vmstat_work);
+-int sysctl_stat_interval __read_mostly = HZ;
++int sysctl_stat_interval __read_mostly = 8 * HZ;
+ static cpumask_var_t cpu_stat_off;
+ 
+ static void vmstat_update(struct work_struct *w)
+-- 
+2.3.0
+

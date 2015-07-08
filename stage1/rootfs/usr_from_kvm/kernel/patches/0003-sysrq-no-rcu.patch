@@ -1,0 +1,38 @@
+From 698a9d6675b49d98986c2e9e154800211724afea Mon Sep 17 00:00:00 2001
+From: Arjan van de Ven <arjan@linux.intel.com>
+Date: Wed, 11 Feb 2015 16:25:16 -0600
+Subject: [PATCH 03/12] sysrq: Skip synchronize_rcu() if there is no old op
+
+synchronize_rcu() is expensive. Currently it is called as part of the sysrq
+registration/unregistration, which happens during boot several times.
+Now, the reason for the synchronize_rcu() is to allow an old registered
+operation to expire properly... which is pointless if the old operation
+is NULL...
+So we can save the common case of the old operation being NULL a lot of time
+by just checking for non-NULL prior to the synchronize_rcu()
+
+Signed-off-by: Arjan van de Ven <arjan@linux.intel.com>
+Signed-off-by: Miguel Bernal Marin <miguel.bernal.marin@linux.intel.com>
+---
+ drivers/tty/sysrq.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/tty/sysrq.c b/drivers/tty/sysrq.c
+index 42bad18..82e1053 100644
+--- a/drivers/tty/sysrq.c
++++ b/drivers/tty/sysrq.c
+@@ -1059,8 +1059,10 @@ static int __sysrq_swap_key_ops(int key, struct sysrq_key_op *insert_op_p,
+ 	 * A concurrent __handle_sysrq either got the old op or the new op.
+ 	 * Wait for it to go away before returning, so the code for an old
+ 	 * op is not freed (eg. on module unload) while it is in use.
++	 * This is only relevant if the old op is not NULL of course.
+ 	 */
+-	synchronize_rcu();
++	if (remove_op_p)
++		synchronize_rcu();
+ 
+ 	return retval;
+ }
+-- 
+2.3.0
+

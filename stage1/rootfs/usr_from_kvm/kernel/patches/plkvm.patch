@@ -1,0 +1,494 @@
+commit 4be236120978fb0ab85dce5c5b60a228bbf3c8b3
+Author: Alan <alan@linux.intel.com>
+Date:   Mon Feb 16 15:27:50 2015 +0000
+
+    pmem_lkvm: push the lkvm DAX driver into the external tree
+
+diff --git a/drivers/block/Kconfig b/drivers/block/Kconfig
+index 1b8094d..8bb241f 100644
+--- a/drivers/block/Kconfig
++++ b/drivers/block/Kconfig
+@@ -558,4 +558,10 @@ config BLK_DEV_RSXX
+ 	  To compile this driver as a module, choose M here: the
+ 	  module will be called rsxx.
+ 
++config BLK_DEV_PLKVM
++	tristate "LKVM mapped memory block driver"
++	depends on BLOCK && PCI
++	help
++	  Experimental driver for lkvm pmem objects
++
+ endif # BLK_DEV
+diff --git a/drivers/block/Makefile b/drivers/block/Makefile
+index 02b688d..0d07e06 100644
+--- a/drivers/block/Makefile
++++ b/drivers/block/Makefile
+@@ -44,6 +44,8 @@ obj-$(CONFIG_BLK_DEV_RSXX) += rsxx/
+ obj-$(CONFIG_BLK_DEV_NULL_BLK)	+= null_blk.o
+ obj-$(CONFIG_ZRAM) += zram/
+ 
++obj-$(CONFIG_BLK_DEV_PLKVM)	+= pmem_lkvm.o
++
+ nvme-y		:= nvme-core.o nvme-scsi.o
+ skd-y		:= skd_main.o
+ swim_mod-y	:= swim.o swim_asm.o
+diff --git a/drivers/block/pmem_lkvm.c b/drivers/block/pmem_lkvm.c
+new file mode 100644
+index 0000000..881305b
+--- /dev/null
++++ b/drivers/block/pmem_lkvm.c
+@@ -0,0 +1,454 @@
++/*
++ * Persistent Memory Driver for lkvm
++ * Copyright (c) 2015, Intel Corporation.
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms and conditions of the GNU General Public License,
++ * version 2, as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * This driver is heavily based on pmem.c by Ross Zwisler
++ * which is heavily based on drivers/block/brd.c.
++ * Copyright (C) 2007 Nick Piggin
++ * Copyright (C) 2007 Novell Inc.
++ */
++
++#include <asm/cacheflush.h>
++#include <linux/bio.h>
++#include <linux/blkdev.h>
++#include <linux/fs.h>
++#include <linux/hdreg.h>
++#include <linux/init.h>
++#include <linux/module.h>
++#include <linux/moduleparam.h>
++#include <linux/slab.h>
++#include <linux/pci.h>
++
++#define DRIVER_NAME "plkvm"
++
++#define SECTOR_SHIFT		9
++#define PAGE_SECTORS_SHIFT	(PAGE_SHIFT - SECTOR_SHIFT)
++#define PAGE_SECTORS		(1 << PAGE_SECTORS_SHIFT)
++
++struct plkvm_device {
++	struct request_queue	*plkvm_queue;
++	struct gendisk		*plkvm_disk;
++	struct list_head	plkvm_list;
++
++	/* One contiguous memory region per device */
++	phys_addr_t		phys_addr;
++	void			*virt_addr;
++	size_t			size;
++};
++
++static int plkvm_getgeo(struct block_device *bd, struct hd_geometry *geo)
++{
++	/* some standard values */
++	geo->heads = 1 << 6;
++	geo->sectors = 1 << 5;
++	geo->cylinders = get_capacity(bd->bd_disk) >> 11;
++	return 0;
++}
++
++/*
++ * direct translation from (plkvm,sector) => void*
++ * We do not require that sector be page aligned.
++ * The return value will point to the beginning of the page containing the
++ * given sector, not to the sector itself.
++ */
++static void *plkvm_lookup_pg_addr(struct plkvm_device *plkvm, sector_t sector)
++{
++	size_t page_offset = sector >> PAGE_SECTORS_SHIFT;
++	size_t offset = page_offset << PAGE_SHIFT;
++
++	BUG_ON(offset >= plkvm->size);
++	return plkvm->virt_addr + offset;
++}
++
++/* sector must be page aligned */
++static unsigned long plkvm_lookup_pfn(struct plkvm_device *plkvm, sector_t sector)
++{
++	size_t page_offset = sector >> PAGE_SECTORS_SHIFT;
++
++	BUG_ON(sector & (PAGE_SECTORS - 1));
++	return (plkvm->phys_addr >> PAGE_SHIFT) + page_offset;
++}
++
++/*
++ * sector is not required to be page aligned.
++ * n is at most a single page, but could be less.
++ */
++static void copy_to_plkvm(struct plkvm_device *plkvm, const void *src,
++			sector_t sector, size_t n)
++{
++	void *dst;
++	unsigned int offset = (sector & (PAGE_SECTORS - 1)) << SECTOR_SHIFT;
++	size_t copy;
++
++	BUG_ON(n > PAGE_SIZE);
++
++	copy = min_t(size_t, n, PAGE_SIZE - offset);
++	dst = plkvm_lookup_pg_addr(plkvm, sector);
++	memcpy(dst + offset, src, copy);
++
++	if (copy < n) {
++		src += copy;
++		sector += copy >> SECTOR_SHIFT;
++		copy = n - copy;
++		dst = plkvm_lookup_pg_addr(plkvm, sector);
++		memcpy(dst, src, copy);
++	}
++}
++
++/*
++ * sector is not required to be page aligned.
++ * n is at most a single page, but could be less.
++ */
++static void copy_from_plkvm(void *dst, struct plkvm_device *plkvm,
++			  sector_t sector, size_t n)
++{
++	void *src;
++	unsigned int offset = (sector & (PAGE_SECTORS - 1)) << SECTOR_SHIFT;
++	size_t copy;
++
++	BUG_ON(n > PAGE_SIZE);
++
++	copy = min_t(size_t, n, PAGE_SIZE - offset);
++	src = plkvm_lookup_pg_addr(plkvm, sector);
++
++	memcpy(dst, src + offset, copy);
++
++	if (copy < n) {
++		dst += copy;
++		sector += copy >> SECTOR_SHIFT;
++		copy = n - copy;
++		src = plkvm_lookup_pg_addr(plkvm, sector);
++		memcpy(dst, src, copy);
++	}
++}
++
++static void plkvm_do_bvec(struct plkvm_device *plkvm, struct page *page,
++			unsigned int len, unsigned int off, int rw,
++			sector_t sector)
++{
++	void *mem = kmap_atomic(page);
++
++	if (rw == READ) {
++		copy_from_plkvm(mem + off, plkvm, sector, len);
++		flush_dcache_page(page);
++	} else {
++		/*
++		 * FIXME: Need more involved flushing to ensure that writes to
++		 * NVDIMMs are actually durable before returning.
++		 */
++		flush_dcache_page(page);
++		copy_to_plkvm(plkvm, mem + off, sector, len);
++	}
++
++	kunmap_atomic(mem);
++}
++
++static void plkvm_make_request(struct request_queue *q, struct bio *bio)
++{
++	struct block_device *bdev = bio->bi_bdev;
++	struct plkvm_device *plkvm = bdev->bd_disk->private_data;
++	int rw;
++	struct bio_vec bvec;
++	sector_t sector;
++	struct bvec_iter iter;
++	int err = 0;
++
++	sector = bio->bi_iter.bi_sector;
++	if (bio_end_sector(bio) > get_capacity(bdev->bd_disk)) {
++		err = -EIO;
++		goto out;
++	}
++
++	BUG_ON(bio->bi_rw & REQ_DISCARD);
++
++	rw = bio_rw(bio);
++	if (rw == READA)
++		rw = READ;
++
++	bio_for_each_segment(bvec, bio, iter) {
++		unsigned int len = bvec.bv_len;
++
++		BUG_ON(len > PAGE_SIZE);
++		plkvm_do_bvec(plkvm, bvec.bv_page, len,
++			    bvec.bv_offset, rw, sector);
++		sector += len >> SECTOR_SHIFT;
++	}
++
++out:
++	bio_endio(bio, err);
++}
++
++static int plkvm_rw_page(struct block_device *bdev, sector_t sector,
++		       struct page *page, int rw)
++{
++	struct plkvm_device *plkvm = bdev->bd_disk->private_data;
++
++	plkvm_do_bvec(plkvm, page, PAGE_CACHE_SIZE, 0, rw, sector);
++	page_endio(page, rw & WRITE, 0);
++	return 0;
++}
++
++static long plkvm_direct_access(struct block_device *bdev, sector_t sector,
++			      void **kaddr, unsigned long *pfn, long size)
++{
++	struct plkvm_device *plkvm = bdev->bd_disk->private_data;
++
++	if (!plkvm)
++		return -ENODEV;
++
++	*kaddr = plkvm_lookup_pg_addr(plkvm, sector);
++	*pfn = plkvm_lookup_pfn(plkvm, sector);
++
++	return plkvm->size - (sector * 512);
++}
++
++static const struct block_device_operations plkvm_fops = {
++	.owner =		THIS_MODULE,
++	.rw_page =		plkvm_rw_page,
++	.direct_access =	plkvm_direct_access,
++	.getgeo =		plkvm_getgeo,
++};
++
++/* Kernel module stuff */
++
++static int plkvm_count = 1;
++module_param(plkvm_count, int, S_IRUGO);
++MODULE_PARM_DESC(plkvm_count, "Number of plkvm devices to evenly split allocated space");
++
++static LIST_HEAD(plkvm_devices);
++static int plkvm_major = -1;
++
++/* plkvm->phys_addr and plkvm->size need to be set.
++ * Will then set virt_addr if successful.
++ */
++int plkvm_maplkvm(struct plkvm_device *plkvm)
++{
++	struct resource *res_mem;
++	int err;
++
++	res_mem = request_mem_region_exclusive(plkvm->phys_addr, plkvm->size,
++					       "plkvm");
++	if (!res_mem) {
++		pr_warn("plkvm: request_mem_region_exclusive phys=0x%llx size=0x%zx failed\n",
++			   plkvm->phys_addr, plkvm->size);
++		pr_err("Map fail\n");
++		while(1);
++		return -EINVAL;
++	}
++
++	plkvm->virt_addr = ioremap_cache(plkvm->phys_addr, plkvm->size);
++	if (unlikely(!plkvm->virt_addr)) {
++		err = -ENXIO;
++		pr_err("Map fail\n");
++		while(1);
++		goto out_release;
++	}
++	return 0;
++
++out_release:
++	release_mem_region(plkvm->phys_addr, plkvm->size);
++	return err;
++}
++
++void plkvm_unmaplkvm(struct plkvm_device *plkvm)
++{
++	if (unlikely(!plkvm->virt_addr))
++		return;
++
++	iounmap(plkvm->virt_addr);
++	release_mem_region(plkvm->phys_addr, plkvm->size);
++	plkvm->virt_addr = NULL;
++}
++
++static struct plkvm_device *plkvm_alloc(phys_addr_t phys_addr, size_t disk_size,
++				      int i)
++{
++	struct plkvm_device *plkvm;
++	struct gendisk *disk;
++	int err;
++
++	plkvm = kzalloc(sizeof(*plkvm), GFP_KERNEL);
++	if (unlikely(!plkvm)) {
++		err = -ENOMEM;
++		goto out;
++	}
++
++	plkvm->phys_addr = phys_addr;
++	plkvm->size = disk_size;
++
++	err = plkvm_maplkvm(plkvm);
++	if (unlikely(err))
++		goto out_free_dev;
++
++	plkvm->plkvm_queue = blk_alloc_queue(GFP_KERNEL);
++	if (unlikely(!plkvm->plkvm_queue)) {
++		err = -ENOMEM;
++		goto out_unmap;
++	}
++
++	blk_queue_make_request(plkvm->plkvm_queue, plkvm_make_request);
++	blk_queue_max_hw_sectors(plkvm->plkvm_queue, 1024);
++	blk_queue_bounce_limit(plkvm->plkvm_queue, BLK_BOUNCE_ANY);
++
++	disk = alloc_disk(0);
++	if (unlikely(!disk)) {
++		err = -ENOMEM;
++		goto out_free_queue;
++	}
++
++	disk->major		= plkvm_major;
++	disk->first_minor	= 0;
++	disk->fops		= &plkvm_fops;
++	disk->private_data	= plkvm;
++	disk->queue		= plkvm->plkvm_queue;
++	disk->flags		= GENHD_FL_EXT_DEVT;
++	sprintf(disk->disk_name, "plkvm%d", i);
++	set_capacity(disk, disk_size >> SECTOR_SHIFT);
++	plkvm->plkvm_disk = disk;
++
++	return plkvm;
++
++out_free_queue:
++	blk_cleanup_queue(plkvm->plkvm_queue);
++out_unmap:
++	plkvm_unmaplkvm(plkvm);
++out_free_dev:
++	kfree(plkvm);
++out:
++	return ERR_PTR(err);
++}
++
++static void plkvm_free(struct plkvm_device *plkvm)
++{
++	put_disk(plkvm->plkvm_disk);
++	blk_cleanup_queue(plkvm->plkvm_queue);
++	plkvm_unmaplkvm(plkvm);
++	kfree(plkvm);
++}
++
++static void plkvm_del_one(struct plkvm_device *plkvm)
++{
++	list_del(&plkvm->plkvm_list);
++	del_gendisk(plkvm->plkvm_disk);
++	plkvm_free(plkvm);
++}
++
++static int __init plkvm_init_one(phys_addr_t phys_addr, size_t total_size)
++{
++	int result, i;
++	struct plkvm_device *plkvm, *next;
++	size_t disk_size;
++	
++	if (plkvm_count  < 1)
++		plkvm_count = 1;
++	
++	disk_size = total_size / plkvm_count;
++
++	if (plkvm_major == -1) {
++		result = register_blkdev(0, "plkvm");
++		if (result < 0)
++			return -EIO;
++		else
++			plkvm_major = result;
++	} else
++		/* Just one physical for testing for now */
++		return -EBUSY;
++
++	for (i = 0; i < plkvm_count; i++) {
++		plkvm = plkvm_alloc(phys_addr, disk_size, i);
++		if (IS_ERR(plkvm)) {
++			result = PTR_ERR(plkvm);
++			goto out_free;
++		}
++		list_add_tail(&plkvm->plkvm_list, &plkvm_devices);
++		phys_addr += disk_size;
++	}
++
++	list_for_each_entry(plkvm, &plkvm_devices, plkvm_list)
++		add_disk(plkvm->plkvm_disk);
++
++	return 0;
++
++out_free:
++	list_for_each_entry_safe(plkvm, next, &plkvm_devices, plkvm_list) {
++		list_del(&plkvm->plkvm_list);
++		plkvm_free(plkvm);
++	}
++	unregister_blkdev(plkvm_major, "plkvm");
++
++	return result;
++}
++
++static int plkvm_probe_one(struct pci_dev *p, const struct pci_device_id *ent)
++{
++	int err;
++	uint32_t port;
++	uint64_t base, size;
++
++	err = pci_enable_device(p);
++	if (err)
++		return err;
++	
++	port = pci_resource_start(p, 0);
++
++	base = inl(port+20);
++	base <<= 32;
++	base |= inl(port+16);
++		
++	size = inl(port+28);
++	size <<= 32;
++	size |= inl(port+24);
++		
++	printk("->%lx %lx\n", (unsigned long)base, (unsigned long)size);
++	return plkvm_init_one(base, size);
++}
++
++static void plkvm_remove_one(struct pci_dev *pdev)
++{
++	struct plkvm_device *plkvm, *next;
++	list_for_each_entry_safe(plkvm, next, &plkvm_devices, plkvm_list)
++		plkvm_del_one(plkvm);
++	if (plkvm_major != -1) {
++		unregister_blkdev(plkvm_major, "plkvm");
++		plkvm_major = -1;
++	}
++}
++
++static const struct pci_device_id plkvm_ids[] = {
++	{ PCI_DEVICE(0x1AF4, 0x1110) },
++	{ }
++};
++
++MODULE_DEVICE_TABLE(pci, plkvm_ids);
++
++static struct pci_driver plkvm_driver = {
++	.name = DRIVER_NAME,
++	.id_table = plkvm_ids,
++	.probe = plkvm_probe_one,
++	.remove = plkvm_remove_one
++};
++
++
++static int __init plkvm_init(void)
++{
++	return pci_register_driver(&plkvm_driver);
++}
++
++static void __exit plkvm_exit(void)
++{
++	pci_unregister_driver(&plkvm_driver);
++}
++
++MODULE_AUTHOR("Ross Zwisler <ross.zwisler@linux.intel.com>");
++MODULE_LICENSE("GPL");
++module_init(plkvm_init);
++module_exit(plkvm_exit);

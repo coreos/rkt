@@ -1,0 +1,28 @@
+From 89c268ae9f2bf11a69309482d0ce5fc3a565efcc Mon Sep 17 00:00:00 2001
+From: Arjan van de Ven <arjan@linux.intel.com>
+Date: Wed, 11 Feb 2015 17:34:17 -0600
+Subject: [PATCH 09/12] perf
+
+Author:    Arjan van de Ven <arjan@linux.intel.com>
+
+Signed-off-by: Miguel Bernal Marin <miguel.bernal.marin@linux.intel.com>
+---
+ arch/x86/kernel/cpu/perf_event_intel.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/x86/kernel/cpu/perf_event_intel.c b/arch/x86/kernel/cpu/perf_event_intel.c
+index 498b6d9..d66794b 100644
+--- a/arch/x86/kernel/cpu/perf_event_intel.c
++++ b/arch/x86/kernel/cpu/perf_event_intel.c
+@@ -2635,7 +2635,7 @@ __init int intel_pmu_init(void)
+ 	 */
+ 	if (x86_pmu.extra_regs) {
+ 		for (er = x86_pmu.extra_regs; er->msr; er++) {
+-			er->extra_msr_access = check_msr(er->msr, 0x1ffUL);
++			er->extra_msr_access = false;
+ 			/* Disable LBR select mapping */
+ 			if ((er->idx == EXTRA_REG_LBR) && !er->extra_msr_access)
+ 				x86_pmu.lbr_sel_map = NULL;
+-- 
+2.3.0
+
