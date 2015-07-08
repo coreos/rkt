@@ -51,7 +51,6 @@ import (
 // configuration parameters required by Prepare
 type PrepareConfig struct {
 	CommonConfig
-	// TODO(jonboulle): These images are partially-populated hashes, this should be clarified.
 	Apps        *apps.Apps          // apps to prepare
 	InheritEnv  bool                // inherit parent environment into apps
 	ExplicitEnv []string            // always set these environment variables for all the apps
@@ -158,6 +157,10 @@ func generatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 				ID:   img,
 			},
 			Annotations: am.Annotations,
+		}
+
+		if execOverride := app.Exec; execOverride != "" {
+			ra.App.Exec = []string{execOverride}
 		}
 
 		if execAppends := app.Args; execAppends != nil {

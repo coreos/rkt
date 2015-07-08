@@ -12,6 +12,7 @@ mkdir image/rootfs
 # Populate rootfs
 (cd inspect && CGO_ENABLED=0 go build -a -installsuffix cgo)
 cp inspect/inspect image/rootfs/
+ln -s /inspect image/rootfs/inspect-link
 mkdir image/rootfs/dir{1,2}
 echo -n dir1 > image/rootfs/dir1/file
 echo -n dir2 > image/rootfs/dir2/file

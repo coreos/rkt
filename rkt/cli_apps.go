@@ -18,6 +18,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/pflag"
 	"github.com/coreos/rkt/common/apps"
@@ -102,11 +103,11 @@ func parseApps(al *apps.Apps, args []string, flags *pflag.FlagSet, allowAppArgs 
 
 // Value interface implementations for the various per-app fields we provide flags for
 
-// appAsc is for aci --signature overrides
+// appAsc is for aci --signature
 type appAsc apps.Apps
 
-func (al *appAsc) Set(s string) error {
-	app := (*apps.Apps)(al).Last()
+func (aa *appAsc) Set(s string) error {
+	app := (*apps.Apps)(aa).Last()
 	if app == nil {
 		return fmt.Errorf("--signature must follow an image")
 	}
@@ -118,16 +119,47 @@ func (al *appAsc) Set(s string) error {
 	return nil
 }
 
-func (al *appAsc) String() string {
-	app := (*apps.Apps)(al).Last()
+func (aa *appAsc) String() string {
+	app := (*apps.Apps)(aa).Last()
 	if app == nil {
 		return ""
 	}
 	return app.Asc
 }
 
-func (al *appAsc) Type() string {
+func (aa *appAsc) Type() string {
 	return "appAsc"
+}
+
+// appExec is for aci --exec overrides
+type appExec apps.Apps
+
+func (ae *appExec) Set(s string) error {
+	app := (*apps.Apps)(ae).Last()
+	if app == nil {
+		return fmt.Errorf("--exec must follow an image")
+	}
+	if !filepath.IsAbs(s) {
+		return fmt.Errorf("--exec must be absolute path")
+	}
+	if app.Exec != "" {
+		return fmt.Errorf("--exec specified multiple times for the same image")
+	}
+	app.Exec = s
+
+	return nil
+}
+
+func (ae *appExec) String() string {
+	app := (*apps.Apps)(ae).Last()
+	if app == nil {
+		return ""
+	}
+	return app.Exec
+}
+
+func (ae *appExec) Type() string {
+	return "appExec"
 }
 
 // TODO(vc): --mount, --set-env, etc.

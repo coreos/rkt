@@ -78,10 +78,14 @@ func init() {
 	cmdRun.Flags().BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
 	cmdRun.Flags().BoolVar(&flagNoOverlay, "no-overlay", false, "disable overlay filesystem")
 	cmdRun.Flags().Var(&flagExplicitEnv, "set-env", "an environment variable to set for apps in the form name=value")
-	cmdRun.Flags().BoolVar(&flagInteractive, "interactive", false, "run pod interactively")
-	cmdRun.Flags().Var((*appAsc)(&rktApps), "signature", "local signature file to use in validating the preceding image")
+	cmdRun.Flags().BoolVar(&flagInteractive, "interactive", false, "run pod interactively. If true, only one image may be supplied.")
 	cmdRun.Flags().BoolVar(&flagLocal, "local", false, "use only local images (do not discover or download from remote URLs)")
 	cmdRun.Flags().StringVar(&flagPodManifest, "pod-manifest", "", "the path to the pod manifest. If it's non-empty, then only '--private-net', '--no-overlay' and '--interactive' will have effects")
+
+	// per-app flags
+	cmdRun.Flags().Var((*appAsc)(&rktApps), "signature", "local signature file to use in validating the preceding image")
+	cmdRun.Flags().Var((*appExec)(&rktApps), "exec", "override the exec command for the preceding image")
+
 	flagVolumes = volumeList{}
 	flagPorts = portList{}
 

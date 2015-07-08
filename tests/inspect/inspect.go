@@ -36,6 +36,7 @@ var (
 	globalFlags   = struct {
 		ReadStdin        bool
 		CheckTty         bool
+		PrintExec        bool
 		PrintMsg         string
 		PrintEnv         string
 		PrintCapsPid     int
@@ -55,6 +56,7 @@ var (
 func init() {
 	globalFlagset.BoolVar(&globalFlags.ReadStdin, "read-stdin", false, "Read a line from stdin")
 	globalFlagset.BoolVar(&globalFlags.CheckTty, "check-tty", false, "Check if stdin is a terminal")
+	globalFlagset.BoolVar(&globalFlags.PrintExec, "print-exec", false, "Print the command we were execed as (i.e. argv[0])")
 	globalFlagset.StringVar(&globalFlags.PrintMsg, "print-msg", "", "Print the message given as parameter")
 	globalFlagset.StringVar(&globalFlags.CheckCwd, "check-cwd", "", "Check if the current working directory is the one specified")
 	globalFlagset.StringVar(&globalFlags.PrintEnv, "print-env", "", "Print the specified environment variable")
@@ -94,6 +96,10 @@ func main() {
 		} else {
 			fmt.Printf("stdin is not a terminal\n")
 		}
+	}
+
+	if globalFlags.PrintExec {
+		fmt.Fprintf(os.Stdout, "inspect execed as: %s\n", os.Args[0])
 	}
 
 	if globalFlags.PrintMsg != "" {

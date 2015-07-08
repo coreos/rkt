@@ -24,6 +24,7 @@ type App struct {
 	Image string   // the image reference as supplied by the user on the cli
 	Args  []string // any arguments the user supplied for this app
 	Asc   string   // signature file override for image verification (if fetching occurs)
+	Exec  string   // exec override for image
 
 	// TODO(jonboulle): These images are partially-populated hashes, this should be clarified.
 	ImageID types.Hash // resolved image identifier
