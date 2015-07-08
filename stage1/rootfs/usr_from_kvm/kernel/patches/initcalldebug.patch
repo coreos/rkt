@@ -1,0 +1,24 @@
+--- linux-4.0/init/main.c~	2015-05-29 15:48:25.000000000 -0400
++++ linux-4.0/init/main.c	2015-05-29 15:49:03.401449715 -0400
+@@ -756,16 +756,16 @@
+ 
+ static int __init_or_module do_one_initcall_debug(initcall_t fn)
+ {
+-	ktime_t calltime, delta, rettime;
++	unsigned long long calltime, delta, rettime;
+ 	unsigned long long duration;
+ 	int ret;
+ 
+ 	printk(KERN_DEBUG "calling  %pF @ %i\n", fn, raw_smp_processor_id());
+-	calltime = ktime_get();
++	calltime = local_clock();
+ 	ret = fn();
+-	rettime = ktime_get();
+-	delta = ktime_sub(rettime, calltime);
+-	duration = (unsigned long long) ktime_to_ns(delta) >> 10;
++	rettime = local_clock();
++	delta = rettime - calltime;
++	duration = delta >> 10;
+ 	printk(KERN_DEBUG "initcall %pF returned %d after %lld usecs\n",
+ 		 fn, ret, duration);
+ 

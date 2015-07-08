@@ -1,0 +1,43 @@
+From fb77baffa1f87dbb012340e072d431b15455c8b0 Mon Sep 17 00:00:00 2001
+From: Arjan van de Ven <arjan@linux.intel.com>
+Date: Wed, 11 Feb 2015 17:28:14 -0600
+Subject: [PATCH 08/12] smpboot
+
+Author:    Arjan van de Ven <arjan@linux.intel.com>
+
+Signed-off-by: Miguel Bernal Marin <miguel.bernal.marin@linux.intel.com>
+---
+ arch/x86/kernel/smpboot.c | 2 +-
+ arch/x86/kernel/tsc.c     | 3 +++
+ 2 files changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/arch/x86/kernel/smpboot.c b/arch/x86/kernel/smpboot.c
+index 6d7022c..fb90865 100644
+--- a/arch/x86/kernel/smpboot.c
++++ b/arch/x86/kernel/smpboot.c
+@@ -551,7 +551,7 @@ wakeup_secondary_cpu_via_init(int phys_apicid, unsigned long start_eip)
+ 	pr_debug("Waiting for send to finish...\n");
+ 	send_status = safe_apic_wait_icr_idle();
+ 
+-	mdelay(10);
++	udelay(100);
+ 
+ 	pr_debug("Deasserting INIT\n");
+ 
+diff --git a/arch/x86/kernel/tsc.c b/arch/x86/kernel/tsc.c
+index 5054497..464ba18 100644
+--- a/arch/x86/kernel/tsc.c
++++ b/arch/x86/kernel/tsc.c
+@@ -1232,6 +1232,9 @@ unsigned long calibrate_delay_is_known(void)
+ 	if (!tsc_disabled && !cpu_has(&cpu_data(cpu), X86_FEATURE_CONSTANT_TSC))
+ 		return 0;
+ 
++	if (cpu != 0)
++		return cpu_data(0).loops_per_jiffy;
++
+ 	for_each_online_cpu(i)
+ 		if (cpu_data(i).phys_proc_id == cpu_data(cpu).phys_proc_id)
+ 			return cpu_data(i).loops_per_jiffy;
+-- 
+2.3.0
+

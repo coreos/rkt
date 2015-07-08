@@ -58,7 +58,7 @@ $ sudo docker run -v $SRC:/opt/rkt -i -t golang:1.4 /bin/bash -c "apt-get update
 
 By default, rkt gets systemd from a CoreOS image to generate stage1. But it's also possible to build systemd from the sources. To do that, you can set the following environment variables:
 
-* `RKT_STAGE1_USR_FROM=none|coreos|src`: choose how to generate systemd for stage1
+* `RKT_STAGE1_USR_FROM=none|coreos|src|kvm`: choose how to generate systemd for stage1
 * `RKT_STAGE1_SYSTEMD_VER=v219|v220|master`: if `RKT_STAGE1_USR_FROM=src`, choose the systemd branch or tag to build
 
 Example:
@@ -66,6 +66,17 @@ Example:
 ```
 RKT_STAGE1_USR_FROM=src RKT_STAGE1_SYSTEMD_VER=v220 ./build
 ```
+
+### Building stage1 with kvm as execution engine
+
+Based on CoreOS, but with addtionall components for running containers in ontop hypervisor.
+
+To build do that:
+```
+RKT_STAGE1_USR_FROM=kvm ./build
+```
+
+You will generate stage1 with embeded kernel and kvm/tool to start pod in virutal machine.
 
 ### Alternative stage1 paths
 
