@@ -27,7 +27,6 @@ import (
 	"strings"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/aci"
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 )
 
 const (
@@ -66,39 +65,40 @@ func PodManifestPath(root string) string {
 	return filepath.Join(root, "pod")
 }
 
-// AppImagesPath returns the path where the app images live
-func AppImagesPath(root string) string {
+// AppsPath returns the path where the apps within a pod live.
+func AppsPath(root string) string {
 	return filepath.Join(Stage1RootfsPath(root), stage2Dir)
 }
 
-// AppImagePath returns the path where an app image (i.e. unpacked ACI) is rooted (i.e.
-// where its contents are extracted during stage0), based on the app image ID.
-func AppImagePath(root string, imageID types.Hash) string {
-	return filepath.Join(AppImagesPath(root), types.ShortHash(imageID.String()))
+// AppPath returns the path where an app is rooted (i.e.
+// where its ACI is extracted during stage0), based on the position of the app
+// in the pod manifest.
+func AppPath(root string, index int) string {
+	return filepath.Join(AppsPath(root), strconv.Itoa(index))
 }
 
 // AppRootfsPath returns the path to an app's rootfs.
-// imageID should be the app image ID.
-func AppRootfsPath(root string, imageID types.Hash) string {
-	return filepath.Join(AppImagePath(root, imageID), aci.RootfsDir)
+// index is the position of the app in the pod manifest.
+func AppRootfsPath(root string, index int) string {
+	return filepath.Join(AppPath(root, index), aci.RootfsDir)
 }
 
-// RelAppImagePath returns the path of an application image relative to the
-// stage1 chroot
-func RelAppImagePath(imageID types.Hash) string {
-	return filepath.Join(stage2Dir, types.ShortHash(imageID.String()))
+// RelAppPath returns the path of an app relative to the stage1 chroot,
+// based on the position of the app in the pod manfiest.
+func RelAppPath(index int) string {
+	return filepath.Join(stage2Dir, strconv.Itoa(index))
 }
 
-// RelAppImagePath returns the path of an application's rootfs relative to the
-// stage1 chroot
-func RelAppRootfsPath(imageID types.Hash) string {
-	return filepath.Join(RelAppImagePath(imageID), aci.RootfsDir)
+// RelAppRootfsPath returns the path of an app's rootfs relative to the stage1 chroot.
+// index is the position of the app in the pod manifest.
+func RelAppRootfsPath(index int) string {
+	return filepath.Join(RelAppPath(index), aci.RootfsDir)
 }
 
-// ImageManifestPath returns the path to the app's manifest file inside the expanded ACI.
-// id should be the app image ID.
-func ImageManifestPath(root string, imageID types.Hash) string {
-	return filepath.Join(AppImagePath(root, imageID), aci.ManifestFile)
+// ImageManifestPath returns the path to the app's manifest file inside a pod.
+// index is the position of the app in the pod manifest.
+func ImageManifestPath(root string, index int) string {
+	return filepath.Join(AppPath(root, index), aci.ManifestFile)
 }
 
 // MetadataServicePublicURL returns the public URL used to host the metadata service

@@ -26,7 +26,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/coreos/go-systemd/unit"
 )
 
@@ -191,7 +190,7 @@ func GetOwnCgroupPath(controller string) (string, error) {
 // CreateCgroups mounts the cgroup controllers hierarchy for the container but
 // leaves the subcgroup for each app read-write so the systemd inside stage1
 // can apply isolators to them
-func CreateCgroups(root string, subcgroup string, appHashes []types.Hash) error {
+func CreateCgroups(root string, subcgroup string, serviceNames []string) error {
 	cgroupsFile, err := os.Open("/proc/cgroups")
 	if err != nil {
 		return err
@@ -255,9 +254,7 @@ func CreateCgroups(root string, subcgroup string, appHashes []types.Hash) error 
 
 		// 3c. Create cgroup directories and mount the files we need over
 		// themselves so they stay read-write
-		for _, a := range appHashes {
-			serviceName := types.ShortHash(a.String()) + ".service"
-
+		for _, serviceName := range serviceNames {
 			appCgroup := filepath.Join(subcgroupPath, serviceName)
 			if err := os.MkdirAll(appCgroup, 0755); err != nil {
 				return err

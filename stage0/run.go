@@ -119,9 +119,9 @@ func imageNameToAppName(name types.ACIdentifier) (*types.ACName, error) {
 }
 
 // generatePodManifest creates the pod manifest from the command line input.
-// It returns the pod manifest as []byte on success.
+// It returns the pod manifest and the serialized bytes.
 // This is invoked if no pod manifest is specified at the command line.
-func generatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
+func generatePodManifest(cfg PrepareConfig, dir string) (*schema.PodManifest, []byte, error) {
 	pm := schema.PodManifest{
 		ACKind: "PodManifest",
 		Apps:   make(schema.AppList, 0),
@@ -129,13 +129,14 @@ func generatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 
 	v, err := types.NewSemVer(version.Version)
 	if err != nil {
-		return nil, fmt.Errorf("error creating version: %v", err)
+		return nil, nil, fmt.Errorf("error creating version: %v", err)
 	}
 	pm.ACVersion = *v
 
 	if err := cfg.Apps.Walk(func(app *apps.App) error {
 		img := app.ImageID
-		am, err := prepareAppImage(cfg, img, dir, cfg.UseOverlay)
+
+		am, err := prepareAppImage(cfg, img, len(pm.Apps), dir, cfg.UseOverlay)
 		if err != nil {
 			return fmt.Errorf("error setting up image %s: %v", img, err)
 		}
@@ -149,6 +150,7 @@ func generatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 		if am.App == nil {
 			return fmt.Errorf("error: image %s has no app section", img)
 		}
+
 		ra := schema.RuntimeApp{
 			// TODO(vc): leverage RuntimeApp.Name for disambiguating the apps
 			Name: *appName,
@@ -170,7 +172,7 @@ func generatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 		pm.Apps = append(pm.Apps, ra)
 		return nil
 	}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// TODO(jonboulle): check that app mountpoint expectations are
@@ -180,82 +182,83 @@ func generatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 
 	pmb, err := json.Marshal(pm)
 	if err != nil {
-		return nil, fmt.Errorf("error marshalling pod manifest: %v", err)
+		return nil, nil, fmt.Errorf("error marshalling pod manifest: %v", err)
 	}
-	return pmb, nil
+	return &pm, pmb, nil
 }
 
 // validatePodManifest reads the user-specified pod manifest, prepares the app images
 // and validates the pod manifest. If the pod manifest passes validation, it returns
-// the manifest as []byte.
+// the pod manifest and its serialized bytes.
 // TODO(yifan): More validation in the future.
-func validatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
+func validatePodManifest(cfg PrepareConfig, dir string) (*schema.PodManifest, []byte, error) {
 	pmb, err := ioutil.ReadFile(cfg.PodManifest)
 	if err != nil {
-		return nil, fmt.Errorf("error reading pod manifest: %v", err)
+		return nil, nil, fmt.Errorf("error reading pod manifest: %v", err)
 	}
 	var pm schema.PodManifest
 	if err := json.Unmarshal(pmb, &pm); err != nil {
-		return nil, fmt.Errorf("error unmarshaling pod manifest: %v", err)
+		return nil, nil, fmt.Errorf("error unmarshaling pod manifest: %v", err)
 	}
 
 	appNames := make(map[types.ACName]struct{})
-	for _, ra := range pm.Apps {
+	for i, ra := range pm.Apps {
 		img := ra.Image
-		am, err := prepareAppImage(cfg, img.ID, dir, cfg.UseOverlay)
+		am, err := prepareAppImage(cfg, img.ID, i, dir, cfg.UseOverlay)
 		if err != nil {
-			return nil, fmt.Errorf("error setting up image %s: %v", img.ID, err)
+			return nil, nil, fmt.Errorf("error setting up image %s: %v", img, err)
 		}
 		if _, ok := appNames[ra.Name]; ok {
-			return nil, fmt.Errorf("error: multiple apps with name %s", ra.Name)
+			return nil, nil, fmt.Errorf("error: multiple apps with name %s", ra.Name)
 		}
 		appNames[ra.Name] = struct{}{}
 		if ra.App == nil && am.App == nil {
-			return nil, fmt.Errorf("error: no app section in the pod manifest or the image manifest")
+			return nil, nil, fmt.Errorf("error: no app section in the pod manifest or the image manifest")
 		}
 	}
-	return pmb, nil
+	return &pm, pmb, nil
 }
 
 // Prepare sets up a pod based on the given config.
-func Prepare(cfg PrepareConfig, dir string, uuid *types.UUID) error {
+func Prepare(cfg PrepareConfig, dir string, uuid *types.UUID) (*schema.PodManifest, error) {
 	log.Printf("Preparing stage1")
 	if err := prepareStage1Image(cfg, cfg.Stage1Image, dir, cfg.UseOverlay); err != nil {
-		return fmt.Errorf("error preparing stage1: %v", err)
+		return nil, fmt.Errorf("error preparing stage1: %v", err)
 	}
 
+	var pm *schema.PodManifest
 	var pmb []byte
 	var err error
 	if len(cfg.PodManifest) > 0 {
-		pmb, err = validatePodManifest(cfg, dir)
+		pm, pmb, err = validatePodManifest(cfg, dir)
 	} else {
-		pmb, err = generatePodManifest(cfg, dir)
+		pm, pmb, err = generatePodManifest(cfg, dir)
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	log.Printf("Writing pod manifest")
 	fn := common.PodManifestPath(dir)
 	if err := ioutil.WriteFile(fn, pmb, 0700); err != nil {
-		return fmt.Errorf("error writing pod manifest: %v", err)
+		return nil, fmt.Errorf("error writing pod manifest: %v", err)
 	}
 
 	fn = path.Join(dir, common.Stage1IDFilename)
 	if err := ioutil.WriteFile(fn, []byte(cfg.Stage1Image.String()), 0700); err != nil {
-		return fmt.Errorf("error writing stage1 ID: %v", err)
+		return nil, fmt.Errorf("error writing stage1 ID: %v", err)
 	}
 
 	if cfg.UseOverlay {
 		// mark the pod as prepared with overlay
 		f, err := os.Create(filepath.Join(dir, common.OverlayPreparedFilename))
 		if err != nil {
-			return fmt.Errorf("error writing overlay marker file: %v", err)
+			return nil, fmt.Errorf("error writing overlay marker file: %v", err)
 		}
 		defer f.Close()
 	}
 
-	return nil
+	return pm, nil
 }
 
 func preparedWithOverlay(dir string) (bool, error) {
@@ -306,8 +309,8 @@ func Run(cfg RunConfig, dir string) {
 	}
 	log.Printf("Wrote filesystem to %s\n", dir)
 
-	for _, img := range cfg.Images {
-		if err := setupAppImage(cfg, img, dir, useOverlay); err != nil {
+	for i, img := range cfg.Images {
+		if err := setupAppImage(cfg, img, i, dir, useOverlay); err != nil {
 			log.Fatalf("error setting up app image: %v", err)
 		}
 	}
@@ -354,10 +357,10 @@ func Run(cfg RunConfig, dir string) {
 }
 
 // prepareAppImage renders and verifies the tree cache of the app image that
-// corresponds to the given hash.
+// corresponds to its position in the pod manifest.
 // When useOverlay is false, it attempts to render and expand the app image
 // TODO(jonboulle): tighten up the Hash type here; currently it is partially-populated (i.e. half-length sha512)
-func prepareAppImage(cfg PrepareConfig, img types.Hash, cdir string, useOverlay bool) (*schema.ImageManifest, error) {
+func prepareAppImage(cfg PrepareConfig, img types.Hash, index int, cdir string, useOverlay bool) (*schema.ImageManifest, error) {
 	log.Println("Loading image", img.String())
 
 	if useOverlay {
@@ -371,7 +374,7 @@ func prepareAppImage(cfg PrepareConfig, img types.Hash, cdir string, useOverlay 
 			}
 		}
 	} else {
-		ad := common.AppImagePath(cdir, img)
+		ad := common.AppPath(cdir, index)
 		err := os.MkdirAll(ad, 0755)
 		if err != nil {
 			return nil, fmt.Errorf("error creating image directory: %v", err)
@@ -391,10 +394,10 @@ func prepareAppImage(cfg PrepareConfig, img types.Hash, cdir string, useOverlay 
 }
 
 // setupAppImage mounts the overlay filesystem for the app image that
-// corresponds to the given hash. Then, it creates the tmp directory.
+// corresponds to its position in the pod manifest. Then, it creates the tmp directory.
 // When useOverlay is false it just creates the tmp directory for this app.
-func setupAppImage(cfg RunConfig, img types.Hash, cdir string, useOverlay bool) error {
-	ad := common.AppImagePath(cdir, img)
+func setupAppImage(cfg RunConfig, img types.Hash, index int, cdir string, useOverlay bool) error {
+	ad := common.AppPath(cdir, index)
 	if useOverlay {
 		err := os.MkdirAll(ad, 0776)
 		if err != nil {

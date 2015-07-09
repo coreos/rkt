@@ -62,8 +62,8 @@ func registerPod(p *Pod, token string) (rerr error) {
 		}
 	}()
 
-	for _, app := range p.Manifest.Apps {
-		ampath := common.ImageManifestPath(p.Root, app.Image.ID)
+	for i, app := range p.Manifest.Apps {
+		ampath := common.ImageManifestPath(p.Root, i)
 		amf, err := os.Open(ampath)
 		if err != nil {
 			rerr = fmt.Errorf("failed reading app manifest %q: %v", ampath, err)

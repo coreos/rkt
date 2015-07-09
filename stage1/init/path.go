@@ -17,10 +17,11 @@
 package main
 
 import (
+	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/common"
 )
 
@@ -31,56 +32,59 @@ const (
 	socketsWantsDir = unitsDir + "/sockets.target.wants"
 )
 
-// ServiceUnitName returns a systemd service unit name for the given imageID
-func ServiceUnitName(imageID types.Hash) string {
-	return types.ShortHash(imageID.String()) + ".service"
+// ServiceUnitName returns a systemd service unit name based on the position of the
+// app in the pod manifest.
+func ServiceUnitName(index int) string {
+	return fmt.Sprintf("app-%d.service", index)
 }
 
-// ServiceUnitPath returns the path to the systemd service file for the given
-// imageID
-func ServiceUnitPath(root string, imageID types.Hash) string {
-	return filepath.Join(common.Stage1RootfsPath(root), unitsDir, ServiceUnitName(imageID))
+// ServiceUnitPath returns the path to the systemd service file based on the position
+// of the app in the pod manifest.
+func ServiceUnitPath(root string, index int) string {
+	return filepath.Join(common.Stage1RootfsPath(root), unitsDir, ServiceUnitName(index))
 }
 
-// RelEnvFilePath returns the path to the environment file for the given imageID
-// relative to the pod's root
-func RelEnvFilePath(imageID types.Hash) string {
-	return filepath.Join(envDir, types.ShortHash(imageID.String()))
+// RelEnvFilePath returns the path to the environment file relative to the pod's root.
+func RelEnvFilePath(index int) string {
+	return filepath.Join(envDir, strconv.Itoa(index))
 }
 
-// EnvFilePath returns the path to the environment file for the given imageID
-func EnvFilePath(root string, imageID types.Hash) string {
-	return filepath.Join(common.Stage1RootfsPath(root), RelEnvFilePath(imageID))
+// EnvFilePath returns the path to the environment file based on the position of the
+// app in the pod manifest.
+func EnvFilePath(root string, index int) string {
+	return filepath.Join(common.Stage1RootfsPath(root), RelEnvFilePath(index))
 }
 
-// ServiceWantPath returns the systemd default.target want symlink path for the
-// given imageID
-func ServiceWantPath(root string, imageID types.Hash) string {
-	return filepath.Join(common.Stage1RootfsPath(root), defaultWantsDir, ServiceUnitName(imageID))
+// ServiceWantPath returns the systemd default.target want symlink path based on the
+// position of the app in the pod manifest.
+func ServiceWantPath(root string, index int) string {
+	return filepath.Join(common.Stage1RootfsPath(root), defaultWantsDir, ServiceUnitName(index))
 }
 
 // InstantiatedPrepareAppUnitName returns the systemd service unit name for prepare-app
-// instantiated for the given root
-func InstantiatedPrepareAppUnitName(imageID types.Hash) string {
+// instantiated for the given root based on its position in the pod manifest.
+func InstantiatedPrepareAppUnitName(index int) string {
 	// Naming respecting escaping rules, see systemd.unit(5) and systemd-escape(1)
-	escaped_root := common.RelAppRootfsPath(imageID)
+	escaped_root := common.RelAppRootfsPath(index)
 	escaped_root = strings.Replace(escaped_root, "-", "\\x2d", -1)
 	escaped_root = strings.Replace(escaped_root, "/", "-", -1)
 	return "prepare-app@" + escaped_root + ".service"
 }
 
-// SocketUnitName returns a systemd socket unit name for the given imageID
-func SocketUnitName(imageID types.Hash) string {
-	return imageID.String() + ".socket"
+// SocketUnitName returns a systemd socket unit name based on the position of the app in
+// the pod manifest.
+func SocketUnitName(index int) string {
+	return fmt.Sprintf("app-%d.socket", index)
 }
 
-// SocketUnitPath returns the path to the systemd socket file for the given imageID
-func SocketUnitPath(root string, imageID types.Hash) string {
-	return filepath.Join(common.Stage1RootfsPath(root), unitsDir, SocketUnitName(imageID))
+// SocketUnitPath returns the path to the systemd socket file based on the position of
+// the app in the pod manifest.
+func SocketUnitPath(root string, index int) string {
+	return filepath.Join(common.Stage1RootfsPath(root), unitsDir, SocketUnitName(index))
 }
 
-// SocketWantPath returns the systemd sockets.target.wants symlink path for the
-// given imageID
-func SocketWantPath(root string, imageID types.Hash) string {
-	return filepath.Join(common.Stage1RootfsPath(root), socketsWantsDir, SocketUnitName(imageID))
+// SocketWantPath returns the systemd sockets.target.wants symlink path based on the position
+// of the app in the pod manifest.
+func SocketWantPath(root string, index int) string {
+	return filepath.Join(common.Stage1RootfsPath(root), socketsWantsDir, SocketUnitName(index))
 }

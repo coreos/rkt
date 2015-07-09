@@ -159,7 +159,7 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 		pcfg.Apps = &rktApps
 	}
 
-	if err = stage0.Prepare(pcfg, p.path(), p.uuid); err != nil {
+	if _, err := stage0.Prepare(pcfg, p.path(), p.uuid); err != nil {
 		stderr("prepare: error setting up stage0: %v", err)
 		return 1
 	}

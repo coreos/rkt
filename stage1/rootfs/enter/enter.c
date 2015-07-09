@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
 	/* The parameters list is specified in
 	 * Documentation/devel/stage1-implementors-guide.md */
 	exit_if(argc < 4,
-		"Usage: %s pid imageid cmd [args...]", argv[0])
+		"Usage: %s pid index cmd [args...]", argv[0])
 
 	pid = atoi(argv[1]);
 	root_fd = openpidfd(pid, "root");

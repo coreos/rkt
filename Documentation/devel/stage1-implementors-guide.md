@@ -14,7 +14,7 @@ This separation of concerns is reflected in the file-system and layout of the co
 
 0. Stage 0: `rkt` executable, and the Pod Manifest created at "/var/lib/rkt/pods/$uuid/pod".
 1. Stage 1: "stage1.aci", made available at "/var/lib/rkt/pods/$uuid/stage1" by `rkt run`.
-2. Stage 2: "$app.aci", made available at "/var/lib/rkt/pods/$uuid/stage1/rootfs/opt/stage2/$imageid" by `rkt run`.
+2. Stage 2: "$app.aci", made available at "/var/lib/rkt/pods/$uuid/stage1/rootfs/opt/stage2/$index" by `rkt run`, where $index is the position of the app in the pod manifest.
 
 The stage 1 implementation is what creates the execution environment for the contained applications.  This occurs via entrypoints from stage 0 on behalf of `rkt run` and `rkt enter`.  These entrypoints are nothing more than executable programs located via Annotations from within the stage 1 ACI manifest, and executed from within the stage 1 of a given pod at "/var/lib/rkt/pods/$uuid/stage1/rootfs".
 
@@ -62,9 +62,9 @@ An alternative stage 1 would need to do whatever is appropriate for entering the
 #### Arguments
 
 1. PID of the process that is PID 1 in the container. rkt finds that PID by one of the two supported methods described in the `rkt run` section.
-2. image id of the specific application to enter
-3. cmd to execute
-4. any cmd arguments
+2. index of the specific application in the pod manifest to enter.
+3. cmd to execute.
+4. any cmd arguments.
 
 
 

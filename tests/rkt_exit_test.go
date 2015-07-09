@@ -34,7 +34,7 @@ func TestExitCode(t *testing.T) {
 			`%s --debug --insecure-skip-verify run ./rkt-inspect-exit.aci ;`+
 			`UUID=$(%s list --full|grep exited|awk '{print $1}') ;`+
 			`echo -n 'status=' ;`+
-			`%s status $UUID|grep '^sha512-.*=[0-9]*$'|cut -d= -f2"`,
+			`%s status $UUID|grep '^rkt-inspect.*=[0-9]*$'|cut -d= -f2"`,
 			ctx.cmd(), ctx.cmd(), ctx.cmd())
 		t.Logf("%s\n", cmd)
 		child, err := gexpect.Spawn(cmd)
