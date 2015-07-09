@@ -30,6 +30,9 @@ case "${RKT_STAGE1_USR_FROM}" in
 		export RKT_STAGE1_SYSTEMD_VER="${RKT_STAGE1_SYSTEMD_VER:-v220}"
 		echo "stage1 will be built from sources: $RKT_STAGE1_SYSTEMD_SRC $RKT_STAGE1_SYSTEMD_VER"
 		;;
+	kvm)
+		echo "stage1 will reuse coreos image with additional hypervisor components"
+		;;
 	*)
 		echo "RKT_STAGE1_USR_FROM=${RKT_STAGE1_USR_FROM} unsupported"
 		exit 255

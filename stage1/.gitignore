@@ -20,3 +20,4 @@ rootfs/usr_from_src/systemd/
 rootfs/usr_from_src/systemd_build/
 rootfs/usr_from_src/usr.done
 rootfs/.usr
+/init/init
