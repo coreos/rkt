@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package stage0
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -26,6 +27,9 @@ import (
 	"path"
 	"syscall"
 	"time"
+
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 
 	"github.com/coreos/rkt/common"
 )
@@ -39,18 +43,28 @@ Make sure metadata service is currently running.
 For more information on running metadata service,
 see https://github.com/coreos/rkt/blob/master/Documentation/metadata-service.md`)
 
-func registerPod(p *Pod, token string) (rerr error) {
-	uuid := p.UUID.String()
+// registerPod registers pod with metadata service.
+// Returns authentication token to be passed in the URL
+func registerPod(sockPath, root string, uuid *types.UUID, apps schema.AppList) (token string, rerr error) {
+	u := uuid.String()
 
-	cmf, err := os.Open(common.PodManifestPath(p.Root))
+	var err error
+	token, rerr = generateMDSToken()
 	if err != nil {
-		rerr = fmt.Errorf("failed opening runtime manifest: %v", err)
+		rerr = fmt.Errorf("failed to generate MDS token: %v", err)
 		return
 	}
 
-	pth := fmt.Sprintf("/pods/%v?token=%v", uuid, token)
-	err = httpRequest("PUT", pth, cmf)
-	cmf.Close()
+	pmfPath := common.PodManifestPath(root)
+	pmf, err := os.Open(pmfPath)
+	if err != nil {
+		rerr = fmt.Errorf("failed to open runtime manifest (%v): %v", pmfPath, err)
+		return
+	}
+
+	pth := fmt.Sprintf("/pods/%v?token=%v", u, token)
+	err = httpRequest(sockPath, "PUT", pth, pmf)
+	pmf.Close()
 	if err != nil {
 		rerr = fmt.Errorf("failed to register pod with metadata svc: %v", err)
 		return
@@ -58,19 +72,19 @@ func registerPod(p *Pod, token string) (rerr error) {
 
 	defer func() {
 		if rerr != nil {
-			unregisterPod(p)
+			unregisterPod(sockPath, uuid)
 		}
 	}()
 
-	for _, app := range p.Manifest.Apps {
-		ampath := common.ImageManifestPath(p.Root, app.Image.ID)
+	for _, app := range apps {
+		ampath := common.ImageManifestPath(root, app.Image.ID)
 		amf, err := os.Open(ampath)
 		if err != nil {
 			rerr = fmt.Errorf("failed reading app manifest %q: %v", ampath, err)
 			return
 		}
 
-		err = registerApp(uuid, app.Name.String(), amf)
+		err = registerApp(sockPath, u, app.Name.String(), amf)
 		amf.Close()
 		if err != nil {
 			rerr = fmt.Errorf("failed to register app with metadata svc: %v", err)
@@ -78,25 +92,35 @@ func registerPod(p *Pod, token string) (rerr error) {
 		}
 	}
 
-	return nil
+	return
 }
 
-func unregisterPod(p *Pod) error {
-	pth := path.Join("/pods", p.UUID.String())
-	return httpRequest("DELETE", pth, nil)
+// unregisterPod unregisters pod with the metadata service.
+func unregisterPod(sockPath string, uuid *types.UUID) error {
+	pth := path.Join("/pods", uuid.String())
+	return httpRequest(sockPath, "DELETE", pth, nil)
 }
 
-func registerApp(uuid, app string, r io.Reader) error {
+func generateMDSToken() (string, error) {
+	bytes := make([]byte, 16)
+	_, err := rand.Read(bytes)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", bytes), nil
+}
+
+func registerApp(sockPath, uuid, app string, r io.Reader) error {
 	pth := path.Join("/pods", uuid, app)
-	return httpRequest("PUT", pth, r)
+	return httpRequest(sockPath, "PUT", pth, r)
 }
 
-func httpRequest(method, pth string, body io.Reader) error {
+func httpRequest(sockPath, method, pth string, body io.Reader) error {
 	uri := "http://unixsock" + pth
 
 	t := &http.Transport{
 		Dial: func(_, _ string) (net.Conn, error) {
-			return net.Dial("unix", common.MetadataServiceRegSock)
+			return net.Dial("unix", sockPath)
 		},
 	}
 

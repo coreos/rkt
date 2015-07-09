@@ -94,7 +94,7 @@ func TestCaps(t *testing.T) {
 		for _, stage := range []int{1, 2} {
 			t.Logf("Running test #%v: %v [stage %v]", i, tt.testName, stage)
 
-			cmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --set-env=CAPABILITY=%d ./rkt-inspect-print-caps-stage%d.aci", ctx.cmd(), int(tt.capa), stage)
+			cmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --mds-register=false --set-env=CAPABILITY=%d ./rkt-inspect-print-caps-stage%d.aci", ctx.cmd(), int(tt.capa), stage)
 			t.Logf("Command: %v", cmd)
 			child, err := gexpect.Spawn(cmd)
 			if err != nil {
@@ -142,7 +142,7 @@ func TestNonRootCaps(t *testing.T) {
 
 		t.Logf("Running test #%v: %v [non-root]", i, tt.testName)
 
-		cmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --set-env=CAPABILITY=%d ./%s", ctx.cmd(), int(tt.capa), fileName)
+		cmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --mds-register=false --set-env=CAPABILITY=%d ./%s", ctx.cmd(), int(tt.capa), fileName)
 		t.Logf("Command: %v", cmd)
 		child, err := gexpect.Spawn(cmd)
 		if err != nil {

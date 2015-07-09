@@ -31,7 +31,7 @@ func TestExitCode(t *testing.T) {
 		defer ctx.cleanup()
 
 		cmd := fmt.Sprintf(`/bin/sh -c "`+
-			`%s --debug --insecure-skip-verify run ./rkt-inspect-exit.aci ;`+
+			`%s --debug --insecure-skip-verify run --mds-register=false ./rkt-inspect-exit.aci ;`+
 			`UUID=$(%s list --full|grep exited|awk '{print $1}') ;`+
 			`echo -n 'status=' ;`+
 			`%s status $UUID|grep '^sha512-.*=[0-9]*$'|cut -d= -f2"`,

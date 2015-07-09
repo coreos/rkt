@@ -31,35 +31,35 @@ var volTests = []struct {
 }{
 	// Check that we can read files in the ACI
 	{
-		`/bin/sh -c "export FILE=/dir1/file ; ^RKT_BIN^ --debug --insecure-skip-verify run --inherit-env=true ./rkt-inspect-read-file.aci"`,
+		`/bin/sh -c "export FILE=/dir1/file ; ^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --inherit-env=true ./rkt-inspect-read-file.aci"`,
 		`<<<dir1>>>`,
 	},
 	// Check that we can read files from a volume (both ro and rw)
 	{
-		`/bin/sh -c "export FILE=/dir1/file ; ^RKT_BIN^ --debug --insecure-skip-verify run --inherit-env=true --volume=dir1,kind=host,source=^TMPDIR^ ./rkt-inspect-vol-rw-read-file.aci"`,
+		`/bin/sh -c "export FILE=/dir1/file ; ^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --inherit-env=true --volume=dir1,kind=host,source=^TMPDIR^ ./rkt-inspect-vol-rw-read-file.aci"`,
 		`<<<host>>>`,
 	},
 	{
-		`/bin/sh -c "export FILE=/dir1/file ; ^RKT_BIN^ --debug --insecure-skip-verify run --inherit-env=true --volume=dir1,kind=host,source=^TMPDIR^ ./rkt-inspect-vol-ro-read-file.aci"`,
+		`/bin/sh -c "export FILE=/dir1/file ; ^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --inherit-env=true --volume=dir1,kind=host,source=^TMPDIR^ ./rkt-inspect-vol-ro-read-file.aci"`,
 		`<<<host>>>`,
 	},
 	// Check that we can write to files in the ACI
 	{
-		`/bin/sh -c "export FILE=/dir1/file CONTENT=1 ; ^RKT_BIN^ --debug --insecure-skip-verify run --inherit-env=true ./rkt-inspect-write-file.aci"`,
+		`/bin/sh -c "export FILE=/dir1/file CONTENT=1 ; ^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --inherit-env=true ./rkt-inspect-write-file.aci"`,
 		`<<<1>>>`,
 	},
 	// Check that we can write files to a volume (both ro and rw)
 	{
-		`/bin/sh -c "export FILE=/dir1/file CONTENT=2 ; ^RKT_BIN^ --debug --insecure-skip-verify run --inherit-env=true --volume=dir1,kind=host,source=^TMPDIR^ ./rkt-inspect-vol-rw-write-file.aci"`,
+		`/bin/sh -c "export FILE=/dir1/file CONTENT=2 ; ^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --inherit-env=true --volume=dir1,kind=host,source=^TMPDIR^ ./rkt-inspect-vol-rw-write-file.aci"`,
 		`<<<2>>>`,
 	},
 	{
-		`/bin/sh -c "export FILE=/dir1/file CONTENT=3 ; ^RKT_BIN^ --debug --insecure-skip-verify run --inherit-env=true --volume=dir1,kind=host,source=^TMPDIR^ ./rkt-inspect-vol-ro-write-file.aci"`,
+		`/bin/sh -c "export FILE=/dir1/file CONTENT=3 ; ^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --inherit-env=true --volume=dir1,kind=host,source=^TMPDIR^ ./rkt-inspect-vol-ro-write-file.aci"`,
 		`Cannot write to file "/dir1/file": open /dir1/file: read-only file system`,
 	},
 	// Check that the volume still contain the file previously written
 	{
-		`/bin/sh -c "export FILE=/dir1/file ; ^RKT_BIN^ --debug --insecure-skip-verify run --inherit-env=true --volume=dir1,kind=host,source=^TMPDIR^ ./rkt-inspect-vol-ro-read-file.aci"`,
+		`/bin/sh -c "export FILE=/dir1/file ; ^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --inherit-env=true --volume=dir1,kind=host,source=^TMPDIR^ ./rkt-inspect-vol-ro-read-file.aci"`,
 		`<<<2>>>`,
 	},
 }

@@ -52,7 +52,7 @@ func TestImageRm(t *testing.T) {
 		t.Fatalf("rkt didn't terminate correctly: %v", err)
 	}
 
-	cmd = fmt.Sprintf("%s --insecure-skip-verify run %s", ctx.cmd(), referencedACI)
+	cmd = fmt.Sprintf("%s --insecure-skip-verify run --mds-register=false %s", ctx.cmd(), referencedACI)
 	t.Logf("Running %s: %v", referencedACI, cmd)
 	child, err = gexpect.Spawn(cmd)
 	if err != nil {

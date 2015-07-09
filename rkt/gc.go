@@ -18,10 +18,12 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
+	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/stage0"
 	"github.com/coreos/rkt/store"
 )
@@ -123,7 +125,7 @@ func emptyExitedGarbage(gracePeriod time.Duration) error {
 			stage1RootFS := s.GetTreeStoreRootFS(stage1ID.String())
 
 			// execute stage1's GC
-			if err := stage0.GC(p.path(), p.uuid, stage1RootFS, globalFlags.Debug); err != nil {
+			if err := stage0.GC(filepath.Join(globalFlags.RunDir, common.MetadataServiceRegSock), p.path(), p.uuid, stage1RootFS, globalFlags.Debug); err != nil {
 				stderr("Stage1 GC of pod %q failed: %v", p.uuid, err)
 				return
 			}

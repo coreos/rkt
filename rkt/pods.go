@@ -856,6 +856,21 @@ func (p *pod) getStage1Hash() (*types.Hash, error) {
 
 // getAppsHashes returns a list of the app hashes in the pod
 func (p *pod) getAppsHashes() ([]types.Hash, error) {
+	apps, err := p.getApps()
+	if err != nil {
+		return nil, err
+	}
+
+	hashes := []types.Hash{}
+	for _, a := range apps {
+		hashes = append(hashes, a.Image.ID)
+	}
+
+	return hashes, nil
+}
+
+// getApps returns a list of apps in the pod
+func (p *pod) getApps() (schema.AppList, error) {
 	pmb, err := p.readFile("pod")
 	if err != nil {
 		return nil, err
@@ -864,13 +879,7 @@ func (p *pod) getAppsHashes() ([]types.Hash, error) {
 	if err = json.Unmarshal(pmb, &pm); err != nil {
 		return nil, err
 	}
-
-	var imgs []types.Hash
-	for _, app := range pm.Apps {
-		imgs = append(imgs, app.Image.ID)
-	}
-
-	return imgs, nil
+	return pm.Apps, nil
 }
 
 // getDirNames returns the list of names from a pod's directory

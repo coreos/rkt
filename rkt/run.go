@@ -57,6 +57,7 @@ End the image arguments with a lone "---" to resume argument parsing.`,
 	flagNoOverlay   bool
 	flagLocal       bool
 	flagPodManifest string
+	flagMDSRegister bool
 )
 
 func init() {
@@ -82,6 +83,7 @@ func init() {
 	cmdRun.Flags().Var((*appAsc)(&rktApps), "signature", "local signature file to use in validating the preceding image")
 	cmdRun.Flags().BoolVar(&flagLocal, "local", false, "use only local images (do not discover or download from remote URLs)")
 	cmdRun.Flags().StringVar(&flagPodManifest, "pod-manifest", "", "the path to the pod manifest. If it's non-empty, then only '--private-net', '--no-overlay' and '--interactive' will have effects")
+	cmdRun.Flags().BoolVar(&flagMDSRegister, "mds-register", true, "register pod with metadata service")
 	flagVolumes = volumeList{}
 	flagPorts = portList{}
 
@@ -219,22 +221,20 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 	}
 
 	rcfg := stage0.RunConfig{
-		CommonConfig: cfg,
-		PrivateNet:   flagPrivateNet,
-		LockFd:       lfd,
-		Interactive:  flagInteractive,
+		CommonConfig:        cfg,
+		PrivateNet:          flagPrivateNet,
+		LockFd:              lfd,
+		Interactive:         flagInteractive,
+		MDSRegister:         flagMDSRegister,
+		MDSRegisterSockPath: filepath.Join(globalFlags.RunDir, common.MetadataServiceRegSock),
 	}
 
-	if len(flagPodManifest) > 0 {
-		imgs, err := p.getAppsHashes()
-		if err != nil {
-			stderr("run: cannot get the image hashes in the pod manifest: %v", err)
-			return 1
-		}
-		rcfg.Images = imgs
-	} else {
-		rcfg.Images = rktApps.GetImageIDs()
+	imgs, err := p.getApps()
+	if err != nil {
+		stderr("run: cannot get the image hashes in the pod manifest: %v", err)
+		return 1
 	}
+	rcfg.Images = imgs
 	stage0.Run(rcfg, p.path()) // execs, never returns
 
 	return 1

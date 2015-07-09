@@ -168,7 +168,7 @@ func serverHandler(t *testing.T, server *taas.Server) {
 // useful for ensuring that image name is unique and for descriptive
 // purposes.
 func expectedRunRkt(ctx *rktRunCtx, t *testing.T, host, dir, line string) {
-	cmd := fmt.Sprintf(`%s --debug --insecure-skip-verify run %s/%s/prog.aci`, ctx.cmd(), host, dir)
+	cmd := fmt.Sprintf(`%s --debug --insecure-skip-verify run --mds-register=false %s/%s/prog.aci`, ctx.cmd(), host, dir)
 	t.Logf("Running rkt: %s", cmd)
 	child, err := gexpect.Spawn(cmd)
 	if err != nil {

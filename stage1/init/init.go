@@ -53,12 +53,12 @@ import "C"
 // this implements /init of stage1/nspawn+systemd
 
 import (
-	"crypto/rand"
 	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -126,17 +126,25 @@ var (
 	debug       bool
 	privNet     common.PrivateNetList
 	interactive bool
+	mdsToken    string
+	localhostIP net.IP
 )
 
 func init() {
 	flag.BoolVar(&debug, "debug", false, "Run in debug mode")
 	flag.Var(&privNet, "private-net", "Setup private network")
 	flag.BoolVar(&interactive, "interactive", false, "The pod is interactive")
+	flag.StringVar(&mdsToken, "mds-token", "", "MDS auth token")
 
 	// this ensures that main runs only on main thread (thread group leader).
 	// since namespace ops (unshare, setns) are done for a single thread, we
 	// must ensure that the goroutine does not jump from OS thread to thread
 	runtime.LockOSThread()
+
+	localhostIP = net.ParseIP("127.0.0.1")
+	if localhostIP == nil {
+		panic("localhost IP failed to parse")
+	}
 }
 
 // machinedRegister checks if nspawn should register the pod to machined
@@ -460,26 +468,19 @@ func stage1() int {
 			return 6
 		}
 
-		hostIP, err := n.GetDefaultHostIP()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to get default Host IP: %v\n", err)
-			return 6
+		if len(mdsToken) > 0 {
+			hostIP, err := n.GetDefaultHostIP()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to get default Host IP: %v\n", err)
+				return 6
+			}
+
+			p.MetadataServiceURL = common.MetadataServicePublicURL(hostIP, mdsToken)
 		}
-
-		mdsToken, err := generateMDSToken()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to generate MDS token: %v", err)
-			return 8
+	} else {
+		if len(mdsToken) > 0 {
+			p.MetadataServiceURL = common.MetadataServicePublicURL(localhostIP, mdsToken)
 		}
-
-		p.MetadataServiceURL = common.MetadataServicePublicURL(hostIP, mdsToken)
-
-		if err = registerPod(p, mdsToken); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to register pod: %v\n", err)
-			return 8
-		}
-
-		defer unregisterPod(p)
 	}
 
 	flavor, systemdStage1Version, err := p.getFlavor()
@@ -721,15 +722,6 @@ func systemdSupportsJournalLinking(version string) bool {
 	default:
 		return false
 	}
-}
-
-func generateMDSToken() (string, error) {
-	bytes := make([]byte, 16)
-	_, err := rand.Read(bytes)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%x", bytes), nil
 }
 
 func main() {

@@ -33,12 +33,14 @@ const (
 	cliDescription = "rkt, the application container runner"
 
 	defaultDataDir = "/var/lib/rkt"
+	defaultRunDir  = "/run/rkt"
 )
 
 var (
 	tabOut      *tabwriter.Writer
 	globalFlags = struct {
 		Dir                string
+		RunDir             string
 		SystemConfigDir    string
 		LocalConfigDir     string
 		Debug              bool
@@ -57,6 +59,7 @@ var cmdRkt = &cobra.Command{
 func init() {
 	cmdRkt.PersistentFlags().BoolVar(&globalFlags.Debug, "debug", false, "Print out more debug information to stderr")
 	cmdRkt.PersistentFlags().StringVar(&globalFlags.Dir, "dir", defaultDataDir, "rkt data directory")
+	cmdRkt.PersistentFlags().StringVar(&globalFlags.RunDir, "run-dir", defaultRunDir, "rkt run directory for transient state files")
 	cmdRkt.PersistentFlags().StringVar(&globalFlags.SystemConfigDir, "system-config", common.DefaultSystemConfigDir, "system configuration directory")
 	cmdRkt.PersistentFlags().StringVar(&globalFlags.LocalConfigDir, "local-config", common.DefaultLocalConfigDir, "local configuration directory")
 	cmdRkt.PersistentFlags().BoolVar(&globalFlags.InsecureSkipVerify, "insecure-skip-verify", false, "skip all TLS, image or fingerprint verification")

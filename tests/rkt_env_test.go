@@ -29,39 +29,39 @@ var envTests = []struct {
 	enterCmd  string
 }{
 	{
-		`^RKT_BIN^ --debug --insecure-skip-verify run ./rkt-inspect-print-var-from-manifest.aci`,
+		`^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false ./rkt-inspect-print-var-from-manifest.aci`,
 		"VAR_FROM_MANIFEST=manifest",
-		`^RKT_BIN^ --debug --insecure-skip-verify run --interactive ./rkt-inspect-sleep.aci`,
+		`^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --interactive ./rkt-inspect-sleep.aci`,
 		`/bin/sh -c "^RKT_BIN^ --debug enter $(^RKT_BIN^ list --full|grep running|awk '{print $1}') /inspect --print-env=VAR_FROM_MANIFEST"`,
 	},
 	{
-		`^RKT_BIN^ --debug --insecure-skip-verify run --set-env=VAR_OTHER=setenv ./rkt-inspect-print-var-other.aci`,
+		`^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --set-env=VAR_OTHER=setenv ./rkt-inspect-print-var-other.aci`,
 		"VAR_OTHER=setenv",
-		`^RKT_BIN^ --debug --insecure-skip-verify run --interactive --set-env=VAR_OTHER=setenv ./rkt-inspect-sleep.aci`,
+		`^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --interactive --set-env=VAR_OTHER=setenv ./rkt-inspect-sleep.aci`,
 		`/bin/sh -c "^RKT_BIN^ --debug enter $(^RKT_BIN^ list --full|grep running|awk '{print $1}') /inspect --print-env=VAR_OTHER"`,
 	},
 	{
-		`^RKT_BIN^ --debug --insecure-skip-verify run --set-env=VAR_FROM_MANIFEST=setenv ./rkt-inspect-print-var-from-manifest.aci`,
+		`^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --set-env=VAR_FROM_MANIFEST=setenv ./rkt-inspect-print-var-from-manifest.aci`,
 		"VAR_FROM_MANIFEST=setenv",
-		`^RKT_BIN^ --debug --insecure-skip-verify run --interactive --set-env=VAR_FROM_MANIFEST=setenv ./rkt-inspect-sleep.aci`,
+		`^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --interactive --set-env=VAR_FROM_MANIFEST=setenv ./rkt-inspect-sleep.aci`,
 		`/bin/sh -c "^RKT_BIN^ --debug enter $(^RKT_BIN^ list --full|grep running|awk '{print $1}') /inspect --print-env=VAR_FROM_MANIFEST"`,
 	},
 	{
-		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --inherit-env=true ./rkt-inspect-print-var-other.aci"`,
+		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --inherit-env=true ./rkt-inspect-print-var-other.aci"`,
 		"VAR_OTHER=host",
-		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --interactive --inherit-env=true ./rkt-inspect-sleep.aci"`,
+		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --interactive --inherit-env=true ./rkt-inspect-sleep.aci"`,
 		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug enter $(^RKT_BIN^ list --full|grep running|awk '{print $1}') /inspect --print-env=VAR_OTHER"`,
 	},
 	{
-		`/bin/sh -c "export VAR_FROM_MANIFEST=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --inherit-env=true ./rkt-inspect-print-var-from-manifest.aci"`,
+		`/bin/sh -c "export VAR_FROM_MANIFEST=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --inherit-env=true ./rkt-inspect-print-var-from-manifest.aci"`,
 		"VAR_FROM_MANIFEST=manifest",
-		`/bin/sh -c "export VAR_FROM_MANIFEST=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --interactive --inherit-env=true ./rkt-inspect-sleep.aci"`,
+		`/bin/sh -c "export VAR_FROM_MANIFEST=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --interactive --inherit-env=true ./rkt-inspect-sleep.aci"`,
 		`/bin/sh -c "export VAR_FROM_MANIFEST=host ; ^RKT_BIN^ --debug enter $(^RKT_BIN^ list --full|grep running|awk '{print $1}') /inspect --print-env=VAR_FROM_MANIFEST"`,
 	},
 	{
-		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --inherit-env=true --set-env=VAR_OTHER=setenv ./rkt-inspect-print-var-other.aci"`,
+		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --inherit-env=true --set-env=VAR_OTHER=setenv ./rkt-inspect-print-var-other.aci"`,
 		"VAR_OTHER=setenv",
-		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --interactive --inherit-env=true --set-env=VAR_OTHER=setenv ./rkt-inspect-sleep.aci"`,
+		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --interactive --inherit-env=true --set-env=VAR_OTHER=setenv ./rkt-inspect-sleep.aci"`,
 		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug enter $(^RKT_BIN^ list --full|grep running|awk '{print $1}') /inspect --print-env=VAR_OTHER"`,
 	},
 }

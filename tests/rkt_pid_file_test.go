@@ -28,7 +28,7 @@ import (
 
 func preparePidFileRace(t *testing.T, ctx *rktRunCtx) (*gexpect.ExpectSubprocess, *gexpect.ExpectSubprocess, string, string) {
 	// Start the pod
-	runCmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --interactive ./rkt-inspect-sleep.aci", ctx.cmd())
+	runCmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --mds-register=false --interactive ./rkt-inspect-sleep.aci", ctx.cmd())
 	t.Logf("%s", runCmd)
 	runChild, err := gexpect.Spawn(runCmd)
 	if err != nil {

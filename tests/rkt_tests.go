@@ -87,6 +87,7 @@ func (d *dirDesc) ensureValid() {
 type rktRunCtx struct {
 	directories []*dirDesc
 	useDefaults bool
+	mds         *exec.Cmd
 }
 
 func newRktRunCtx() *rktRunCtx {
@@ -95,8 +96,16 @@ func newRktRunCtx() *rktRunCtx {
 			newDirDesc("datadir-", "data", "dir"),
 			newDirDesc("localdir-", "local configuration", "local-config"),
 			newDirDesc("systemdir-", "system configuration", "system-config"),
+			newDirDesc("rundir-", "run directory for transient state files", "run-dir"),
 		},
 	}
+}
+
+func (ctx *rktRunCtx) launchMDS() error {
+	cmdLine := strings.Split(ctx.cmd(), " ")
+	cmdLine = append(cmdLine, "metadata-service")
+	ctx.mds = exec.Command(cmdLine[0], cmdLine[1:]...)
+	return ctx.mds.Start()
 }
 
 func (ctx *rktRunCtx) dataDir() string {
@@ -109,6 +118,10 @@ func (ctx *rktRunCtx) localDir() string {
 
 func (ctx *rktRunCtx) systemDir() string {
 	return ctx.dir(2)
+}
+
+func (ctx *rktRunCtx) runDir() string {
+	return ctx.dir(3)
 }
 
 func (ctx *rktRunCtx) dir(idx int) string {
@@ -126,6 +139,12 @@ func (ctx *rktRunCtx) reset() {
 }
 
 func (ctx *rktRunCtx) cleanup() {
+	if ctx.mds != nil {
+		ctx.mds.Process.Kill()
+		ctx.mds.Wait()
+		os.Remove("/run/rkt/metadata-svc.sock")
+	}
+
 	for _, d := range ctx.directories {
 		d.cleanup()
 	}

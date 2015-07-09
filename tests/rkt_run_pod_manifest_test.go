@@ -87,6 +87,10 @@ func TestPodManifest(t *testing.T) {
 	ctx := newRktRunCtx()
 	defer ctx.cleanup()
 
+	if err := ctx.launchMDS(); err != nil {
+		t.Fatalf("Error starting metadata service: %v", err)
+	}
+
 	tmpdir, err := ioutil.TempDir("", "rkt-tests.")
 	if err != nil {
 		t.Fatalf("Cannot create temporary directory: %v", err)
@@ -329,7 +333,7 @@ func TestPodManifest(t *testing.T) {
 		defer os.Remove(manifestFile)
 
 		// 1. Test 'rkt run'.
-		runCmd := fmt.Sprintf("%s run --pod-manifest=%s", ctx.cmd(), manifestFile)
+		runCmd := fmt.Sprintf("%s run --mds-register=true --pod-manifest=%s", ctx.cmd(), manifestFile)
 		t.Logf("Running 'run' test #%v: %v", i, runCmd)
 		child, err := gexpect.Spawn(runCmd)
 		if err != nil {
@@ -364,7 +368,7 @@ func TestPodManifest(t *testing.T) {
 			t.Fatalf("%q is not a valid UUID: %v", podIDStr, err)
 		}
 
-		runPreparedCmd := fmt.Sprintf("%s run-prepared %s", ctx.cmd(), podID.String())
+		runPreparedCmd := fmt.Sprintf("%s run-prepared --mds-register=true %s", ctx.cmd(), podID.String())
 		t.Logf("Running 'run' test #%v: %v", i, runPreparedCmd)
 		child, err = gexpect.Spawn(runPreparedCmd)
 		if err != nil {

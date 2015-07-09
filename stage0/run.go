@@ -64,10 +64,12 @@ type PrepareConfig struct {
 // configuration parameters needed by Run
 type RunConfig struct {
 	CommonConfig
-	PrivateNet  common.PrivateNetList // pod should have its own network stack
-	LockFd      int                   // lock file descriptor
-	Interactive bool                  // whether the pod is interactive or not
-	Images      []types.Hash          // application images (prepare gets them via Apps)
+	PrivateNet          common.PrivateNetList // pod should have its own network stack
+	LockFd              int                   // lock file descriptor
+	Interactive         bool                  // whether the pod is interactive or not
+	MDSRegister         bool                  // whether to register with metadata service or not
+	MDSRegisterSockPath string                // whether to register with metadata service or not
+	Images              schema.AppList        // application images (prepare gets them via Apps)
 }
 
 // configuration shared by both Run and Prepare
@@ -75,7 +77,6 @@ type CommonConfig struct {
 	Store        *store.Store // store containing all of the configured application images
 	Stage1Image  types.Hash   // stage1 image containing usable /init and /enter entrypoints
 	UUID         *types.UUID  // UUID of the pod
-	PodsDir      string       // root directory for rkt pods
 	Debug        bool
 	MountLabel   string // selinux label to use for fs
 	ProcessLabel string // selinux label to use for process
@@ -307,7 +308,7 @@ func Run(cfg RunConfig, dir string) {
 	log.Printf("Wrote filesystem to %s\n", dir)
 
 	for _, img := range cfg.Images {
-		if err := setupAppImage(cfg, img, dir, useOverlay); err != nil {
+		if err := setupAppImage(cfg, img.Image.ID, dir, useOverlay); err != nil {
 			log.Fatalf("error setting up app image: %v", err)
 		}
 	}
@@ -325,9 +326,9 @@ func Run(cfg RunConfig, dir string) {
 	if err != nil {
 		log.Fatalf("error determining init entrypoint: %v", err)
 	}
+	args := []string{filepath.Join(common.Stage1RootfsPath(dir), ep)}
 	log.Printf("Execing %s", ep)
 
-	args := []string{filepath.Join(common.Stage1RootfsPath(dir), ep)}
 	if cfg.Debug {
 		args = append(args, "--debug")
 	}
@@ -337,6 +338,15 @@ func Run(cfg RunConfig, dir string) {
 	if cfg.Interactive {
 		args = append(args, "--interactive")
 	}
+	if cfg.MDSRegister {
+		mdsToken, err := registerPod(cfg.MDSRegisterSockPath, ".", cfg.UUID, cfg.Images)
+		if err != nil {
+			log.Fatalf("failed to register the pod: %v", err)
+		}
+
+		args = append(args, "--mds-token="+mdsToken)
+	}
+
 	args = append(args, cfg.UUID.String())
 
 	// make sure the lock fd stays open across exec

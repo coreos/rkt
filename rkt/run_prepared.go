@@ -44,6 +44,7 @@ func init() {
 	cmdRunPrepared.Flags().Var(&flagPrivateNet, "private-net", "give pod a private network")
 	cmdRunPrepared.Flags().Lookup("private-net").NoOptDefVal = "true"
 	cmdRunPrepared.Flags().BoolVar(&flagInteractive, "interactive", false, "the pod is interactive")
+	cmdRunPrepared.Flags().BoolVar(&flagMDSRegister, "mds-register", true, "register pod with metadata service")
 }
 
 func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
@@ -114,9 +115,9 @@ func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	imgs, err := p.getAppsHashes()
+	imgs, err := p.getApps()
 	if err != nil {
-		stderr("prepared-run: unable to get apps hashes: %v", err)
+		stderr("prepared-run: unable to get apps names and hashes: %v", err)
 		return 1
 	}
 
@@ -130,6 +131,7 @@ func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 		PrivateNet:  flagPrivateNet,
 		LockFd:      lfd,
 		Interactive: flagInteractive,
+		MDSRegister: flagMDSRegister,
 		Images:      imgs,
 	}
 	stage0.Run(rcfg, p.path()) // execs, never returns
