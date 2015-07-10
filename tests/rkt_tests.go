@@ -66,6 +66,10 @@ func (d *dirDesc) cleanup() {
 	if d.dir == "" {
 		return
 	}
+	cmd := exec.Command("../bin/rkt", fmt.Sprintf("--dir=%s", d.dir), "gc", "--grace-period=0s")
+	if err := cmd.Run(); err != nil {
+		panic(fmt.Sprintf("Failed to GC (data directory: %s): %v", d.dir, err))
+	}
 	if err := os.RemoveAll(d.dir); err != nil {
 		panic(fmt.Sprintf("Failed to remove temporary %s directory %q: %s", d.desc, d.dir, err))
 	}
