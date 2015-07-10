@@ -16,7 +16,7 @@ Use the following build commands:
 ```
 ./tests/install-deps.sh            # Setup
 ./tests/run-build.sh none          # Thread 1
-./tests/run-build.sh src v220      # Thread 1
+./tests/run-build.sh src v221      # Thread 1
 ./tests/run-build.sh usr-from-host # Thread 1
 ./tests/run-build.sh coreos        # Thread 2
 ./tests/run-build.sh src master    # Thread 2

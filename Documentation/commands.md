@@ -334,7 +334,7 @@ By default, rkt will send logs directly to stdout/stderr, allowing them to be ca
 On host systems running systemd, rkt will attempt to integrate with journald on the host.
 In this case, the logs can be accessed directly via journalctl.
 
-NOTE: Journald integration requires systemd version v219 or v220 in stage1.
+NOTE: Journald integration requires systemd version v219 or better in stage1.
 
 #### Accessing logs via journalctl
 
