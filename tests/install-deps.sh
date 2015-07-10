@@ -12,6 +12,7 @@ if [ "${CI-}" == true ] ; then
 
 		sudo apt-get update -qq || true
 		sudo apt-get install -y libseccomp-dev libseccomp2 # systemd deps
+		sudo apt-get install -y libkeyutils-dev # keyutils deps
 	fi
 
 	# https://circleci.com/

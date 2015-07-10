@@ -187,6 +187,11 @@
 			"Rev": "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
 		},
 		{
+			"ImportPath": "github.com/jandre/keyutils",
+			"Comment": "0.1.0-3-g5daa27f",
+			"Rev": "5daa27f96449c6927831791c0715fa8bb3a66c42"
+		},
+		{
 			"ImportPath": "github.com/kballard/go-shellquote",
 			"Rev": "e5c918b80c17694cbc49aab32a759f9a40067f5d"
 		},
