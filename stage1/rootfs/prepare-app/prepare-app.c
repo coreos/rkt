@@ -40,6 +40,14 @@ typedef struct _dir_op_t {
 	mode_t		mode;
 } dir_op_t;
 
+typedef struct _mount_point_t {
+	const char	*source;
+	const char	*target;
+	const char	*type;
+	const char	*options;
+	unsigned long	flags;
+} mount_point;
+
 #define dir(_name, _mode) \
 	{ .name = _name, .mode = _mode }
 
@@ -70,12 +78,11 @@ int main(int argc, char *argv[])
 		"/dev/console",
 		NULL
 	};
-	static const char *bind_dirs[] = {
-		"/proc",
-		"/sys",
-		"/dev/shm",
-		"/dev/pts",
-		NULL
+	static const mount_point mount_table[] = {
+		{ "/proc", "/proc", "bind", NULL, MS_BIND|MS_REC },
+		{ "/sys", "/sys", "bind", NULL, MS_BIND|MS_REC },
+		{ "/dev/shm", "/dev/shm", "bind", NULL, MS_BIND },
+		{ "/dev/pts", "/dev/pts", "bind", NULL, MS_BIND },
 	};
 	const char *root;
 	int rootfd;
@@ -164,13 +171,14 @@ int main(int argc, char *argv[])
 	}
 
 	/* Bind mount directories */
-	for (i = 0; bind_dirs[i]; i++) {
-		const char *from = bind_dirs[i];
+	for (i = 0; i < nelems(mount_table); i++) {
+		const mount_point *mnt = &mount_table[i];
 
-		exit_if(snprintf(to, sizeof(to), "%s/%s", root, from) >= sizeof(to),
+		exit_if(snprintf(to, sizeof(to), "%s/%s", root, mnt->target) >= sizeof(to),
 			"Path too long: \"%s\"", to);
-		pexit_if(mount(from, to, "bind", MS_BIND, NULL) == -1,
-				"Mounting \"%s\" on \"%s\" failed", from, to);
+		pexit_if(mount(mnt->source, to, mnt->type,
+			       mnt->flags, mnt->options) == -1,
+				"Mounting \"%s\" on \"%s\" failed", mnt->source, to);
 	}
 
 	/* /dev/ptmx -> /dev/pts/ptmx */
