@@ -32,6 +32,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/rkt/common/apps"
+	"github.com/coreos/rkt/pkg/keystore"
+	"github.com/coreos/rkt/rkt/config"
+	"github.com/coreos/rkt/stage0"
+	"github.com/coreos/rkt/store"
+
 	docker2aci "github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/docker2aci/lib"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/docker2aci/lib/common"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/aci"
@@ -40,10 +46,6 @@ import (
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/coreos/ioprogress"
 	"github.com/coreos/rkt/Godeps/_workspace/src/golang.org/x/crypto/openpgp"
 	pgperrors "github.com/coreos/rkt/Godeps/_workspace/src/golang.org/x/crypto/openpgp/errors"
-	"github.com/coreos/rkt/common/apps"
-	"github.com/coreos/rkt/pkg/keystore"
-	"github.com/coreos/rkt/rkt/config"
-	"github.com/coreos/rkt/store"
 )
 
 type imageActionData struct {
@@ -89,6 +91,19 @@ func (f *finder) findImage(img string, asc string, discover bool) (*types.Hash, 
 			panic(err)
 		}
 		return h, nil
+	}
+
+	// check if os and arch are valid early
+	u, err := url.Parse(img)
+	if err != nil {
+		return nil, fmt.Errorf("not a valid image reference (%s)", img)
+	}
+	if discover && u.Scheme == "" {
+		if app := newDiscoveryApp(img); app != nil {
+			if err := types.IsValidOSArch(app.Labels, stage0.ValidOSArch); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	// try fetching the image, potentially remotely

@@ -363,6 +363,22 @@ func Run(cfg RunConfig, dir string) {
 func prepareAppImage(cfg PrepareConfig, appName types.ACName, img types.Hash, cdir string, useOverlay bool) error {
 	log.Println("Loading image", img.String())
 
+	am, err := cfg.Store.GetImageManifest(img.String())
+	if err != nil {
+		return fmt.Errorf("error getting the manifest: %v", err)
+	}
+
+	if _, hasOS := am.Labels.Get("os"); !hasOS {
+		return fmt.Errorf("missing os label in the image manifest")
+	}
+	if _, hasArch := am.Labels.Get("arch"); !hasArch {
+		return fmt.Errorf("missing arch label in the image manifest")
+	}
+
+	if err := types.IsValidOSArch(am.Labels.ToMap(), ValidOSArch); err != nil {
+		return err
+	}
+
 	if useOverlay {
 		if err := cfg.Store.RenderTreeStore(img.String(), false); err != nil {
 			return fmt.Errorf("error rendering tree image: %v", err)
