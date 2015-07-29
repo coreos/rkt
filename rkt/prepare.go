@@ -70,6 +70,7 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 			stderr("prepare: unable to open /dev/null")
 			return 1
 		}
+		log.SetOutput(os.Stdout)
 	}
 
 	if err = parseApps(&rktApps, args, cmd.Flags(), true); err != nil {
