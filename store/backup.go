@@ -36,7 +36,7 @@ func createBackup(dbDir, backupsDir string, limit int) error {
 	if err := os.MkdirAll(backupsDir, defaultPathPerm); err != nil {
 		return err
 	}
-	if err := fileutil.CopyTree(dbDir, tmpBackupDir); err != nil {
+	if err := fileutil.CopyTree(dbDir, tmpBackupDir, 0, 0); err != nil {
 		return err
 	}
 	defer os.RemoveAll(tmpBackupDir)

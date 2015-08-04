@@ -34,9 +34,10 @@ const (
 	stage1Dir = "/stage1"
 	stage2Dir = "/opt/stage2"
 
-	EnvLockFd               = "RKT_LOCK_FD"
-	Stage1IDFilename        = "stage1ID"
-	OverlayPreparedFilename = "overlay-prepared"
+	EnvLockFd                    = "RKT_LOCK_FD"
+	Stage1IDFilename             = "stage1ID"
+	OverlayPreparedFilename      = "overlay-prepared"
+	PrivateUsersPreparedFilename = "private-users-prepared"
 
 	MetadataServicePort    = 2375
 	MetadataServiceRegSock = "/run/rkt/metadata-svc.sock"

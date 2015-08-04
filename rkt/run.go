@@ -47,17 +47,18 @@ which will instead be appended to the preceding image app's exec arguments.
 End the image arguments with a lone "---" to resume argument parsing.`,
 		Run: runWrapper(runRun),
 	}
-	flagStage1Image string
-	flagVolumes     volumeList
-	flagPorts       portList
-	flagPrivateNet  common.PrivateNetList
-	flagInheritEnv  bool
-	flagExplicitEnv envMap
-	flagInteractive bool
-	flagNoOverlay   bool
-	flagLocal       bool
-	flagPodManifest string
-	flagMDSRegister bool
+	flagStage1Image  string
+	flagVolumes      volumeList
+	flagPorts        portList
+	flagPrivateNet   common.PrivateNetList
+	flagPrivateUsers string
+	flagInheritEnv   bool
+	flagExplicitEnv  envMap
+	flagInteractive  bool
+	flagNoOverlay    bool
+	flagLocal        bool
+	flagPodManifest  string
+	flagMDSRegister  bool
 )
 
 func init() {
@@ -189,6 +190,7 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 	pcfg := stage0.PrepareConfig{
 		CommonConfig: cfg,
 		UseOverlay:   !flagNoOverlay && common.SupportsOverlay(),
+		PrivateUsers: flagPrivateUsers,
 	}
 
 	if len(flagPodManifest) > 0 {

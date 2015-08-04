@@ -55,6 +55,7 @@ func init() {
 	cmdPrepare.Flags().Var(&flagExplicitEnv, "set-env", "an environment variable to set for apps in the form name=value")
 	cmdPrepare.Flags().BoolVar(&flagLocal, "local", false, "use only local images (do not discover or download from remote URLs)")
 	cmdPrepare.Flags().StringVar(&flagPodManifest, "pod-manifest", "", "the path to the pod manifest. If it's non-empty, then only '--quiet' and '--no-overlay' will have effects")
+	cmdPrepare.Flags().StringVar(&flagPrivateUsers, "private-users", "", "Run within user namespace. Can be set to [=UIDBASE[:NUIDS]]")
 
 	// Disable interspersed flags to stop parsing after the first non flag
 	// argument. This is need to permit to correctly handle
@@ -147,6 +148,7 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 	pcfg := stage0.PrepareConfig{
 		CommonConfig: cfg,
 		UseOverlay:   !flagNoOverlay && common.SupportsOverlay(),
+		PrivateUsers: flagPrivateUsers,
 	}
 
 	if len(flagPodManifest) > 0 {
