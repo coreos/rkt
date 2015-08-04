@@ -120,7 +120,7 @@ func runImageExtract(cmd *cobra.Command, args []string) (exit int) {
 		}
 	}
 
-	if err := tar.ExtractTar(aci, extractDir, false, nil); err != nil {
+	if err := tar.ExtractTar(aci, extractDir, false, 0, 0, nil); err != nil {
 		stderr("image extract: error extracting ACI: %v", err)
 		return 1
 	}
