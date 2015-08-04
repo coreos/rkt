@@ -33,6 +33,7 @@ import (
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/coreos/go-systemd/unit"
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/common/cgroup"
+	"github.com/coreos/rkt/stage1/init/kvm"
 )
 
 // Pod encapsulates a PodManifest and ImageManifests
@@ -154,7 +155,7 @@ func (p *Pod) WritePrepareAppTemplate() error {
 }
 
 // appToSystemd transforms the provided RuntimeApp+ImageManifest into systemd units
-func (p *Pod) appToSystemd(ra *schema.RuntimeApp, interactive bool) error {
+func (p *Pod) appToSystemd(ra *schema.RuntimeApp, interactive bool, flavor string) error {
 	app := ra.App
 	appName := ra.Name
 	image, ok := p.Images[appName.String()]
@@ -315,6 +316,15 @@ func (p *Pod) appToSystemd(ra *schema.RuntimeApp, interactive bool) error {
 		return fmt.Errorf("failed to link service want: %v", err)
 	}
 
+	if flavor == "kvm" {
+		// bind mount all shared volumes from /mnt/volumeName (we don't use mechanism for bind-mounting given by nspawn)
+		err := kvm.AppToSystemdMountUnits(common.Stage1RootfsPath(p.Root), appName, app.MountPoints, unitsDir)
+		if err != nil {
+			return fmt.Errorf("failed to prepare mount units: %v", err)
+		}
+
+	}
+
 	return nil
 }
 
@@ -338,10 +348,27 @@ func (p *Pod) writeEnvFile(env types.Environment, appName types.ACName) error {
 
 // PodToSystemd creates the appropriate systemd service unit files for
 // all the constituent apps of the Pod
-func (p *Pod) PodToSystemd(interactive bool) error {
+func (p *Pod) PodToSystemd(interactive bool, flavor string) error {
+
+	if flavor == "kvm" {
+		// prepare all applications names to become dependency for mount units
+		// all host-shared folder has to become available before applications starts
+		appNames := []types.ACName{}
+		for _, runtimeApp := range p.Manifest.Apps {
+			appNames = append(appNames, runtimeApp.Name)
+		}
+
+		// mount host volumes through some remote file system e.g. 9p to /mnt/volumeName location
+		// order is important here: podToSystemHostMountUnits prepares folders that are checked by each appToSystemdMountUnits later
+		err := kvm.PodToSystemdHostMountUnits(common.Stage1RootfsPath(p.Root), p.Manifest.Volumes, appNames, unitsDir)
+		if err != nil {
+			return fmt.Errorf("failed to transform pod volumes into mount units: %v", err)
+		}
+	}
+
 	for i := range p.Manifest.Apps {
 		ra := &p.Manifest.Apps[i]
-		if err := p.appToSystemd(ra, interactive); err != nil {
+		if err := p.appToSystemd(ra, interactive, flavor); err != nil {
 			return fmt.Errorf("failed to transform app %q into systemd service: %v", ra.Name, err)
 		}
 	}

@@ -78,6 +78,7 @@ import (
 	"github.com/coreos/rkt/common/cgroup"
 	"github.com/coreos/rkt/networking"
 	"github.com/coreos/rkt/pkg/sys"
+	"github.com/coreos/rkt/stage1/init/kvm"
 )
 
 const (
@@ -235,7 +236,7 @@ func installAssets() error {
 }
 
 // getArgsEnv returns the nspawn args and env according to the usr used
-func getArgsEnv(p *Pod, flavor string, debug bool) ([]string, []string, error) {
+func getArgsEnv(p *Pod, flavor string, debug bool, n *networking.Networking) ([]string, []string, error) {
 	args := []string{}
 	env := os.Environ()
 
@@ -245,6 +246,10 @@ func getArgsEnv(p *Pod, flavor string, debug bool) ([]string, []string, error) {
 		// TODO: move to path.go
 		kernelPath := filepath.Join(common.Stage1RootfsPath(p.Root), "bzImage")
 		lkvmPath := filepath.Join(common.Stage1RootfsPath(p.Root), "lkvm")
+		lkvmNetArgs, kernelNetParams, err := kvm.GetKVMNetArgs(n)
+		if err != nil {
+			return nil, nil, err
+		}
 
 		// TODO: base on resource isolators
 		cpu := 1
@@ -257,6 +262,7 @@ func getArgsEnv(p *Pod, flavor string, debug bool) ([]string, []string, error) {
 			"noreplace-smp",
 			"systemd.default_standard_error=journal+console",
 			"systemd.default_standard_output=journal+console",
+			strings.Join(kernelNetParams, " "),
 			// "systemd.default_standard_output=tty",
 			"tsc=reliable",
 			"MACHINEID=" + p.UUID.String(),
@@ -287,14 +293,18 @@ func getArgsEnv(p *Pod, flavor string, debug bool) ([]string, []string, error) {
 			"--params", strings.Join(kernelParams, " "),
 		}...,
 		)
+		args = append(args, lkvmNetArgs...)
 
 		if debug {
 			args = append(args, "--debug")
 		}
 
-		// TODO: host volume sharing with 9p
 		// TODO: append additional networks settings
 		// args = append(args, network/volumes args...)
+
+		// host volume sharing with 9p
+		nsargs := kvm.VolumesToKvmDiskArgs(p.Manifest.Volumes)
+		args = append(args, nsargs...)
 
 		return args, env, nil
 
@@ -493,6 +503,13 @@ func stage1() int {
 
 	mirrorLocalZoneInfo(p.Root)
 
+	flavor, _, err := p.getFlavor()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get stage1 flavor: %v\n", err)
+		return 3
+	}
+
+	var n *networking.Networking
 	if privNet.Any() {
 		fps, err := forwardedPorts(p)
 		if err != nil {
@@ -500,7 +517,7 @@ func stage1() int {
 			return 6
 		}
 
-		n, err := networking.Setup(root, p.UUID, fps, privNet, localConfig)
+		n, err = networking.Setup(root, p.UUID, fps, privNet, localConfig, flavor)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to setup network: %v\n", err)
 			return 6
@@ -508,7 +525,7 @@ func stage1() int {
 
 		if err = n.Save(); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to save networking state %v\n", err)
-			n.Teardown()
+			n.Teardown(flavor)
 			return 6
 		}
 
@@ -522,15 +539,13 @@ func stage1() int {
 			p.MetadataServiceURL = common.MetadataServicePublicURL(hostIP, mdsToken)
 		}
 	} else {
+		if flavor == "kvm" {
+			fmt.Fprintf(os.Stderr, "Flavor kvm requires private network configuration (try --private-net).\n")
+			return 6
+		}
 		if len(mdsToken) > 0 {
 			p.MetadataServiceURL = common.MetadataServicePublicURL(localhostIP, mdsToken)
 		}
-	}
-
-	flavor, _, err := p.getFlavor()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to get stage1 flavor: %v\n", err)
-		return 3
 	}
 
 	if err = p.WritePrepareAppTemplate(); err != nil {
@@ -538,12 +553,12 @@ func stage1() int {
 		return 2
 	}
 
-	if err = p.PodToSystemd(interactive); err != nil {
+	if err = p.PodToSystemd(interactive, flavor); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to configure systemd: %v\n", err)
 		return 2
 	}
 
-	args, env, err := getArgsEnv(p, flavor, debug)
+	args, env, err := getArgsEnv(p, flavor, debug, n)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		return 3

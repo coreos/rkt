@@ -22,6 +22,7 @@ import (
 	"syscall"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/cni/pkg/ns"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/cni/pkg/plugin"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/vishvananda/netlink"
 
@@ -30,7 +31,7 @@ import (
 )
 
 const (
-	ifnamePattern = "eth%d"
+	IfNamePattern = "eth%d"
 	selfNetNS     = "/proc/self/ns/net"
 )
 
@@ -50,9 +51,20 @@ type Networking struct {
 	nets   []activeNet
 }
 
+// NetConf local struct extends plugin.NetConf with information about masquerading
+// similar to CNI plugins
+type NetConf struct {
+	plugin.NetConf
+	IPMasq bool `json:"ipMasq"`
+}
+
 // Setup creates a new networking namespace and executes network plugins to
 // setup private networking. It returns in the new pod namespace
-func Setup(podRoot string, podID types.UUID, fps []ForwardedPort, privateNetList common.PrivateNetList, localConfig string) (*Networking, error) {
+func Setup(podRoot string, podID types.UUID, fps []ForwardedPort, privateNetList common.PrivateNetList, localConfig, flavor string) (*Networking, error) {
+	if flavor == "kvm" {
+		return kvmSetup(podRoot, podID, fps, privateNetList, localConfig)
+	}
+
 	// TODO(jonboulle): currently podRoot is _always_ ".", and behaviour in other
 	// circumstances is untested. This should be cleaned up.
 	n := Networking{
@@ -164,9 +176,14 @@ func (n *Networking) GetDefaultHostIP() (net.IP, error) {
 }
 
 // Teardown cleans up a produced Networking object.
-func (n *Networking) Teardown() {
+func (n *Networking) Teardown(flavor string) {
 	// Teardown everything in reverse order of setup.
 	// This should be idempotent -- be tolerant of missing stuff
+
+	if flavor == "kvm" {
+		n.kvmTeardown()
+		return
+	}
 
 	if err := n.enterHostNS(); err != nil {
 		log.Printf("Error switching to host netns: %v", err)

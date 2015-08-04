@@ -26,7 +26,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/cni/pkg/plugin"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 
 	"github.com/coreos/rkt/common"
@@ -54,7 +53,7 @@ type podEnv struct {
 
 type activeNet struct {
 	confBytes []byte
-	conf      *plugin.NetConf
+	conf      *NetConf
 	runtime   *netinfo.NetInfo
 }
 
@@ -110,7 +109,7 @@ func (e *podEnv) setupNets(nets []activeNet) error {
 	for i, n = range nets {
 		log.Printf("Loading network %v with type %v", n.conf.Name, n.conf.Type)
 
-		n.runtime.IfName = fmt.Sprintf(ifnamePattern, i)
+		n.runtime.IfName = fmt.Sprintf(IfNamePattern, i)
 		if n.runtime.ConfPath, err = copyFileToDir(n.runtime.ConfPath, e.netDir()); err != nil {
 			return fmt.Errorf("error copying %q to %q: %v", n.runtime.ConfPath, e.netDir(), err)
 		}
@@ -179,7 +178,7 @@ func loadNet(filepath string) (*activeNet, error) {
 		return nil, err
 	}
 
-	n := &plugin.NetConf{}
+	n := &NetConf{}
 	if err = json.Unmarshal(bytes, n); err != nil {
 		return nil, fmt.Errorf("error loading %v: %v", filepath, err)
 	}
