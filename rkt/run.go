@@ -77,6 +77,7 @@ func init() {
 	cmdRun.Flags().Var(&flagPorts, "port", "ports to expose on the host (requires --private-net)")
 	cmdRun.Flags().Var(&flagPrivateNet, "private-net", "give pod a private network that defaults to the default network plus all user-configured networks. Can be limited to a comma-separated list of network names")
 	cmdRun.Flags().Lookup("private-net").NoOptDefVal = "all"
+	cmdRun.Flags().StringVar(&flagPrivateUsers, "private-users", "", "Run within user namespace. Can be set to [=UIDBASE[:NUIDS]]")
 	cmdRun.Flags().BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
 	cmdRun.Flags().BoolVar(&flagNoOverlay, "no-overlay", false, "disable overlay filesystem")
 	cmdRun.Flags().Var(&flagExplicitEnv, "set-env", "an environment variable to set for apps in the form name=value")
