@@ -379,7 +379,7 @@ func getArgsEnv(p *Pod, flavor string, debug bool) ([]string, []string, error) {
 	}
 
 	if len(PrivateUsers) > 0 {
-		args = append(args, " --private-users="+PrivateUsers)
+		args = append(args, "--private-users="+PrivateUsers)
 	}
 
 	keepUnit, err := isRunningFromUnitFile()
