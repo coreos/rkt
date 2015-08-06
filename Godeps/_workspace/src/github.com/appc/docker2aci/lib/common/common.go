@@ -140,6 +140,7 @@ func GenerateManifest(layerData types.DockerImageData, dockerURL *types.ParsedDo
 
 		if layerData.Architecture != "" {
 			arch := appctypes.MustACIdentifier("arch")
+			labels = append(labels, appctypes.Label{Name: *arch, Value: layerData.Architecture})
 			parentLabels = append(parentLabels, appctypes.Label{Name: *arch, Value: layerData.Architecture})
 		}
 	}
