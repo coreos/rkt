@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
@@ -333,7 +334,10 @@ func (p *Pod) writeEnvFile(env types.Environment, appName types.ACName) error {
 	for _, e := range env {
 		fmt.Fprintf(&ef, "%s=%s\000", e.Name, e.Value)
 	}
-	return ioutil.WriteFile(EnvFilePath(p.Root, appName), ef.Bytes(), 0644)
+	//TODO FIXME add a chown call here with the right uidshifts
+	syscall.Umask(0)
+	return ioutil.WriteFile(EnvFilePath(p.Root, appName), ef.Bytes(), 0666)
+	//return ioutil.WriteFile(EnvFilePath(p.Root, appName), ef.Bytes(), 0644)
 }
 
 // PodToSystemd creates the appropriate systemd service unit files for
