@@ -48,7 +48,7 @@ type TreeStore struct {
 // Write, to avoid having a rendered ACI with old stale files, requires that
 // the destination directory doesn't exist (usually Remove should be called
 // before Write)
-func (ts *TreeStore) Write(key string, s *Store) error {
+func (ts *TreeStore) Write(key string, s *Store, uidShift uint64, uidCount uint64) error {
 	treepath := filepath.Join(ts.path, key)
 	fi, _ := os.Stat(treepath)
 	if fi != nil {
@@ -61,7 +61,7 @@ func (ts *TreeStore) Write(key string, s *Store) error {
 	if err := os.MkdirAll(treepath, 0755); err != nil {
 		return fmt.Errorf("treestore: cannot create treestore directory %s: %v", treepath, err)
 	}
-	err = aci.RenderACIWithImageID(*imageID, treepath, s)
+	err = aci.RenderACIWithImageID(*imageID, treepath, s, uidShift, uidCount)
 	if err != nil {
 		return fmt.Errorf("treestore: cannot render aci: %v", err)
 	}

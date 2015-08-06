@@ -118,7 +118,7 @@ func runImageRender(cmd *cobra.Command, args []string) (exit int) {
 	}
 
 	cachedTreePath := s.GetTreeStoreRootFS(key)
-	if err := fileutil.CopyTree(cachedTreePath, rootfsOutDir); err != nil {
+	if err := fileutil.CopyTree(cachedTreePath, rootfsOutDir, 0, 0); err != nil {
 		stderr("image render: error copying ACI rootfs: %v", err)
 		return 1
 	}

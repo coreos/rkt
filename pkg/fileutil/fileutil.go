@@ -58,7 +58,7 @@ func copySymlink(src, dest string) error {
 	return nil
 }
 
-func CopyTree(src, dest string) error {
+func CopyTree(src, dest string, uidShift uint64, uidCount uint64) error {
 	dirs := make(map[string][]syscall.Timespec)
 	copyWalker := func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -121,7 +121,14 @@ func CopyTree(src, dest string) error {
 			return fmt.Errorf("unsupported mode: %v", mode)
 		}
 
-		if err := os.Lchown(target, int(info.Sys().(*syscall.Stat_t).Uid), int(info.Sys().(*syscall.Stat_t).Gid)); err != nil {
+		var srcUid uint64 = uint64(info.Sys().(*syscall.Stat_t).Uid)
+		var srcGid uint64 = uint64(info.Sys().(*syscall.Stat_t).Gid)
+
+		if uidCount != 0 && (srcUid >= uidCount || srcGid >= uidCount) {
+			return fmt.Errorf("source contains out of range uid/gid")
+		}
+
+		if err := os.Lchown(target, int(srcUid+uidShift), int(srcGid+uidShift)); err != nil {
 			return err
 		}
 

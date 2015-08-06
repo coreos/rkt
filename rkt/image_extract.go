@@ -120,7 +120,7 @@ func runImageExtract(cmd *cobra.Command, args []string) (exit int) {
 		}
 	}
 
-	if err := tar.ExtractTar(aci, extractDir, false, nil); err != nil {
+	if err := tar.ExtractTar(aci, extractDir, false, 0, 0, nil); err != nil {
 		stderr("image extract: error extracting ACI: %v", err)
 		return 1
 	}
@@ -130,7 +130,7 @@ func runImageExtract(cmd *cobra.Command, args []string) (exit int) {
 		if err := os.Rename(rootfsDir, absOutputDir); err != nil {
 			if e, ok := err.(*os.LinkError); ok && e.Err == syscall.EXDEV {
 				// it's on a different device, fall back to copying
-				if err := fileutil.CopyTree(rootfsDir, absOutputDir); err != nil {
+				if err := fileutil.CopyTree(rootfsDir, absOutputDir, 0, 0); err != nil {
 					stderr("image extract: error copying ACI rootfs: %v", err)
 					return 1
 				}

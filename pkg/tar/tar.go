@@ -40,7 +40,7 @@ type PathWhitelistMap map[string]struct{}
 // extractTar extracts a tarball (from a tar.Reader) into the root directory
 // if pwl is not nil, only the paths in the map are extracted.
 // If overwrite is true, existing files will be overwritten.
-func extractTar(tr *tar.Reader, overwrite bool, pwl PathWhitelistMap) error {
+func extractTar(tr *tar.Reader, overwrite bool, pwl PathWhitelistMap, uidShift uint64, uidCount uint64) error {
 	um := syscall.Umask(0)
 	defer syscall.Umask(um)
 
@@ -58,7 +58,7 @@ Tar:
 					continue
 				}
 			}
-			err = extractFile(tr, hdr, overwrite)
+			err = extractFile(tr, hdr, overwrite, uidShift, uidCount)
 			if err != nil {
 				return fmt.Errorf("error extracting tarball: %v", err)
 			}
@@ -84,7 +84,7 @@ Tar:
 // extractFile extracts the file described by hdr from the given tarball into
 // the root directory.
 // If overwrite is true, existing files will be overwritten.
-func extractFile(tr *tar.Reader, hdr *tar.Header, overwrite bool) error {
+func extractFile(tr *tar.Reader, hdr *tar.Header, overwrite bool, uidShift uint64, uidCount uint64) error {
 	p := filepath.Join("/", hdr.Name)
 	fi := hdr.FileInfo()
 	typ := hdr.Typeflag
@@ -165,7 +165,10 @@ func extractFile(tr *tar.Reader, hdr *tar.Header, overwrite bool) error {
 		return fmt.Errorf("unsupported type: %v", typ)
 	}
 
-	if err := os.Lchown(p, hdr.Uid, hdr.Gid); err != nil {
+	if uidCount != 0 && (uint64(hdr.Uid) >= uidCount || uint64(hdr.Gid) >= uidCount) {
+		return fmt.Errorf("archive contains out of range uid/gid")
+	}
+	if err := os.Lchown(p, hdr.Uid+int(uidShift), hdr.Gid+int(uidShift)); err != nil {
 		return err
 	}
 

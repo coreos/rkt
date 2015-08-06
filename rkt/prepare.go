@@ -20,6 +20,9 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strconv"
+	"time"
+	"math/rand"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
@@ -55,6 +58,7 @@ func init() {
 	cmdPrepare.Flags().Var(&flagExplicitEnv, "set-env", "an environment variable to set for apps in the form name=value")
 	cmdPrepare.Flags().BoolVar(&flagLocal, "local", false, "use only local images (do not discover or download from remote URLs)")
 	cmdPrepare.Flags().StringVar(&flagPodManifest, "pod-manifest", "", "the path to the pod manifest. If it's non-empty, then only '--quiet' and '--no-overlay' will have effects")
+	cmdPrepare.Flags().BoolVar(&flagPrivateUsers, "private-users", false, "Run within user namespaces.")
 
 	// Disable interspersed flags to stop parsing after the first non flag
 	// argument. This is need to permit to correctly handle
@@ -65,11 +69,18 @@ func init() {
 func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 	var err error
 	origStdout := os.Stdout
+	var PrivateUsers string = ""
 	if flagQuiet {
 		if os.Stdout, err = os.Open("/dev/null"); err != nil {
 			stderr("prepare: unable to open /dev/null")
 			return 1
 		}
+	}
+
+	if flagPrivateUsers && common.SupportsUserNS() {
+		rand.Seed(time.Now().UnixNano())
+		uidshift := rand.Intn(0xffff)
+		PrivateUsers = strconv.Itoa(uidshift) + ":65536"
 	}
 
 	if err = parseApps(&rktApps, args, cmd.Flags(), true); err != nil {
@@ -147,6 +158,7 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 	pcfg := stage0.PrepareConfig{
 		CommonConfig: cfg,
 		UseOverlay:   !flagNoOverlay && common.SupportsOverlay(),
+		PrivateUsers: PrivateUsers,
 	}
 
 	if len(flagPodManifest) > 0 {
