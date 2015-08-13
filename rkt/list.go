@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/lastditch"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
 	common "github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/networking/netinfo"
@@ -57,30 +58,33 @@ func runList(cmd *cobra.Command, args []string) (exit int) {
 	if err := walkPods(includeMostDirs, func(p *pod) {
 		pm := schema.PodManifest{}
 
+		fullUuid := p.uuid.String()
+
 		if !p.isPreparing && !p.isAbortedPrepare && !p.isExitedDeleting {
 			// TODO(vc): we should really hold a shared lock here to prevent gc of the pod
 			pmf, err := p.readFile(common.PodManifestPath(""))
 			if err != nil {
-				stderr("Unable to read pod manifest: %v", err)
+				stderr("Unable to read pod %s manifest: %v", fullUuid, err)
 				return
 			}
 
 			if err := pm.UnmarshalJSON(pmf); err != nil {
-				stderr("Unable to load manifest: %v", err)
+				stderr("Unable to load manifest of pod %s: %v", fullUuid, err)
+				printInvalidPodManifest(pmf)
 				return
 			}
 
 			if len(pm.Apps) == 0 {
-				stderr("Pod contains zero apps")
+				stderr("Pod %s contains zero apps", fullUuid)
 				return
 			}
 		}
 
 		uuid := ""
 		if flagFullOutput {
-			uuid = p.uuid.String()
+			uuid = fullUuid
 		} else {
-			uuid = p.uuid.String()[:8]
+			uuid = fullUuid[:8]
 		}
 
 		for i, app := range pm.Apps {
@@ -104,6 +108,23 @@ func runList(cmd *cobra.Command, args []string) (exit int) {
 
 	tabOut.Flush()
 	return 0
+}
+
+func printInvalidPodManifest(pmf []byte) {
+	pm := lastditch.PodManifest{}
+	if err := pm.UnmarshalJSON(pmf); err != nil {
+		stderr("Failed to get any information about invalid pod manifest: %v", err)
+		return
+	}
+	stderr("Invalid pod manifest - version: %s", pm.ACVersion)
+	if len(pm.Apps) > 0 {
+		for _, app := range pm.Apps {
+			stderr("  App: %q from image %q (%s)",
+				app.Name, app.Image.Name, app.Image.ID)
+		}
+	} else {
+		stderr("  No apps")
+	}
 }
 
 func fmtNets(nis []netinfo.NetInfo) string {
