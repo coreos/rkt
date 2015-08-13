@@ -15,10 +15,13 @@
 package aci
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
 	"testing"
+
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema"
 )
 
 func newValidateLayoutTest() (string, error) {
@@ -36,7 +39,7 @@ func newValidateLayoutTest() (string, error) {
 	}
 
 	evilManifestBody := "malformedManifest"
-	manifestBody := `{"acKind":"ImageManifest","acVersion":"0.3.0","name":"example.com/app"}`
+	manifestBody := fmt.Sprintf(`{"acKind":"ImageManifest","acVersion":"%s","name":"example.com/app"}`, schema.AppContainerVersion)
 
 	evilManifestPath := "rootfs/manifest"
 	evilManifestPath = path.Join(td, evilManifestPath)

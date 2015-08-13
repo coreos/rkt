@@ -98,7 +98,7 @@ func TestIsolatorUnmarshal(t *testing.T) {
 		{
 			`{
 				"name": "resource/cpu",
-				"value": {"request": "30", "limit": "1"}
+				"value": {"request": "30m", "limit": "1m"}
 			}`,
 			false,
 		},
@@ -153,7 +153,7 @@ func TestIsolatorsGetByName(t *testing.T) {
 		[
 			{
 				"name": "resource/cpu",
-				"value": {"request": "30", "limit": "1"}
+				"value": {"request": "30m", "limit": "1m"}
 			},
 			{
 				"name": "resource/memory",
@@ -202,9 +202,21 @@ func TestIsolatorsGetByName(t *testing.T) {
 			var r Resource = v
 			glimit := r.Limit()
 			grequest := r.Request()
-			if glimit.Value() != tt.wlimit || grequest.Value() != tt.wrequest {
-				t.Errorf("#%d: glimit=%v, want %v, grequest=%v, want %v", i, glimit.Value(), tt.wlimit, grequest.Value(), tt.wrequest)
+
+			var vlimit, vrequest int64
+			if tt.name == "resource/cpu" {
+				vlimit, vrequest = glimit.MilliValue(), grequest.MilliValue()
+			} else {
+				vlimit, vrequest = glimit.Value(), grequest.Value()
 			}
+
+			if vlimit != tt.wlimit {
+				t.Errorf("#%d: glimit=%v, want %v", i, vlimit, tt.wlimit)
+			}
+			if vrequest != tt.wrequest {
+				t.Errorf("#%d: grequest=%v, want %v", i, vrequest, tt.wrequest)
+			}
+
 		case LinuxCapabilitiesSet:
 			var s LinuxCapabilitiesSet = v
 			if !reflect.DeepEqual(s.Set(), tt.wset) {
