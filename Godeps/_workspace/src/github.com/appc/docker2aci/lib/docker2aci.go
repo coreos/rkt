@@ -23,7 +23,6 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -154,7 +153,7 @@ func convertReal(backend Docker2ACIBackend, dockerURL string, squash bool, outpu
 
 // SquashLayers receives a list of ACI layer file names ordered from base image
 // to application image and squashes them into one ACI
-func SquashLayers(images []acirenderer.Image, aciRegistry acirenderer.ACIRegistry, parsedDockerURL types.ParsedDockerURL, outputDir string) (string, error) {
+func SquashLayers(images []acirenderer.Image, aciRegistry acirenderer.ACIRegistry, parsedDockerURL types.ParsedDockerURL, outputDir string) (path string, err error) {
 	util.Debug("Squashing layers...")
 	util.Debug("Rendering ACI...")
 	renderedACI, err := acirenderer.GetRenderedACIFromList(images, aciRegistry)
@@ -167,22 +166,34 @@ func SquashLayers(images []acirenderer.Image, aciRegistry acirenderer.ACIRegistr
 	}
 
 	squashedFilename := getSquashedFilename(parsedDockerURL)
-	squashedImagePath := path.Join(outputDir, squashedFilename)
+	squashedImagePath := filepath.Join(outputDir, squashedFilename)
 
-	squashedImageFile, err := os.Create(squashedImagePath)
+	squashedTempFile, err := ioutil.TempFile(outputDir, "docker2aci-squashedFile-")
 	if err != nil {
 		return "", err
 	}
-	defer squashedImageFile.Close()
+	defer func() {
+		if err == nil {
+			err = squashedTempFile.Close()
+		} else {
+			// remove temp file on error
+			// we ignore its error to not mask the real error
+			os.Remove(squashedTempFile.Name())
+		}
+	}()
 
 	util.Debug("Writing squashed ACI...")
-	if err := writeSquashedImage(squashedImageFile, renderedACI, aciRegistry, manifests); err != nil {
+	if err := writeSquashedImage(squashedTempFile, renderedACI, aciRegistry, manifests); err != nil {
 		return "", fmt.Errorf("error writing squashed image: %v", err)
 	}
 
 	util.Debug("Validating squashed ACI...")
-	if err := common.ValidateACI(squashedImagePath); err != nil {
+	if err := common.ValidateACI(squashedTempFile.Name()); err != nil {
 		return "", fmt.Errorf("error validating image: %v", err)
+	}
+
+	if err := os.Rename(squashedTempFile.Name(), squashedImagePath); err != nil {
+		return "", err
 	}
 
 	util.Debug("ACI squashed!")

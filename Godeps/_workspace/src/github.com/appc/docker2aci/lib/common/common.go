@@ -22,8 +22,13 @@ import (
 )
 
 const (
-	defaultTag    = "latest"
-	schemaVersion = "0.5.1"
+	defaultTag                = "latest"
+	schemaVersion             = "0.6.1"
+	appcDockerV1RegistryURL   = "appc.io/docker/v1/registryurl"
+	appcDockerV1Repository    = "appc.io/docker/v1/repository"
+	appcDockerV1Tag           = "appc.io/docker/v1/tag"
+	appcDockerV1ImageID       = "appc.io/docker/v1/imageid"
+	appcDockerV1ParentImageID = "appc.io/docker/v1/parentimageid"
 )
 
 func ParseDockerURL(arg string) *types.ParsedDockerURL {
@@ -83,12 +88,13 @@ func ValidateACI(aciPath string) error {
 	}
 	defer aciFile.Close()
 
-	reader, err := aci.NewCompressedTarReader(aciFile)
+	tr, err := aci.NewCompressedTarReader(aciFile)
 	if err != nil {
 		return err
 	}
+	defer tr.Close()
 
-	if err := aci.ValidateArchive(reader); err != nil {
+	if err := aci.ValidateArchive(tr.Reader); err != nil {
 		return err
 	}
 
@@ -140,6 +146,7 @@ func GenerateManifest(layerData types.DockerImageData, dockerURL *types.ParsedDo
 
 		if layerData.Architecture != "" {
 			arch := appctypes.MustACIdentifier("arch")
+			labels = append(labels, appctypes.Label{Name: *arch, Value: layerData.Architecture})
 			parentLabels = append(parentLabels, appctypes.Label{Name: *arch, Value: layerData.Architecture})
 		}
 	}
@@ -157,6 +164,11 @@ func GenerateManifest(layerData types.DockerImageData, dockerURL *types.ParsedDo
 		commentKey := appctypes.MustACIdentifier("docker-comment")
 		annotations = append(annotations, appctypes.Annotation{Name: *commentKey, Value: layerData.Comment})
 	}
+
+	annotations = append(annotations, appctypes.Annotation{Name: *appctypes.MustACIdentifier(appcDockerV1RegistryURL), Value: dockerURL.IndexURL})
+	annotations = append(annotations, appctypes.Annotation{Name: *appctypes.MustACIdentifier(appcDockerV1Repository), Value: dockerURL.ImageName})
+	annotations = append(annotations, appctypes.Annotation{Name: *appctypes.MustACIdentifier(appcDockerV1ImageID), Value: layerData.ID})
+	annotations = append(annotations, appctypes.Annotation{Name: *appctypes.MustACIdentifier(appcDockerV1ParentImageID), Value: layerData.Parent})
 
 	genManifest.Labels = labels
 	genManifest.Annotations = annotations
@@ -201,6 +213,8 @@ func GenerateManifest(layerData types.DockerImageData, dockerURL *types.ParsedDo
 		parentImageName := appctypes.MustACIdentifier(parentImageNameString)
 
 		genManifest.Dependencies = append(genManifest.Dependencies, appctypes.Dependency{ImageName: *parentImageName, Labels: parentLabels})
+
+		annotations = append(annotations, appctypes.Annotation{Name: *appctypes.MustACIdentifier(appcDockerV1Tag), Value: dockerURL.Tag})
 	}
 
 	return genManifest, nil
@@ -339,10 +353,11 @@ func writeACI(layer io.ReadSeeker, manifest schema.ImageManifest, curPwl []strin
 
 		return nil
 	}
-	reader, err := aci.NewCompressedTarReader(layer)
+	tr, err := aci.NewCompressedTarReader(layer)
 	if err == nil {
+		defer tr.Close()
 		// write files in rootfs/
-		if err := tarball.Walk(*reader, convWalker); err != nil {
+		if err := tarball.Walk(*tr.Reader, convWalker); err != nil {
 			return nil, err
 		}
 	} else {
