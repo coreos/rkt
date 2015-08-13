@@ -491,8 +491,8 @@ func (s Store) WriteRemote(remote *Remote) error {
 	return err
 }
 
-// Get the ImageManifest with the specified key.
-func (s Store) GetImageManifest(key string) (*schema.ImageManifest, error) {
+// Get the ImageManifest JSON bytes with the specified key.
+func (s Store) GetImageManifestJSON(key string) ([]byte, error) {
 	key, err := s.ResolveKey(key)
 	if err != nil {
 		return nil, fmt.Errorf("error resolving key: %v", err)
@@ -506,6 +506,15 @@ func (s Store) GetImageManifest(key string) (*schema.ImageManifest, error) {
 	imj, err := s.stores[imageManifestType].Read(key)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving image manifest: %v", err)
+	}
+	return imj, nil
+}
+
+// Get the ImageManifest with the specified key.
+func (s Store) GetImageManifest(key string) (*schema.ImageManifest, error) {
+	imj, err := s.GetImageManifestJSON(key)
+	if err != nil {
+		return nil, err
 	}
 	var im *schema.ImageManifest
 	if err = json.Unmarshal(imj, &im); err != nil {
