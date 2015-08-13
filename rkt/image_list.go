@@ -15,9 +15,12 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/lastditch"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
 	"github.com/coreos/rkt/store"
 )
@@ -200,9 +203,15 @@ func runImages(cmd *cobra.Command, args []string) (exit int) {
 	}
 
 	for _, aciInfo := range aciInfos {
-		im, err := s.GetImageManifest(aciInfo.BlobKey)
+		imj, err := s.GetImageManifestJSON(aciInfo.BlobKey)
 		if err != nil {
 			// ignore aciInfo with missing image manifest as it can be deleted in the meantime
+			continue
+		}
+		var im *schema.ImageManifest
+		if err = json.Unmarshal(imj, &im); err != nil {
+			stderr("Invalid image manifest of %q: %v", aciInfo.AppName, err)
+			printInvalidImageManifest(imj)
 			continue
 		}
 		version, ok := im.Labels.Get("version")
@@ -228,4 +237,13 @@ func runImages(cmd *cobra.Command, args []string) (exit int) {
 
 	tabOut.Flush()
 	return 0
+}
+
+func printInvalidImageManifest(imj []byte) {
+	im := lastditch.ImageManifest{}
+	if err := im.UnmarshalJSON(imj); err != nil {
+		stderr("Failed to get any information about invalid image manifest: %v", err)
+		return
+	}
+	stderr("Invalid image manifest - version %q, name %q", im.ACVersion, im.Name)
 }
