@@ -15,6 +15,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -37,20 +38,22 @@ const baseAppName = "rkt-inspect"
 
 func importImageAndFetchHash(t *testing.T, ctx *rktRunCtx, img string) string {
 	// Import the test image into store manually.
+	var stdout, stderr bytes.Buffer
 	cmds := strings.Fields(ctx.cmd())
 	fetchCmd := exec.Command(cmds[0], cmds[1:]...)
 	fetchCmd.Args = append(fetchCmd.Args, "--insecure-skip-verify", "fetch", img)
-	output, err := fetchCmd.Output()
-	if err != nil {
-		t.Fatalf("Cannot read the output: %v", err)
+	fetchCmd.Stdout, fetchCmd.Stderr = &stdout, &stderr
+
+	if err := fetchCmd.Run(); err != nil {
+		t.Fatalf("Cannot read the output: %v\nstdout: %v\nstderr: %v", err, stdout.String(), stderr.String())
 	}
 
 	// Read out the image hash.
-	ix := strings.Index(string(output), "sha512-")
+	ix := strings.Index(stdout.String(), "sha512-")
 	if ix < 0 {
-		t.Fatalf("Unexpected result: %v, expecting a sha512 hash", string(output))
+		t.Fatalf("Unexpected result: %v, expecting a sha512 hash", stdout.String())
 	}
-	return strings.TrimSpace(string(output)[ix:])
+	return strings.TrimSpace(stdout.String()[ix:])
 }
 
 func generatePodManifestFile(t *testing.T, manifest *schema.PodManifest) string {
@@ -561,16 +564,18 @@ func TestPodManifest(t *testing.T) {
 		verifyHostFile(t, tmpdir, "file", i, tt.expectedResult)
 
 		// 2. Test 'rkt prepare' + 'rkt run-prepared'.
+		var stdout, stderr bytes.Buffer
 		cmds := strings.Fields(ctx.cmd())
 		prepareCmd := exec.Command(cmds[0], cmds[1:]...)
 		prepareArg := fmt.Sprintf("--pod-manifest=%s", manifestFile)
 		prepareCmd.Args = append(prepareCmd.Args, "--insecure-skip-verify", "prepare", prepareArg)
-		output, err := prepareCmd.Output()
-		if err != nil {
-			t.Fatalf("Cannot read the output: %v", err)
+		prepareCmd.Stdout, prepareCmd.Stderr = &stdout, &stderr
+
+		if err := prepareCmd.Run(); err != nil {
+			t.Fatalf("Cannot read the output: %v\nstdout: %v\nstderr: %v", err, stdout.String(), stderr.String())
 		}
 
-		podIDStr := strings.TrimSpace(string(output))
+		podIDStr := strings.TrimSpace(stdout.String())
 		podID, err := types.NewUUID(podIDStr)
 		if err != nil {
 			t.Fatalf("%q is not a valid UUID: %v", podIDStr, err)
