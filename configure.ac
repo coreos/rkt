@@ -1,5 +1,5 @@
 AC_PREREQ([2.68])
-AC_INIT([rkt], [0.8.0-rc1+git], [https://github.com/coreos/rkt/issues])
+AC_INIT([rkt], [0.8.0_rc1+git], [https://github.com/coreos/rkt/issues])
 
 dnl if version ends with +git, append a short git-hash.
 AS_IF([test `expr match 'AC_PACKAGE_VERSION' '.*+git$'` -gt 0],
