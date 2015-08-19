@@ -83,39 +83,44 @@
 			"Rev": "333820b419dc7930374b38e40660a45156a7b4c8"
 		},
 		{
+			"ImportPath": "github.com/appc/spec/ace",
+			"Comment": "v0.6.1-15-gc1a1116",
+			"Rev": "c1a1116258886b9df3bb361140218f0dfdfef81b"
+		},
+		{
 			"ImportPath": "github.com/appc/spec/aci",
-			"Comment": "v0.6.1",
-			"Rev": "25f997957b604657dd558fe5da664a8f1b2a12b7"
+			"Comment": "v0.6.1-15-gc1a1116",
+			"Rev": "c1a1116258886b9df3bb361140218f0dfdfef81b"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/actool",
-			"Comment": "v0.6.1",
-			"Rev": "25f997957b604657dd558fe5da664a8f1b2a12b7"
+			"Comment": "v0.6.1-15-gc1a1116",
+			"Rev": "c1a1116258886b9df3bb361140218f0dfdfef81b"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/discovery",
-			"Comment": "v0.6.1",
-			"Rev": "25f997957b604657dd558fe5da664a8f1b2a12b7"
+			"Comment": "v0.6.1-15-gc1a1116",
+			"Rev": "c1a1116258886b9df3bb361140218f0dfdfef81b"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/pkg/acirenderer",
-			"Comment": "v0.6.1",
-			"Rev": "25f997957b604657dd558fe5da664a8f1b2a12b7"
+			"Comment": "v0.6.1-15-gc1a1116",
+			"Rev": "c1a1116258886b9df3bb361140218f0dfdfef81b"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/pkg/device",
-			"Comment": "v0.6.1",
-			"Rev": "25f997957b604657dd558fe5da664a8f1b2a12b7"
+			"Comment": "v0.6.1-15-gc1a1116",
+			"Rev": "c1a1116258886b9df3bb361140218f0dfdfef81b"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/pkg/tarheader",
-			"Comment": "v0.6.1",
-			"Rev": "25f997957b604657dd558fe5da664a8f1b2a12b7"
+			"Comment": "v0.6.1-15-gc1a1116",
+			"Rev": "c1a1116258886b9df3bb361140218f0dfdfef81b"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/schema",
-			"Comment": "v0.6.1",
-			"Rev": "25f997957b604657dd558fe5da664a8f1b2a12b7"
+			"Comment": "v0.6.1-15-gc1a1116",
+			"Rev": "c1a1116258886b9df3bb361140218f0dfdfef81b"
 		},
 		{
 			"ImportPath": "github.com/camlistore/lock",

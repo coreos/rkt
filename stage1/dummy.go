@@ -31,3 +31,8 @@ import (
 	_ "github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/cni/plugins/main/ptp"
 	_ "github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/cni/plugins/meta/flannel"
 )
+
+// Vendor in ACE
+import (
+	_ "github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/ace"
+)

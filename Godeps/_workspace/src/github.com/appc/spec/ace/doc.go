@@ -12,28 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package schema
-
-import (
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
-)
-
-const (
-	// version represents the canonical version of the appc spec and tooling.
-	// For now, the schema and tooling is coupled with the spec itself, so
-	// this must be kept in sync with the VERSION file in the root of the repo.
-	version string = "0.6.1+git"
-)
-
-var (
-	// AppContainerVersion is the SemVer representation of version
-	AppContainerVersion types.SemVer
-)
-
-func init() {
-	v, err := types.NewSemVer(version)
-	if err != nil {
-		panic(err)
-	}
-	AppContainerVersion = *v
-}
+// Package ace contains a tool intended to be run within an _Application
+// Container Executor_ to validate that the ACE has set up the container
+// environment correctly. This tool can be built into an ACI image ready for
+// running on an executor by using the `build_aci` script.
+package main
