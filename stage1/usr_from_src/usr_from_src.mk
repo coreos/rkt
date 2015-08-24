@@ -4,7 +4,7 @@ UFS_SYSTEMD_SRCDIR := $(UFS_SYSTEMDDIR)/src
 UFS_SYSTEMD_BUILDDIR := $(UFS_SYSTEMDDIR)/build
 
 $(call setup-dep-file,UFS_PATCHES_DEPMK,$(UFS_SYSTEMD_DESC)-systemd-patches)
-$(call setup-dep-file,UFS_MAIN_STAMP_DEPMK,$(UFS_SYSTEMD_DESC)-systemd-install)
+$(call setup-dep-file,UFS_ROOTFS_DEPMK,$(UFS_SYSTEMD_DESC)-systemd-install)
 
 UFS_ROOTFSDIR := $(UFS_SYSTEMDDIR)/rootfs
 
@@ -30,17 +30,17 @@ STAGE1_COPY_SO_DEPS := yes
 
 $(call inc-one,bash.mk)
 
--include $(UFS_MAIN_STAMP_DEPMK)
+-include $(UFS_ROOTFS_DEPMK)
 $(call forward-vars,$(UFS_STAMP), \
 	UFS_ROOTFSDIR ACIROOTFSDIR RKT_STAGE1_SYSTEMD_VER DEPSGENTOOL \
-	UFS_MAIN_STAMP_DEPMK)
+	UFS_ROOTFS_DEPMK)
 # $(UFS_STAMP): | $(UFS_LIB_SYMLINK) $(UFS_LIB64_SYMLINK)
 $(UFS_STAMP): $(UFS_SYSTEMD_BUILD_STAMP) $(DEPSGENTOOL_STAMP) | $(ACIROOTFSDIR)
 	set -e; \
 	cp -af "$(UFS_ROOTFSDIR)/." "$(ACIROOTFSDIR)"; \
 	ln -sf 'src' "$(ACIROOTFSDIR)/flavor"; \
 	echo "$(RKT_STAGE1_SYSTEMD_VER)" >"$(ACIROOTFSDIR)/systemd-version"; \
-	"$(DEPSGENTOOL)" glob --target='$$(UFS_STAMP)' $$(find "$(UFS_ROOTFSDIR)" -type f) >"$(UFS_MAIN_STAMP_DEPMK)"; \
+	"$(DEPSGENTOOL)" glob --target='$$(UFS_STAMP)' $$(find "$(UFS_ROOTFSDIR)" -type f) >"$(UFS_ROOTFS_DEPMK)"; \
 	touch "$@"
 
 $(call forward-vars,$(UFS_SYSTEMD_BUILD_STAMP), \
