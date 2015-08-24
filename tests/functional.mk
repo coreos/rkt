@@ -37,6 +37,8 @@ $(FTST_IMAGE): $(FTST_IMAGE_MANIFEST) $(FTST_ACI_INSPECT) $(FTST_ACI_ECHO_SERVER
 	ln -sf /inspect $(FTST_IMAGE_ROOTFSDIR)/inspect-link
 	"$(ACTOOL)" build --overwrite "$(FTST_IMAGE_DIR)" "$@"
 
+# variables for makelib/build_go_bin.mk
+BGB_STAMP := $(FTST_FUNCTIONAL_TESTS_STAMP)
 BGB_BINARY := $(FTST_INSPECT_BINARY)
 BGB_PKG_IN_REPO := $(subst $(MK_TOPLEVEL_SRCDIR)/,,$(MK_SRCDIR))/inspect
 BGB_GO_FLAGS := -a -installsuffix cgo
@@ -49,6 +51,8 @@ $(call forward-vars,$(FTST_EMPTY_IMAGE), \
 $(FTST_EMPTY_IMAGE): $(FTST_EMPTY_IMAGE_MANIFEST) | $(FTST_EMPTY_IMAGE_ROOTFSDIR)
 	"$(ACTOOL)" build --overwrite "$(FTST_EMPTY_IMAGE_DIR)" "$@"
 
+# variables for makelib/build_go_bin.mk
+BGB_STAMP := $(FTST_FUNCTIONAL_TESTS_STAMP)
 BGB_BINARY := $(FTST_ECHO_SERVER_BINARY)
 BGB_PKG_IN_REPO := $(subst $(MK_TOPLEVEL_SRCDIR)/,,$(MK_SRCDIR))/echo-socket-activated
 BGB_GO_FLAGS := -a -installsuffix cgo

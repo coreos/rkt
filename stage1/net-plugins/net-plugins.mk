@@ -32,6 +32,8 @@ CLEAN_FILES += $(LOCAL_PLUGINS)
 STAGE1_STAMPS += $(LOCAL_STAMP)
 
 define LOCAL_GENERATE_BUILD_PLUGIN_RULE
+# variables for makelib/build_go_bin.mk
+BGB_STAMP := $(LOCAL_STAMP)
 BGB_BINARY := $$(call LOCAL_NAME_TO_BUILT_PLUGIN,$1)
 BGB_PKG_IN_REPO := Godeps/_workspace/src/github.com/appc/cni/plugins/$1
 $$(BGB_BINARY): | $$(TOOLSDIR)

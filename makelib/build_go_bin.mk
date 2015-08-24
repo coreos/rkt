@@ -1,4 +1,5 @@
 # inputs cleared after including this file:
+# BGB_STAMP
 # BGB_BINARY
 # BGB_GO_FLAGS
 # BGB_PKG_IN_REPO
@@ -13,6 +14,9 @@
 # REPO_PATH
 
 _BGB_PATH_ := $(lastword $(MAKEFILE_LIST))
+
+$(call setup-stamp-file,_BGB_GO_DEPMK_STAMP_,$(BGB_BINARY)/bgb-go-depmk)
+$(call setup-stamp-file,_BGB_KV_DEPMK_STAMP_,$(BGB_BINARY)/bgb-kv-depmk)
 
 # the gopath symlink creation rule should be generated only once, even
 # if we include this file multiple times.
@@ -34,35 +38,18 @@ endif
 
 _BGB_PKG_NAME_ := $(REPO_PATH)/$(BGB_PKG_IN_REPO)
 
-$(call setup-dep-file,_BGB_DEPMK,$(_BGB_PKG_NAME_))
+$(call setup-dep-file,_BGB_GO_DEPMK,$(_BGB_PKG_NAME_))
 $(call setup-dep-file,_BGB_KV_DEPMK,$(_BGB_PKG_NAME_)/kv)
 
-# Do not depend on depsgen when we are building depsgen. Also, when
-# building depsgen, it will be built first as depsgen.tmp, which in
-# turn will be run to get the dependencies and then it will be renamed
-# to depsgen.
-ifeq ($(BGB_BINARY),$(DEPSGENTOOL))
-
-_BGB_DEPSGEN_SUFFIX_ := .tmp
-
-else
-
-$(BGB_BINARY): $(DEPSGENTOOL_STAMP)
-
-endif
-
--include $(_BGB_DEPMK)
--include $(_BGB_KV_DEPMK)
 $(call forward-vars,$(BGB_BINARY), \
-	BGB_ADDITIONAL_GO_ENV GO_ENV GO BGB_GO_FLAGS _BGB_PKG_NAME_ DEPSGENTOOL \
-	_BGB_DEPSGEN_SUFFIX_ REPO_PATH BGB_PKG_IN_REPO _BGB_DEPMK _BGB_KV_DEPMK)
-$(BGB_BINARY): _ESCAPED_BGB_GO_FLAGS_ := $(call escape-and-wrap,$(BGB_GO_FLAGS))
-$(BGB_BINARY): $(_BGB_PATH_) $(_BGB_RKT_SYMLINK_STAMP_) | $(DEPSDIR)
-	set -e; \
-	$(BGB_ADDITIONAL_GO_ENV) $(GO_ENV) "$(GO)" build -o "$@.tmp" $(BGB_GO_FLAGS) "$(_BGB_PKG_NAME_)"; \
-	$(GO_ENV) "$(DEPSGENTOOL)$(_BGB_DEPSGEN_SUFFIX_)" go --repo "$(REPO_PATH)" --module "$(BGB_PKG_IN_REPO)" --target '$$(BGB_BINARY)' >"$(_BGB_DEPMK)"; \
-	"$(DEPSGENTOOL)$(_BGB_DEPSGEN_SUFFIX_)" kv --target '$$(BGB_BINARY)' BGB_GO_FLAGS $(_ESCAPED_BGB_GO_FLAGS_) >"$(_BGB_KV_DEPMK)"; \
-	mv "$@.tmp" "$@"
+	BGB_ADDITIONAL_GO_ENV GO_ENV GO BGB_GO_FLAGS _BGB_PKG_NAME_)
+$(BGB_BINARY): $(_BGB_PATH_) $(_BGB_RKT_SYMLINK_STAMP_)
+	$(BGB_ADDITIONAL_GO_ENV) $(GO_ENV) "$(GO)" build -o "$@" $(BGB_GO_FLAGS) "$(_BGB_PKG_NAME_)"
+
+$(call generate-go-deps,$(_BGB_GO_DEPMK_STAMP_),$(BGB_BINARY),$(_BGB_GO_DEPMK),$(BGB_PKG_IN_REPO))
+$(call generate-kv-deps,$(_BGB_KV_DEPMK_STAMP_),$(BGB_BINARY),$(_BGB_KV_DEPMK),BGB_GO_FLAGS)
+
+$(BGB_STAMP): $(BGB_BINARY) $(_BGB_GO_DEPMK_STAMP_) $(_BGB_KV_DEPMK_STAMP_)
 
 # _BGB_RKT_SYMLINK_STAMP_ is deliberately not cleared - it needs to
 # stay defined to make sure that the gopath symlink rule is generated

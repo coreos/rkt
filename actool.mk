@@ -1,12 +1,13 @@
 $(call setup-stamp-file,ACTOOL_STAMP)
 
 # variables for makelib/build_go_bin.mk
+BGB_STAMP := $(ACTOOL_STAMP)
 BGB_PKG_IN_REPO := Godeps/_workspace/src/github.com/appc/spec/actool
 BGB_BINARY := $(ACTOOL)
 
 CLEAN_FILES += $(ACTOOL)
 
-$(ACTOOL_STAMP): $(ACTOOL)
+$(ACTOOL_STAMP):
 	touch "$@"
 
 $(ACTOOL): $(MK_PATH) | $(BINDIR)
