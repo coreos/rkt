@@ -21,6 +21,7 @@ UFS_LIB_SYMLINK := $(ACIROOTFSDIR)/lib
 UFS_LIB64_SYMLINK := $(ACIROOTFSDIR)/lib64
 
 $(call setup-stamp-file,UFS_STAMP)
+$(call setup-stamp-file,UFS_ROOTFS_STAMP,/rootfs)
 $(call setup-stamp-file,UFS_SYSTEMD_CLONE_AND_PATCH_STAMP,/systemd_clone_and_patch/$(UFS_SYSTEMD_DESC))
 $(call setup-stamp-file,UFS_SYSTEMD_BUILD_STAMP,/systemd_build/$(UFS_SYSTEMD_DESC))
 
@@ -30,12 +31,15 @@ STAGE1_COPY_SO_DEPS := yes
 
 $(call inc-one,bash.mk)
 
+$(UFS_STAMP): $(UFS_ROOTFS_STAMP)
+	touch "$@"
+
 -include $(UFS_ROOTFS_DEPMK)
-$(call forward-vars,$(UFS_STAMP), \
+$(call forward-vars,$(UFS_ROOTFS_STAMP), \
 	UFS_ROOTFSDIR ACIROOTFSDIR RKT_STAGE1_SYSTEMD_VER DEPSGENTOOL \
 	UFS_ROOTFS_DEPMK)
-# $(UFS_STAMP): | $(UFS_LIB_SYMLINK) $(UFS_LIB64_SYMLINK)
-$(UFS_STAMP): $(UFS_SYSTEMD_BUILD_STAMP) $(DEPSGENTOOL_STAMP) | $(ACIROOTFSDIR)
+# $(UFS_ROOTFS_STAMP): | $(UFS_LIB_SYMLINK) $(UFS_LIB64_SYMLINK)
+$(UFS_ROOTFS_STAMP): $(UFS_SYSTEMD_BUILD_STAMP) $(DEPSGENTOOL_STAMP) | $(ACIROOTFSDIR)
 	set -e; \
 	cp -af "$(UFS_ROOTFSDIR)/." "$(ACIROOTFSDIR)"; \
 	ln -sf 'src' "$(ACIROOTFSDIR)/flavor"; \
