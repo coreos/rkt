@@ -25,7 +25,7 @@ import (
 
 var (
 	cmdRm = &cobra.Command{
-		Use:   "rm [--uuid-file=FILE] UUID",
+		Use:   "rm [--uuid-file=FILE] UUID ...",
 		Short: "Remove all files and resources associated with an exited pod",
 		Run:   runWrapper(runRm),
 	}
@@ -39,6 +39,7 @@ func init() {
 
 func runRm(cmd *cobra.Command, args []string) (exit int) {
 	var podUUID *types.UUID
+	var podUUIDs []*types.UUID
 	var err error
 
 	switch {
@@ -48,59 +49,77 @@ func runRm(cmd *cobra.Command, args []string) (exit int) {
 			stderr("Unable to read UUID from file: %v", err)
 			return 1
 		}
+		podUUIDs = append(podUUIDs, podUUID)
 
-	case len(args) == 1 && flagUUIDFile == "":
-		podUUID, err = resolveUUID(args[0])
-		if err != nil {
-			stderr("Unable to resolve UUID: %v", err)
-			return 1
+	case len(args) > 0 && flagUUIDFile == "":
+		for _, uuid := range args {
+			podUUID, err := resolveUUID(uuid)
+			if err != nil {
+				stderr("Unable to resolve UUID: %v", err)
+			} else {
+				podUUIDs = append(podUUIDs, podUUID)
+			}
 		}
+
 	default:
 		cmd.Usage()
 		return 1
 	}
 
-	p, err := getPod(podUUID)
-	if err != nil {
-		stderr("Cannot get pod: %v", err)
-		return 1
+	ret := 0
+	for _, podUUID = range podUUIDs {
+		p, err := getPod(podUUID)
+		if err != nil {
+			ret = 1
+			stderr("Cannot get pod: %v", err)
+		}
+
+		if removePod(p) {
+			stdout("%q", p.uuid)
+		} else {
+			ret = 1
+		}
 	}
 
-	return removePod(p)
+	if ret == 1 {
+		stderr("Failed to remove one or more pods")
+	}
+
+	return ret
 }
 
-func removePod(p *pod) int {
+func removePod(p *pod) bool {
 	switch {
 	case p.isRunning():
-		stderr("Pod is currently running")
-		return 1
+		stderr("Pod %q is currently running", p.uuid)
+		return false
 
 	case p.isEmbryo, p.isPreparing:
-		stderr("Pod is currently being prepared")
-		return 1
+		stderr("Pod %q is currently being prepared", p.uuid)
+		return false
 
 	case p.isExitedDeleting, p.isDeleting:
-		stderr("Pod is currently being deleted")
-		return 1
+		stderr("Pod %q is currently being deleted", p.uuid)
+		return false
 
 	case p.isAbortedPrepare:
 		stderr("Moving failed prepare %q to garbage", p.uuid)
 		if err := p.xToGarbage(); err != nil && err != os.ErrNotExist {
 			stderr("Rename error: %v", err)
-			return 1
+			return false
 		}
 
 	case p.isPrepared:
 		stderr("Moving expired prepared pod %q to garbage", p.uuid)
 		if err := p.xToGarbage(); err != nil && err != os.ErrNotExist {
 			stderr("Rename error: %v", err)
-			return 1
+			return false
 		}
 
 	case p.isExited:
 		if err := p.xToExitedGarbage(); err != nil && err != os.ErrNotExist {
 			stderr("Rename error: %v", err)
-			return 1
+			return false
 		}
 
 	case p.isExitedGarbage, p.isGarbage:
@@ -108,10 +127,10 @@ func removePod(p *pod) int {
 
 	if err := p.ExclusiveLock(); err != nil {
 		stderr("Unable to acquire exclusive lock: %v", err)
-		return 1
+		return false
 	}
 
 	deletePod(p)
 
-	return 0
+	return true
 }
