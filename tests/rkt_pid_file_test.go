@@ -121,14 +121,14 @@ func TestPidFileAbortedStart(t *testing.T) {
 	if err := runChild.SendLine("\035\035\035"); err != nil {
 		t.Fatalf("Failed to terminate the pod: %v", err)
 	}
-	if err := runChild.Wait(); err.Error() != "exit status 1" {
-		t.Fatalf("rkt didn't terminate as expected: %v", err)
+	if err := runChild.Wait(); err == nil || err.Error() != "exit status 1" {
+		t.Fatalf("rkt didn't terminate as expected (expects: \"exit status 1\") got: %v", err)
 	}
 
 	// Now the "enter" command terminates quickly
 	before := time.Now()
-	if err := enterChild.Wait(); err.Error() != "exit status 1" {
-		t.Fatalf("rkt enter didn't terminate as expected: %v", err)
+	if err := enterChild.Wait(); err == nil || err.Error() != "exit status 1" {
+		t.Fatalf("rkt enter didn't terminate as expected (expects: \"exit status 1\") got: %v", err)
 	}
 	delay := time.Now().Sub(before)
 	t.Logf("rkt enter terminated %v after the pod was terminated", delay)
