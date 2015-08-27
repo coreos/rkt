@@ -8,3 +8,4 @@
 /build-rkt*
 /stage1/aci/aci-manifest
 /stage1/aci/aci-manifest.test
+.vagrant
