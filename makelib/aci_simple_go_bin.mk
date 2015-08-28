@@ -16,6 +16,7 @@ _ASGB_ACI_BINARY_ := $(ACIROOTFSDIR)/$(_ASGB_NAME_)
 $(call setup-stamp-file,_ASGB_STAMP_)
 
 # variables for makelib/build_go_bin.mk
+BGB_STAMP := $(_ASGB_STAMP_)
 BGB_BINARY := $(TOOLSDIR)/$(_ASGB_NAME_)
 BGB_PKG_IN_REPO := $(subst $(MK_TOPLEVEL_SRCDIR)/,,$(MK_SRCDIR))
 
@@ -26,7 +27,7 @@ STAGE1_STAMPS += $(_ASGB_STAMP_)
 $(BGB_BINARY): $(_ASGB_PATH_) | $(TOOLSDIR)
 $(_ASGB_ACI_BINARY_) $(BGB_BINARY): $(MK_PATH)
 
-$(_ASGB_STAMP_): $(_ASGB_ACI_BINARY_)
+$(_ASGB_STAMP_):
 	touch "$@"
 
 $(BGB_BINARY): $(_ASGB_PATH_)

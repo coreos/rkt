@@ -16,7 +16,7 @@ ifneq ($(RKT_STAGE1_USR_FROM),none)
 TOPLEVEL_SUBDIRS += stage1
 endif
 
-$(call inc-many,actool.mk depsgentool.mk)
+$(call inc-many,depsgentool.mk actool.mk)
 $(call inc-many,$(foreach sd,$(TOPLEVEL_SUBDIRS),$(sd)/$(sd).mk))
 
 all: $(TOPLEVEL_STAMPS)
