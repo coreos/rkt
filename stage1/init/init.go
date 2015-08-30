@@ -657,7 +657,7 @@ func getContainerSubCgroup(machineID string) (string, error) {
 		} else {
 			// when registration is disabled the container will be directly
 			// under rkt's cgroup so we can look it up in /proc/self/cgroup
-			ownCgroupPath, err := cgroup.GetOwnCgroupPath("name=systemd")
+			ownCgroupPath, err := cgroup.GetOwnCgroupPath("")
 			if err != nil {
 				return "", fmt.Errorf("could not get own cgroup path: %v", err)
 			}

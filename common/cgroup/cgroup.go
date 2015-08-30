@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -152,9 +153,15 @@ func getControllerRWFiles(controller string) []string {
 	return nil
 }
 
+// parseOwnCgroupController returns the fields {hierarchy_id, controller_name,
+// path} of the current process from the specified controller. If a controller
+// is not specified, use the first one (the lowest non-zero hierarchy_id as
+// defined by task_cgroup_path())
 func parseOwnCgroupController(controller string) ([]string, error) {
-	cgroupPath := "/proc/self/cgroup"
-	cg, err := os.Open(cgroupPath)
+	var lowestHierarchyId = math.MaxInt32
+	var lowestParts []string = nil
+
+	cg, err := os.Open("/proc/self/cgroup")
 	if err != nil {
 		return nil, fmt.Errorf("error opening /proc/self/cgroup: %v", err)
 	}
@@ -166,12 +173,24 @@ func parseOwnCgroupController(controller string) ([]string, error) {
 		if len(parts) < 3 {
 			return nil, fmt.Errorf("error parsing /proc/self/cgroup")
 		}
+		hierarchyId, err := strconv.Atoi(parts[0])
+		if err != nil {
+			return nil, fmt.Errorf("error parsing /proc/self/cgroup")
+		}
 		controllerParts := strings.Split(parts[1], ",")
 		for _, c := range controllerParts {
 			if c == controller {
 				return parts, nil
 			}
+			if controller == "" && hierarchyId > 0 && hierarchyId < lowestHierarchyId {
+				lowestHierarchyId = hierarchyId
+				lowestParts = parts
+			}
 		}
+	}
+
+	if controller == "" && lowestParts != nil {
+		return lowestParts, nil
 	}
 
 	return nil, fmt.Errorf("controller %q not found", controller)
