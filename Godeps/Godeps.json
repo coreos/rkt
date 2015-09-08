@@ -17,58 +17,58 @@
 		},
 		{
 			"ImportPath": "github.com/appc/cni/pkg/ip",
-			"Comment": "v0.1.0-4-g34be862",
-			"Rev": "34be862dc3123ca251ed6931cc691319a88e36ed"
+			"Comment": "v0.1.0-16-gfb9b8ad",
+			"Rev": "fb9b8ad1bc721681e992dc2b87441648991a96d8"
 		},
 		{
 			"ImportPath": "github.com/appc/cni/pkg/ns",
-			"Comment": "v0.1.0-4-g34be862",
-			"Rev": "34be862dc3123ca251ed6931cc691319a88e36ed"
+			"Comment": "v0.1.0-16-gfb9b8ad",
+			"Rev": "fb9b8ad1bc721681e992dc2b87441648991a96d8"
 		},
 		{
 			"ImportPath": "github.com/appc/cni/pkg/plugin",
-			"Comment": "v0.1.0-4-g34be862",
-			"Rev": "34be862dc3123ca251ed6931cc691319a88e36ed"
+			"Comment": "v0.1.0-16-gfb9b8ad",
+			"Rev": "fb9b8ad1bc721681e992dc2b87441648991a96d8"
 		},
 		{
 			"ImportPath": "github.com/appc/cni/pkg/skel",
-			"Comment": "v0.1.0-4-g34be862",
-			"Rev": "34be862dc3123ca251ed6931cc691319a88e36ed"
+			"Comment": "v0.1.0-16-gfb9b8ad",
+			"Rev": "fb9b8ad1bc721681e992dc2b87441648991a96d8"
 		},
 		{
 			"ImportPath": "github.com/appc/cni/plugins/ipam/dhcp",
-			"Comment": "v0.1.0-4-g34be862",
-			"Rev": "34be862dc3123ca251ed6931cc691319a88e36ed"
+			"Comment": "v0.1.0-16-gfb9b8ad",
+			"Rev": "fb9b8ad1bc721681e992dc2b87441648991a96d8"
 		},
 		{
 			"ImportPath": "github.com/appc/cni/plugins/ipam/host-local",
-			"Comment": "v0.1.0-4-g34be862",
-			"Rev": "34be862dc3123ca251ed6931cc691319a88e36ed"
+			"Comment": "v0.1.0-16-gfb9b8ad",
+			"Rev": "fb9b8ad1bc721681e992dc2b87441648991a96d8"
 		},
 		{
 			"ImportPath": "github.com/appc/cni/plugins/main/bridge",
-			"Comment": "v0.1.0-4-g34be862",
-			"Rev": "34be862dc3123ca251ed6931cc691319a88e36ed"
+			"Comment": "v0.1.0-16-gfb9b8ad",
+			"Rev": "fb9b8ad1bc721681e992dc2b87441648991a96d8"
 		},
 		{
 			"ImportPath": "github.com/appc/cni/plugins/main/ipvlan",
-			"Comment": "v0.1.0-4-g34be862",
-			"Rev": "34be862dc3123ca251ed6931cc691319a88e36ed"
+			"Comment": "v0.1.0-16-gfb9b8ad",
+			"Rev": "fb9b8ad1bc721681e992dc2b87441648991a96d8"
 		},
 		{
 			"ImportPath": "github.com/appc/cni/plugins/main/macvlan",
-			"Comment": "v0.1.0-4-g34be862",
-			"Rev": "34be862dc3123ca251ed6931cc691319a88e36ed"
+			"Comment": "v0.1.0-16-gfb9b8ad",
+			"Rev": "fb9b8ad1bc721681e992dc2b87441648991a96d8"
 		},
 		{
 			"ImportPath": "github.com/appc/cni/plugins/main/ptp",
-			"Comment": "v0.1.0-4-g34be862",
-			"Rev": "34be862dc3123ca251ed6931cc691319a88e36ed"
+			"Comment": "v0.1.0-16-gfb9b8ad",
+			"Rev": "fb9b8ad1bc721681e992dc2b87441648991a96d8"
 		},
 		{
 			"ImportPath": "github.com/appc/cni/plugins/meta/flannel",
-			"Comment": "v0.1.0-4-g34be862",
-			"Rev": "34be862dc3123ca251ed6931cc691319a88e36ed"
+			"Comment": "v0.1.0-16-gfb9b8ad",
+			"Rev": "fb9b8ad1bc721681e992dc2b87441648991a96d8"
 		},
 		{
 			"ImportPath": "github.com/appc/docker2aci/lib",

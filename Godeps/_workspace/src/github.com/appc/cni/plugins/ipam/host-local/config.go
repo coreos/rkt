@@ -32,6 +32,11 @@ type IPAMConfig struct {
 	Subnet     ip.IPNet       `json:"subnet"`
 	Gateway    net.IP         `json:"gateway"`
 	Routes     []plugin.Route `json:"routes"`
+	Args       *IPAMArgs      `json:"-"`
+}
+
+type IPAMArgs struct {
+	IP net.IP `json:"ip",omitempty`
 }
 
 type Net struct {
@@ -40,10 +45,18 @@ type Net struct {
 }
 
 // NewIPAMConfig creates a NetworkConfig from the given network name.
-func LoadIPAMConfig(bytes []byte) (*IPAMConfig, error) {
+func LoadIPAMConfig(bytes []byte, args string) (*IPAMConfig, error) {
 	n := Net{}
 	if err := json.Unmarshal(bytes, &n); err != nil {
 		return nil, err
+	}
+
+	if args != "" {
+		ipamArgs := IPAMArgs{}
+		err := plugin.LoadArgs(args, &ipamArgs)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if n.IPAM == nil {
