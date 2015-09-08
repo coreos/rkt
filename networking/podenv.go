@@ -48,6 +48,7 @@ type podEnv struct {
 	podRoot      string
 	podID        types.UUID
 	netsLoadList common.PrivateNetList
+	netsArgs     common.PrivateNetArgs
 	localConfig  string
 }
 
@@ -59,7 +60,7 @@ type activeNet struct {
 
 // Loads nets specified by user and default one from stage1
 func (e *podEnv) loadNets() ([]activeNet, error) {
-	nets, err := loadUserNets(e.localConfig, e.netsLoadList)
+	nets, err := loadUserNets(e.localConfig, e.netsLoadList, e.netsArgs)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +218,7 @@ func copyFileToDir(src, dstdir string) (string, error) {
 	return dst, err
 }
 
-func loadUserNets(localConfig string, netsLoadList common.PrivateNetList) ([]activeNet, error) {
+func loadUserNets(localConfig string, netsLoadList common.PrivateNetList, netsArgs common.PrivateNetArgs) ([]activeNet, error) {
 	userNetPath := filepath.Join(localConfig, UserNetPathSuffix)
 	log.Printf("Loading networks from %v\n", userNetPath)
 
@@ -254,6 +255,11 @@ func loadUserNets(localConfig string, netsLoadList common.PrivateNetList) ([]act
 		if netExists(nets, n.conf.Name) {
 			log.Printf("%q network already defined, ignoring %v", n.conf.Name, filename)
 			continue
+		}
+
+		if netsArgs.Specific(n.Name()) {
+			n.runtime.Args = netsArgs.GetSpecific(n.Name())
+			log.Printf("netsArgs provided for %q\n%+v", n.Name(), netsArgs)
 		}
 
 		nets = append(nets, *n)

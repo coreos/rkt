@@ -185,3 +185,62 @@ func (l *PrivateNetList) All() bool {
 func (l *PrivateNetList) Specific(net string) bool {
 	return l.mapping[net]
 }
+
+// PrivateNetArgs implements the flag.Value interface to allow specification
+// of -private-net-args such as --private-net-args="netname:k1=v1;k2=v2"
+type PrivateNetArgs struct {
+	mapping map[string]string
+}
+
+func (l *PrivateNetArgs) Strings() []string {
+	var list []string
+	for k, v := range l.mapping {
+		list = append(list, fmt.Sprintf("%s:%s", k, v))
+	}
+	return list
+}
+
+func (l *PrivateNetArgs) String() string {
+	return strings.Join(l.Strings(), ",")
+}
+
+func (l *PrivateNetArgs) Any() bool {
+	return len(l.mapping) > 0
+}
+
+func (l *PrivateNetArgs) Specific(n string) bool {
+	provided := false
+	if l.mapping != nil {
+		_, provided = l.mapping[n]
+	}
+	return provided
+}
+
+func (l *PrivateNetArgs) GetSpecific(n string) string {
+	if l.mapping == nil || !l.Specific(n) {
+		return ""
+	}
+	return l.mapping[n]
+}
+
+func (l *PrivateNetArgs) Set(value string) error {
+	if l.mapping == nil {
+		l.mapping = make(map[string]string)
+	}
+	split := strings.Split(value, ":")
+	if len(split) != 2 {
+		return fmt.Errorf("invalid argument passed: --private-net-args=%s", value)
+	}
+	netname := split[0]
+	if l.Specific(netname) {
+		return fmt.Errorf("multiple netargs for network %q provided", netname)
+	}
+
+	args := split[1]
+	l.mapping[netname] = args
+	return nil
+}
+
+func (l *PrivateNetArgs) Type() string {
+	return "privateNetArgs"
+}

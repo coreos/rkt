@@ -644,3 +644,63 @@ func TestPrivateNetCustomBridge(t *testing.T) {
 	testPrivateNetCustomNatConnectivity(t, nt)
 	testPrivateNetCustomDual(t, nt)
 }
+
+func TestPrivateNetOverride(t *testing.T) {
+	ctx := newRktRunCtx()
+	defer ctx.cleanup()
+	defer ctx.reset()
+
+	iface, err := testutils.GetNonLoIfaceWithAddrs()
+	if err != nil {
+		t.Fatalf("Error while getting non-lo host interface: %v\n", err)
+	}
+	if iface.Name == "" {
+		t.Skipf("Cannot run test without non-lo host interface")
+	}
+
+	nt := networkTemplateT{
+		Name:   "overridemacvlan",
+		Type:   "macvlan",
+		Master: iface.Name,
+		Ipam: ipamTemplateT{
+			Type:   "host-local",
+			Subnet: "10.1.4.0/24",
+		},
+	}
+
+	netdir := prepareTestNet(t, ctx, nt)
+	defer os.RemoveAll(netdir)
+
+	testImageArgs := []string{"--exec=/inspect --print-ipv4=eth0"}
+	testImage := patchTestACI("rkt-inspect-networking1.aci", testImageArgs...)
+	defer os.Remove(testImage)
+
+	expectedIP := "10.1.4.244"
+
+	cmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --private-net=%s --private-net-args=%s:IP=%s --mds-register=false %s", ctx.cmd(), nt.Name, nt.Name, expectedIP, testImage)
+	fmt.Printf("Command: %v\n", cmd)
+	child, err := gexpect.Spawn(cmd)
+	if err != nil {
+		t.Fatalf("Cannot exec rkt: %v", err)
+		return
+	}
+
+	defer func() {
+		err = child.Wait()
+		if err != nil {
+			t.Fatalf("rkt didn't terminate correctly: %v", err)
+		}
+	}()
+
+	expectedRegex := `IPv4: (\d+\.\d+\.\d+\.\d+)`
+	result, out, err := expectRegexTimeoutWithOutput(child, expectedRegex, 30*time.Second)
+	if err != nil {
+		t.Fatalf("Error: %v\nOutput: %v", err, out)
+		return
+	}
+
+	containerIP := result[1]
+	if expectedIP != containerIP {
+		t.Fatalf("overriding IP did not work: Got %q but expected %q", containerIP, expectedIP)
+	}
+}

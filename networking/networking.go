@@ -60,7 +60,7 @@ type NetConf struct {
 
 // Setup creates a new networking namespace and executes network plugins to
 // setup private networking. It returns in the new pod namespace
-func Setup(podRoot string, podID types.UUID, fps []ForwardedPort, privateNetList common.PrivateNetList, localConfig, flavor string) (*Networking, error) {
+func Setup(podRoot string, podID types.UUID, fps []ForwardedPort, privateNetList common.PrivateNetList, privateNetArgs common.PrivateNetArgs, localConfig, flavor string) (*Networking, error) {
 	if flavor == "kvm" {
 		return kvmSetup(podRoot, podID, fps, privateNetList, localConfig)
 	}
@@ -72,6 +72,7 @@ func Setup(podRoot string, podID types.UUID, fps []ForwardedPort, privateNetList
 			podRoot:      podRoot,
 			podID:        podID,
 			netsLoadList: privateNetList,
+			netsArgs:     privateNetArgs,
 			localConfig:  localConfig,
 		},
 	}
