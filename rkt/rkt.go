@@ -227,6 +227,11 @@ func stdout(format string, a ...interface{}) {
 	fmt.Fprintln(os.Stdout, strings.TrimSuffix(out, "\n"))
 }
 
+// where rkt fly trees will live
+func flightDir() string {
+	return filepath.Join(globalFlags.Dir, "flights")
+}
+
 // where pod directories are created and locked before moving to prepared
 func embryoDir() string {
 	return filepath.Join(globalFlags.Dir, "pods", "embryo")
