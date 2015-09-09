@@ -10,6 +10,47 @@ This document describes how to use `rkt` with `systemd`.
 Since `rkt` consists only of a simple CLI that directly executes processes and writes to stdout/stderr (i.e. it does not daemonize), the lifecycle of `rkt` pods can be directly managed by `systemd`.
 Consequently, standard `systemd` idioms like `systemctl start` and `systemctl stop` work out of the box.
 
+## systemd-run
+
+If you just want to start a daemonized container you don't need to create a systemd unit file, you can just use `systemd-run`:
+
+```
+# systemd-run rkt run --mds-register=false coreos.com/etcd:v2.0.10
+Running as unit run-29075.service.
+```
+
+This creates a transient systemd unit on which you can use standard systemd tools:
+
+```
+$ systemctl status run-29075.service
+● run-29075.service - /usr/bin/rkt run --mds-register=false coreos.com/etcd:v2.0.10
+   Loaded: loaded (/run/systemd/system/run-29075.service; static; vendor preset: disabled)
+  Drop-In: /run/systemd/system/run-29075.service.d
+           └─50-Description.conf, 50-ExecStart.conf
+   Active: active (running) since Fri 2015-08-28 10:39:02 CEST; 1min 5s ago
+ Main PID: 29076 (ld-linux-x86-64)
+   CGroup: /system.slice/run-29075.service
+           ├─29076 stage1/rootfs/usr/lib/ld-linux-x86-64.so.2 stage1/rootfs/usr/bin/systemd-nspawn --boot --register=true --link-journal=...
+           ├─29120 /usr/lib/systemd/systemd --default-standard-output=tty --log-target=null --log-level=warning --show-status=0
+           └─system.slice
+             ├─etcd.service
+             │ └─29125 /etcd
+             └─systemd-journald.service
+               └─29121 /usr/lib/systemd/systemd-journald
+
+Aug 28 10:39:18 locke-work rkt[29076]: [237056.734150] etcd[4]: 2015/08/28 08:39:18 raft: ce2a822cea30bfca became follower at term 0
+Aug 28 10:39:18 locke-work rkt[29076]: [237056.734299] etcd[4]: 2015/08/28 08:39:18 raft: newRaft ce2a822cea30bfca [peers: [], te...term: 0]
+Aug 28 10:39:18 locke-work rkt[29076]: [237056.734408] etcd[4]: 2015/08/28 08:39:18 raft: ce2a822cea30bfca became follower at term 1
+Aug 28 10:39:18 locke-work rkt[29076]: [237056.738374] etcd[4]: 2015/08/28 08:39:18 etcdserver: added local member ce2a822cea30bf...22e8b2ae
+Aug 28 10:39:19 locke-work rkt[29076]: [237058.034590] etcd[4]: 2015/08/28 08:39:19 raft: ce2a822cea30bfca is starting a new elec...t term 1
+Aug 28 10:39:19 locke-work rkt[29076]: [237058.035125] etcd[4]: 2015/08/28 08:39:19 raft: ce2a822cea30bfca became candidate at term 2
+Aug 28 10:39:19 locke-work rkt[29076]: [237058.035419] etcd[4]: 2015/08/28 08:39:19 raft: ce2a822cea30bfca received vote from ce2...t term 2
+Aug 28 10:39:19 locke-work rkt[29076]: [237058.036527] etcd[4]: 2015/08/28 08:39:19 raft: ce2a822cea30bfca became leader at term 2
+Aug 28 10:39:19 locke-work rkt[29076]: [237058.036889] etcd[4]: 2015/08/28 08:39:19 raft.node: ce2a822cea30bfca elected leader ce...t term 2
+Aug 28 10:39:19 locke-work rkt[29076]: [237058.042516] etcd[4]: 2015/08/28 08:39:19 etcdserver: published {Name:default ClientURL...22e8b2ae
+Hint: Some lines were ellipsized, use -l to show in full.
+```
+
 ## Simple Unit File
 
 The following is a simple example of a unit file using `rkt` to run an `etcd` instance:
