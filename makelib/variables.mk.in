@@ -49,6 +49,8 @@ RKT_STAGE1_SYSTEMD_VER := @RKT_STAGE1_SYSTEMD_VER@
 RKT_STAGE1_IMAGE_LDFLAGS := @RKT_STAGE1_IMAGE_LDFLAGS@
 # whether to run functional tests
 RKT_RUN_FUNCTIONAL_TESTS := @RKT_RUN_FUNCTIONAL_TESTS@
+# ld flags for linking with static libs
+RKT_STATIC_LIBS_LDFLAGS := @RKT_STATIC_LIBS_LDFLAGS@
 # ld flags for default stage1 name and version
 RKT_STAGE1_DEFAULT_ACI_LDFLAGS := @RKT_STAGE1_DEFAULT_ACI_LDFLAGS@
 # ld flags for version

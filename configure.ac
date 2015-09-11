@@ -263,6 +263,20 @@ AS_IF([test "x${RKT_RUN_FUNCTIONAL_TESTS}" = 'xyes' -o "x${RKT_RUN_FUNCTIONAL_TE
 
 AC_SUBST(RKT_RUN_FUNCTIONAL_TESTS)
 
+AC_ARG_ENABLE([shared],
+              AS_HELP_STRING([--enable-shared],
+                             [enable linking with shared library, default: no]),
+              [RKT_LINK_SHARED_LIBS="${enableval}"],
+              [RKT_LINK_SHARED_LIBS="no"])
+
+AS_VAR_IF([RKT_LINK_SHARED_LIBS], [yes],
+          dnl yes flavor
+          [],
+          dnl no flavor
+          [RKT_STATIC_LIBS_LDFLAGS="-extldflags \"-static\""])
+
+AC_SUBST(RKT_STATIC_LIBS_LDFLAGS)
+
 # cross_compiling is a standard autoconf variable.  See the autoconf manual for
 # details.
 AS_VAR_IF([cross_compiling], [no],
