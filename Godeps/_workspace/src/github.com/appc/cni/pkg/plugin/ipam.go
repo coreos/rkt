@@ -122,7 +122,7 @@ func ConfigureIface(ifName string, res *Result) error {
 	}
 
 	if err := netlink.LinkSetUp(link); err != nil {
-		return fmt.Errorf("failed too set %q UP: %v", ifName, err)
+		return fmt.Errorf("failed to set %q UP: %v", ifName, err)
 	}
 
 	// TODO(eyakubovich): IPv6

@@ -127,6 +127,7 @@ func mirrorLocalZoneInfo(root string) {
 var (
 	debug        bool
 	privNet      common.PrivateNetList
+	privNetArgs  common.PrivateNetArgs
 	interactive  bool
 	privateUsers string
 	mdsToken     string
@@ -137,6 +138,7 @@ var (
 func init() {
 	flag.BoolVar(&debug, "debug", false, "Run in debug mode")
 	flag.Var(&privNet, "private-net", "Setup private network")
+	flag.Var(&privNetArgs, "private-net-args", "Provide private network arguments")
 	flag.BoolVar(&interactive, "interactive", false, "The pod is interactive")
 	flag.StringVar(&privateUsers, "private-users", "", "Run within user namespace. Can be set to [=UIDBASE[:NUIDS]]")
 	flag.StringVar(&mdsToken, "mds-token", "", "MDS auth token")
@@ -530,7 +532,7 @@ func stage1() int {
 			return 6
 		}
 
-		n, err = networking.Setup(root, p.UUID, fps, privNet, localConfig, flavor)
+		n, err = networking.Setup(root, p.UUID, fps, privNet, privNetArgs, localConfig, flavor)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to setup network: %v\n", err)
 			return 6

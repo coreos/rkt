@@ -51,19 +51,20 @@ which will instead be appended to the preceding image app's exec arguments.
 End the image arguments with a lone "---" to resume argument parsing.`,
 		Run: runWrapper(runRun),
 	}
-	flagStage1Image  string
-	flagVolumes      volumeList
-	flagPorts        portList
-	flagPrivateNet   common.PrivateNetList
-	flagPrivateUsers bool
-	flagInheritEnv   bool
-	flagExplicitEnv  envMap
-	flagInteractive  bool
-	flagNoOverlay    bool
-	flagLocal        bool
-	flagPodManifest  string
-	flagMDSRegister  bool
-	flagUUIDFileSave string
+	flagStage1Image    string
+	flagVolumes        volumeList
+	flagPorts          portList
+	flagPrivateNet     common.PrivateNetList
+	flagPrivateNetArgs common.PrivateNetArgs
+	flagPrivateUsers   bool
+	flagInheritEnv     bool
+	flagExplicitEnv    envMap
+	flagInteractive    bool
+	flagNoOverlay      bool
+	flagLocal          bool
+	flagPodManifest    string
+	flagMDSRegister    bool
+	flagUUIDFileSave   string
 )
 
 func setDefaultStage1Image() {
@@ -85,6 +86,7 @@ func init() {
 	cmdRun.Flags().Var(&flagVolumes, "volume", "volumes to mount into the pod")
 	cmdRun.Flags().Var(&flagPorts, "port", "ports to expose on the host (requires --private-net)")
 	cmdRun.Flags().Var(&flagPrivateNet, "private-net", "give pod a private network that defaults to the default network plus all user-configured networks. Can be limited to a comma-separated list of network names")
+	cmdRun.Flags().Var(&flagPrivateNetArgs, "private-net-args", "pass arguments to a pod's private network. Can be supplied multiple times with one argument list per private network.")
 	cmdRun.Flags().Lookup("private-net").NoOptDefVal = "all"
 	cmdRun.Flags().BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
 	cmdRun.Flags().BoolVar(&flagNoOverlay, "no-overlay", false, "disable overlay filesystem")
@@ -293,12 +295,13 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 	}
 
 	rcfg := stage0.RunConfig{
-		CommonConfig: cfg,
-		PrivateNet:   flagPrivateNet,
-		LockFd:       lfd,
-		Interactive:  flagInteractive,
-		MDSRegister:  flagMDSRegister,
-		LocalConfig:  globalFlags.LocalConfigDir,
+		CommonConfig:   cfg,
+		PrivateNet:     flagPrivateNet,
+		PrivateNetArgs: flagPrivateNetArgs,
+		LockFd:         lfd,
+		Interactive:    flagInteractive,
+		MDSRegister:    flagMDSRegister,
+		LocalConfig:    globalFlags.LocalConfigDir,
 	}
 
 	apps, err := p.getApps()

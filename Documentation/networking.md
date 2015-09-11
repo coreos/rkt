@@ -242,7 +242,7 @@ The pod's TCP port 80 can be mapped to an arbitrary port on the host during rkt 
 
 ```
 # rkt run --private-net --port=http:8888 myapp.aci
-````
+```
 
 Now, any traffic arriving on host's TCP port 8888 will be forwarded to the pod on port 80.
 
@@ -251,3 +251,23 @@ If a network has a name "default", it will override the default network added
 by rkt. It is strongly recommended that such network also has type "veth" as
 it protects from the pod spoofing its IP address and defeating identity
 management provided by the metadata service.
+
+### Overriding network settings
+The network backend CNI allows to pass [arguments as plugin parameters](https://github.com/appc/cni/blob/master/SPEC.md#parameters), specifically `CNI_ARGS`, at runtime.
+These arguments can be used to reconfigure a network without changing the configuration file.
+rkt supports the `CNI_ARGS` variable through the command line argument `--private-net-args`. 
+The argument can be passed multiple times to allow passing arguments to different networks.
+
+The syntax for one instance of the argument is `--private-net-args="$networkname:$arg1=$val1;$arg2=val2"`.
+(Please note the mandatory usage of `"` due to the `;` being used as separator)
+
+
+#### Supported CNI_ARGS
+This is not documented yet, except for the example that follows a couple lines down.
+Please follow [this issue on CNI](https://github.com/appc/cni/issues/56) to track the progress of the documentation.
+
+#### Example: Override IPs for two different networks
+This example would override the IP addresses for two different networks:
+```bash
+rkt run --private-net=net1,net2 --private-net-args="net1:IP=1.2.3.4" --private-net-args="net2:IP=1.2.4.5" pod.aci"
+```

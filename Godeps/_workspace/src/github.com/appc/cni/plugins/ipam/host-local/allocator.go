@@ -78,6 +78,40 @@ func (a *IPAllocator) Get(id string) (*plugin.IPConfig, error) {
 		gw = ip.NextIP(a.conf.Subnet.IP)
 	}
 
+	var requestedIP net.IP
+	if a.conf.Args != nil {
+		requestedIP = a.conf.Args.IP
+	}
+
+	if requestedIP != nil {
+		if gw != nil && gw.Equal(a.conf.Args.IP) {
+			return nil, fmt.Errorf("requested IP must differ gateway IP")
+		}
+
+		subnet := net.IPNet{
+			IP:   a.conf.Subnet.IP,
+			Mask: a.conf.Subnet.Mask,
+		}
+		err := validateRangeIP(requestedIP, &subnet)
+		if err != nil {
+			return nil, err
+		}
+
+		reserved, err := a.store.Reserve(id, requestedIP)
+		if err != nil {
+			return nil, err
+		}
+
+		if reserved {
+			return &plugin.IPConfig{
+				IP:      net.IPNet{requestedIP, a.conf.Subnet.Mask},
+				Gateway: gw,
+				Routes:  a.conf.Routes,
+			}, nil
+		}
+		return nil, fmt.Errorf("requested IP address %q is not available in network: %s", requestedIP, a.conf.Name)
+	}
+
 	for cur := a.start; !cur.Equal(a.end); cur = ip.NextIP(cur) {
 		// don't allocate gateway IP
 		if gw != nil && cur.Equal(gw) {
@@ -96,7 +130,6 @@ func (a *IPAllocator) Get(id string) (*plugin.IPConfig, error) {
 			}, nil
 		}
 	}
-
 	return nil, fmt.Errorf("no IP addresses available in network: %s", a.conf.Name)
 }
 
