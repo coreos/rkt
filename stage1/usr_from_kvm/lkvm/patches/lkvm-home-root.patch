@@ -1,0 +1,11 @@
+--- a/include/kvm/kvm.h	2015-09-14 19:35:53.382735385 +0200
++++ b/include/kvm/kvm.h	2015-09-14 19:35:22.692626754 +0200
+@@ -17,7 +17,7 @@
+ #define SIGKVMPAUSE		(SIGRTMIN + 1)
+ 
+ #define KVM_PID_FILE_PATH	"/.lkvm/"
+-#define HOME_DIR		getenv("HOME")
++#define HOME_DIR		"/root"
+ #define KVM_BINARY_NAME		"lkvm"
+ 
+ #ifndef PAGE_SIZE
