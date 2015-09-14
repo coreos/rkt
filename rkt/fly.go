@@ -26,9 +26,9 @@ import (
 	"github.com/coreos/rkt/Godeps/_workspace/src/code.google.com/p/go-uuid/uuid"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
+	"github.com/coreos/rkt/common/apps"
 	"github.com/coreos/rkt/pkg/aci"
 	"github.com/coreos/rkt/pkg/uid"
-	"github.com/coreos/rkt/common/apps"
 	"github.com/coreos/rkt/store"
 )
 
@@ -49,7 +49,6 @@ func init() {
 	// This is needed to correctly handle image args
 	cmdFly.Flags().SetInterspersed(false)
 }
-
 
 func runFly(cmd *cobra.Command, args []string) (exit int) {
 	var rktApp apps.Apps
@@ -144,12 +143,6 @@ func runFly(cmd *cobra.Command, args []string) (exit int) {
 	}
 	// TODO(jonboulle): split this out
 	rfs := filepath.Join(dir, "rootfs")
-	execPath := filepath.Join(rfs, execargs[0])
-	if _, err := os.Stat(execPath); err != nil {
-		os.RemoveAll(dir)
-		stderr("fly: error finding exec %v: %v", execPath, err)
-		return 1
-	}
 	if err := os.Chdir(rfs); err != nil {
 		os.RemoveAll(dir)
 		stderr("fly: error changing directory: %v", err)
@@ -158,6 +151,12 @@ func runFly(cmd *cobra.Command, args []string) (exit int) {
 	if err := syscall.Chroot("."); err != nil {
 		os.RemoveAll(dir)
 		stderr("fly: error chrooting: %v", err)
+		return 1
+	}
+	execPath := execargs[0]
+	if _, err := os.Stat(execPath); err != nil {
+		os.RemoveAll(dir)
+		stderr("fly: error finding exec %v: %v", execPath, err)
 		return 1
 	}
 	if err := syscall.Exec(execargs[0], execargs, os.Environ()); err != nil {
