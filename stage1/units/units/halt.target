@@ -1,6 +1,4 @@
 [Unit]
 Description=Halt
 DefaultDependencies=no
-Requires=reaper.service
-After=reaper.service
 AllowIsolate=yes

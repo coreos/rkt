@@ -5,4 +5,4 @@ DefaultDependencies=false
 
 [Service]
 RemainAfterExit=yes
-ExecStop=/usr/bin/systemctl isolate reaper.service
+ExecStop=/usr/bin/systemctl halt --force

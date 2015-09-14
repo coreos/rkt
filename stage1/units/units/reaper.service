@@ -1,7 +1,0 @@
-[Unit]
-Description=rkt apps reaper
-AllowIsolate=true
-DefaultDependencies=false
-
-[Service]
-ExecStart=/reaper.sh
