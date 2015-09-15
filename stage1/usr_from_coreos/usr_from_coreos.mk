@@ -1,5 +1,5 @@
 UFC_SYSTEMD_VERSION := "v222"
-UFC_IMG_RELEASE := "738.1.0"
+UFC_IMG_RELEASE := "794.0.0"
 UFC_IMG_URL := "http://alpha.release.core-os.net/amd64-usr/$(UFC_IMG_RELEASE)/coreos_production_pxe_image.cpio.gz"
 
 UFC_ITMP := $(BUILDDIR)/tmp/usr_from_coreos
