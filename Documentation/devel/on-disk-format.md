@@ -2,7 +2,7 @@ On disk format
 ==============
 
 The data directory is normally `/var/lib/rkt` but rkt can be requested to use
-another directory via the `--dir` command line argument.
+another directory via the `--data` command line argument.
 
 #### CAS database
 
@@ -28,4 +28,3 @@ the CAS.
 
 The [configuration](https://github.com/coreos/rkt/blob/master/Documentation/configuration.md)
 on-disk format is documented separately.
-

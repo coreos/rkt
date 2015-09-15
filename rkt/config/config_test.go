@@ -121,6 +121,32 @@ func TestDockerAuthConfigFormat(t *testing.T) {
 	}
 }
 
+func TestPathsConfigFormat(t *testing.T) {
+	tmpPath := os.TempDir()
+	tests := []struct {
+		contents string
+		expected ConfigurablePaths
+		fail     bool
+	}{
+		{"bogus contents", ConfigurablePaths{DataDir: ""}, true},
+		{`{"bogus": {"foo": "bar"}}`, ConfigurablePaths{DataDir: ""}, true},
+		{`{"rktKind": "foo"}`, ConfigurablePaths{DataDir: ""}, true},
+		{`{"rktKind": "paths", "rktVersion": "foo"}`, ConfigurablePaths{DataDir: ""}, true},
+		{`{"rktKind": "paths", "rktVersion": "v1", "data": "` + tmpPath + `"}`, ConfigurablePaths{DataDir: tmpPath}, false},
+	}
+	for _, tt := range tests {
+		cfg, err := getConfigFromContents(tt.contents, "paths")
+		if vErr := verifyFailure(tt.fail, tt.contents, err); vErr != nil {
+			t.Errorf("%v", vErr)
+		} else if !tt.fail {
+			result := cfg.Paths
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Error("Got unexpected results\nResult:\n", result, "\n\nExpected:\n", tt.expected)
+			}
+		}
+	}
+}
+
 func verifyFailure(shouldFail bool, contents string, err error) error {
 	var vErr error = nil
 	if err != nil {

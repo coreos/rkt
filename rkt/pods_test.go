@@ -119,7 +119,7 @@ func TestWalkPods(t *testing.T) {
 		}
 		defer os.RemoveAll(d)
 
-		globalFlags.Dir = d
+		cmdRkt.PersistentFlags().Set("data", d)
 		if err := initPods(); err != nil {
 			t.Fatalf("error initializing pods: %v", err)
 		}

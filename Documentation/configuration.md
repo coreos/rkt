@@ -66,7 +66,7 @@ this type, define `type` as `basic` and the `credentials` field as a map
 with two keys - `user` and `password`. These fields must be specified and
 cannot be empty. For example:
 
-```
+```js
 {
 	"rktKind": "auth",
 	"rktVersion": "v1",
@@ -83,7 +83,7 @@ OAuth Bearer Token authentication requires only a token. To use this type,
 define `type` as `oauth` and the `credentials` field as a map with only one
 key - `token`. This field must be specified and cannot be empty. For example:
 
-```
+```js
 {
 	"rktKind": "auth",
 	"rktVersion": "v1",
@@ -103,7 +103,7 @@ consider this system configuration:
 
 `/usr/lib/rkt/auth.d/coreos.json`:
 
-```
+```js
 {
 	"rktKind": "auth",
 	"rktVersion": "v1",
@@ -125,7 +125,7 @@ configuration and the following local configurations:
 
 `/etc/rkt/auth.d/specific-coreos.json`:
 
-```
+```js
 {
 	"rktKind": "auth",
 	"rktVersion": "v1",
@@ -140,7 +140,7 @@ configuration and the following local configurations:
 
 `/etc/rkt/auth.d/specific-tectonic.json`:
 
-```
+```js
 {
 	"rktKind": "auth",
 	"rktVersion": "v1",
@@ -155,7 +155,7 @@ configuration and the following local configurations:
 The result is that when downloading data from `kubernetes.io`, `rkt` still
 sends `Authorization: Bearer common-token`, but when downloading from
 `coreos.com`, it sends `Authorization: Basic Zm9vOmJhcg==` (i.e. `foo:bar`
-encoded in base64). For `tectonic.com`, it will send 
+encoded in base64). For `tectonic.com`, it will send
 `Authorization: Bearer tectonic-token`.
 
 Note that _within_ a particular configuration directory (either system or
@@ -195,7 +195,7 @@ Some popular Docker registries:
 
 Example `dockerAuth` configuration:
 
-```
+```js
 {
 	"rktKind": "dockerAuth",
 	"rktVersion": "v1",
@@ -214,7 +214,7 @@ credentials used for each registry. For example, given this system configuration
 
 In `/usr/lib/rkt/auth.d/docker.json`:
 
-```
+```js
 {
 	"rktKind": "dockerAuth",
 	"rktVersion": "v1",
@@ -236,7 +236,7 @@ configuration and the following local configuration:
 
 `/etc/rkt/auth.d/specific-quay.json`:
 
-```
+```js
 {
 	"rktKind": "dockerAuth",
 	"rktVersion": "v1",
@@ -250,7 +250,7 @@ configuration and the following local configuration:
 
 `/etc/rkt/auth.d/specific-gcr.json`:
 
-```
+```js
 {
 	"rktKind": "dockerAuth",
 	"rktVersion": "v1",
@@ -270,3 +270,45 @@ and password `gle`.
 Note that _within_ a particular configuration directory (either system or
 local), it is a syntax error for the same Docker registry to be defined in
 multiple files.
+
+### rktKind: `paths`
+
+This kind of configuration is used to customize the various paths that
+rkt uses. The configuration files should be placed inside a `paths.d` subdirectory
+(e.g. in `/usr/lib/rkt/paths.d` or `/etc/rkt/paths.d`).
+
+#### rktVersion: `v1`
+
+##### Description and examples
+
+This version of `paths` configuration specifies one additional field:
+`data`.
+
+The `data` field is a string that defines where container image data and running
+containers are stored. If its value is not overriden, it is `/var/lib/rkt` by
+default.
+
+For example, to store container images in your home partition instead of the
+root partition:
+
+`/etc/rkt/paths.d/paths.json`
+```js
+{
+	"rktKind": "paths",
+	"rktVersion": "v1",
+	"data": "/home/me/rkt"
+}
+```
+
+##### Override semantics
+
+Overriding is done for each directory. Not specifying a directory leaves it as
+its default path.
+
+The `data` directory can be specified via the `--data` command line argument .
+If this is provided, this takes precedence over any configuration files.
+
+Configuration files can be added to the system configuration
+(`/usr/lib/rkt/paths.d`) and the local configuration (`/etc/rkt/paths.d`). If
+there are configurations in both, the local configuration takes precedence. If
+there are multiple configurations in the same directory, an error occurs.

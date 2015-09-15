@@ -41,7 +41,7 @@ var (
 		Run:   runWrapper(runInstall),
 	}
 
-	// dirs relative to globalFlags.Dir
+	// dirs relative to data directory
 	dirs = map[string]os.FileMode{
 		".":                        os.FileMode(0755),
 		"tmp":                      os.FileMode(0775),
@@ -171,7 +171,7 @@ func setPermissions(path string, uid int, gid int, perm os.FileMode) error {
 
 func createDirStructure(gid int) error {
 	for dir, perm := range dirs {
-		path := filepath.Join(globalFlags.Dir, dir)
+		path := filepath.Join(getDataDir(), dir)
 
 		if err := os.MkdirAll(path, perm); err != nil {
 			return fmt.Errorf("error creating %q directory: %v", path, err)
@@ -259,7 +259,7 @@ func runInstall(cmd *cobra.Command, args []string) (exit int) {
 	}
 
 	casDirPerm := dirs["cas"]
-	casPath := filepath.Join(globalFlags.Dir, "cas")
+	casPath := filepath.Join(getDataDir(), "cas")
 	if err := setCasDirPermissions(casPath, gid, casDirPerm); err != nil {
 		stderr("install: error setting cas permissions: %v", err)
 		return 1

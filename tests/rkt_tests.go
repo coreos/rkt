@@ -94,7 +94,7 @@ type rktRunCtx struct {
 func newRktRunCtx() *rktRunCtx {
 	return &rktRunCtx{
 		directories: []*dirDesc{
-			newDirDesc("datadir-", "data", "dir"),
+			newDirDesc("datadir-", "data", "data"),
 			newDirDesc("localdir-", "local configuration", "local-config"),
 			newDirDesc("systemdir-", "system configuration", "system-config"),
 		},

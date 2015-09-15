@@ -59,17 +59,18 @@ func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	if globalFlags.Dir == "" {
+	dataDir := getDataDir()
+	if dataDir == "" {
 		log.Printf("dir unset - using temporary directory")
 		var err error
-		globalFlags.Dir, err = ioutil.TempDir("", "rkt")
+		dataDir, err = ioutil.TempDir("", "rkt")
 		if err != nil {
 			stderr("error creating temporary directory: %v", err)
 			return 1
 		}
 	}
 
-	s, err := store.NewStore(globalFlags.Dir)
+	s, err := store.NewStore(dataDir)
 	if err != nil {
 		stderr("prepared-run: cannot open store: %v", err)
 		return 1

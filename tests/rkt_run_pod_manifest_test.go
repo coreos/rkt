@@ -409,7 +409,7 @@ func TestPodManifest(t *testing.T) {
 								{"FILE", "/dir/file"},
 							},
 							MountPoints: []types.MountPoint{
-								{"dir", "/dir", false},
+								{"data", "/dir", false},
 							},
 						},
 					},
@@ -424,13 +424,13 @@ func TestPodManifest(t *testing.T) {
 								{"CONTENT", "host:foo"},
 							},
 							MountPoints: []types.MountPoint{
-								{"dir", "/dir", false},
+								{"data", "/dir", false},
 							},
 						},
 					},
 				},
 				Volumes: []types.Volume{
-					{"dir", "host", tmpdir, nil},
+					{"data", "host", tmpdir, nil},
 				},
 			},
 			true,

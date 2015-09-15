@@ -46,8 +46,8 @@ var (
 		InsecureSkipVerify bool
 		TrustKeysFromHttps bool
 	}{}
-
-	cmdExitCode int
+	cachedDataDir string
+	cmdExitCode   int
 )
 
 var cmdRkt = &cobra.Command{
@@ -57,7 +57,7 @@ var cmdRkt = &cobra.Command{
 
 func init() {
 	cmdRkt.PersistentFlags().BoolVar(&globalFlags.Debug, "debug", false, "Print out more debug information to stderr")
-	cmdRkt.PersistentFlags().StringVar(&globalFlags.Dir, "dir", defaultDataDir, "rkt data directory")
+	cmdRkt.PersistentFlags().StringVar(&globalFlags.Dir, "data", defaultDataDir, "rkt data directory")
 	cmdRkt.PersistentFlags().StringVar(&globalFlags.SystemConfigDir, "system-config", common.DefaultSystemConfigDir, "system configuration directory")
 	cmdRkt.PersistentFlags().StringVar(&globalFlags.LocalConfigDir, "local-config", common.DefaultLocalConfigDir, "local configuration directory")
 	cmdRkt.PersistentFlags().BoolVar(&globalFlags.InsecureSkipVerify, "insecure-skip-verify", false, "skip all TLS, image or fingerprint verification")
@@ -90,6 +90,7 @@ func main() {
 	cmdRkt.SetHelpTemplate(`{{.UsageString}}`)
 
 	cmdRkt.Execute()
+
 	os.Exit(cmdExitCode)
 }
 
@@ -105,32 +106,32 @@ func stdout(format string, a ...interface{}) {
 
 // where pod directories are created and locked before moving to prepared
 func embryoDir() string {
-	return filepath.Join(globalFlags.Dir, "pods", "embryo")
+	return filepath.Join(getDataDir(), "pods", "embryo")
 }
 
 // where pod trees reside during (locked) and after failing to complete preparation (unlocked)
 func prepareDir() string {
-	return filepath.Join(globalFlags.Dir, "pods", "prepare")
+	return filepath.Join(getDataDir(), "pods", "prepare")
 }
 
 // where pod trees reside upon successful preparation
 func preparedDir() string {
-	return filepath.Join(globalFlags.Dir, "pods", "prepared")
+	return filepath.Join(getDataDir(), "pods", "prepared")
 }
 
 // where pod trees reside once run
 func runDir() string {
-	return filepath.Join(globalFlags.Dir, "pods", "run")
+	return filepath.Join(getDataDir(), "pods", "run")
 }
 
 // where pod trees reside once exited & marked as garbage by a gc pass
 func exitedGarbageDir() string {
-	return filepath.Join(globalFlags.Dir, "pods", "exited-garbage")
+	return filepath.Join(getDataDir(), "pods", "exited-garbage")
 }
 
 // where never-executed pod trees reside once marked as garbage by a gc pass (failed prepares, expired prepareds)
 func garbageDir() string {
-	return filepath.Join(globalFlags.Dir, "pods", "garbage")
+	return filepath.Join(getDataDir(), "pods", "garbage")
 }
 
 func getKeystore() *keystore.Keystore {
@@ -139,6 +140,37 @@ func getKeystore() *keystore.Keystore {
 	}
 	config := keystore.NewConfig(globalFlags.SystemConfigDir, globalFlags.LocalConfigDir)
 	return keystore.New(config)
+}
+
+func getDataDir() string {
+	if cachedDataDir == "" {
+		cachedDataDir = calculateDataDir()
+	}
+	return cachedDataDir
+}
+
+func calculateDataDir() string {
+	// If --data parameter is passed, then use this value.
+	if dirFlag := cmdRkt.PersistentFlags().Lookup("data"); dirFlag != nil {
+		if dirFlag.Changed {
+			return globalFlags.Dir
+		}
+	} else {
+		panic("Fatal error processing rkt arguments.")
+	}
+
+	// If above fails, then try to get the value from configuration.
+	if config, err := getConfig(); err != nil {
+		stderr("rkt: cannot get configuration: %v", err)
+		os.Exit(1)
+	} else {
+		if config.Paths.DataDir != "" {
+			return config.Paths.DataDir
+		}
+	}
+
+	// If above fails, then use the default.
+	return defaultDataDir
 }
 
 func getConfig() (*config.Config, error) {
