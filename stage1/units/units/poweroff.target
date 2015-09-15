@@ -1,6 +1,4 @@
 [Unit]
 Description=Poweroff
 DefaultDependencies=no
-Requires=reaper.service
-After=reaper.service
 AllowIsolate=yes
