@@ -20,7 +20,7 @@ RKT_REQ_ABS_PROG([BASH_SHELL], [bash])
 RKT_REQ_ABS_PROG([ABS_GO], [go])
 
 dnl drop it when we drop support for go < 1.5
-VERSION=`$ABS_GO version | grep -o 'go@<:@@<:@:digit:@:>@@:>@\+\.@<:@@<:@:digit:@:>@@:>@\+' | grep -o '@<:@@<:@:digit:@:>@@:>@\+\.@<:@@<:@:digit:@:>@@:>@\+'`
+GO_VERSION=`$ABS_GO version | grep -o 'go@<:@@<:@:digit:@:>@@:>@\+\.@<:@@<:@:digit:@:>@@:>@\+' | grep -o '@<:@@<:@:digit:@:>@@:>@\+\.@<:@@<:@:digit:@:>@@:>@\+'`
 GO_MAJOR=`echo $GO_VERSION | grep -o '^@<:@@<:@:digit:@:>@@:>@\+'`
 GO_MINOR=`echo $GO_VERSION | grep -o '@<:@@<:@:digit:@:>@@:>@\+$'`
 
