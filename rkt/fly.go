@@ -50,9 +50,80 @@ func init() {
 	cmdFly.Flags().SetInterspersed(false)
 }
 
+func runFlyPrepareApp(app *apps.Apps) (string, *types.App, error) {
+	privateUsers := uid.NewBlankUidRange()
+
+	s, err := store.NewStore(globalFlags.Dir)
+	if err != nil {
+		stderr("fly: cannot open store: %v", err)
+		return "", nil, err
+	}
+
+	config, err := getConfig()
+	if err != nil {
+		stderr("fly: cannot get configuration: %v", err)
+		return "", nil, err
+	}
+
+	fn := &finder{
+		imageActionData: imageActionData{
+			s:                  s,
+			headers:            config.AuthPerHost,
+			dockerAuth:         config.DockerCredentialsPerRegistry,
+			insecureSkipVerify: globalFlags.InsecureSkipVerify,
+			debug:              globalFlags.Debug,
+		},
+		local:    flagLocal,
+		withDeps: true,
+	}
+
+	fn.ks = getKeystore()
+	if err := fn.findImages(app); err != nil {
+		stderr("fly: cannot find image: %v", err)
+		return "", nil, err
+	}
+
+	u, err := types.NewUUID(uuid.New())
+	if err != nil {
+		stderr("fly: error creating UUID: %v", err)
+		return "", nil, err
+	}
+	dir := filepath.Join(flightDir(), u.String())
+	// TODO(jonboulle): lock this directory?
+	// TODO(jonboulle): require parent dir to exist?
+	err = os.MkdirAll(dir, 0700)
+	if err != nil {
+		stderr("fly: error creating directory: %v", err)
+		return "", nil, err
+	}
+
+	rktApp := app.Last()
+	id := rktApp.ImageID
+	image, err := s.GetImageManifest(id.String())
+	if err != nil {
+		os.RemoveAll(dir)
+		stderr("fly: error getting image manifest: %v", err)
+		return "", nil, err
+	}
+	if image.App == nil {
+		os.RemoveAll(dir)
+		stderr("fly: image has no App section")
+		return "", nil, err
+	}
+
+	//TODO(jonboulle): support overlay?
+	err = aci.RenderACIWithImageID(id, dir, s, privateUsers)
+	if err != nil {
+		os.RemoveAll(dir)
+		stderr("fly: error rendering ACI: %v", err)
+		return "", nil, err
+	}
+
+	return dir, image.App, nil
+}
+
 func runFly(cmd *cobra.Command, args []string) (exit int) {
 	var rktApp apps.Apps
-	privateUsers := uid.NewBlankUidRange()
 	err := parseApps(&rktApp, args, cmd.Flags(), true)
 	if err != nil {
 		stderr("fly: error parsing app image arguments: %v", err)
@@ -74,74 +145,15 @@ func runFly(cmd *cobra.Command, args []string) (exit int) {
 		}
 	}
 
-	s, err := store.NewStore(globalFlags.Dir)
+	dir, imApp, err := runFlyPrepareApp(&rktApp)
 	if err != nil {
-		stderr("fly: cannot open store: %v", err)
-		return 1
-	}
-
-	config, err := getConfig()
-	if err != nil {
-		stderr("fly: cannot get configuration: %v", err)
-		return 1
-	}
-
-	fn := &finder{
-		imageActionData: imageActionData{
-			s:                  s,
-			headers:            config.AuthPerHost,
-			dockerAuth:         config.DockerCredentialsPerRegistry,
-			insecureSkipVerify: globalFlags.InsecureSkipVerify,
-			debug:              globalFlags.Debug,
-		},
-		local:    flagLocal,
-		withDeps: true,
-	}
-
-	fn.ks = getKeystore()
-	if err := fn.findImages(&rktApp); err != nil {
-		stderr("%v", err)
-		return 1
-	}
-
-	u, err := types.NewUUID(uuid.New())
-	if err != nil {
-		stderr("fly: error creating UUID: %v", err)
-		return 1
-	}
-	dir := filepath.Join(flightDir(), u.String())
-	// TODO(jonboulle): lock this directory?
-	// TODO(jonboulle): require parent dir to exist?
-	err = os.MkdirAll(dir, 0700)
-	if err != nil {
-		stderr("fly: error creating directory: %v", err)
+		stderr("fly: error preparing App: %v", err)
 		return 1
 	}
 
 	app := rktApp.Last()
-	id := app.ImageID
-	im, err := s.GetImageManifest(id.String())
-	if err != nil {
-		os.RemoveAll(dir)
-		stderr("fly: error getting image manifest: %v", err)
-		return 1
-	}
-	if im.App == nil {
-		os.RemoveAll(dir)
-		stderr("fly: image has no App section")
-		return 1
-	}
-	execargs := append(im.App.Exec, app.Args...)
+	execargs := append(imApp.Exec, app.Args...)
 
-	//TODO(jonboulle): support overlay?
-	//TODO(tixxdz djalal) support user namespaces ?
-	err = aci.RenderACIWithImageID(id, dir, s, privateUsers)
-	if err != nil {
-		os.RemoveAll(dir)
-		stderr("fly: error rendering ACI: %v", err)
-		return 1
-	}
-	// TODO(jonboulle): split this out
 	rfs := filepath.Join(dir, "rootfs")
 	if err := os.Chdir(rfs); err != nil {
 		os.RemoveAll(dir)
