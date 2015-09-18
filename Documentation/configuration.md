@@ -1,6 +1,6 @@
 # rkt configuration
 
-`rkt` reads configuration from two directories - a **system directory** and a
+`rkt` reads configuration from two directories, a **system directory** and a
 **local directory**. The system directory defaults to `/usr/lib/rkt` and the
 local directory `/etc/rkt`, but both can be overridden via command-line flags.
 
