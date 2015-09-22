@@ -594,6 +594,20 @@ func (ds Store) GetAllACIInfos(sortfields []string, ascending bool) ([]*ACIInfo,
 	return aciInfos, err
 }
 
+func (ds Store) GetACIInfoWithBlobKey(blobKey string) (*ACIInfo, error) {
+	var aciInfo *ACIInfo
+	var found bool
+	err := ds.db.Do(func(tx *sql.Tx) error {
+		var err error
+		aciInfo, found, err = GetACIInfoWithBlobKey(tx, blobKey)
+		return err
+	})
+	if !found {
+		err = fmt.Errorf("ACI info not found with blob key %q", blobKey)
+	}
+	return aciInfo, err
+}
+
 func (s Store) Dump(hex bool) {
 	for _, s := range s.stores {
 		var keyCount int

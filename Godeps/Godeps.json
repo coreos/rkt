@@ -113,6 +113,10 @@
 			"Rev": "25f997957b604657dd558fe5da664a8f1b2a12b7"
 		},
 		{
+			"ImportPath": "github.com/bradfitz/http2",
+			"Rev": "f8202bc903bda493ebba4aa54922d78430c2c42f"
+		},
+		{
 			"ImportPath": "github.com/camlistore/lock",
 			"Rev": "ae27720f340952636b826119b58130b9c1a847a0"
 		},
@@ -198,6 +202,10 @@
 			"Rev": "41608027bdce7bfa8959d653a00b954591220e67"
 		},
 		{
+			"ImportPath": "github.com/golang/protobuf/proto",
+			"Rev": "6dfb160b2754e3b3fa583fbd0c207dfab2e836e5"
+		},
+		{
 			"ImportPath": "github.com/gorilla/context",
 			"Rev": "50c25fb3b2b3b3cc724e9b6ac75fb44b3bccd0da"
 		},
@@ -263,8 +271,20 @@
 			"Rev": "a7ead6ddf06233883deca151dffaef2effbf498f"
 		},
 		{
+			"ImportPath": "golang.org/x/net/context",
+			"Rev": "db8e4de5b2d6653f66aea53094624468caad15d2"
+		},
+		{
 			"ImportPath": "golang.org/x/net/html",
-			"Rev": "1dfe7915deaf3f80b962c163b918868d8a6d8974"
+			"Rev": "db8e4de5b2d6653f66aea53094624468caad15d2"
+		},
+		{
+			"ImportPath": "golang.org/x/net/internal/timeseries",
+			"Rev": "db8e4de5b2d6653f66aea53094624468caad15d2"
+		},
+		{
+			"ImportPath": "golang.org/x/net/trace",
+			"Rev": "db8e4de5b2d6653f66aea53094624468caad15d2"
 		},
 		{
 			"ImportPath": "golang.org/x/sys/unix",
@@ -273,6 +293,10 @@
 		{
 			"ImportPath": "golang.org/x/tools/go/vcs",
 			"Rev": "27e692e6ec36d8f48be794f32553e1400c70dbf2"
+		},
+		{
+			"ImportPath": "google.golang.org/grpc",
+			"Rev": "4bd040ce23a624ff9a1d07b0e729ee189bddd51c"
 		},
 		{
 			"ImportPath": "speter.net/go/exp/math/dec/inf",

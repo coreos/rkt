@@ -43,9 +43,44 @@ const (
 	MetadataServicePort    = 18112
 	MetadataServiceRegSock = "/run/rkt/metadata-svc.sock"
 
+	APIServiceListenClientURL = "localhost:15441"
+	APIServiceEventSock       = "/run/rkt/api-svc.sock"
+
 	DefaultLocalConfigDir  = "/etc/rkt"
 	DefaultSystemConfigDir = "/usr/lib/rkt"
+
+	defaultListenFD = 3
 )
+
+// UnixListener returns the listener used for registrations (over unix sock)
+func UnixListener(socketFile string) (net.Listener, error) {
+	s := os.Getenv("LISTEN_FDS")
+	if s != "" {
+		// socket activated
+		lfds, err := strconv.ParseInt(s, 10, 16)
+		if err != nil {
+			return nil, fmt.Errorf("Error parsing LISTEN_FDS env var: %v", err)
+		}
+		if lfds != 1 {
+			return nil, fmt.Errorf("LISTEN_FDS != 1")
+		}
+
+		// If the LISTEN_FDS is 1, then we assume the first fd starts at defaultListenFD (which is 3)
+		// is the unix socket passed to us.
+		return net.FileListener(os.NewFile(uintptr(defaultListenFD), "listen"))
+	} else {
+		dir := filepath.Dir(socketFile)
+		err := os.MkdirAll(dir, 0755)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to create %v: %v", dir, err)
+		}
+
+		return net.ListenUnix("unix", &net.UnixAddr{
+			Net:  "unix",
+			Name: socketFile,
+		})
+	}
+}
 
 // Stage1ImagePath returns the path where the stage1 app image (unpacked ACI) is rooted,
 // (i.e. where its contents are extracted during stage0).

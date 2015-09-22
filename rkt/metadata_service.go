@@ -28,8 +28,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"path/filepath"
-	"strconv"
 	"sync"
 	"syscall"
 
@@ -57,10 +55,6 @@ var (
 	flagListenPort int
 
 	exitCh = make(chan os.Signal, 1)
-)
-
-const (
-	listenFdsStart = 3
 )
 
 func init() {
@@ -567,34 +561,6 @@ func logReq(h func(w http.ResponseWriter, r *http.Request)) http.HandlerFunc {
 	}
 }
 
-// unixListener returns the listener used for registrations (over unix sock)
-func unixListener() (net.Listener, error) {
-	s := os.Getenv("LISTEN_FDS")
-	if s != "" {
-		// socket activated
-		lfds, err := strconv.ParseInt(s, 10, 16)
-		if err != nil {
-			return nil, fmt.Errorf("Error parsing LISTEN_FDS env var: %v", err)
-		}
-		if lfds < 1 {
-			return nil, fmt.Errorf("LISTEN_FDS < 1")
-		}
-
-		return net.FileListener(os.NewFile(uintptr(listenFdsStart), "listen"))
-	} else {
-		dir := filepath.Dir(common.MetadataServiceRegSock)
-		err := os.MkdirAll(dir, 0755)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to create %v: %v", dir, err)
-		}
-
-		return net.ListenUnix("unix", &net.UnixAddr{
-			Net:  "unix",
-			Name: common.MetadataServiceRegSock,
-		})
-	}
-}
-
 func runRegistrationServer(l net.Listener) {
 	r := mux.NewRouter()
 	r.HandleFunc("/pods/{uuid}", logReq(handleRegisterPod)).Methods("PUT")
@@ -635,7 +601,7 @@ func runPublicServer(l net.Listener) {
 func runMetadataService(cmd *cobra.Command, args []string) (exit int) {
 	log.Print("Metadata service starting...")
 
-	unixl, err := unixListener()
+	unixl, err := common.UnixListener(common.MetadataServiceRegSock)
 	if err != nil {
 		stderr(err.Error())
 		return 1
