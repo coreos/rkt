@@ -35,23 +35,14 @@ type Label struct {
 	Value string       `json:"value"`
 }
 
-func (l Labels) assertValid() error {
-	seen := map[ACIdentifier]string{}
-	for _, lbl := range l {
-		if lbl.Name == "name" {
-			return fmt.Errorf(`invalid label name: "name"`)
-		}
-		_, ok := seen[lbl.Name]
-		if ok {
-			return fmt.Errorf(`duplicate labels of name %q`, lbl.Name)
-		}
-		seen[lbl.Name] = lbl.Value
-	}
-	if os, ok := seen["os"]; ok {
-		if validArchs, ok := ValidOSArch[os]; !ok {
+// IsValidOsArch checks if a OS-architecture combination is valid given a map
+// of valid OS-architectures
+func IsValidOSArch(labels map[ACIdentifier]string, validOSArch map[string][]string) error {
+	if os, ok := labels["os"]; ok {
+		if validArchs, ok := validOSArch[os]; !ok {
 			// Not a whitelisted OS. TODO: how to warn rather than fail?
-			validOses := make([]string, 0, len(ValidOSArch))
-			for validOs := range ValidOSArch {
+			validOses := make([]string, 0, len(validOSArch))
+			for validOs := range validOSArch {
 				validOses = append(validOses, validOs)
 			}
 			sort.Strings(validOses)
@@ -59,7 +50,7 @@ func (l Labels) assertValid() error {
 		} else {
 			// Whitelisted OS. We check arch here, as arch makes sense only
 			// when os is defined.
-			if arch, ok := seen["arch"]; ok {
+			if arch, ok := labels["arch"]; ok {
 				found := false
 				for _, validArch := range validArchs {
 					if arch == validArch {
@@ -74,6 +65,21 @@ func (l Labels) assertValid() error {
 		}
 	}
 	return nil
+}
+
+func (l Labels) assertValid() error {
+	seen := map[ACIdentifier]string{}
+	for _, lbl := range l {
+		if lbl.Name == "name" {
+			return fmt.Errorf(`invalid label name: "name"`)
+		}
+		_, ok := seen[lbl.Name]
+		if ok {
+			return fmt.Errorf(`duplicate labels of name %q`, lbl.Name)
+		}
+		seen[lbl.Name] = lbl.Value
+	}
+	return IsValidOSArch(seen, ValidOSArch)
 }
 
 func (l Labels) MarshalJSON() ([]byte, error) {

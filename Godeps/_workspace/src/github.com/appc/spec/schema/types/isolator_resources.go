@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/GoogleCloudPlatform/kubernetes/pkg/api/resource"
+	"github.com/coreos/rkt/Godeps/_workspace/src/k8s.io/kubernetes/pkg/api/resource"
 )
 
 var (

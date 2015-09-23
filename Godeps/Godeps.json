@@ -67,11 +67,11 @@
 		},
 		{
 			"ImportPath": "github.com/appc/docker2aci/lib",
-			"Rev": "5a59e6910929afdeb54913c301692194d3160d09"
+			"Rev": "d03b0eaec1777d69b4cd0535c782249c5777dccb"
 		},
 		{
 			"ImportPath": "github.com/appc/docker2aci/tarball",
-			"Rev": "5a59e6910929afdeb54913c301692194d3160d09"
+			"Rev": "d03b0eaec1777d69b4cd0535c782249c5777dccb"
 		},
 		{
 			"ImportPath": "github.com/appc/goaci/proj2aci",
@@ -79,38 +79,38 @@
 		},
 		{
 			"ImportPath": "github.com/appc/spec/aci",
-			"Comment": "v0.6.1",
-			"Rev": "25f997957b604657dd558fe5da664a8f1b2a12b7"
+			"Comment": "v0.6.1-40-g598462d",
+			"Rev": "598462da7b2415ae960b85f80006a04c97d630af"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/actool",
-			"Comment": "v0.6.1",
-			"Rev": "25f997957b604657dd558fe5da664a8f1b2a12b7"
+			"Comment": "v0.6.1-40-g598462d",
+			"Rev": "598462da7b2415ae960b85f80006a04c97d630af"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/discovery",
-			"Comment": "v0.6.1",
-			"Rev": "25f997957b604657dd558fe5da664a8f1b2a12b7"
+			"Comment": "v0.6.1-40-g598462d",
+			"Rev": "598462da7b2415ae960b85f80006a04c97d630af"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/pkg/acirenderer",
-			"Comment": "v0.6.1",
-			"Rev": "25f997957b604657dd558fe5da664a8f1b2a12b7"
+			"Comment": "v0.6.1-40-g598462d",
+			"Rev": "598462da7b2415ae960b85f80006a04c97d630af"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/pkg/device",
-			"Comment": "v0.6.1",
-			"Rev": "25f997957b604657dd558fe5da664a8f1b2a12b7"
+			"Comment": "v0.6.1-40-g598462d",
+			"Rev": "598462da7b2415ae960b85f80006a04c97d630af"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/pkg/tarheader",
-			"Comment": "v0.6.1",
-			"Rev": "25f997957b604657dd558fe5da664a8f1b2a12b7"
+			"Comment": "v0.6.1-40-g598462d",
+			"Rev": "598462da7b2415ae960b85f80006a04c97d630af"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/schema",
-			"Comment": "v0.6.1",
-			"Rev": "25f997957b604657dd558fe5da664a8f1b2a12b7"
+			"Comment": "v0.6.1-40-g598462d",
+			"Rev": "598462da7b2415ae960b85f80006a04c97d630af"
 		},
 		{
 			"ImportPath": "github.com/camlistore/lock",
@@ -273,6 +273,11 @@
 		{
 			"ImportPath": "golang.org/x/tools/go/vcs",
 			"Rev": "27e692e6ec36d8f48be794f32553e1400c70dbf2"
+		},
+		{
+			"ImportPath": "k8s.io/kubernetes/pkg/api/resource",
+			"Comment": "v1.0.2",
+			"Rev": "e310e619fc1ac4f3238bf5ebe9e7033bf5d47ee2"
 		},
 		{
 			"ImportPath": "speter.net/go/exp/math/dec/inf",
