@@ -116,33 +116,9 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	config, err := getConfig()
+	s1img, podManifest, err := fetchImages(s)
 	if err != nil {
-		stderr("prepare: cannot get configuration: %v", err)
-		return 1
-	}
-	fn := &finder{
-		imageActionData: imageActionData{
-			s:                  s,
-			headers:            config.AuthPerHost,
-			dockerAuth:         config.DockerCredentialsPerRegistry,
-			insecureSkipVerify: globalFlags.InsecureSkipVerify,
-			debug:              globalFlags.Debug,
-		},
-		local:    flagLocal,
-		withDeps: false,
-	}
-
-	s1img, err := getStage1Hash(s, flagStage1Image)
-	if err != nil {
-		stderr("prepare: %v", err)
-		return 1
-	}
-
-	fn.ks = getKeystore()
-	fn.withDeps = true
-	if err := fn.findImages(&rktApps); err != nil {
-		stderr("%v", err)
+		stderr("prepare: error fetching images: %v", err)
 		return 1
 	}
 
@@ -166,7 +142,7 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 	}
 
 	if len(flagPodManifest) > 0 {
-		pcfg.PodManifest = flagPodManifest
+		pcfg.PodManifest = podManifest
 	} else {
 		pcfg.Volumes = []types.Volume(flagVolumes)
 		pcfg.Ports = []types.ExposedPort(flagPorts)

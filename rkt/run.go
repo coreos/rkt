@@ -17,6 +17,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -26,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
 	"github.com/coreos/rkt/common"
@@ -145,6 +147,53 @@ func getStage1Hash(s *store.Store, stage1ImagePath string) (*types.Hash, error) 
 	return s1img, nil
 }
 
+// fetchImages will fetches the stage1 image and the app images from command
+// line or from the pod manifest (if "--pod-manifest" flag is provided).
+func fetchImages(s *store.Store) (*types.Hash, *schema.PodManifest, error) {
+	config, err := getConfig()
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot get configuration: %v", err)
+	}
+	fn := &finder{
+		imageActionData: imageActionData{
+			s:                  s,
+			headers:            config.AuthPerHost,
+			dockerAuth:         config.DockerCredentialsPerRegistry,
+			insecureSkipVerify: globalFlags.InsecureSkipVerify,
+			debug:              globalFlags.Debug,
+		},
+		local:    flagLocal,
+		withDeps: false,
+	}
+
+	s1img, err := getStage1Hash(s, flagStage1Image)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	fn.ks = getKeystore()
+	fn.withDeps = true
+
+	var podManifest schema.PodManifest
+	if len(flagPodManifest) > 0 {
+		data, err := ioutil.ReadFile(flagPodManifest)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot read pod manifest: %v", err)
+		}
+		if err := json.Unmarshal(data, &podManifest); err != nil {
+			return nil, nil, fmt.Errorf("cannot unmarshal pod manifest: %v", err)
+		}
+		if err := fn.findImagesInPodManifest(&podManifest); err != nil {
+			return nil, nil, err
+		}
+	} else {
+		if err := fn.findImages(&rktApps); err != nil {
+			return nil, nil, err
+		}
+	}
+	return s1img, &podManifest, nil
+}
+
 func runRun(cmd *cobra.Command, args []string) (exit int) {
 	privateUsers := uid.NewBlankUidRange()
 	err := parseApps(&rktApps, args, cmd.Flags(), true)
@@ -197,33 +246,9 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	config, err := getConfig()
+	s1img, podManifest, err := fetchImages(s)
 	if err != nil {
-		stderr("run: cannot get configuration: %v", err)
-		return 1
-	}
-	fn := &finder{
-		imageActionData: imageActionData{
-			s:                  s,
-			headers:            config.AuthPerHost,
-			dockerAuth:         config.DockerCredentialsPerRegistry,
-			insecureSkipVerify: globalFlags.InsecureSkipVerify,
-			debug:              globalFlags.Debug,
-		},
-		local:    flagLocal,
-		withDeps: false,
-	}
-
-	s1img, err := getStage1Hash(s, flagStage1Image)
-	if err != nil {
-		stderr("%v", err)
-		return 1
-	}
-
-	fn.ks = getKeystore()
-	fn.withDeps = true
-	if err := fn.findImages(&rktApps); err != nil {
-		stderr("%v", err)
+		stderr("run: error fetching images: %v", err)
 		return 1
 	}
 
@@ -264,7 +289,7 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 	}
 
 	if len(flagPodManifest) > 0 {
-		pcfg.PodManifest = flagPodManifest
+		pcfg.PodManifest = podManifest
 	} else {
 		pcfg.Volumes = []types.Volume(flagVolumes)
 		pcfg.Ports = []types.ExposedPort(flagPorts)

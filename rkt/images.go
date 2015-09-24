@@ -37,6 +37,7 @@ import (
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/docker2aci/lib/common"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/aci"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/discovery"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/coreos/ioprogress"
 	"github.com/coreos/rkt/Godeps/_workspace/src/golang.org/x/crypto/openpgp"
@@ -73,6 +74,35 @@ func (f *finder) findImages(al *apps.Apps) error {
 		app.ImageID = *h
 		return nil
 	})
+}
+
+// findImagesInPodManifest uses findImage to attain the image hashes in the pod manifest when only
+// the image names are given.
+func (f *finder) findImagesInPodManifest(manifest *schema.PodManifest) error {
+	for i := range manifest.Apps {
+		app := &manifest.Apps[i]
+
+		if !app.Image.ID.Empty() {
+			continue
+		}
+		if app.Image.Name.Empty() {
+			return fmt.Errorf("no image ID or image name for app %q", app.Name)
+		}
+
+		// Attach labels to the image name.
+		img := app.Image.Name.String()
+		for _, lb := range app.Image.Labels {
+			img += fmt.Sprintf(",%s=%s", lb.Name, lb.Value)
+		}
+
+		// TODO(yifan): Support external signature files.
+		h, err := f.findImage(img, "", true)
+		if err != nil {
+			return err
+		}
+		app.Image.ID = *h
+	}
+	return nil
 }
 
 // findImage will recognize a ACI hash and use that, import a local file, use
