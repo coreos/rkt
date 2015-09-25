@@ -273,6 +273,16 @@ func (p *Pod) appToSystemd(ra *schema.RuntimeApp, interactive bool, flavor strin
 		unit.NewUnitOption("Service", "Group", "0"),
 	}
 
+	if len(app.SupplementaryGroups) > 0 {
+		var s bytes.Buffer
+		for _, gid := range app.SupplementaryGroups {
+			if _, err := s.WriteString(strconv.Itoa(gid) + " "); err != nil {
+				panic(fmt.Sprintf("error extending buffer: %v", err))
+			}
+		}
+		opts = append(opts, unit.NewUnitOption("Service", "SupplementaryGroups", strings.TrimSpace(s.String())))
+	}
+
 	if interactive {
 		opts = append(opts, unit.NewUnitOption("Service", "StandardInput", "tty"))
 		opts = append(opts, unit.NewUnitOption("Service", "StandardOutput", "tty"))
