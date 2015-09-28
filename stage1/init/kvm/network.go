@@ -16,9 +16,14 @@ package kvm
 
 import (
 	"fmt"
+	"io/ioutil"
+	"log"
 	"net"
+	"path/filepath"
 
 	"github.com/coreos/rkt/networking"
+
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/coreos/go-systemd/unit"
 )
 
 // GetNetworkDescriptions explicitly convert slice of activeNets to slice of netDescribers
@@ -38,31 +43,81 @@ type netDescriber interface {
 	Mask() net.IP
 	IfName() string
 	IPMasq() bool
+	Name() string
 }
 
-// GetKVMNetArgs returns additional arguments that need to be passed to kernel
-// and lkvm tool to configure networks properly.
+// GetKVMNetArgs returns additional arguments that need to be passed
+// to lkvm tool to configure networks properly.
 // Logic is based on Network configuration extracted from Networking struct
 // and essentially from activeNets that expose netDescriber behavior
-func GetKVMNetArgs(nds []netDescriber) ([]string, []string, error) {
+func GetKVMNetArgs(nds []netDescriber) ([]string, error) {
 
 	lkvmArgs := []string{}
-	kernelParams := []string{}
 
-	for i, nd := range nds {
-		// https://www.kernel.org/doc/Documentation/filesystems/nfs/nfsroot.txt
-		// ip=<client-ip>:<server-ip>:<gw-ip>:<netmask>:<hostname>:<device>:<autoconf>:<dns0-ip>:<dns1-ip>
-		var gw string
-		if nd.IPMasq() {
-			gw = nd.HostIP().String()
-		}
-		kernelParam := fmt.Sprintf("ip=%s::%s:%s::%s:::", nd.GuestIP(), gw, nd.Mask(), fmt.Sprintf(networking.IfNamePattern, i))
-		kernelParams = append(kernelParams, kernelParam)
-
+	for _, nd := range nds {
 		lkvmArgs = append(lkvmArgs, "--network")
 		lkvmArg := fmt.Sprintf("mode=tap,tapif=%s,host_ip=%s,guest_ip=%s", nd.IfName(), nd.HostIP(), nd.GuestIP())
 		lkvmArgs = append(lkvmArgs, lkvmArg)
 	}
 
-	return lkvmArgs, kernelParams, nil
+	return lkvmArgs, nil
+}
+
+func addAddressCommand(address, ifName string) string {
+	return fmt.Sprintf("/bin/ip a a %s dev %s", address, ifName)
+}
+
+func addRouteCommand(router string) string {
+	return fmt.Sprintf("/bin/ip r a default via %s", router)
+}
+
+func upInterfaceCommand(ifName string) string {
+	return fmt.Sprintf("/bin/ip l se dev %s up", ifName)
+}
+
+func GenerateNetworkInterfaceUnits(root, unitsDir string, netDescriptions []netDescriber) error {
+
+	for i, netDescription := range netDescriptions {
+		ifName := fmt.Sprintf(networking.IfNamePattern, i)
+		netAddress := net.IPNet{
+			IP:   netDescription.GuestIP(),
+			Mask: net.IPMask(netDescription.Mask()),
+		}
+		address := netAddress.String()
+		opts := []*unit.UnitOption{
+			unit.NewUnitOption("Unit", "Description", fmt.Sprintf("Network configuration for device: %v", ifName)),
+			unit.NewUnitOption("Unit", "DefaultDependencies", "false"),
+			unit.NewUnitOption("Service", "Type", "oneshot"),
+			unit.NewUnitOption("Service", "RemainAfterExit", "true"),
+			unit.NewUnitOption("Service", "ExecStartPre", upInterfaceCommand(ifName)),
+			unit.NewUnitOption("Service", "ExecStart", addAddressCommand(address, ifName)),
+			unit.NewUnitOption("Install", "RequiredBy", "default.target"),
+		}
+
+		if netDescription.HostIP() != nil {
+			opts = append(
+				opts,
+				unit.NewUnitOption(
+					"Service",
+					"ExecStartPost",
+					addRouteCommand(netDescription.HostIP().String()),
+				),
+			)
+		}
+
+		unitsPath := filepath.Join(root, unitsDir)
+		unitName := unit.UnitNamePathEscape(fmt.Sprintf("interface-%s", ifName) + ".service")
+		unitBytes, err := ioutil.ReadAll(unit.Serialize(opts))
+		if err != nil {
+			return fmt.Errorf("failed to serialize network unit file to bytes %q: %v", unitName, err)
+		}
+
+		err = ioutil.WriteFile(filepath.Join(unitsPath, unitName), unitBytes, 0644)
+		if err != nil {
+			return fmt.Errorf("failed to create network unit file %q: %v", unitName, err)
+		}
+
+		log.Printf("network unit created: %q in %q (iface=%q, addr=%q)", unitName, unitsPath, ifName, address)
+	}
+	return nil
 }

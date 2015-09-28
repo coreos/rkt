@@ -23,6 +23,7 @@ type testNetDescriber struct {
 	hostIP  net.IP
 	guestIP net.IP
 	mask    net.IP
+	name    string
 	ifName  string
 	ipMasq  bool
 }
@@ -32,6 +33,7 @@ func (t testNetDescriber) GuestIP() net.IP { return t.guestIP }
 func (t testNetDescriber) Mask() net.IP    { return t.mask }
 func (t testNetDescriber) IfName() string  { return t.ifName }
 func (t testNetDescriber) IPMasq() bool    { return t.ipMasq }
+func (t testNetDescriber) Name() string    { return t.name }
 
 func TestGetKVMNetArgs(t *testing.T) {
 	tests := []struct {
@@ -45,6 +47,7 @@ func TestGetKVMNetArgs(t *testing.T) {
 					net.ParseIP("1.1.1.1"),
 					net.ParseIP("2.2.2.2"),
 					net.ParseIP("255.255.255.0"),
+					"test-net",
 					"fooInt",
 					false,
 				},
@@ -58,7 +61,10 @@ func TestGetKVMNetArgs(t *testing.T) {
 					net.ParseIP("1.1.1.1"),
 					net.ParseIP("2.2.2.2"),
 					net.ParseIP("255.255.255.0"),
-					"barInt", true},
+					"test-net",
+					"barInt",
+					true,
+				},
 			},
 			expectedLkvm:   []string{"--network", "mode=tap,tapif=barInt,host_ip=1.1.1.1,guest_ip=2.2.2.2"},
 			expectedKernel: []string{"ip=2.2.2.2::1.1.1.1:255.255.255.0::eth0:::"},
@@ -69,6 +75,7 @@ func TestGetKVMNetArgs(t *testing.T) {
 					net.ParseIP("1.1.1.1"),
 					net.ParseIP("2.2.2.2"),
 					net.ParseIP("255.255.255.0"),
+					"test-net",
 					"fooInt",
 					false,
 				},
@@ -76,7 +83,10 @@ func TestGetKVMNetArgs(t *testing.T) {
 					net.ParseIP("1.1.1.1"),
 					net.ParseIP("2.2.2.2"),
 					net.ParseIP("255.255.255.0"),
-					"barInt", true},
+					"test-net",
+					"barInt",
+					true,
+				},
 			},
 			expectedLkvm: []string{
 				"--network", "mode=tap,tapif=fooInt,host_ip=1.1.1.1,guest_ip=2.2.2.2",
@@ -90,7 +100,7 @@ func TestGetKVMNetArgs(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		gotLkvm, gotKernel, err := GetKVMNetArgs(tt.netDescriptions)
+		gotLkvm, err := GetKVMNetArgs(tt.netDescriptions)
 		if err != nil {
 			t.Errorf("got error: %s", err)
 		}
@@ -100,15 +110,6 @@ func TestGetKVMNetArgs(t *testing.T) {
 			for iarg, argExpected := range tt.expectedLkvm {
 				if gotLkvm[iarg] != argExpected {
 					t.Errorf("#%d: lkvm arg %d expected `%v` got `%v`", i, iarg, argExpected, gotLkvm[iarg])
-				}
-			}
-		}
-		if len(gotKernel) != len(tt.expectedKernel) {
-			t.Errorf("#%d: expected kernel %v elements got %v", i, len(tt.expectedKernel), len(gotKernel))
-		} else {
-			for iarg, argExpected := range tt.expectedKernel {
-				if gotKernel[iarg] != argExpected {
-					t.Errorf("#%d: kernel arg %d expected `%v` got `%v`", i, iarg, argExpected, gotKernel[iarg])
 				}
 			}
 		}
