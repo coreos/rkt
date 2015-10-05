@@ -51,38 +51,71 @@ typedef struct _mount_point_t {
 #define dir(_name, _mode) \
 	{ .name = _name, .mode = _mode }
 
+int getmachinename(char *machine) {
+	static const int machineid_size = 32; // 0123456789abcdef0123456789ab
+	static const int machinename_size = machineid_size + 8; // rkt-01234567-89ab-cdef-0123-456789ab
+	int fd;
+	char buf[machineid_size + 1];
+	ssize_t r;
+
+	if ((fd = open("/etc/machine-id", O_RDONLY)) == -1)
+		return -1;
+
+	if ((r = read(fd, buf, machineid_size)) != machineid_size) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	if (close(fd) != 0)
+		return -1;
+
+	if ((machine = malloc(machinename_size + 1)) == NULL)
+		return -1;
+
+	if (snprintf(machine, machinename_size, "rkt-%.8s-%.4s-%.4s-%.4s-%.8s",
+		buf, buf+8, buf+12, buf+16, buf+20) >= machinename_size) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	machine[machinename_size] = '\0';
+
+	return 0;
+}
+
 int main(int argc, char *argv[])
 {
 	static const char *unlink_paths[] = {
-		"dev/shm",
 		"dev/ptmx",
+		"dev/shm",
 		NULL
 	};
 	static const dir_op_t dirs[] = {
 		dir("dev",	0755),
 		dir("dev/net",	0755),
+		dir("dev/pts",	0755),
 		dir("dev/shm",	0755),
+		dir("etc",	0755),
 		dir("proc",	0755),
 		dir("sys",	0755),
 		dir("tmp",	01777),
-		dir("dev/pts",	0755),
 	};
 	static const char *devnodes[] = {
-		"/dev/null",
-		"/dev/zero",
-		"/dev/full",
-		"/dev/random",
-		"/dev/urandom",
-		"/dev/tty",
-		"/dev/net/tun",
 		"/dev/console",
+		"/dev/full",
+		"/dev/net/tun",
+		"/dev/null",
+		"/dev/random",
+		"/dev/tty",
+		"/dev/urandom",
+		"/dev/zero",
 		NULL
 	};
 	static const mount_point mount_table[] = {
+		{ "/dev/pts", "/dev/pts", "bind", NULL, MS_BIND },
+		{ "/dev/shm", "/dev/shm", "bind", NULL, MS_BIND },
 		{ "/proc", "/proc", "bind", NULL, MS_BIND|MS_REC },
 		{ "/sys", "/sys", "bind", NULL, MS_BIND|MS_REC },
-		{ "/dev/shm", "/dev/shm", "bind", NULL, MS_BIND },
-		{ "/dev/pts", "/dev/pts", "bind", NULL, MS_BIND },
 	};
 	const char *root;
 	int rootfd;
@@ -125,6 +158,32 @@ int main(int argc, char *argv[])
 		pexit_if(mkdirat(rootfd, d->name, d->mode) == -1 &&
 			 errno != EEXIST,
 			"Failed to create directory \"%s/%s\"", root, d->name);
+	}
+
+	/* Create basic /etc/hosts if it doesn't exist */
+	if (faccessat(rootfd, "etc/hosts", F_OK, AT_EACCESS) != 0) {
+		char buf[128];
+		int hostsfd;
+		char *machine;
+
+		hostsfd = openat(rootfd, "etc/hosts", O_RDWR|O_CREAT, 0644);
+		pexit_if(hostsfd < 0,
+			"Failed to open \"%s/etc/hosts\"", root);
+
+		pexit_if(getmachinename(machine) != 0,
+			"Failed to get machine name");
+
+		exit_if(snprintf(buf, sizeof(buf), "%s\t%s\t%s\t%s\n", "127.0.0.1",
+					machine, "localhost", "localhost.localdomain") >= sizeof(buf),
+				"/etc/hosts line too long: \"%s\"", buf);
+
+		free(machine);
+
+		pexit_if(write(hostsfd, buf, strlen(buf)) != strlen(buf),
+			"Failed to write to \"%s\"", to);
+
+		pexit_if(close(hostsfd) != 0,
+			"Failed to close \"%s\"", to);
 	}
 
 	close(rootfd);
