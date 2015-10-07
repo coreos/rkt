@@ -22,6 +22,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"testing"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/vishvananda/netlink"
 )
@@ -161,7 +162,8 @@ func CheckTcp4Port(port int) (bool, error) {
 	return true, nil
 }
 
-func GetNextFreePort4() (int, error) {
+func GetNextFreePort4(t *testing.T) (int, error) {
+	t.Logf("uid: %d, euid: %d, gid: %d, egid: %d", os.Getuid(), os.Geteuid(), os.Getgid(), os.Getegid())
 	for port := 49152; port <= 65535; port++ {
 		avail, err := CheckTcp4Port(port)
 		if err != nil {
