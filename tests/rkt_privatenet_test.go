@@ -77,7 +77,7 @@ func TestPrivateNetOmittedNetNS(t *testing.T) {
  */
 func TestPrivateNetOmittedConnectivity(t *testing.T) {
 
-	httpPort, err := testutils.GetNextFreePort4()
+	httpPort, err := testutils.GetNextFreePort4(t)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -181,7 +181,7 @@ func TestPrivateNetDefaultNetNS(t *testing.T) {
  * TODO: test connection to host on an outside interface
  */
 func TestPrivateNetDefaultConnectivity(t *testing.T) {
-	httpPort, err := testutils.GetNextFreePort4()
+	httpPort, err := testutils.GetNextFreePort4(t)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -259,7 +259,7 @@ func TestPrivateNetDefaultConnectivity(t *testing.T) {
  * TODO: verify that the container isn't NATed
  */
 func TestPrivateNetDefaultRestrictedConnectivity(t *testing.T) {
-	httpPort, err := testutils.GetNextFreePort4()
+	httpPort, err := testutils.GetNextFreePort4(t)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -402,7 +402,7 @@ func prepareTestNet(t *testing.T, ctx *rktRunCtx, nt networkTemplateT) (netdir s
  * The body of the HttpGet is Container 1's hostname, which must match
  */
 func testPrivateNetCustomDual(t *testing.T, nt networkTemplateT) {
-	httpPort, err := testutils.GetNextFreePort4()
+	httpPort, err := testutils.GetNextFreePort4(t)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -508,7 +508,7 @@ func testPrivateNetCustomNatConnectivity(t *testing.T, nt networkTemplateT) {
 	netdir := prepareTestNet(t, ctx, nt)
 	defer os.RemoveAll(netdir)
 
-	httpPort, err := testutils.GetNextFreePort4()
+	httpPort, err := testutils.GetNextFreePort4(t)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
