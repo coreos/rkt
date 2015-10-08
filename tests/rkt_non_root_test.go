@@ -26,6 +26,7 @@ import (
 
 // TestNonRootReadInfo tests that non-root users that can do rkt list, rkt image list.
 func TestNonRootReadInfo(t *testing.T) {
+	runtime.LockOSThread()
 	ctx := newRktRunCtx()
 	defer ctx.cleanup()
 
@@ -128,6 +129,8 @@ func TestNonRootReadInfo(t *testing.T) {
 // TestNonRootFetchRmGcImage tests that non-root users can remove images fetched by themselves but
 // can not remove images fetched by root, or gc any images.
 func TestNonRootFetchRmGcImage(t *testing.T) {
+	runtime.LockOSThread()
+
 	ctx := newRktRunCtx()
 	defer ctx.cleanup()
 
