@@ -1,4 +1,4 @@
-package specs
+package oci2aci
 
 import "fmt"
 
@@ -6,7 +6,7 @@ const (
 	// VersionMajor is for an API incompatible changes
 	VersionMajor = 0
 	// VersionMinor is for functionality in a backwards-compatible manner
-	VersionMinor = 1
+	VersionMinor = 2
 	// VersionPatch is for backwards-compatible bug fixes
 	VersionPatch = 0
 )

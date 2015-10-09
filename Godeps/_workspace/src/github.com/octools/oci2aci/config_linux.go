@@ -1,4 +1,4 @@
-package specs
+package oci2aci
 
 // LinuxSpec is the full specification for linux containers.
 type LinuxSpec struct {
@@ -17,9 +17,9 @@ type Linux struct {
 // main process.
 type User struct {
 	// UID is the user id.
-	UID int32 `json:"uid"`
+	UID uint32 `json:"uid"`
 	// GID is the group id.
-	GID int32 `json:"gid"`
+	GID uint32 `json:"gid"`
 	// AdditionalGids are additional group ids set for the container's process.
-	AdditionalGids []int32 `json:"additionalGids"`
+	AdditionalGids []uint32 `json:"additionalGids"`
 }
