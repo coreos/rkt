@@ -84,6 +84,7 @@ Additional build dependencies for the stage1 kvm follow. If building with docker
 * xz-utils
 * patch
 * bc
+* file
 
 ### Alternative stage1 paths
 
