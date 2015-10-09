@@ -104,7 +104,7 @@ func createACI(dir string, imageName string) error {
 	}
 	iw := aci.NewImageWriter(im, tr)
 
-	err = filepath.Walk(root, aci.BuildWalker(root, iw))
+	err = filepath.Walk(root, aci.BuildWalker(root, iw, nil))
 	if err != nil {
 		errStr = fmt.Sprintf("build: Error walking rootfs: %v", err)
 		errRes = errors.New(errStr)

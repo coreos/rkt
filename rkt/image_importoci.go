@@ -45,7 +45,7 @@ func runImageImport(cmd *cobra.Command, args []string) (exit int) {
 	//convert oci bundle to aci image
 	aciImage, err := oci2aci.Oci2aciImage(args[0])
 	if err != nil {
-		stderr("oci2aci failed: %s", err)
+		fmt.Printf("oci2aci failed: %v", err)
 		return 1
 	}
 
@@ -57,12 +57,12 @@ func runImageImport(cmd *cobra.Command, args []string) (exit int) {
 	}
 	aciFile, err := os.Open(aciImage)
 	if err != nil {
-		fmt.Printf("error opening ACI file %s: %v", aciImage, err)
+		fmt.Printf("opening ACI file %s failed: %v", aciImage, err)
 		return 1
 	}
 	key, err := s.WriteACI(aciFile, true)
 	if err != nil {
-		fmt.Printf("error write ACI file: %v", err)
+		fmt.Printf("write ACI file failed: %v", err)
 		return 1
 	}
 	fmt.Println(key)
