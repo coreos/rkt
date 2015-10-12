@@ -21,20 +21,20 @@ import (
 )
 
 type GoroutineAssistant struct {
-	s  chan string
+	s  chan error
 	wg sync.WaitGroup
 	t  *testing.T
 }
 
 func NewGoroutineAssistant(t *testing.T) *GoroutineAssistant {
 	return &GoroutineAssistant{
-		s: make(chan string),
+		s: make(chan error),
 		t: t,
 	}
 }
 
 func (a *GoroutineAssistant) Fatalf(s string, args ...interface{}) {
-	a.s <- fmt.Sprintf(s, args...)
+	a.s <- fmt.Errorf(s, args...)
 }
 
 func (a *GoroutineAssistant) Add(n int) {
@@ -49,11 +49,10 @@ func (a *GoroutineAssistant) Wait() {
 	done := make(chan struct{})
 	go func() {
 		a.wg.Wait()
-		done <- struct{}{}
+		a.s <- nil
 	}()
-	select {
-	case s := <-a.s:
+	err := <-a.s
+	if err != nil {
 		a.t.Fatalf(s)
-	case <-done:
 	}
 }
