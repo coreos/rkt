@@ -16,14 +16,19 @@ package testutils
 
 import (
 	"fmt"
+	"runtime"
 	"sync"
 	"testing"
+
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/steveeJ/gexpect"
 )
 
 type GoroutineAssistant struct {
-	s  chan error
 	wg sync.WaitGroup
 	t  *testing.T
+
+	m sync.Mutex
+	s chan error
 }
 
 func NewGoroutineAssistant(t *testing.T) *GoroutineAssistant {
@@ -33,8 +38,21 @@ func NewGoroutineAssistant(t *testing.T) *GoroutineAssistant {
 	}
 }
 
+func (a *GoroutineAssistant) notify(err error) {
+	a.m.Lock()
+	defer a.m.Unlock()
+	if a.s != nil {
+		a.s <- err
+		close(a.s)
+		a.s = nil
+	}
+}
+
+// Fatalf should be used inside a goroutine instead of t.Fatalf. It
+// quits the goroutine. Wait should handle the error.
 func (a *GoroutineAssistant) Fatalf(s string, args ...interface{}) {
-	a.s <- fmt.Errorf(s, args...)
+	a.notify(fmt.Errorf(s, args...))
+	runtime.Goexit()
 }
 
 func (a *GoroutineAssistant) Add(n int) {
@@ -48,10 +66,30 @@ func (a *GoroutineAssistant) Done() {
 func (a *GoroutineAssistant) Wait() {
 	go func() {
 		a.wg.Wait()
-		a.s <- nil
+		a.notify(nil)
 	}()
-	err := <-a.s
-	if err != nil {
+	if err := <-a.s; err != nil {
 		a.t.Fatalf("%v", err)
+	}
+}
+
+func (a *GoroutineAssistant) SpawnOrFail(cmd string) *gexpect.ExpectSubprocess {
+	a.t.Logf("Command: %v", cmd)
+	child, err := gexpect.Spawn(cmd)
+	if err != nil {
+		a.Fatalf("Cannot exec rkt: %v", err)
+	}
+	return child
+}
+
+func (a *GoroutineAssistant) WaitOrFail(child *gexpect.ExpectSubprocess, shouldSucceed bool) {
+	err := child.Wait()
+	switch {
+	case !shouldSucceed && err == nil:
+		a.Fatalf("Expected test to fail but it didn't")
+	case shouldSucceed && err != nil:
+		a.Fatalf("rkt didn't terminate correctly: %v", err)
+	case err != nil && err.Error() != "exit status 1":
+		a.Fatalf("rkt terminated with unexpected error: %v", err)
 	}
 }

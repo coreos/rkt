@@ -90,7 +90,7 @@ func TestNetHostConnectivity(t *testing.T) {
 	ga.Add(1)
 	go func() {
 		defer ga.Done()
-		waitOrFail(t, child, true)
+		ga.WaitOrFail(child, true)
 	}()
 
 	// Host connects to the child
@@ -101,12 +101,10 @@ func TestNetHostConnectivity(t *testing.T) {
 		_, out, err := expectRegexWithOutput(child, expectedRegex)
 		if err != nil {
 			ga.Fatalf("Error: %v\nOutput: %v", err, out)
-			return
 		}
 		body, err := testutils.HttpGet(httpGetAddr)
 		if err != nil {
 			ga.Fatalf("%v\n", err)
-			return
 		}
 		log.Printf("HTTP-Get received: %s", body)
 	}()
@@ -186,9 +184,14 @@ func TestNetDefaultConnectivity(t *testing.T) {
 		testImageArgs := []string{fmt.Sprintf("--exec=/inspect --get-http=%v", httpGetAddr)}
 		testImage := patchTestACI("rkt-inspect-networking.aci", testImageArgs...)
 		defer os.Remove(testImage)
-		ga := testutils.NewGoroutineAssistant(t)
+
+		hostname, err := os.Hostname()
+		if err != nil {
+			t.Fatalf("Error getting hostname: %v", err)
+		}
 
 		// Host opens the server
+		ga := testutils.NewGoroutineAssistant(t)
 		ga.Add(1)
 		go func() {
 			defer ga.Done()
@@ -200,25 +203,19 @@ func TestNetDefaultConnectivity(t *testing.T) {
 
 		// Child connects to host
 		ga.Add(1)
-		hostname, err := os.Hostname()
-		if err != nil {
-			ga.Fatalf("Error getting hostname: %v", err)
-		}
 		go func() {
 			defer ga.Done()
 			cmd := fmt.Sprintf("%s --debug --insecure-skip-verify run %s --mds-register=false %s", ctx.cmd(), argument, testImage)
-			child := spawnOrFail(t, cmd)
-			defer waitOrFail(t, child, true)
+			child := ga.SpawnOrFail(cmd)
+			defer ga.WaitOrFail(child, true)
 
 			expectedRegex := `HTTP-Get received: (.*)\r`
 			result, out, err := expectRegexWithOutput(child, expectedRegex)
 			if err != nil {
 				ga.Fatalf("Error: %v\nOutput: %v", err, out)
-				return
 			}
 			if result[1] != hostname {
 				ga.Fatalf("Hostname received by client `%v` doesn't match `%v`", result[1], hostname)
-				return
 			}
 		}()
 
@@ -267,7 +264,7 @@ func TestNetDefaultRestrictedConnectivity(t *testing.T) {
 		ga.Add(1)
 		go func() {
 			defer ga.Done()
-			waitOrFail(t, child, true)
+			ga.WaitOrFail(child, true)
 		}()
 
 		// Host connects to the child
@@ -278,12 +275,10 @@ func TestNetDefaultRestrictedConnectivity(t *testing.T) {
 			_, out, err := expectRegexWithOutput(child, expectedRegex)
 			if err != nil {
 				ga.Fatalf("Error: %v\nOutput: %v", err, out)
-				return
 			}
 			body, err := testutils.HttpGet(httpGetAddr)
 			if err != nil {
 				ga.Fatalf("%v\n", err)
-				return
 			}
 			log.Printf("HTTP-Get received: %s", body)
 			if err != nil {
@@ -400,21 +395,19 @@ func testNetCustomDual(t *testing.T, nt networkTemplateT) {
 		defer os.Remove(testImage)
 
 		cmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --net=%v --mds-register=false %s", ctx.cmd(), nt.Name, testImage)
-		child := spawnOrFail(t, cmd)
-		defer waitOrFail(t, child, true)
+		child := ga.SpawnOrFail(cmd)
+		defer ga.WaitOrFail(child, true)
 
 		expectedRegex := `IPv4: (\d+\.\d+\.\d+\.\d+)`
 		result, out, err := expectRegexTimeoutWithOutput(child, expectedRegex, 30*time.Second)
 		if err != nil {
 			ga.Fatalf("Error: %v\nOutput: %v", err, out)
-			return
 		}
 		container1IPv4 <- result[1]
 		expectedRegex = `(rkt-.*): serving on`
 		result, out, err = expectRegexTimeoutWithOutput(child, expectedRegex, 30*time.Second)
 		if err != nil {
 			ga.Fatalf("Error: %v\nOutput: %v", err, out)
-			return
 		}
 		container1Hostname <- result[1]
 	}()
@@ -431,22 +424,20 @@ func testNetCustomDual(t *testing.T, nt networkTemplateT) {
 		defer os.Remove(testImage)
 
 		cmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --net=%v --mds-register=false %s", ctx.cmd(), nt.Name, testImage)
-		child := spawnOrFail(t, cmd)
-		defer waitOrFail(t, child, true)
+		child := ga.SpawnOrFail(cmd)
+		defer ga.WaitOrFail(child, true)
 
 		expectedHostname := <-container1Hostname
 		expectedRegex := `HTTP-Get received: (.*)\r`
 		result, out, err := expectRegexTimeoutWithOutput(child, expectedRegex, 20*time.Second)
 		if err != nil {
 			ga.Fatalf("Error: %v\nOutput: %v", err, out)
-			return
 		}
 		t.Logf("HTTP-Get received: %s", result[1])
 		receivedHostname := result[1]
 
 		if receivedHostname != expectedHostname {
 			ga.Fatalf("Received hostname `%v` doesn't match `%v`", receivedHostname, expectedHostname)
-			return
 		}
 	}()
 
@@ -486,19 +477,23 @@ func testNetCustomNatConnectivity(t *testing.T, nt networkTemplateT) {
 
 	ga := testutils.NewGoroutineAssistant(t)
 
+	hostname, err := os.Hostname()
+	if err != nil {
+		t.Fatalf("Error getting hostname: %v", err)
+	}
+
 	// Host opens the server
 	ga.Add(1)
 	go func() {
 		defer ga.Done()
 		err := testutils.HttpServe(httpServeAddr, httpServeTimeout)
 		if err != nil {
-			t.Fatalf("Error during HttpServe: %v", err)
+			ga.Fatalf("Error during HttpServe: %v", err)
 		}
 	}()
 
 	// Child connects to host
 	ga.Add(1)
-	hostname, err := os.Hostname()
 	go func() {
 		defer ga.Done()
 		testImageArgs := []string{fmt.Sprintf("--exec=/inspect --get-http=%v", httpGetAddr)}
@@ -506,18 +501,16 @@ func testNetCustomNatConnectivity(t *testing.T, nt networkTemplateT) {
 		defer os.Remove(testImage)
 
 		cmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --net=%v --mds-register=false %s", ctx.cmd(), nt.Name, testImage)
-		child := spawnOrFail(t, cmd)
-		defer waitOrFail(t, child, true)
+		child := ga.SpawnOrFail(cmd)
+		defer ga.WaitOrFail(child, true)
 
 		expectedRegex := `HTTP-Get received: (.*)\r`
 		result, out, err := expectRegexWithOutput(child, expectedRegex)
 		if err != nil {
 			ga.Fatalf("Error: %v\nOutput: %v", err, out)
-			return
 		}
 		if result[1] != hostname {
 			ga.Fatalf("Hostname received by client `%v` doesn't match `%v`", result[1], hostname)
-			return
 		}
 	}()
 
@@ -628,7 +621,6 @@ func TestNetOverride(t *testing.T) {
 	result, out, err := expectRegexTimeoutWithOutput(child, expectedRegex, 30*time.Second)
 	if err != nil {
 		t.Fatalf("Error: %v\nOutput: %v", err, out)
-		return
 	}
 
 	containerIP := result[1]
