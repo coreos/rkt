@@ -46,13 +46,12 @@ func (a *GoroutineAssistant) Done() {
 }
 
 func (a *GoroutineAssistant) Wait() {
-	done := make(chan struct{})
 	go func() {
 		a.wg.Wait()
 		a.s <- nil
 	}()
 	err := <-a.s
 	if err != nil {
-		a.t.Fatalf(s)
+		a.t.Fatalf("%v", err)
 	}
 }
