@@ -58,6 +58,7 @@ CLEAN_SYMLINKS += \
 	$(ACIROOTFSDIR)/lib \
 	$(ACIROOTFSDIR)/bin
 CLEAN_DIRS += \
+	$(ACIROOTFSDIR)/proc \
 	$(UFC_ROOTFS)
 
 $(UFC_STAMP): $(UFC_ACI_ROOTFS_STAMP) $(UFC_ACIROOTFS_DEPS_STAMP) $(UFC_ACIROOTFS_CLEAN_STAMP) $(UFC_ROOTFS_CLEAN_STAMP)
@@ -74,6 +75,7 @@ $(UFC_ACI_ROOTFS_STAMP): $(UFC_MKBASE_STAMP) $(UFC_FILELIST)
 	ln -sf 'usr/lib64' "$(ACIROOTFSDIR)/lib64"; \
 	ln -sf 'usr/lib' "$(ACIROOTFSDIR)/lib"; \
 	ln -sf 'usr/bin' "$(ACIROOTFSDIR)/bin"; \
+	mkdir -p "$(ACIROOTFSDIR)/proc"; \
 	echo "$(UFC_SYSTEMD_VERSION)" >"$(ACIROOTFSDIR)/systemd-version"; \
 	touch "$@"
 

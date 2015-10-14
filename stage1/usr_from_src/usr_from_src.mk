@@ -53,6 +53,7 @@ CREATE_DIRS += \
 CLEAN_FILES += \
 	$(ACIROOTFSDIR)/systemd-version
 CLEAN_DIRS += \
+	$(ACIROOTFSDIR)/proc \
 	$(UFS_SYSTEMD_SRCDIR) \
 	$(UFS_SYSTEMD_BUILDDIR) \
 	$(UFS_ROOTFSDIR)
@@ -71,6 +72,7 @@ $(UFS_ROOTFS_STAMP): $(UFS_SYSTEMD_INSTALL_STAMP) | $(ACIROOTFSDIR)
 	cp -af "$(UFS_ROOTFSDIR)/." "$(ACIROOTFSDIR)"; \
 	ln -sf 'src' "$(ACIROOTFSDIR)/flavor"; \
 	echo "$(RKT_STAGE1_SYSTEMD_VER)" >"$(ACIROOTFSDIR)/systemd-version"; \
+	mkdir -p "$(ACIROOTFSDIR)/proc"; \
 	touch "$@"
 
 $(call forward-vars,$(UFS_SYSTEMD_INSTALL_STAMP), \
