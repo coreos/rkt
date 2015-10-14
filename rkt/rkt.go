@@ -36,17 +36,46 @@ const (
 	defaultDataDir = "/var/lib/rkt"
 )
 
+type absDir struct {
+	dir string
+}
+
+func (d *absDir) String() string {
+	return d.dir
+}
+
+func (d *absDir) Set(str string) error {
+	if str == "" {
+		return fmt.Errorf(`"" is not a valid directory`)
+	}
+
+	dir, err := filepath.Abs(str)
+	if err != nil {
+		return err
+	}
+	d.dir = dir
+	return nil
+}
+
+func (d *absDir) Type() string {
+	return "absolute-directory"
+}
+
 var (
 	tabOut      *tabwriter.Writer
 	globalFlags = struct {
-		Dir                string
-		SystemConfigDir    string
-		LocalConfigDir     string
+		Dir                absDir
+		SystemConfigDir    absDir
+		LocalConfigDir     absDir
 		Debug              bool
 		Help               bool
 		InsecureSkipVerify bool
 		TrustKeysFromHttps bool
-	}{}
+	}{
+		Dir:             absDir{defaultDataDir},
+		SystemConfigDir: absDir{common.DefaultSystemConfigDir},
+		LocalConfigDir:  absDir{common.DefaultLocalConfigDir},
+	}
 
 	cmdExitCode int
 )
@@ -58,9 +87,9 @@ var cmdRkt = &cobra.Command{
 
 func init() {
 	cmdRkt.PersistentFlags().BoolVar(&globalFlags.Debug, "debug", false, "print out more debug information to stderr")
-	cmdRkt.PersistentFlags().StringVar(&globalFlags.Dir, "dir", defaultDataDir, "rkt data directory")
-	cmdRkt.PersistentFlags().StringVar(&globalFlags.SystemConfigDir, "system-config", common.DefaultSystemConfigDir, "system configuration directory")
-	cmdRkt.PersistentFlags().StringVar(&globalFlags.LocalConfigDir, "local-config", common.DefaultLocalConfigDir, "local configuration directory")
+	cmdRkt.PersistentFlags().Var(&globalFlags.Dir, "dir", "rkt data directory")
+	cmdRkt.PersistentFlags().Var(&globalFlags.SystemConfigDir, "system-config", "system configuration directory")
+	cmdRkt.PersistentFlags().Var(&globalFlags.LocalConfigDir, "local-config", "local configuration directory")
 	cmdRkt.PersistentFlags().BoolVar(&globalFlags.InsecureSkipVerify, "insecure-skip-verify", false, "skip all TLS, image or fingerprint verification")
 	cmdRkt.PersistentFlags().BoolVar(&globalFlags.TrustKeysFromHttps, "trust-keys-from-https", true, "automatically trust gpg keys fetched from https")
 }
@@ -109,46 +138,46 @@ func stdout(format string, a ...interface{}) {
 
 // where pod directories are created and locked before moving to prepared
 func embryoDir() string {
-	return filepath.Join(globalFlags.Dir, "pods", "embryo")
+	return filepath.Join(globalFlags.Dir.String(), "pods", "embryo")
 }
 
 // where pod trees reside during (locked) and after failing to complete preparation (unlocked)
 func prepareDir() string {
-	return filepath.Join(globalFlags.Dir, "pods", "prepare")
+	return filepath.Join(globalFlags.Dir.String(), "pods", "prepare")
 }
 
 // where pod trees reside upon successful preparation
 func preparedDir() string {
-	return filepath.Join(globalFlags.Dir, "pods", "prepared")
+	return filepath.Join(globalFlags.Dir.String(), "pods", "prepared")
 }
 
 // where pod trees reside once run
 func runDir() string {
-	return filepath.Join(globalFlags.Dir, "pods", "run")
+	return filepath.Join(globalFlags.Dir.String(), "pods", "run")
 }
 
 // where pod trees reside once exited & marked as garbage by a gc pass
 func exitedGarbageDir() string {
-	return filepath.Join(globalFlags.Dir, "pods", "exited-garbage")
+	return filepath.Join(globalFlags.Dir.String(), "pods", "exited-garbage")
 }
 
 // where never-executed pod trees reside once marked as garbage by a gc pass (failed prepares, expired prepareds)
 func garbageDir() string {
-	return filepath.Join(globalFlags.Dir, "pods", "garbage")
+	return filepath.Join(globalFlags.Dir.String(), "pods", "garbage")
 }
 
 func getKeystore() *keystore.Keystore {
 	if globalFlags.InsecureSkipVerify {
 		return nil
 	}
-	config := keystore.NewConfig(globalFlags.SystemConfigDir, globalFlags.LocalConfigDir)
+	config := keystore.NewConfig(globalFlags.SystemConfigDir.String(), globalFlags.LocalConfigDir.String())
 	return keystore.New(config)
 }
 
 func getConfig() (*config.Config, error) {
-	return config.GetConfigFrom(globalFlags.SystemConfigDir, globalFlags.LocalConfigDir)
+	return config.GetConfigFrom(globalFlags.SystemConfigDir.String(), globalFlags.LocalConfigDir.String())
 }
 
 func lockDir() string {
-	return filepath.Join(globalFlags.Dir, "locks")
+	return filepath.Join(globalFlags.Dir.String(), "locks")
 }

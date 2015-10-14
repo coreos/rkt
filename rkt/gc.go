@@ -185,7 +185,7 @@ func deletePod(p *pod) {
 	}
 
 	if p.isExitedGarbage {
-		s, err := store.NewStore(globalFlags.Dir)
+		s, err := store.NewStore(globalFlags.Dir.String())
 		if err != nil {
 			stderr("Cannot open store: %v", err)
 			return

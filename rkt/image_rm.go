@@ -38,7 +38,7 @@ func runRmImage(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	s, err := store.NewStore(globalFlags.Dir)
+	s, err := store.NewStore(globalFlags.Dir.String())
 	if err != nil {
 		stderr("rkt: cannot open store: %v", err)
 		return 1
