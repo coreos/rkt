@@ -33,6 +33,7 @@ import (
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/coreos/go-systemd/unit"
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/common/cgroup"
+	"github.com/coreos/rkt/networking"
 	"github.com/coreos/rkt/pkg/uid"
 	"github.com/coreos/rkt/stage1/init/kvm"
 )
@@ -442,7 +443,7 @@ func (p *Pod) writeEnvFile(env types.Environment, appName types.ACName, privateU
 
 // PodToSystemd creates the appropriate systemd service unit files for
 // all the constituent apps of the Pod
-func (p *Pod) PodToSystemd(interactive bool, flavor string, privateUsers string) error {
+func (p *Pod) PodToSystemd(interactive bool, flavor string, privateUsers string, n *networking.Networking) error {
 
 	if flavor == "kvm" {
 		// prepare all applications names to become dependency for mount units
@@ -457,6 +458,12 @@ func (p *Pod) PodToSystemd(interactive bool, flavor string, privateUsers string)
 		err := kvm.PodToSystemdHostMountUnits(common.Stage1RootfsPath(p.Root), p.Manifest.Volumes, appNames, unitsDir)
 		if err != nil {
 			return fmt.Errorf("failed to transform pod volumes into mount units: %v", err)
+		}
+
+		netDescriptions := kvm.GetNetworkDescriptions(n)
+		err = kvm.GenerateNetworkInterfaceUnits(common.Stage1RootfsPath(p.Root), unitsDir, netDescriptions)
+		if err != nil {
+			return fmt.Errorf("network configuration error: %v", err)
 		}
 	}
 
