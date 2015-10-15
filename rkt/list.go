@@ -47,7 +47,7 @@ func init() {
 }
 
 func runList(cmd *cobra.Command, args []string) int {
-	s, err := store.NewStore(globalFlags.Dir)
+	s, err := store.NewStore(globalFlags.Dir.String())
 	if err != nil {
 		stderr("list: cannot open store: %v", err)
 		return 1

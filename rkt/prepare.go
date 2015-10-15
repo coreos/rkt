@@ -17,8 +17,6 @@
 package main
 
 import (
-	"io/ioutil"
-	"log"
 	"os"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
@@ -106,16 +104,7 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	if globalFlags.Dir == "" {
-		log.Printf("dir unset - using temporary directory")
-		globalFlags.Dir, err = ioutil.TempDir("", "rkt")
-		if err != nil {
-			stderr("prepare: error creating temporary directory: %v", err)
-			return 1
-		}
-	}
-
-	s, err := store.NewStore(globalFlags.Dir)
+	s, err := store.NewStore(globalFlags.Dir.String())
 	if err != nil {
 		stderr("prepare: cannot open store: %v", err)
 		return 1

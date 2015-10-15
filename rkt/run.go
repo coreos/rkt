@@ -18,8 +18,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
-	"log"
 	"strconv"
 	"strings"
 
@@ -123,16 +121,6 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	if globalFlags.Dir == "" {
-		log.Printf("dir unset - using temporary directory")
-		var err error
-		globalFlags.Dir, err = ioutil.TempDir("", "rkt")
-		if err != nil {
-			stderr("error creating temporary directory: %v", err)
-			return 1
-		}
-	}
-
 	if flagInteractive && rktApps.Count() > 1 {
 		stderr("run: interactive option only supports one image")
 		return 1
@@ -143,7 +131,7 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	s, err := store.NewStore(globalFlags.Dir)
+	s, err := store.NewStore(globalFlags.Dir.String())
 	if err != nil {
 		stderr("run: cannot open store: %v", err)
 		return 1
@@ -268,7 +256,7 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		LockFd:       lfd,
 		Interactive:  flagInteractive,
 		MDSRegister:  flagMDSRegister,
-		LocalConfig:  globalFlags.LocalConfigDir,
+		LocalConfig:  globalFlags.LocalConfigDir.String(),
 		RktGid:       rktgid,
 	}
 
@@ -278,7 +266,7 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 	rcfg.Apps = apps
-	stage0.Run(rcfg, p.path(), globalFlags.Dir) // execs, never returns
+	stage0.Run(rcfg, p.path(), globalFlags.Dir.String()) // execs, never returns
 
 	return 1
 }

@@ -94,7 +94,7 @@ func setPermissions(path string, uid int, gid int, perm os.FileMode) error {
 
 func createDirStructure(gid int) error {
 	for dir, perm := range dirs {
-		path := filepath.Join(globalFlags.Dir, dir)
+		path := filepath.Join(globalFlags.Dir.String(), dir)
 
 		if err := os.MkdirAll(path, perm); err != nil {
 			return fmt.Errorf("error creating %q directory: %v", path, err)
@@ -160,7 +160,7 @@ func runInstall(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	casDbPath := filepath.Join(globalFlags.Dir, "cas", "db")
+	casDbPath := filepath.Join(globalFlags.Dir.String(), "cas", "db")
 	if err := setCasDbFilesPermissions(casDbPath, gid, casDbPerm); err != nil {
 		stderr("install: error setting cas db permissions: %v", err)
 		return 1

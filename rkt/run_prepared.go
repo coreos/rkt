@@ -17,9 +17,6 @@
 package main
 
 import (
-	"io/ioutil"
-	"log"
-
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/stage0"
@@ -60,17 +57,7 @@ func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	if globalFlags.Dir == "" {
-		log.Printf("dir unset - using temporary directory")
-		var err error
-		globalFlags.Dir, err = ioutil.TempDir("", "rkt")
-		if err != nil {
-			stderr("error creating temporary directory: %v", err)
-			return 1
-		}
-	}
-
-	s, err := store.NewStore(globalFlags.Dir)
+	s, err := store.NewStore(globalFlags.Dir.String())
 	if err != nil {
 		stderr("prepared-run: cannot open store: %v", err)
 		return 1
@@ -148,6 +135,6 @@ func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 	if globalFlags.Debug {
 		stage0.InitDebug()
 	}
-	stage0.Run(rcfg, p.path(), globalFlags.Dir) // execs, never returns
+	stage0.Run(rcfg, p.path(), globalFlags.Dir.String()) // execs, never returns
 	return 1
 }
