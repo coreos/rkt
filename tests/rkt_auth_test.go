@@ -160,6 +160,8 @@ func serverHandler(t *testing.T, server *taas.Server) {
 			if ok {
 				t.Logf("server: %v", msg)
 			}
+		case <-server.Stop:
+			return
 		}
 	}
 }

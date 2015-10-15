@@ -73,7 +73,7 @@ func (d *dirDesc) cleanup() {
 	if d.dir == "" {
 		return
 	}
-	if err := os.RemoveAll(d.dir); err != nil {
+	if err := os.RemoveAll(d.dir); err != nil && !os.IsNotExist(err) {
 		panic(fmt.Sprintf("Failed to remove temporary %s directory %q: %s", d.desc, d.dir, err))
 	}
 	d.dir = ""
@@ -263,7 +263,7 @@ func patchTestACI(newFileName string, args ...string) string {
 }
 
 func spawnOrFail(t *testing.T, cmd string) *gexpect.ExpectSubprocess {
-	t.Logf("Command: %v", cmd)
+	t.Logf("Running command: %v", cmd)
 	child, err := gexpect.Spawn(cmd)
 	if err != nil {
 		t.Fatalf("Cannot exec rkt: %v", err)
