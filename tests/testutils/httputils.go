@@ -75,12 +75,12 @@ func HttpGet(addr string) (string, error) {
 	log.Printf("Connecting to %v", addr)
 	res, err := http.Get(fmt.Sprintf("%v", addr))
 	if err != nil {
-		log.Fatal(err)
+		return "", err
 	}
 	text, err := ioutil.ReadAll(res.Body)
 	res.Body.Close()
 	if err != nil {
-		log.Fatal(err)
+		return "", err
 	}
-	return string(text), err
+	return string(text), nil
 }
