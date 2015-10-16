@@ -15,6 +15,8 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
 	"os"
 	"strings"
 	"text/template"
@@ -79,16 +81,49 @@ DESCRIPTION:
 {{if .Cmd.HasLocalFlags}}\
 
 OPTIONS:
-{{.Cmd.LocalFlags.FlagUsages}}\
+{{.LocalFlags}}\
 {{end}}\
 {{if .Cmd.HasInheritedFlags}}\
 
 GLOBAL OPTIONS:
-{{.Cmd.InheritedFlags.FlagUsages}}\
+{{.GlobalFlags}}\
 {{end}}
 `[1:]
 
 	commandUsageTemplate = template.Must(template.New("command_usage").Funcs(templFuncs).Parse(strings.Replace(commandUsage, "\\\n", "", -1)))
+}
+
+func rktFlagUsages(flagSet *pflag.FlagSet) string {
+	x := new(bytes.Buffer)
+
+	flagSet.VisitAll(func(flag *pflag.Flag) {
+		if len(flag.Deprecated) > 0 {
+			return
+		}
+		format := ""
+		if len(flag.Shorthand) > 0 {
+			format = "  -%s, --%s"
+		} else {
+			format = "   %s   --%s"
+		}
+		if len(flag.NoOptDefVal) > 0 {
+			format = format + "["
+		}
+		if flag.Value.Type() == "string" {
+			// put quotes on the value
+			format = format + "=%q"
+		} else {
+			format = format + "=%s"
+		}
+		if len(flag.NoOptDefVal) > 0 {
+			format = format + "]"
+		}
+		format = format + "\t%s\n"
+		shorthand := flag.Shorthand
+		fmt.Fprintf(x, format, shorthand, flag.Name, flag.DefValue, flag.Usage)
+	})
+
+	return x.String()
 }
 
 func getSubCommands(cmd *cobra.Command) []*cobra.Command {
@@ -104,15 +139,15 @@ func usageFunc(cmd *cobra.Command) error {
 	subCommands := getSubCommands(cmd)
 	tabOut := getTabOutWithWriter(os.Stdout)
 	commandUsageTemplate.Execute(tabOut, struct {
-		Executable  string
 		Cmd         *cobra.Command
-		CmdFlags    *pflag.FlagSet
+		LocalFlags  string
+		GlobalFlags string
 		SubCommands []*cobra.Command
 		Version     string
 	}{
-		cliName,
 		cmd,
-		cmd.Flags(),
+		rktFlagUsages(cmd.LocalFlags()),
+		rktFlagUsages(cmd.InheritedFlags()),
 		subCommands,
 		version.Version,
 	})

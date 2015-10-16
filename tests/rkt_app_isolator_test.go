@@ -20,7 +20,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/steveeJ/gexpect"
 	"github.com/coreos/rkt/common/cgroup"
 )
 
@@ -69,20 +68,8 @@ func TestAppIsolatorMemory(t *testing.T) {
 	defer os.Remove(aciFileName)
 
 	rktCmd := fmt.Sprintf("%s --insecure-skip-verify run --mds-register=false %s", ctx.cmd(), aciFileName)
-	t.Logf("Command: %v", rktCmd)
-	child, err := gexpect.Spawn(rktCmd)
-	if err != nil {
-		t.Fatalf("Cannot exec rkt: %v", err)
-	}
 	expectedLine := "Memory Limit: " + strconv.Itoa(maxMemoryUsage)
-	if err := expectWithOutput(child, expectedLine); err != nil {
-		t.Fatalf("Didn't receive expected output %q: %v", expectedLine, err)
-	}
-
-	err = child.Wait()
-	if err != nil {
-		t.Fatalf("rkt didn't terminate correctly: %v", err)
-	}
+	runRktAndCheckOutput(t, rktCmd, expectedLine, false)
 }
 
 func TestAppIsolatorCPU(t *testing.T) {
@@ -100,20 +87,8 @@ func TestAppIsolatorCPU(t *testing.T) {
 	defer os.Remove(aciFileName)
 
 	rktCmd := fmt.Sprintf("%s --insecure-skip-verify run --mds-register=false %s", ctx.cmd(), aciFileName)
-	t.Logf("Command: %v", rktCmd)
-	child, err := gexpect.Spawn(rktCmd)
-	if err != nil {
-		t.Fatalf("Cannot exec rkt: %v", err)
-	}
 	expectedLine := "CPU Quota: " + strconv.Itoa(CPUQuota)
-	if err := expectWithOutput(child, expectedLine); err != nil {
-		t.Fatalf("Didn't receive expected output %q: %v", expectedLine, err)
-	}
-
-	err = child.Wait()
-	if err != nil {
-		t.Fatalf("rkt didn't terminate correctly: %v", err)
-	}
+	runRktAndCheckOutput(t, rktCmd, expectedLine, false)
 }
 
 func TestCgroups(t *testing.T) {
@@ -126,18 +101,6 @@ func TestCgroups(t *testing.T) {
 	defer os.Remove(aciFileName)
 
 	rktCmd := fmt.Sprintf("%s --insecure-skip-verify run --mds-register=false %s", ctx.cmd(), aciFileName)
-	t.Logf("Command: %v", rktCmd)
-	child, err := gexpect.Spawn(rktCmd)
-	if err != nil {
-		t.Fatalf("Cannot exec rkt: %v", err)
-	}
 	expectedLine := "check-cgroups: SUCCESS"
-	if err := expectWithOutput(child, expectedLine); err != nil {
-		t.Fatalf("Didn't receive expected output %q: %v", expectedLine, err)
-	}
-
-	err = child.Wait()
-	if err != nil {
-		t.Fatalf("rkt didn't terminate correctly: %v", err)
-	}
+	runRktAndCheckOutput(t, rktCmd, expectedLine, false)
 }

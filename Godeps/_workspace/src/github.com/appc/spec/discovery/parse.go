@@ -46,15 +46,22 @@ func NewApp(name string, labels map[types.ACIdentifier]string) (*App, error) {
 // Example app parameters:
 // 	example.com/reduce-worker:1.0.0
 // 	example.com/reduce-worker,channel=alpha,label=value
+// 	example.com/reduce-worker:1.0.0,label=value
+//
+// As can be seen in above examples - colon, comma and equal sign have
+// special meaning. If any of them has to be a part of a label's value
+// then consider writing your own string to App parser.
 func NewAppFromString(app string) (*App, error) {
 	var (
 		name   string
 		labels map[types.ACIdentifier]string
 	)
 
-	app = strings.Replace(app, ":", ",version=", -1)
-	app = "name=" + app
-	v, err := url.ParseQuery(strings.Replace(app, ",", "&", -1))
+	preparedApp, err := prepareAppString(app)
+	if err != nil {
+		return nil, err
+	}
+	v, err := url.ParseQuery(preparedApp)
 	if err != nil {
 		return nil, err
 	}
@@ -78,6 +85,40 @@ func NewAppFromString(app string) (*App, error) {
 		return nil, err
 	}
 	return a, nil
+}
+
+func prepareAppString(app string) (string, error) {
+	if err := checkColon(app); err != nil {
+		return "", err
+	}
+
+	app = "name=" + strings.Replace(app, ":", ",version=", 1)
+	return makeQueryString(app)
+}
+
+func checkColon(app string) error {
+	firstComma := strings.IndexRune(app, ',')
+	firstColon := strings.IndexRune(app, ':')
+	if firstColon > firstComma && firstComma > -1 {
+		return fmt.Errorf("malformed app string - colon may appear only right after the app name")
+	}
+	if strings.Count(app, ":") > 1 {
+		return fmt.Errorf("malformed app string - colon may appear at most once")
+	}
+	return nil
+}
+
+func makeQueryString(app string) (string, error) {
+	parts := strings.Split(app, ",")
+	escapedParts := make([]string, len(parts))
+	for i, s := range parts {
+		p := strings.SplitN(s, "=", 2)
+		if len(p) != 2 {
+			return "", fmt.Errorf("malformed app string - has a label without a value: %s", p[0])
+		}
+		escapedParts[i] = fmt.Sprintf("%s=%s", p[0], url.QueryEscape(p[1]))
+	}
+	return strings.Join(escapedParts, "&"), nil
 }
 
 func (a *App) Copy() *App {

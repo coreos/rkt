@@ -66,7 +66,7 @@ this type, define `type` as `basic` and the `credentials` field as a map
 with two keys - `user` and `password`. These fields must be specified and
 cannot be empty. For example:
 
-```
+```json
 {
 	"rktKind": "auth",
 	"rktVersion": "v1",
@@ -83,7 +83,7 @@ OAuth Bearer Token authentication requires only a token. To use this type,
 define `type` as `oauth` and the `credentials` field as a map with only one
 key - `token`. This field must be specified and cannot be empty. For example:
 
-```
+```json
 {
 	"rktKind": "auth",
 	"rktVersion": "v1",
@@ -103,7 +103,7 @@ consider this system configuration:
 
 `/usr/lib/rkt/auth.d/coreos.json`:
 
-```
+```json
 {
 	"rktKind": "auth",
 	"rktVersion": "v1",
@@ -125,7 +125,7 @@ configuration and the following local configurations:
 
 `/etc/rkt/auth.d/specific-coreos.json`:
 
-```
+```json
 {
 	"rktKind": "auth",
 	"rktVersion": "v1",
@@ -140,7 +140,7 @@ configuration and the following local configurations:
 
 `/etc/rkt/auth.d/specific-tectonic.json`:
 
-```
+```json
 {
 	"rktKind": "auth",
 	"rktVersion": "v1",
@@ -195,7 +195,7 @@ Some popular Docker registries:
 
 Example `dockerAuth` configuration:
 
-```
+```json
 {
 	"rktKind": "dockerAuth",
 	"rktVersion": "v1",
@@ -214,7 +214,7 @@ credentials used for each registry. For example, given this system configuration
 
 In `/usr/lib/rkt/auth.d/docker.json`:
 
-```
+```json
 {
 	"rktKind": "dockerAuth",
 	"rktVersion": "v1",
@@ -236,7 +236,7 @@ configuration and the following local configuration:
 
 `/etc/rkt/auth.d/specific-quay.json`:
 
-```
+```json
 {
 	"rktKind": "dockerAuth",
 	"rktVersion": "v1",
@@ -250,7 +250,7 @@ configuration and the following local configuration:
 
 `/etc/rkt/auth.d/specific-gcr.json`:
 
-```
+```json
 {
 	"rktKind": "dockerAuth",
 	"rktVersion": "v1",

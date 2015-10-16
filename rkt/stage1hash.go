@@ -82,7 +82,7 @@ func getStage1Hash(s *store.Store, cmd *cobra.Command) (*types.Hash, error) {
 		imageActionData: imageActionData{
 			s: s,
 		},
-		storeOnly: true,
+		storeOnly: false,
 		noStore:   false,
 		withDeps:  false,
 	}
@@ -117,8 +117,10 @@ func getDefaultStage1HashFromStore(fn *finder) *types.Hash {
 	// we make sure we've built rkt with a clean git tree,
 	// otherwise we don't know if something changed
 	if !strings.HasSuffix(defaultStage1Version, "-dirty") {
-		stage1AppName := fmt.Sprintf("%s:%s", defaultStage1Name, url.QueryEscape(defaultStage1Version))
+		stage1AppName := fmt.Sprintf("%s:%s", defaultStage1Name, defaultStage1Version)
+		fn.storeOnly = true
 		s1img, _ := fn.findImage(stage1AppName, "")
+		fn.storeOnly = false
 		return s1img
 	}
 	return nil
@@ -131,7 +133,7 @@ func getDefaultStage1HashFromUrl(fn *finder, overridden bool) (*types.Hash, erro
 		return getCustomStage1Hash(fn, defaultStage1Image)
 	}
 	if url, err := url.Parse(defaultStage1Image); err != nil {
-		return nil, fmt.Errorf("failed ot parse %q as URL: %v", defaultStage1Image, err)
+		return nil, fmt.Errorf("failed to parse %q as URL: %v", defaultStage1Image, err)
 	} else if url.Scheme != "" {
 		// default stage1 image path is some schemed path,
 		// just try to get it

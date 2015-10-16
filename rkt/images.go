@@ -86,7 +86,7 @@ func (f *finder) findImage(img string, asc string) (*types.Hash, error) {
 	if err == nil {
 		fullKey, err := f.s.ResolveKey(img)
 		if err != nil {
-			return nil, fmt.Errorf("could not resolve key: %v", err)
+			return nil, fmt.Errorf("could not resolve image ID: %v", err)
 		}
 		h, err = types.NewHash(fullKey)
 		if err != nil {
@@ -167,7 +167,7 @@ func (f *fetcher) addImageDeps(hash string, imgsl *list.List, seen map[string]st
 		}
 		imgsl.PushBack(app.String())
 		if _, ok := seen[app.String()]; ok {
-			return fmt.Errorf("dependency %s specified multiple times in the dependency tree for imageID: %s", app.String(), hash)
+			return fmt.Errorf("dependency %s specified multiple times in the dependency tree for image ID: %s", app.String(), hash)
 		}
 		seen[app.String()] = struct{}{}
 	}
@@ -762,7 +762,7 @@ func getStoreKeyFromAppOrHash(s *store.Store, input string) (string, error) {
 	if _, err := types.NewHash(input); err == nil {
 		key, err = s.ResolveKey(input)
 		if err != nil {
-			return "", fmt.Errorf("cannot resolve key: %v", err)
+			return "", fmt.Errorf("cannot resolve image ID: %v", err)
 		}
 	} else {
 		key, err = getStoreKeyFromApp(s, input)

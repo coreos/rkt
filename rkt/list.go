@@ -58,7 +58,11 @@ func runList(cmd *cobra.Command, args []string) int {
 	tabOut := getTabOutWithWriter(tabBuffer)
 
 	if !flagNoLegend {
-		fmt.Fprintf(tabOut, "UUID\tAPP\tACI\tSTATE\tNETWORKS\n")
+		if flagFullOutput {
+			fmt.Fprintf(tabOut, "UUID\tAPP\tIMAGE NAME\tIMAGE ID\tSTATE\tNETWORKS\n")
+		} else {
+			fmt.Fprintf(tabOut, "UUID\tAPP\tIMAGE NAME\tSTATE\tNETWORKS\n")
+		}
 	}
 
 	if err := walkPods(includeMostDirs, func(p *pod) {
@@ -87,6 +91,7 @@ func runList(cmd *cobra.Command, args []string) int {
 			uuid    string
 			appName string
 			imgName string
+			imgID   string
 			state   string
 			nets    string
 		}
@@ -111,10 +116,21 @@ func runList(cmd *cobra.Command, args []string) int {
 				return
 			}
 
+			imageName := im.Name.String()
+			if version, ok := im.Labels.Get("version"); ok {
+				imageName = fmt.Sprintf("%s:%s", imageName, version)
+			}
+
+			var imageID string
+			if flagFullOutput {
+				imageID = app.Image.ID.String()[:19]
+			}
+
 			appsToPrint = append(appsToPrint, printedApp{
 				uuid:    uuid,
 				appName: app.Name.String(),
-				imgName: im.Name.String(),
+				imgName: imageName,
+				imgID:   imageID,
 				state:   state,
 				nets:    nets,
 			})
@@ -129,7 +145,11 @@ func runList(cmd *cobra.Command, args []string) int {
 		// pod and all its apps are valid, so they can be
 		// printed
 		for _, app := range appsToPrint {
-			fmt.Fprintf(tabOut, "%s\t%s\t%s\t%s\t%s\n", app.uuid, app.appName, app.imgName, app.state, app.nets)
+			if flagFullOutput {
+				fmt.Fprintf(tabOut, "%s\t%s\t%s\t%s\t%s\t%s\n", app.uuid, app.appName, app.imgName, app.imgID, app.state, app.nets)
+			} else {
+				fmt.Fprintf(tabOut, "%s\t%s\t%s\t%s\t%s\n", app.uuid, app.appName, app.imgName, app.state, app.nets)
+			}
 		}
 
 	}); err != nil {
@@ -234,7 +254,7 @@ func newPodListImageLoadFailure(p *pod, err error, pm *schema.PodManifest, imj [
 func degradeRuntimeApp(app schema.RuntimeApp) lastditch.RuntimeApp {
 	return lastditch.RuntimeApp{
 		Name: app.Name.String(),
-		Image: lastditch.Image{
+		Image: lastditch.RuntimeImage{
 			Name: app.Image.Name.String(),
 			ID:   app.Image.ID.String(),
 		},

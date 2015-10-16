@@ -47,7 +47,7 @@ End the image arguments with a lone "---" to resume argument parsing.`,
 	}
 	flagVolumes      volumeList
 	flagPorts        portList
-	flagPrivateNet   common.PrivateNetList
+	flagNet          common.NetList
 	flagPrivateUsers bool
 	flagInheritEnv   bool
 	flagExplicitEnv  envMap
@@ -65,9 +65,9 @@ func init() {
 
 	addStage1ImageFlag(cmdRun.Flags())
 	cmdRun.Flags().Var(&flagVolumes, "volume", "volumes to mount into the pod")
-	cmdRun.Flags().Var(&flagPorts, "port", "ports to expose on the host (requires --private-net)")
-	cmdRun.Flags().Var(&flagPrivateNet, "private-net", "give pod a private network that defaults to the default network plus all user-configured networks. Can be limited to a comma-separated list of network names")
-	cmdRun.Flags().Lookup("private-net").NoOptDefVal = "all"
+	cmdRun.Flags().Var(&flagPorts, "port", "ports to expose on the host (requires --net)")
+	cmdRun.Flags().Var(&flagNet, "net", "configure the pod's networking and optionally pass a list of user-configured networks to load and arguments to pass to them. syntax: --net[=n[:args], ...]")
+	cmdRun.Flags().Lookup("net").NoOptDefVal = "default"
 	cmdRun.Flags().BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
 	cmdRun.Flags().BoolVar(&flagNoOverlay, "no-overlay", false, "disable overlay filesystem")
 	cmdRun.Flags().BoolVar(&flagPrivateUsers, "private-users", false, "Run within user namespaces (experimental).")
@@ -75,7 +75,7 @@ func init() {
 	cmdRun.Flags().BoolVar(&flagInteractive, "interactive", false, "run pod interactively. If true, only one image may be supplied.")
 	cmdRun.Flags().BoolVar(&flagStoreOnly, "store-only", false, "use only available images in the store (do not discover or download from remote URLs)")
 	cmdRun.Flags().BoolVar(&flagNoStore, "no-store", false, "fetch images ignoring the local store")
-	cmdRun.Flags().StringVar(&flagPodManifest, "pod-manifest", "", "the path to the pod manifest. If it's non-empty, then only '--private-net', '--no-overlay' and '--interactive' will have effects")
+	cmdRun.Flags().StringVar(&flagPodManifest, "pod-manifest", "", "the path to the pod manifest. If it's non-empty, then only '--net', '--no-overlay' and '--interactive' will have effects")
 	cmdRun.Flags().BoolVar(&flagMDSRegister, "mds-register", true, "register pod with metadata service")
 	cmdRun.Flags().StringVar(&flagUUIDFileSave, "uuid-file-save", "", "write out pod UUID to specified file")
 
@@ -113,8 +113,8 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		privateUsers.SetRandomUidRange(uid.DefaultRangeCount)
 	}
 
-	if len(flagPorts) > 0 && !flagPrivateNet.Any() {
-		stderr("--port flag requires --private-net")
+	if len(flagPorts) > 0 && !flagNet.Any() {
+		stderr("--port flag requires --net")
 		return 1
 	}
 
@@ -226,6 +226,10 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		pcfg.Apps = &rktApps
 	}
 
+	if globalFlags.Debug {
+		stage0.InitDebug()
+	}
+
 	keyLock, err := lock.SharedKeyLock(lockDir(), common.PrepareLock)
 	if err != nil {
 		stderr("rkt: cannot get shared prepare lock: %v", err)
@@ -252,13 +256,20 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
+	rktgid, err := common.LookupGid(common.RktGroup)
+	if err != nil {
+		stderr("run: group %q not found, will use default gid when rendering images", common.RktGroup)
+		rktgid = -1
+	}
+
 	rcfg := stage0.RunConfig{
 		CommonConfig: cfg,
-		PrivateNet:   flagPrivateNet,
+		Net:          flagNet,
 		LockFd:       lfd,
 		Interactive:  flagInteractive,
 		MDSRegister:  flagMDSRegister,
 		LocalConfig:  globalFlags.LocalConfigDir,
+		RktGid:       rktgid,
 	}
 
 	apps, err := p.getApps()
@@ -267,7 +278,7 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 	rcfg.Apps = apps
-	stage0.Run(rcfg, p.path()) // execs, never returns
+	stage0.Run(rcfg, p.path(), globalFlags.Dir) // execs, never returns
 
 	return 1
 }

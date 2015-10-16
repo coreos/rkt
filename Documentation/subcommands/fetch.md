@@ -61,6 +61,14 @@ sha512-c4010045aec65aefa74770ef2bb648d9
 
 Docker images do not support signature verification.
 
+## Image fetching behavior
+
+When fetching, rkt will try to avoid unnecessary network transfers.
+For example, if an image is already in the local store, rkt will use HTTP's ETag and Cache-Control to avoid downloading it again unless the image was updated on the remote server.
+
+This behavior can be changed by using the `--store-only` and `--no-store` flags.
+Their meanings are detailed in the [image fetching behavior](../image-fetching-behavior.md) documentation.
+
 ## Authentication
 
 If you want to download an image from a private repository, then you will often need to pass credentials to be able to access it. rkt currently supports authentication for fetching images via https:// or docker:// protocols. To specify credentials you will have to write some configuration files. You can find the format of the configuration file and examples in the [configuration documentation](../configuration.md). Note that the configuration kind for images downloaded via https:// and images downloaded via docker:// is different.

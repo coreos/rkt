@@ -138,9 +138,9 @@ func TestResolveKey(t *testing.T) {
 		t.Errorf("expected err=%q, got %q", expectedErr, err)
 	}
 
-	// key too short
+	// image ID too short
 	k, err = s.ResolveKey("sha512-1")
-	expectedErr = "key too short"
+	expectedErr = "image ID too short"
 	if err == nil {
 		t.Errorf("expected non-nil error!")
 	}

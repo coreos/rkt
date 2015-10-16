@@ -40,6 +40,12 @@ This is a rough outline of what a contributor's workflow looks like:
 
 Thanks for your contributions!
 
+### Coding Style
+
+CoreOS projects written in Go follow a set of style guidelines that we've documented
+[here](https://github.com/coreos/docs/tree/master/golang). Please follow them when
+working on your contributions.
+
 ### Format of the Commit Message
 
 We follow a rough convention for commit messages that is designed to answer two

@@ -18,8 +18,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/steveeJ/gexpect"
 )
 
 var envTests = []struct {
@@ -87,64 +85,36 @@ func TestEnv(t *testing.T) {
 	for i, tt := range envTests {
 		// 'run' tests
 		runCmd := replacePlaceholders(tt.runCmd)
-		t.Logf("Running 'run' test #%v: %v", i, runCmd)
-		child, err := gexpect.Spawn(runCmd)
-		if err != nil {
-			t.Fatalf("Cannot exec rkt #%v: %v", i, err)
-		}
-
-		err = expectWithOutput(child, tt.runExpect)
-		if err != nil {
-			t.Fatalf("Expected %q but not found: %v", tt.runExpect, err)
-		}
-
-		err = child.Wait()
-		if err != nil {
-			t.Fatalf("rkt didn't terminate correctly: %v", err)
-		}
+		t.Logf("Running 'run' test #%v", i)
+		runRktAndCheckOutput(t, runCmd, tt.runExpect, false)
 
 		// 'enter' tests
 		sleepCmd := replacePlaceholders(tt.sleepCmd)
-		t.Logf("Running 'enter' test #%v: sleep: %v", i, sleepCmd)
-		child, err = gexpect.Spawn(sleepCmd)
-		if err != nil {
-			t.Fatalf("Cannot exec rkt #%v: %v", i, err)
-		}
+		t.Logf("Running 'enter' test #%v", i)
+		child := spawnOrFail(t, sleepCmd)
 
-		err = expectWithOutput(child, "Enter text:")
-		if err != nil {
+		if err := expectWithOutput(child, "Enter text:"); err != nil {
 			t.Fatalf("Waited for the prompt but not found #%v: %v", i, err)
 		}
 
 		enterCmd := replacePlaceholders(tt.enterCmd)
-		t.Logf("Running 'enter' test #%v: enter: %v", i, enterCmd)
-		enterChild, err := gexpect.Spawn(enterCmd)
-		if err != nil {
-			t.Fatalf("Cannot exec rkt #%v: %v", i, err)
-		}
+		t.Logf("Running 'enter' test #%v", i)
+		enterChild := spawnOrFail(t, enterCmd)
 
-		err = expectWithOutput(enterChild, tt.runExpect)
-		if err != nil {
+		if err := expectWithOutput(enterChild, tt.runExpect); err != nil {
 			t.Fatalf("Expected %q but not found: %v", tt.runExpect, err)
 		}
 
-		err = enterChild.Wait()
-		if err != nil {
-			t.Fatalf("rkt didn't terminate correctly: %v", err)
-		}
-		err = child.SendLine("Bye")
-		if err != nil {
+		waitOrFail(t, enterChild, true)
+
+		if err := child.SendLine("Bye"); err != nil {
 			t.Fatalf("rkt couldn't write to the container: %v", err)
 		}
-		err = expectWithOutput(child, "Received text: Bye")
-		if err != nil {
+		if err := expectWithOutput(child, "Received text: Bye"); err != nil {
 			t.Fatalf("Expected Bye but not found #%v: %v", i, err)
 		}
 
-		err = child.Wait()
-		if err != nil {
-			t.Fatalf("rkt didn't terminate correctly: %v", err)
-		}
+		waitOrFail(t, child, true)
 		ctx.reset()
 	}
 }

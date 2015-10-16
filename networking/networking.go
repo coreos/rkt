@@ -59,10 +59,10 @@ type NetConf struct {
 }
 
 // Setup creates a new networking namespace and executes network plugins to
-// setup private networking. It returns in the new pod namespace
-func Setup(podRoot string, podID types.UUID, fps []ForwardedPort, privateNetList common.PrivateNetList, localConfig, flavor string) (*Networking, error) {
+// set up networking. It returns in the new pod namespace
+func Setup(podRoot string, podID types.UUID, fps []ForwardedPort, netList common.NetList, localConfig, flavor string) (*Networking, error) {
 	if flavor == "kvm" {
-		return kvmSetup(podRoot, podID, fps, privateNetList, localConfig)
+		return kvmSetup(podRoot, podID, fps, netList, localConfig)
 	}
 
 	// TODO(jonboulle): currently podRoot is _always_ ".", and behaviour in other
@@ -71,7 +71,7 @@ func Setup(podRoot string, podID types.UUID, fps []ForwardedPort, privateNetList
 		podEnv: podEnv{
 			podRoot:      podRoot,
 			podID:        podID,
-			netsLoadList: privateNetList,
+			netsLoadList: netList,
 			localConfig:  localConfig,
 		},
 	}

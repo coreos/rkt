@@ -24,11 +24,16 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/steveeJ/gexpect"
+)
+
+const (
+	nobodyUid = uint32(65534)
 )
 
 // dirDesc structure manages one directory and provides an option for
@@ -164,6 +169,14 @@ func (ctx *rktRunCtx) cmd() string {
 	)
 }
 
+// TODO(jonboulle): clean this up
+func (ctx *rktRunCtx) cmdNoConfig() string {
+	return fmt.Sprintf("%s %s",
+		ctx.rktBin(),
+		ctx.directories[0].rktOption(),
+	)
+}
+
 func (ctx *rktRunCtx) rktBin() string {
 	rkt := getValueFromEnvOrPanic("RKT")
 	abs, err := filepath.Abs(rkt)
@@ -249,6 +262,32 @@ func patchTestACI(newFileName string, args ...string) string {
 	return patchACI(image, newFileName, args...)
 }
 
+func spawnOrFail(t *testing.T, cmd string) *gexpect.ExpectSubprocess {
+	t.Logf("Command: %v", cmd)
+	child, err := gexpect.Spawn(cmd)
+	if err != nil {
+		t.Fatalf("Cannot exec rkt: %v", err)
+	}
+	return child
+}
+
+func waitOrFail(t *testing.T, child *gexpect.ExpectSubprocess, shouldSucceed bool) {
+	err := child.Wait()
+	switch {
+	case !shouldSucceed && err == nil:
+		t.Fatalf("Expected test to fail but it didn't")
+	case shouldSucceed && err != nil:
+		t.Fatalf("rkt didn't terminate correctly: %v", err)
+	case err != nil && err.Error() != "exit status 1":
+		t.Fatalf("rkt terminated with unexpected error: %v", err)
+	}
+}
+
+func spawnAndWaitOrFail(t *testing.T, cmd string, shouldSucceed bool) {
+	child := spawnOrFail(t, cmd)
+	waitOrFail(t, child, shouldSucceed)
+}
+
 func getValueFromEnvOrPanic(envVar string) string {
 	path := os.Getenv(envVar)
 	if path == "" {
@@ -297,11 +336,28 @@ func createTempDirOrPanic(dirName string) string {
 	return tmpDir
 }
 
-func importImageAndFetchHash(t *testing.T, ctx *rktRunCtx, img string) string {
+func importImageAndFetchHashAsGid(t *testing.T, ctx *rktRunCtx, img string, gid int) string {
 	// Import the test image into store manually.
-	child, err := gexpect.Spawn(fmt.Sprintf("%s --insecure-skip-verify fetch %s", ctx.cmd(), img))
+	cmd := fmt.Sprintf("%s --insecure-skip-verify fetch %s", ctx.cmd(), img)
+
+	// TODO(jonboulle): non-root user breaks trying to read root-written
+	// config directories. Should be a better way to approach this. Should
+	// config directories be readable by the rkt group too?
+	if gid != 0 {
+		cmd = fmt.Sprintf("%s --insecure-skip-verify fetch %s", ctx.cmdNoConfig(), img)
+	}
+	child, err := gexpect.Command(cmd)
 	if err != nil {
-		t.Fatalf("Cannot exec rkt: %v", err)
+		t.Fatalf("cannot create rkt command: %v", err)
+	}
+	if gid != 0 {
+		child.Cmd.SysProcAttr = &syscall.SysProcAttr{}
+		child.Cmd.SysProcAttr.Credential = &syscall.Credential{Uid: nobodyUid, Gid: uint32(gid)}
+	}
+
+	err = child.Start()
+	if err != nil {
+		t.Fatalf("cannot exec rkt: %v", err)
 	}
 
 	// Read out the image hash.
@@ -310,12 +366,13 @@ func importImageAndFetchHash(t *testing.T, ctx *rktRunCtx, img string) string {
 		t.Fatalf("Error: %v\nOutput: %v", err, out)
 	}
 
-	err = child.Wait()
-	if err != nil {
-		t.Fatalf("rkt didn't terminate correctly: %v", err)
-	}
+	waitOrFail(t, child, true)
 
 	return result[0]
+}
+
+func importImageAndFetchHash(t *testing.T, ctx *rktRunCtx, img string) string {
+	return importImageAndFetchHashAsGid(t, ctx, img, 0)
 }
 
 func patchImportAndFetchHash(image string, patches []string, t *testing.T, ctx *rktRunCtx) string {
@@ -327,56 +384,26 @@ func patchImportAndFetchHash(image string, patches []string, t *testing.T, ctx *
 
 func runGC(t *testing.T, ctx *rktRunCtx) {
 	cmd := fmt.Sprintf("%s gc --grace-period=0s", ctx.cmd())
-	child, err := gexpect.Spawn(cmd)
-	if err != nil {
-		t.Fatalf("Cannot exec rkt: %v", err)
-	}
-
-	err = child.Wait()
-	if err != nil {
-		t.Fatalf("rkt didn't terminate correctly: %v", err)
-	}
+	spawnAndWaitOrFail(t, cmd, true)
 }
 
 func runImageGC(t *testing.T, ctx *rktRunCtx) {
 	cmd := fmt.Sprintf("%s image gc", ctx.cmd())
-	child, err := gexpect.Spawn(cmd)
-	if err != nil {
-		t.Fatalf("Cannot exec rkt: %v", err)
-	}
-
-	err = child.Wait()
-	if err != nil {
-		t.Fatalf("rkt didn't terminate correctly: %v", err)
-	}
+	spawnAndWaitOrFail(t, cmd, true)
 }
 
 func removeFromCas(t *testing.T, ctx *rktRunCtx, hash string) {
 	cmd := fmt.Sprintf("%s image rm %s", ctx.cmd(), hash)
-	child, err := gexpect.Spawn(cmd)
-	if err != nil {
-		t.Fatalf("Cannot exec rkt: %v", err)
-	}
-
-	err = child.Wait()
-	if err != nil {
-		t.Fatalf("rkt didn't terminate correctly: %v", err)
-	}
+	spawnAndWaitOrFail(t, cmd, true)
 }
 
 func runRktAndGetUUID(t *testing.T, rktCmd string) string {
-	child, err := gexpect.Spawn(rktCmd)
-	if err != nil {
-		t.Fatalf("cannot exec rkt: %v", err)
-	}
+	child := spawnOrFail(t, rktCmd)
+	defer waitOrFail(t, child, true)
 
 	result, out, err := expectRegexWithOutput(child, "\n[0-9a-f-]{36}")
 	if err != nil || len(result) != 1 {
 		t.Fatalf("Error: %v\nOutput: %v", err, out)
-	}
-
-	if err = child.Wait(); err != nil {
-		t.Fatalf("rkt didn't terminate correctly: %v", err)
 	}
 
 	podIDStr := strings.TrimSpace(result[0])
@@ -388,17 +415,77 @@ func runRktAndGetUUID(t *testing.T, rktCmd string) string {
 	return podID.String()
 }
 
-func runRktAndCheckOutput(t *testing.T, rktCmd, expectedLine string, expectError bool) {
-	child, err := gexpect.Spawn(rktCmd)
+func runRktAsGidAndCheckOutput(t *testing.T, rktCmd, expectedLine string, expectError bool, gid int) {
+	child, err := gexpect.Command(rktCmd)
 	if err != nil {
 		t.Fatalf("cannot exec rkt: %v", err)
 	}
-
-	if err = expectWithOutput(child, expectedLine); err != nil {
-		t.Fatalf("didn't receive expected output %q: %v", expectedLine, err)
+	if gid != 0 {
+		child.Cmd.SysProcAttr = &syscall.SysProcAttr{}
+		child.Cmd.SysProcAttr.Credential = &syscall.Credential{Uid: nobodyUid, Gid: uint32(gid)}
 	}
 
-	if err = child.Wait(); err != nil && !expectError {
-		t.Fatalf("rkt didn't terminate correctly: %v", err)
+	err = child.Start()
+	if err != nil {
+		t.Fatalf("cannot exec rkt: %v", err)
+	}
+	defer waitOrFail(t, child, !expectError)
+
+	if expectedLine != "" {
+		if err := expectWithOutput(child, expectedLine); err != nil {
+			t.Fatalf("didn't receive expected output %q: %v", expectedLine, err)
+		}
+	}
+}
+
+func runRktAndCheckRegexOutput(t *testing.T, rktCmd, match string) {
+	child := spawnOrFail(t, rktCmd)
+	defer child.Wait()
+
+	result, out, err := expectRegexWithOutput(child, match)
+	if err != nil || len(result) != 1 {
+		t.Fatalf("%q regex must be found one time, Error: %v\nOutput: %v", match, err, out)
+	}
+}
+
+func runRktAndCheckOutput(t *testing.T, rktCmd, expectedLine string, expectError bool) {
+	runRktAsGidAndCheckOutput(t, rktCmd, expectedLine, expectError, 0)
+}
+
+func checkAppStatus(t *testing.T, ctx *rktRunCtx, multiApps bool, appName, expected string) {
+	cmd := fmt.Sprintf(`/bin/sh -c "`+
+		`UUID=$(%s list --full|grep '%s'|awk '{print $1}') ;`+
+		`echo -n 'status=' ;`+
+		`%s status $UUID|grep '^app-%s.*=[0-9]*$'|cut -d= -f2"`,
+		ctx.cmd(), appName, ctx.cmd(), appName)
+
+	if multiApps {
+		cmd = fmt.Sprintf(`/bin/sh -c "`+
+			`UUID=$(%s list --full|grep '^[a-f0-9]'|awk '{print $1}') ;`+
+			`echo -n 'status=' ;`+
+			`%s status $UUID|grep '^app-%s.*=[0-9]*$'|cut -d= -f2"`,
+			ctx.cmd(), ctx.cmd(), appName)
+	}
+
+	t.Logf("Get status for app %s\n", appName)
+	child := spawnOrFail(t, cmd)
+	defer waitOrFail(t, child, true)
+
+	if err := expectWithOutput(child, expected); err != nil {
+		// For debugging purposes, print the full output of
+		// "rkt list" and "rkt status"
+		cmd := fmt.Sprintf(`%s list --full ;`+
+			`UUID=$(%s list --full|grep  '^[a-f0-9]'|awk '{print $1}') ;`+
+			`%s status $UUID`,
+			ctx.cmd(), ctx.cmd(), ctx.cmd())
+		out, err2 := exec.Command("/bin/sh", "-c", cmd).CombinedOutput()
+		if err2 != nil {
+			t.Logf("Could not run rkt status: %v. %s", err2, out)
+		} else {
+			t.Logf("%s\n", out)
+		}
+
+		t.Fatalf("Failed to get the status for app %s: expected: %s. %v",
+			appName, expected, err)
 	}
 }

@@ -50,11 +50,11 @@ func init() {
 
 	addStage1ImageFlag(cmdPrepare.Flags())
 	cmdPrepare.Flags().Var(&flagVolumes, "volume", "volumes to mount into the pod")
-	cmdPrepare.Flags().Var(&flagPorts, "port", "ports to expose on the host (requires --private-net)")
+	cmdPrepare.Flags().Var(&flagPorts, "port", "ports to expose on the host (needs contained networking with NAT)")
 	cmdPrepare.Flags().BoolVar(&flagQuiet, "quiet", false, "suppress superfluous output on stdout, print only the UUID on success")
 	cmdPrepare.Flags().BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
 	cmdPrepare.Flags().BoolVar(&flagNoOverlay, "no-overlay", false, "disable overlay filesystem")
-	cmdPrepare.Flags().BoolVar(&flagPrivateUsers, "private-users", false, "Run within user namespaces (experimental).")
+	cmdPrepare.Flags().BoolVar(&flagPrivateUsers, "private-users", false, "run within user namespaces (experimental).")
 	cmdPrepare.Flags().Var(&flagExplicitEnv, "set-env", "an environment variable to set for apps in the form name=value")
 	cmdPrepare.Flags().BoolVar(&flagStoreOnly, "store-only", false, "use only available images in the store (do not discover or download from remote URLs)")
 	cmdPrepare.Flags().BoolVar(&flagNoStore, "no-store", false, "fetch images ignoring the local store")
@@ -73,7 +73,7 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 	privateUsers := uid.NewBlankUidRange()
 	if flagQuiet {
 		if os.Stdout, err = os.Open("/dev/null"); err != nil {
-			stderr("prepare: unable to open /dev/null")
+			stderr("prepare: unable to open /dev/null: %v", err)
 			return 1
 		}
 	}
@@ -179,6 +179,10 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 		pcfg.InheritEnv = flagInheritEnv
 		pcfg.ExplicitEnv = flagExplicitEnv.Strings()
 		pcfg.Apps = &rktApps
+	}
+
+	if globalFlags.Debug {
+		stage0.InitDebug()
 	}
 
 	keyLock, err := lock.SharedKeyLock(lockDir(), common.PrepareLock)

@@ -82,7 +82,7 @@ func gcNetworking(podID *types.UUID) error {
 	case err == nil:
 		n.Teardown(flavor)
 	case os.IsNotExist(err):
-		// probably ran without --private-net
+		// probably ran with --net=host
 	default:
 		return fmt.Errorf("Failed loading networking state: %v", err)
 	}

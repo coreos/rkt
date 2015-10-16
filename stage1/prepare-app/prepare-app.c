@@ -22,18 +22,33 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#define err_out(_fmt, _args...)						\
+		fprintf(stderr, "Error: " _fmt "\n", ##_args);
 static int exit_err;
-#define exit_if(_cond, _fmt, _args...)				\
-	exit_err++;						\
-	if(_cond) {						\
-		fprintf(stderr, "Error: " _fmt "\n", ##_args);	\
-		exit(exit_err);					\
+#define exit_if(_cond, _fmt, _args...)					\
+	exit_err++;							\
+	if(_cond) {							\
+		err_out(_fmt, ##_args);					\
+		exit(exit_err);						\
 	}
-#define pexit_if(_cond, _fmt, _args...)				\
+#define pexit_if(_cond, _fmt, _args...)					\
 	exit_if(_cond, _fmt ": %s", ##_args, strerror(errno))
+
+#define goto_if(_cond, _lbl, _fmt, _args...)				\
+	if(_cond) {							\
+		err_out(_fmt, ##_args);					\
+		goto _lbl;						\
+	}
+#define pgoto_if(_cond, _lbl, _fmt, _args...)				\
+	goto_if(_cond, _lbl, _fmt ": %s", ##_args, strerror(errno));
 
 #define nelems(_array) \
 	(sizeof(_array) / sizeof(_array[0]))
+#define lenof(_str) \
+	(sizeof(_str) - 1)
+
+#define MACHINE_ID_LEN		lenof("0123456789abcdef0123456789ab")
+#define MACHINE_NAME_LEN	lenof("rkt-01234567-89ab-cdef-0123-456789ab")
 
 typedef struct _dir_op_t {
 	const char	*name;
@@ -51,6 +66,59 @@ typedef struct _mount_point_t {
 #define dir(_name, _mode) \
 	{ .name = _name, .mode = _mode }
 
+static int get_machine_name(char *out, int out_len) {
+	int	fd;
+	char	buf[MACHINE_ID_LEN + 1];
+
+	pgoto_if((fd = open("/etc/machine-id", O_RDONLY)) == -1,
+		_fail, "Error opening \"/etc/machine-id\"");
+	pgoto_if(read(fd, buf, MACHINE_ID_LEN) == -1,
+		_fail_fd, "Error reading \"/etc/machine-id\"");
+	pgoto_if(close(fd) != 0,
+		_fail, "Error closing \"/etc/machine-id\"");
+	goto_if(snprintf(out, out_len,
+			"rkt-%.8s-%.4s-%.4s-%.4s-%.8s",
+			buf, buf+8, buf+12, buf+16, buf+20) >= out_len,
+		_fail, "Error constructing machine name");
+
+	return 1;
+
+_fail_fd:
+	close(fd);
+_fail:
+	return 0;
+}
+
+static int ensure_etc_hosts_exists(const char *root, int rootfd) {
+	char	name[MACHINE_NAME_LEN + 1];
+	char	hosts[128];
+	int	fd, len;
+
+	if(faccessat(rootfd, "etc/hosts", F_OK, AT_EACCESS) == 0)
+		return 1;
+
+	goto_if(!get_machine_name(name, sizeof(name)),
+		_fail, "Failed to get machine name");
+	goto_if((len = snprintf(hosts, sizeof(hosts),
+			"%s\t%s\t%s\t%s\n",
+			"127.0.0.1", name,
+			"localhost", "localhost.localdomain")) >= sizeof(hosts),
+		_fail, "/etc/hosts line too long: \"%s\"", hosts);
+	pgoto_if((fd = openat(rootfd, "etc/hosts", O_WRONLY|O_CREAT, 0644)) == -1,
+		_fail, "Failed to create \"%s/etc/hosts\"", root);
+	pgoto_if(write(fd, hosts, len) != len,
+		_fail_fd, "Failed to write \"%s/etc/hosts\"", root);
+	pgoto_if(close(fd) != 0,
+		_fail, "Failed to close \"%s/etc/hosts\"", root);
+
+	return 1;
+
+_fail_fd:
+	close(fd);
+_fail:
+	return 0;
+}
+
 int main(int argc, char *argv[])
 {
 	static const char *unlink_paths[] = {
@@ -62,6 +130,7 @@ int main(int argc, char *argv[])
 		dir("dev",	0755),
 		dir("dev/net",	0755),
 		dir("dev/shm",	0755),
+		dir("etc",	0755),
 		dir("proc",	0755),
 		dir("sys",	0755),
 		dir("tmp",	01777),
@@ -126,6 +195,9 @@ int main(int argc, char *argv[])
 			 errno != EEXIST,
 			"Failed to create directory \"%s/%s\"", root, d->name);
 	}
+
+	exit_if(!ensure_etc_hosts_exists(root, rootfd),
+		"Failed to ensure \"%s/etc/hosts\" exists", root);
 
 	close(rootfd);
 

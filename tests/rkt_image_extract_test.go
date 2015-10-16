@@ -19,8 +19,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/steveeJ/gexpect"
 )
 
 // TestImageExtract tests 'rkt image extract', it will import some existing
@@ -72,17 +70,10 @@ func TestImageExtract(t *testing.T) {
 		outputPath := filepath.Join(tmpDir, fmt.Sprintf("extracted-%d", i))
 		runCmd := fmt.Sprintf("%s image extract --rootfs-only %s %s", ctx.cmd(), tt.image, outputPath)
 		t.Logf("Running 'image extract' test #%v: %v", i, runCmd)
-		child, err := gexpect.Spawn(runCmd)
-		if err != nil {
-			t.Fatalf("Cannot exec rkt #%v: %v", i, err)
-		}
+		spawnAndWaitOrFail(t, runCmd, tt.shouldFind)
 
-		if err := child.Wait(); err != nil {
-			if !tt.shouldFind && err.Error() == "exit status 1" {
-				continue
-			} else if tt.shouldFind || err.Error() != "exit status 1" {
-				t.Fatalf("rkt didn't terminate correctly: %v", err)
-			}
+		if !tt.shouldFind {
+			continue
 		}
 
 		extractedInspectHash, err := getHash(filepath.Join(outputPath, "inspect"))

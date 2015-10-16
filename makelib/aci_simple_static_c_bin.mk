@@ -1,5 +1,6 @@
 # inputs cleared after including this file:
 # ASSCB_EXTRA_HEADERS - headers used
+# ASSCB_EXTRA_CFLAGS - additional cflags
 
 # inputs left alone:
 # ACIROOTFSDIR - ACI rootfs directory
@@ -19,7 +20,7 @@ $(call setup-stamp-file,_ASSCB_STAMP_)
 BSCB_BINARY := $(TOOLSDIR)/$(_ASSCB_NAME_)
 BSCB_HEADERS := $(foreach h,$(ASSCB_EXTRA_HEADERS),$(MK_SRCDIR)/$h)
 BSCB_SOURCES := $(MK_SRCDIR)/$(_ASSCB_NAME_).c
-BSCB_ADDITIONAL_CFLAGS := -Wall -Os
+BSCB_ADDITIONAL_CFLAGS := -Wall -Os $(ASSCB_EXTRA_CFLAGS)
 
 CLEAN_FILES += $(BSCB_BINARY) $(_ASSCB_ACI_BINARY_)
 STAGE1_STAMPS += $(_ASSCB_STAMP_)

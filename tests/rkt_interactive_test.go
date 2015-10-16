@@ -20,8 +20,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/steveeJ/gexpect"
 )
 
 var interactiveTests = []struct {
@@ -87,30 +85,22 @@ func TestInteractive(t *testing.T) {
 
 		rktCmd := fmt.Sprintf("%s %s", ctx.cmd(), tt.rktArgs)
 		rktCmd = strings.Replace(rktCmd, "^INTERACTIVE^", aciFileName, -1)
-		t.Logf("Command: %v", rktCmd)
-		child, err := gexpect.Spawn(rktCmd)
-		if err != nil {
-			t.Fatalf("Cannot exec rkt #%v: %v", i, err)
-		}
+		child := spawnOrFail(t, rktCmd)
 		if tt.say != "" {
-			err = expectTimeoutWithOutput(child, "Enter text:", time.Minute)
-			if err != nil {
+			if err := expectTimeoutWithOutput(child, "Enter text:", time.Minute); err != nil {
 				t.Fatalf("Waited for the prompt but not found #%v: %v", i, err)
 			}
 
-			err = child.SendLine(tt.say)
-			if err != nil {
+			if err := child.SendLine(tt.say); err != nil {
 				t.Fatalf("Failed to send %q on the prompt #%v: %v", tt.say, i, err)
 			}
 		}
 
-		err = expectTimeoutWithOutput(child, tt.expect, time.Minute)
-		if err != nil {
+		if err := expectTimeoutWithOutput(child, tt.expect, time.Minute); err != nil {
 			t.Fatalf("Expected %q but not found #%v: %v", tt.expect, i, err)
 		}
 
-		err = child.Wait()
-		if err != nil {
+		if err := child.Wait(); err != nil {
 			t.Fatalf("rkt didn't terminate correctly: %v", err)
 		}
 	}

@@ -18,5 +18,10 @@ if [ "${CI-}" == true ] ; then
 		# install -y <dep>" after it.
 
 		#sudo apt-get update -qq || true
+
+		# libmount: https://github.com/systemd/systemd/pull/986#issuecomment-138451264
+		# sudo add-apt-repository --yes ppa:pitti/systemd-semaphore
+		# sudo apt-get update -qq || true
+		# sudo apt-get install -y libmount-dev libmount1
 	fi
 fi

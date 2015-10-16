@@ -49,7 +49,8 @@ type Pod struct {
 
 const (
 	// Name of the file storing the pod's flavor
-	flavorFile = "flavor"
+	flavorFile    = "flavor"
+	sharedVolPerm = os.FileMode(0755)
 )
 
 var (
@@ -215,6 +216,14 @@ func (p *Pod) writeAppReaper(appName string) error {
 	return nil
 }
 
+func generateGidArg(gid int, supplGid []int) string {
+	arg := []string{strconv.Itoa(gid)}
+	for _, sg := range supplGid {
+		arg = append(arg, strconv.Itoa(sg))
+	}
+	return strings.Join(arg, ",")
+}
+
 // appToSystemd transforms the provided RuntimeApp+ImageManifest into systemd units
 func (p *Pod) appToSystemd(ra *schema.RuntimeApp, interactive bool, flavor string, privateUsers string) error {
 	app := ra.App
@@ -261,7 +270,7 @@ func (p *Pod) appToSystemd(ra *schema.RuntimeApp, interactive bool, flavor strin
 		}
 	}
 
-	execWrap := []string{"/diagexec", common.RelAppRootfsPath(appName), workDir, RelEnvFilePath(appName), strconv.Itoa(uid), strconv.Itoa(gid)}
+	execWrap := []string{"/diagexec", common.RelAppRootfsPath(appName), workDir, RelEnvFilePath(appName), strconv.Itoa(uid), generateGidArg(gid, app.SupplementaryGIDs)}
 	execStart := quoteExec(append(execWrap, app.Exec...))
 	opts := []*unit.UnitOption{
 		unit.NewUnitOption("Unit", "Description", fmt.Sprintf("Application=%v Image=%v", appName, imgName)),
@@ -299,6 +308,9 @@ func (p *Pod) appToSystemd(ra *schema.RuntimeApp, interactive bool, flavor strin
 		exec := quoteExec(append(execWrap, eh.Exec...))
 		opts = append(opts, unit.NewUnitOption("Service", typ, exec))
 	}
+
+	// Some pre-start jobs take a long time, set the timeout to 0
+	opts = append(opts, unit.NewUnitOption("Service", "TimeoutStartSec", "0"))
 
 	saPorts := []types.Port{}
 	for _, p := range app.Ports {
@@ -472,8 +484,20 @@ func (p *Pod) appToNspawnArgs(ra *schema.RuntimeApp) ([]string, error) {
 	// introduce a --mount flag so they can control which mountPoint maps to
 	// which volume.
 
+	sharedVolPath := common.SharedVolumesPath(p.Root)
+	if err := os.MkdirAll(sharedVolPath, sharedVolPerm); err != nil {
+		return nil, fmt.Errorf("could not create shared volumes directory: %v", err)
+	}
+	if err := os.Chmod(sharedVolPath, sharedVolPerm); err != nil {
+		return nil, fmt.Errorf("could not change permissions of %q: %v", sharedVolPath, err)
+	}
 	for _, v := range p.Manifest.Volumes {
 		vols[v.Name] = v
+		if v.Kind == "empty" {
+			if err := os.MkdirAll(filepath.Join(sharedVolPath, v.Name.String()), sharedVolPerm); err != nil {
+				return nil, fmt.Errorf("could not create shared volume %q: %v", v.Name, err)
+			}
+		}
 	}
 
 	for _, mp := range app.MountPoints {
@@ -506,7 +530,18 @@ func (p *Pod) appToNspawnArgs(ra *schema.RuntimeApp) ([]string, error) {
 			opt[0] = "--bind="
 		}
 
-		opt[1] = vol.Source
+		switch vol.Kind {
+		case "host":
+			opt[1] = vol.Source
+		case "empty":
+			absRoot, err := filepath.Abs(p.Root)
+			if err != nil {
+				return nil, fmt.Errorf("cannot get pod's root absolute path: %v\n", err)
+			}
+			opt[1] = filepath.Join(common.SharedVolumesPath(absRoot), vol.Name.String())
+		default:
+			return nil, fmt.Errorf(`invalid volume kind %q. Must be one of "host" or "empty".`, vol.Kind)
+		}
 		opt[2] = ":"
 		opt[3] = filepath.Join(common.RelAppRootfsPath(appName), mp.Path)
 

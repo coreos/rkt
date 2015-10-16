@@ -21,6 +21,8 @@ Prior to running pods, ensure that the [metadata service](https://github.com/cor
 
 * [run](/Documentation/subcommands/run.md)
 * [enter](/Documentation/subcommands/enter.md)
+* [prepare](/Documentation/subcommands/prepare.md)
+* [run-prepared](/Documentation/subcommands/run-prepared.md)
 
 ## Pod inspection and management
 

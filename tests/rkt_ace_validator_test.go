@@ -16,11 +16,8 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
-
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/steveeJ/gexpect"
 )
 
 var expectedResults = []string{
@@ -38,12 +35,6 @@ func TestAceValidator(t *testing.T) {
 		t.Fatalf("Cannot launch metadata service: %v", err)
 	}
 
-	tmpDir, err := ioutil.TempDir("", "rkt-TestAceValidator-")
-	if err != nil {
-		t.Fatalf("Cannot create temporary directory: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
 	aceMain := os.Getenv("RKT_ACE_MAIN_IMAGE")
 	if aceMain == "" {
 		panic("empty RKT_ACE_MAIN_IMAGE env var")
@@ -53,25 +44,16 @@ func TestAceValidator(t *testing.T) {
 		panic("empty RKT_ACE_SIDEKICK_IMAGE env var")
 	}
 
-	rktArgs := fmt.Sprintf("--debug --insecure-skip-verify run --volume database,kind=host,source=%s %s %s",
-		tmpDir, aceMain, aceSidekick)
+	rktArgs := fmt.Sprintf("--debug --insecure-skip-verify run --volume database,kind=empty %s %s",
+		aceMain, aceSidekick)
 	rktCmd := fmt.Sprintf("%s %s", ctx.cmd(), rktArgs)
 
-	t.Logf("Command: %v", rktCmd)
-	child, err := gexpect.Spawn(rktCmd)
-	if err != nil {
-		t.Fatalf("Cannot exec rkt: %v", err)
-	}
+	child := spawnOrFail(t, rktCmd)
+	defer waitOrFail(t, child, true)
 
 	for _, e := range expectedResults {
-		err = expectWithOutput(child, e)
-		if err != nil {
+		if err := expectWithOutput(child, e); err != nil {
 			t.Fatalf("Expected %q but not found: %v", e, err)
 		}
-	}
-
-	err = child.Wait()
-	if err != nil {
-		t.Fatalf("rkt didn't terminate correctly: %v", err)
 	}
 }

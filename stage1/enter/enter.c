@@ -27,6 +27,16 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#ifdef NO_SETNS_AVAILABLE
+
+#include <linux/unistd.h>
+
+static int setns(int fd, int nstype) {
+	return syscall(__NR_setns, fd, nstype);
+}
+
+#endif /* NO_SETNS_AVAILABLE */
+
 static int errornum;
 #define exit_if(_cond, _fmt, _args...)				\
 	errornum++;						\

@@ -11,7 +11,7 @@ You can either use `stage1-lkvm.aci` from the official release, or build rkt you
 $ ./autogen.sh && ./configure --with-stage1=kvm && make
 ```
 
-This will build the rkt binary and the LKVM stage1.aci in `build-rkt-0.8.1+git/bin/`.
+This will build the rkt binary and the LKVM stage1.aci in `build-rkt-0.9.0+git/bin/`.
 
 Provided you have hardware virtualization support and the [kernel KVM module](http://www.linux-kvm.org/page/Getting_the_kvm_kernel_modules) loaded (refer to your distribution for instructions), you can then run an image like you would normally do with rkt:
 
@@ -23,7 +23,7 @@ gpg key fingerprint is: 8B86 DE38 890D DB72 9186  7B02 5210 BD88 8818 2190
 	CoreOS ACI Builder <release@coreos.com>
 Trusting "https://coreos.com/dist/pubkeys/aci-pubkeys.gpg" for prefix "coreos.com/etcd" without fingerprint review.
 Added key for prefix "coreos.com/etcd" at "/etc/rkt/trustedkeys/prefix.d/coreos.com/etcd/8b86de38890ddb7291867b025210bd8888182190"
-# rkt run --private-net=default coreos.com/etcd:v2.0.9
+# rkt run coreos.com/etcd:v2.0.9
 rkt: searching for app image coreos.com/etcd:v2.0.9
 prefix: "coreos.com/etcd"
 key: "https://coreos.com/dist/pubkeys/aci-pubkeys.gpg"
@@ -35,15 +35,6 @@ Downloading signature: [=======================================] 819 B/819 B
 Downloading ACI: [=============================================] 3.79 MB/3.79 MB
 rkt: signature verified:
   CoreOS ACI Builder <release@coreos.com>
-2015/08/18 16:10:03 Preparing stage1
-2015/08/18 16:10:07 Loading image sha512-91e98d7f1679a097c878203c9659f2a26ae394656b3147963324c61fa3832f15
-2015/08/18 16:10:08 Writing pod manifest
-2015/08/18 16:10:08 Setting up stage1
-2015/08/18 16:10:08 Writing image manifest
-2015/08/18 16:10:08 Wrote filesystem to /var/lib/rkt/pods/run/6b85a91a-73b9-4f1b-96c2-009ae9dc45e1
-2015/08/18 16:10:08 Writing image manifest
-2015/08/18 16:10:08 Pivoting to filesystem /var/lib/rkt/pods/run/6b85a91a-73b9-4f1b-96c2-009ae9dc45e1
-2015/08/18 16:10:08 Execing /init
 [188748.162493] etcd[4]: 2015/08/18 14:10:08 etcd: no data-dir provided, using default data-dir ./default.etcd
 [188748.163213] etcd[4]: 2015/08/18 14:10:08 etcd: listening for peers on http://localhost:2380
 [188748.163674] etcd[4]: 2015/08/18 14:10:08 etcd: listening for peers on http://localhost:7001

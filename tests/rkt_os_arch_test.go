@@ -33,9 +33,16 @@ type osArchTest struct {
 	expectError  bool
 }
 
+func osArchTestRemoveImages(tests []osArchTest) {
+	for _, tt := range tests {
+		os.Remove(tt.image)
+	}
+}
+
 func getMissingOrInvalidTests(t *testing.T, ctx *rktRunCtx) []osArchTest {
 	tests := []osArchTest{}
 
+	defer osArchTestRemoveImages(tests)
 	testImageName := "coreos.com/rkt-missing-os-arch-test"
 	manifest := strings.Replace(manifestOSArchTemplate, "IMG_NAME", testImageName, 1)
 
@@ -124,7 +131,9 @@ func getMissingOrInvalidTests(t *testing.T, ctx *rktRunCtx) []osArchTest {
 	}
 	tests = append(tests, invalidArchTest)
 
-	return tests
+	retTests := tests
+	tests = nil
+	return retTests
 }
 
 // TestMissingOrInvalidOSArchRun tests that rkt errors out when it tries to run
@@ -133,11 +142,11 @@ func TestMissingOrInvalidOSArchRun(t *testing.T) {
 	ctx := newRktRunCtx()
 	defer ctx.cleanup()
 	tests := getMissingOrInvalidTests(t, ctx)
+	defer osArchTestRemoveImages(tests)
 
 	for i, tt := range tests {
 		t.Logf("Running test #%v: %v", i, tt.rktCmd)
 		runRktAndCheckOutput(t, tt.rktCmd, tt.expectedLine, tt.expectError)
-		defer os.Remove(tt.image)
 	}
 }
 
@@ -147,12 +156,12 @@ func TestMissingOrInvalidOSArchFetchRun(t *testing.T) {
 	ctx := newRktRunCtx()
 	defer ctx.cleanup()
 	tests := getMissingOrInvalidTests(t, ctx)
+	defer osArchTestRemoveImages(tests)
 
 	for i, tt := range tests {
 		imgHash := importImageAndFetchHash(t, ctx, tt.image)
 		rktCmd := fmt.Sprintf("%s run --mds-register=false %s", ctx.cmd(), imgHash)
 		t.Logf("Running test #%v: %v", i, rktCmd)
 		runRktAndCheckOutput(t, rktCmd, tt.expectedLine, tt.expectError)
-		defer os.Remove(tt.image)
 	}
 }

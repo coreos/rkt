@@ -355,7 +355,7 @@ func (cmd *Builder) writeACI() (string, error) {
 	// tar archive. See: https://github.com/appc/goaci/issues/16
 	iw := aci.NewImageWriter(*cmd.manifest, tr)
 	paths := cmd.custom.GetCommonPaths()
-	if err := filepath.Walk(paths.AciDir, aci.BuildWalker(paths.AciDir, iw)); err != nil {
+	if err := filepath.Walk(paths.AciDir, aci.BuildWalker(paths.AciDir, iw, nil)); err != nil {
 		return "", err
 	}
 	if err := iw.Close(); err != nil {

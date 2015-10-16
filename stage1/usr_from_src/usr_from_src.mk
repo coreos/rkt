@@ -78,6 +78,7 @@ $(call forward-vars,$(UFS_SYSTEMD_INSTALL_STAMP), \
 $(UFS_SYSTEMD_INSTALL_STAMP): $(UFS_SYSTEMD_BUILD_STAMP)
 	set -e; \
 	DESTDIR="$(abspath $(UFS_ROOTFSDIR))" $(MAKE) -C "$(UFS_SYSTEMD_BUILDDIR)" install-strip; \
+	chmod 0750 "$(UFS_ROOTFSDIR)"; \
 	touch "$@"
 
 # This filelist can be generated only after the installation of

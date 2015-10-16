@@ -126,7 +126,7 @@ func mirrorLocalZoneInfo(root string) {
 
 var (
 	debug        bool
-	privNet      common.PrivateNetList
+	netList      common.NetList
 	interactive  bool
 	privateUsers string
 	mdsToken     string
@@ -136,7 +136,7 @@ var (
 
 func init() {
 	flag.BoolVar(&debug, "debug", false, "Run in debug mode")
-	flag.Var(&privNet, "private-net", "Setup private network")
+	flag.Var(&netList, "net", "Setup networking")
 	flag.BoolVar(&interactive, "interactive", false, "The pod is interactive")
 	flag.StringVar(&privateUsers, "private-users", "", "Run within user namespace. Can be set to [=UIDBASE[:NUIDS]]")
 	flag.StringVar(&mdsToken, "mds-token", "", "MDS auth token")
@@ -552,14 +552,14 @@ func stage1() int {
 	}
 
 	var n *networking.Networking
-	if privNet.Any() {
+	if netList.Any() {
 		fps, err := forwardedPorts(p)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err.Error())
 			return 6
 		}
 
-		n, err = networking.Setup(root, p.UUID, fps, privNet, localConfig, flavor)
+		n, err = networking.Setup(root, p.UUID, fps, netList, localConfig, flavor)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to setup network: %v\n", err)
 			return 6
@@ -582,7 +582,7 @@ func stage1() int {
 		}
 	} else {
 		if flavor == "kvm" {
-			fmt.Fprintf(os.Stderr, "Flavor kvm requires private network configuration (try --private-net).\n")
+			fmt.Fprintf(os.Stderr, "Flavor kvm requires private network configuration (try --net).\n")
 			return 6
 		}
 		if len(mdsToken) > 0 {

@@ -21,6 +21,7 @@ import (
 	"log"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
+	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/stage0"
 	"github.com/coreos/rkt/store"
 )
@@ -41,8 +42,8 @@ var (
 func init() {
 	cmdRkt.AddCommand(cmdRunPrepared)
 
-	cmdRunPrepared.Flags().Var(&flagPrivateNet, "private-net", "give pod a private network")
-	cmdRunPrepared.Flags().Lookup("private-net").NoOptDefVal = "all"
+	cmdRunPrepared.Flags().Var(&flagNet, "net", "configure the pod's networking. optionally pass a list of user-configured networks to load and arguments to pass to them. syntax: --net[=n[:args]][,]")
+	cmdRunPrepared.Flags().Lookup("net").NoOptDefVal = "default"
 	cmdRunPrepared.Flags().BoolVar(&flagInteractive, "interactive", false, "the pod is interactive")
 	cmdRunPrepared.Flags().BoolVar(&flagMDSRegister, "mds-register", true, "register pod with metadata service")
 }
@@ -125,18 +126,28 @@ func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
+	rktgid, err := common.LookupGid(common.RktGroup)
+	if err != nil {
+		stderr("prepared-run: group %q not found, will use default gid when rendering images", common.RktGroup)
+		rktgid = -1
+	}
+
 	rcfg := stage0.RunConfig{
 		CommonConfig: stage0.CommonConfig{
 			Store: s,
 			UUID:  p.uuid,
 			Debug: globalFlags.Debug,
 		},
-		PrivateNet:  flagPrivateNet,
+		Net:         flagNet,
 		LockFd:      lfd,
 		Interactive: flagInteractive,
 		MDSRegister: flagMDSRegister,
 		Apps:        apps,
+		RktGid:      rktgid,
 	}
-	stage0.Run(rcfg, p.path()) // execs, never returns
+	if globalFlags.Debug {
+		stage0.InitDebug()
+	}
+	stage0.Run(rcfg, p.path(), globalFlags.Dir) // execs, never returns
 	return 1
 }

@@ -192,7 +192,7 @@ func deletePod(p *pod) {
 		}
 		stage1TreeStoreID, err := p.getStage1TreeStoreID()
 		if err != nil {
-			stderr("Error getting stage1 treeStoreID")
+			stderr("Error getting stage1 treeStoreID: %v", err)
 			return
 		}
 		stage1RootFS := s.GetTreeStoreRootFS(stage1TreeStoreID)

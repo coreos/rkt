@@ -19,7 +19,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/steveeJ/gexpect"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/syndtr/gocapability/capability"
 )
 
@@ -94,11 +93,7 @@ func TestCaps(t *testing.T) {
 			t.Logf("Running test #%v: %v [stage %v]", i, tt.testName, stage)
 
 			cmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --mds-register=false --set-env=CAPABILITY=%d %s", ctx.cmd(), int(tt.capa), stageFileNames[stage-1])
-			t.Logf("Command: %v", cmd)
-			child, err := gexpect.Spawn(cmd)
-			if err != nil {
-				t.Fatalf("Cannot exec rkt #%v: %v", i, err)
-			}
+			child := spawnOrFail(t, cmd)
 
 			expectedLine := tt.capa.String()
 			if (stage == 1 && tt.capInStage1Expected) || (stage == 2 && tt.capInStage2Expected) {
@@ -106,26 +101,20 @@ func TestCaps(t *testing.T) {
 			} else {
 				expectedLine += "=disabled"
 			}
-			err = expectWithOutput(child, expectedLine)
-			if err != nil {
+			if err := expectWithOutput(child, expectedLine); err != nil {
 				t.Fatalf("Expected %q but not found: %v", expectedLine, err)
 			}
 
-			err = expectWithOutput(child, "User: uid=0 euid=0 gid=0 egid=0")
-			if err != nil {
+			if err := expectWithOutput(child, "User: uid=0 euid=0 gid=0 egid=0"); err != nil {
 				t.Fatalf("Expected user 0 but not found: %v", err)
 			}
-
-			err = child.Wait()
-			if err != nil {
-				t.Fatalf("rkt didn't terminate correctly: %v", err)
-			}
+			waitOrFail(t, child, true)
 		}
 		ctx.reset()
 	}
 }
 
-func TestNonRootCaps(t *testing.T) {
+func TestCapsNonRoot(t *testing.T) {
 	ctx := newRktRunCtx()
 	defer ctx.cleanup()
 
@@ -140,11 +129,7 @@ func TestNonRootCaps(t *testing.T) {
 		t.Logf("Running test #%v: %v [non-root]", i, tt.testName)
 
 		cmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --mds-register=false --set-env=CAPABILITY=%d %s", ctx.cmd(), int(tt.capa), fileName)
-		t.Logf("Command: %v", cmd)
-		child, err := gexpect.Spawn(cmd)
-		if err != nil {
-			t.Fatalf("Cannot exec rkt #%v: %v", i, err)
-		}
+		child := spawnOrFail(t, cmd)
 
 		expectedLine := tt.capa.String()
 		if tt.nonrootCapExpected {
@@ -152,20 +137,15 @@ func TestNonRootCaps(t *testing.T) {
 		} else {
 			expectedLine += "=disabled"
 		}
-		err = expectWithOutput(child, expectedLine)
-		if err != nil {
+		if err := expectWithOutput(child, expectedLine); err != nil {
 			t.Fatalf("Expected %q but not found: %v", expectedLine, err)
 		}
 
-		err = expectWithOutput(child, "User: uid=9000 euid=9000 gid=9000 egid=9000")
-		if err != nil {
+		if err := expectWithOutput(child, "User: uid=9000 euid=9000 gid=9000 egid=9000"); err != nil {
 			t.Fatalf("Expected user 9000 but not found: %v", err)
 		}
 
-		err = child.Wait()
-		if err != nil {
-			t.Fatalf("rkt didn't terminate correctly: %v", err)
-		}
+		waitOrFail(t, child, true)
 		ctx.reset()
 	}
 }

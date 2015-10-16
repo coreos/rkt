@@ -6,7 +6,8 @@ $(call setup-tmp-dir,UFC_TMPDIR)
 
 UFC_ROOTFS := $(UFC_TMPDIR)/rootfs
 UFC_FILELIST := $(UFC_TMPDIR)/manifest.txt
-UFC_MANIFESTS := $(wildcard $(MK_SRCDIR)/manifest.d/*)
+UFC_MANIFESTS_DIR ?= $(MK_SRCDIR)/manifest.d
+UFC_MANIFESTS := $(wildcard $(UFC_MANIFESTS_DIR)/*)
 
 $(call setup-dep-file,UFC_DEPMK,manifests)
 $(call setup-clean-file,UFC_ROOTFSDIR_CLEANMK,/rootfs)
@@ -89,7 +90,7 @@ $(call forward-vars,$(UFC_MKBASE_STAMP), \
 $(UFC_MKBASE_STAMP): $(UFC_SQUASHFS) $(UFC_FILELIST)
 	set -e; \
 	rm -rf "$(UFC_ROOTFS)"; \
-	mkdir -p "$(UFC_ROOTFS)"; \
+	install -m 0750 -d "$(UFC_ROOTFS)"; \
 	unsquashfs -d "$(UFC_ROOTFS)/usr" -ef "$(UFC_FILELIST)" "$(UFC_SQUASHFS)"; \
 	touch "$@"
 

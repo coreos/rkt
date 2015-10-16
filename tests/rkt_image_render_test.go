@@ -21,8 +21,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/steveeJ/gexpect"
 )
 
 const (
@@ -95,17 +93,10 @@ func TestImageRender(t *testing.T) {
 		outputPath := filepath.Join(tmpDir, fmt.Sprintf("rendered-%d", i))
 		runCmd := fmt.Sprintf("%s image render --rootfs-only %s %s", ctx.cmd(), tt.image, outputPath)
 		t.Logf("Running 'image render' test #%v: %v", i, runCmd)
-		child, err := gexpect.Spawn(runCmd)
-		if err != nil {
-			t.Fatalf("Cannot exec rkt #%v: %v", i, err)
-		}
+		spawnAndWaitOrFail(t, runCmd, tt.shouldFind)
 
-		if err := child.Wait(); err != nil {
-			if !tt.shouldFind && err.Error() == "exit status 1" {
-				continue
-			} else if tt.shouldFind || err.Error() != "exit status 1" {
-				t.Fatalf("rkt didn't terminate correctly: %v", err)
-			}
+		if !tt.shouldFind {
+			continue
 		}
 
 		renderedInspectHash, err := getHash(filepath.Join(outputPath, "inspect"))

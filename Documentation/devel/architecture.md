@@ -57,7 +57,7 @@ The next stage is a binary that the user trusts to set up cgroups, execute proce
 
 - Read the Image and Pod Manifests. The Image Manifest defines the default `exec` specifications of each application; the Pod Manifest defines the ordering of the units, as well as any overrides.
 - Generate systemd unit files from those Manifests
-- Create and enter network namespace if rkt is started with `--private-net`
+- Create and enter network namespace if rkt is not started with `--net=host`
 - Start systemd-nspawn (which takes care of the following steps)
     - Set up any external volumes
     - Launch systemd as PID 1 in the pod within the appropriate cgroups and namespaces

@@ -26,7 +26,6 @@ import (
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/steveeJ/gexpect"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/syndtr/gocapability/capability"
 
 	"github.com/coreos/rkt/common/cgroup"
@@ -102,7 +101,7 @@ func TestPodManifest(t *testing.T) {
 		// [image name]:[image patches]
 		images         []imagePatch
 		podManifest    *schema.PodManifest
-		shouldSuccess  bool
+		shouldSucceed  bool
 		expectedResult string
 		cgroup         string
 	}{
@@ -388,8 +387,8 @@ func TestPodManifest(t *testing.T) {
 			// Multiple apps (with same images) in the pod. The first app will read out the content
 			// written by the second app.
 			[]imagePatch{
-				{"rkt-test-run-pod-manifest-app.aci", []string{}},
-				{"rkt-test-run-pod-manifest-app.aci", []string{}},
+				{"rkt-test-run-pod-manifest-app.aci", []string{"--name=aci1"}},
+				{"rkt-test-run-pod-manifest-app.aci", []string{"--name=aci2"}},
 			},
 			&schema.PodManifest{
 				Apps: []schema.RuntimeApp{
@@ -516,11 +515,8 @@ func TestPodManifest(t *testing.T) {
 
 		// 1. Test 'rkt run'.
 		runCmd := fmt.Sprintf("%s run --mds-register=false --pod-manifest=%s", ctx.cmd(), manifestFile)
-		t.Logf("Running 'run' test #%v: %v", i, runCmd)
-		child, err := gexpect.Spawn(runCmd)
-		if err != nil {
-			t.Fatalf("Cannot exec rkt #%v: %v", i, err)
-		}
+		t.Logf("Running 'run' test #%v", i)
+		child := spawnOrFail(t, runCmd)
 
 		if tt.expectedResult != "" {
 			if err := expectWithOutput(child, tt.expectedResult); err != nil {
@@ -528,7 +524,7 @@ func TestPodManifest(t *testing.T) {
 			}
 		}
 		if err := child.Wait(); err != nil {
-			if tt.shouldSuccess {
+			if tt.shouldSucceed {
 				t.Fatalf("rkt didn't terminate correctly: %v", err)
 			}
 		}
@@ -540,11 +536,8 @@ func TestPodManifest(t *testing.T) {
 		uuid := runRktAndGetUUID(t, rktCmd)
 
 		runPreparedCmd := fmt.Sprintf("%s run-prepared --mds-register=false %s", ctx.cmd(), uuid)
-		t.Logf("Running 'run' test #%v: %v", i, runPreparedCmd)
-		child, err = gexpect.Spawn(runPreparedCmd)
-		if err != nil {
-			t.Fatalf("Cannot exec rkt #%v: %v", i, err)
-		}
+		t.Logf("Running 'run-prepared' test #%v", i)
+		child = spawnOrFail(t, runPreparedCmd)
 
 		if tt.expectedResult != "" {
 			if err := expectWithOutput(child, tt.expectedResult); err != nil {
@@ -552,7 +545,7 @@ func TestPodManifest(t *testing.T) {
 			}
 		}
 		if err := child.Wait(); err != nil {
-			if tt.shouldSuccess {
+			if tt.shouldSucceed {
 				t.Fatalf("rkt didn't terminate correctly: %v", err)
 			}
 		}

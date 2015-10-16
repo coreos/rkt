@@ -29,14 +29,9 @@ import (
 func preparePidFileRace(t *testing.T, ctx *rktRunCtx, sleepImage string) (*gexpect.ExpectSubprocess, *gexpect.ExpectSubprocess, string, string) {
 	// Start the pod
 	runCmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --mds-register=false --interactive %s", ctx.cmd(), sleepImage)
-	t.Logf("%s", runCmd)
-	runChild, err := gexpect.Spawn(runCmd)
-	if err != nil {
-		t.Fatalf("Cannot exec rkt")
-	}
+	runChild := spawnOrFail(t, runCmd)
 
-	err = expectWithOutput(runChild, "Enter text:")
-	if err != nil {
+	if err := expectWithOutput(runChild, "Enter text:"); err != nil {
 		t.Fatalf("Waited for the prompt but not found: %v", err)
 	}
 
@@ -62,10 +57,8 @@ func preparePidFileRace(t *testing.T, ctx *rktRunCtx, sleepImage string) (*gexpe
 	// Start the "enter" command without the pidfile
 	enterCmd := fmt.Sprintf("%s --debug enter %s /inspect --print-msg=RktEnterWorksFine", ctx.cmd(), UUID)
 	t.Logf("%s", enterCmd)
-	enterChild, err := gexpect.Spawn(enterCmd)
-	if err != nil {
-		t.Fatalf("Cannot exec rkt enter")
-	}
+	enterChild := spawnOrFail(t, enterCmd)
+
 	// Enter should be able to wait until the ppid file appears
 	time.Sleep(1 * time.Second)
 
@@ -121,9 +114,7 @@ func TestPidFileAbortedStart(t *testing.T) {
 	if err := runChild.SendLine("\035\035\035"); err != nil {
 		t.Fatalf("Failed to terminate the pod: %v", err)
 	}
-	if err := runChild.Wait(); err.Error() != "exit status 1" {
-		t.Fatalf("rkt didn't terminate as expected: %v", err)
-	}
+	waitOrFail(t, runChild, false)
 
 	// Now the "enter" command terminates quickly
 	before := time.Now()

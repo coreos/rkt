@@ -18,8 +18,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/steveeJ/gexpect"
 )
 
 // TestFetchFromFile tests that 'rkt fetch/run/prepare' for a file will always
@@ -59,29 +57,15 @@ func testFetchFromFile(t *testing.T, arg string, image string) {
 
 	cmd := fmt.Sprintf("%s %s %s", ctx.cmd(), arg, image)
 
-	t.Logf("Running test %v", cmd)
-
 	// 1. Run cmd, should get $fetchFromFileMsg.
-	child, err := gexpect.Spawn(cmd)
-	if err != nil {
-		t.Fatalf("Cannot exec rkt: %v", err)
-	}
+	child := spawnOrFail(t, cmd)
 	if err := expectWithOutput(child, fetchFromFileMsg); err != nil {
-		t.Fatalf("%q should be found", fetchFromFileMsg)
+		t.Fatalf("%q should be found: %v", fetchFromFileMsg, err)
 	}
 	child.Wait()
 
 	// 1. Run cmd again, should get $fetchFromFileMsg.
-	child, err = gexpect.Spawn(cmd)
-	if err != nil {
-		t.Fatalf("Cannot exec rkt: %v", err)
-	}
-	if err := expectWithOutput(child, fetchFromFileMsg); err != nil {
-		t.Fatalf("%q should be found", fetchFromFileMsg)
-	}
-	if err := child.Wait(); err != nil {
-		t.Fatalf("rkt didn't terminate correctly: %v", err)
-	}
+	runRktAndCheckOutput(t, cmd, fetchFromFileMsg, false)
 }
 
 // TestFetch tests that 'rkt fetch/run/prepare' for any type (image name string
@@ -133,28 +117,15 @@ func testFetchDefault(t *testing.T, arg string, image string, finalURL string) {
 
 	cmd := fmt.Sprintf("%s %s %s", ctx.cmd(), arg, image)
 
-	t.Logf("Running test %v", cmd)
-
 	// 1. Run cmd with the image not available in the store, should get $remoteFetchMsg.
-	child, err := gexpect.Spawn(cmd)
-	if err != nil {
-		t.Fatalf("Cannot exec rkt: %v", err)
-	}
+	child := spawnOrFail(t, cmd)
 	if err := expectWithOutput(child, remoteFetchMsg); err != nil {
-		t.Fatalf("%q should be found", remoteFetchMsg)
+		t.Fatalf("%q should be found: %v", remoteFetchMsg, err)
 	}
 	child.Wait()
 
 	// 2. Run cmd with the image available in the store, should get $storeMsg.
-	child, err = gexpect.Spawn(cmd)
-	if err != nil {
-		t.Fatalf("Cannot exec rkt: %v", err)
-	}
-	result, out, err := expectRegexWithOutput(child, storeMsg)
-	if err != nil || len(result) != 1 {
-		t.Fatalf("%q regex must be found one time, Error: %v\nOutput: %v", storeMsg, err, out)
-	}
-	child.Wait()
+	runRktAndCheckRegexOutput(t, cmd, storeMsg)
 }
 
 func testFetchStoreOnly(t *testing.T, args string, image string, finalURL string) {
@@ -168,31 +139,13 @@ func testFetchStoreOnly(t *testing.T, args string, image string, finalURL string
 
 	cmd := fmt.Sprintf("%s --store-only %s %s", ctx.cmd(), args, image)
 
-	t.Logf("Running test %v", cmd)
-
 	// 1. Run cmd with the image not available in the store should get $cannotFetchMsg.
-	child, err := gexpect.Spawn(cmd)
-	if err != nil {
-		t.Fatalf("Cannot exec rkt: %v", err)
-	}
-	result, out, err := expectRegexWithOutput(child, cannotFetchMsg)
-	if err != nil || len(result) != 1 {
-		t.Fatalf("%q regex must be found one time, Error: %v\nOutput: %v", cannotFetchMsg, err, out)
-	}
-	child.Wait()
+	runRktAndCheckRegexOutput(t, cmd, cannotFetchMsg)
 
 	importImageAndFetchHash(t, ctx, image)
 
 	// 2. Run cmd with the image available in the store, should get $storeMsg.
-	child, err = gexpect.Spawn(cmd)
-	if err != nil {
-		t.Fatalf("Cannot exec rkt: %v", err)
-	}
-	result, out, err = expectRegexWithOutput(child, storeMsg)
-	if err != nil || len(result) != 1 {
-		t.Fatalf("%q regex must be found one time, Error: %v\nOutput: %v", storeMsg, err, out)
-	}
-	child.Wait()
+	runRktAndCheckRegexOutput(t, cmd, storeMsg)
 }
 
 func testFetchNoStore(t *testing.T, args string, image string, finalURL string) {
@@ -206,15 +159,10 @@ func testFetchNoStore(t *testing.T, args string, image string, finalURL string) 
 
 	cmd := fmt.Sprintf("%s --no-store %s %s", ctx.cmd(), args, image)
 
-	t.Logf("Running test %v", cmd)
-
 	// 1. Run cmd with the image available in the store, should get $remoteFetchMsg.
-	child, err := gexpect.Spawn(cmd)
-	if err != nil {
-		t.Fatalf("Cannot exec rkt: %v", err)
-	}
+	child := spawnOrFail(t, cmd)
 	if err := expectWithOutput(child, remoteFetchMsg); err != nil {
-		t.Fatalf("%q should be found", remoteFetchMsg)
+		t.Fatalf("%q should be found: %v", remoteFetchMsg, err)
 	}
 	child.Wait()
 }

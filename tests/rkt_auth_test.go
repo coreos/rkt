@@ -22,7 +22,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/steveeJ/gexpect"
 	taas "github.com/coreos/rkt/tests/test-auth-server/aci"
 )
 
@@ -173,11 +172,7 @@ func expectedRunRkt(ctx *rktRunCtx, t *testing.T, host, dir, line string) {
 	// First, check that --insecure-skip-verify is required
 	// The server does not provide signatures for now.
 	cmd := fmt.Sprintf(`%s --debug run --mds-register=false %s/%s/prog.aci`, ctx.cmd(), host, dir)
-	t.Logf("Running rkt: %s", cmd)
-	child, err := gexpect.Spawn(cmd)
-	if err != nil {
-		t.Fatalf("Failed to run rkt: %v", err)
-	}
+	child := spawnOrFail(t, cmd)
 	defer child.Wait()
 	signatureErrorLine := "error downloading the signature file"
 	if err := expectWithOutput(child, signatureErrorLine); err != nil {
@@ -186,11 +181,7 @@ func expectedRunRkt(ctx *rktRunCtx, t *testing.T, host, dir, line string) {
 
 	// Then, run with --insecure-skip-verify
 	cmd = fmt.Sprintf(`%s --debug --insecure-skip-verify run --mds-register=false %s/%s/prog.aci`, ctx.cmd(), host, dir)
-	t.Logf("Running rkt: %s", cmd)
-	child, err = gexpect.Spawn(cmd)
-	if err != nil {
-		t.Fatalf("Failed to run rkt: %v", err)
-	}
+	child = spawnOrFail(t, cmd)
 	defer child.Wait()
 	if err := expectWithOutput(child, line); err != nil {
 		t.Fatalf("Didn't receive expected output %q: %v", line, err)

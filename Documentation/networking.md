@@ -1,37 +1,57 @@
 # Networking
 
-`rkt` has two networking options: "host" networking where the apps runs in the root host network namespace or "private" where the apps are allocated a new IP address and a new network namespace.
+On some of rkt's subcommands *([run](subcommands/run.md), [run-prepared](subcommands/run-prepared.md))*, the `--net` flag allows you to configure the pod's network.
+The various options can be grouped by two categories:
 
-## Host (default) mode
+* [host mode](#host mode)
+* [contained mode (default)](#contained mode)
 
-By default, `rkt run` will start the pod with host networking.
-This means that the apps within the pod will share the network stack and the interfaces with the host machine.
+## Host mode
+When `--net=host` is passed the pod's apps will inherit the network namespace of the process that is invoking rkt.
 
-## Private networking mode
+If rkt is directly called from the host the apps within the pod will share the network stack and the interfaces with the host machine.
+This means that every network service that runs in the pod has the same connectivity as if it was started on the host directly.
 
-If `rkt run` is started with the `--private-net` flag, the pod will be executed with its own network stack, with the default network plus all configured networks.
-This is equivalent to passing `--private-net=all`.
-Passing a list of comma separated network names as in `--private-net=net1,net2,net3,...` restricts the network stack to the specified networks.
-This can be useful for grouping certain pods together while separating others.
+## Contained mode
+If anything other than `host` is passed to `--net=`, the pod will live in a separate network namespace with the help of [CNI](https://github.com/appc/cni) and its plugin system.
+The network setup for the pod's network namespace depends on the available CNI configuration files that are shipped with rkt and also configured by the user.
+
+### Network selection
+Every network must have a unique name and can only be joined once by every pod.
+Passing a list of comma separated network as in `--net=net1,net2,net3,...` tells rkt which networks should be joined.
+This is useful for grouping certain pod networks together while separating others.
+There is also the possibility to load all configured networks by using  `--net=all`.
+
+### Builtin networks
+rkt ships with two built in networks, named *default* and *default-restricted*.
+
 
 ### The default network
-The default network consists of a loopback device and a veth device.
+The *default* network is loaded automatically in three cases: 
+* `--net` is not present on the command line
+* `--net` is passed with no options
+* `--net=default`is passed
+
+It consists of a loopback device and a veth device.
 The veth pair creates a point-to-point link between the pod and the host.
-rkt will allocate an IPv4 /31 (2 IP addresses) out of 172.16.28.0/24 and assign one IP to each end of the veth pair.
+rkt will allocate an IPv4 address out of 172.16.28.0/24 for the pod's veth interface.
 It will additionally set the default route in the pod namespace.
 Finally, it will enable IP masquerading on the host to NAT the egress traffic.
 
-**Note**: The default network must be explicitly listed in order to be loaded when `--private-net=...` is specified with a list of network names.
+**Note**: The default network must be explicitly listed in order to be loaded when `--net=n1,n2,...` is specified with a list of network names.
 
-Example: If you want default networking and two more networks you need to pass `--private-net=default,net1,net2`.
+Example: If you want default networking and two more networks you need to pass `--net=default,net1,net2`.
 
-If *default* is not among the specified networks the *default-restricted* network will be added to the list of networks automatically.
+### The default-restricted network
 The *default-restricted* network does not set up the default route and IP masquerading.
 It only allows communication with the host via the veth interface and thus enables the pod to communicate with the metadata service which runs on the host.
+If *default* is not among the specified networks, the *default-restricted* network will be added to the list of networks automatically.
+It can also be loaded directly by explicitly passing `--net=default-restricted`.
+The special alias network name ***none*** (`--net=none`) will effectively load the *default-restricted* network to always guarantee access to the metadata service that runs on the host.
+
 
 ### Setting up additional networks
-
-In addition to the default network (veth) described in the previous section, rkt pods can be configured to join additional networks.
+In addition to the default network (veth) described in the previous sections, rkt pods can be configured to join additional networks.
 Each additional network will result in an new interface being setup in the pod.
 The type of network interface, IP, routes, etc is controlled via a configuration file residing in `/etc/rkt/net.d` directory.
 The network configuration files are executed in lexicographically sorted order. Each file consists of a JSON dictionary as shown below:
@@ -60,7 +80,7 @@ Additional fields are specified for various types.
 
 #### ptp
 
-ptp is the probably the simplest type of networking and is used to set up default network.
+ptp is probably the simplest type of networking and is used to set up default network.
 It creates a virtual ethernet pair (akin to a pipe) and places one end into pod and the other on the host.
 `ptp` specific configuration fields are:
 
@@ -195,7 +215,7 @@ $ sudo ./dhcp daemon
 
 It is now possible to use the DHCP type by specifying it in the ipam section of the network configuration file:
 
-```
+```json
 {
 	"name": "lan",
 	"type": "macvlan",
@@ -230,7 +250,7 @@ Doing so allows services inside the pods to be reachable through the host's IP a
 
 The example below demonstrates an image manifest snippet declaring a single port:
 
-```
+```json
 "ports": [
 	{
 		"name": "http",
@@ -243,7 +263,7 @@ The example below demonstrates an image manifest snippet declaring a single port
 The pod's TCP port 80 can be mapped to an arbitrary port on the host during rkt invocation:
 
 ```
-# rkt run --private-net --port=http:8888 myapp.aci
+# rkt run --port=http:8888 myapp.aci
 ```
 
 Now, any traffic arriving on host's TCP port 8888 will be forwarded to the pod on port 80.
@@ -257,15 +277,15 @@ management provided by the metadata service.
 ## Overriding network settings
 The network backend CNI allows the passing of [arguments as plugin parameters](https://github.com/appc/cni/blob/master/SPEC.md#parameters), specifically `CNI_ARGS`, at runtime.
 These arguments can be used to reconfigure a network without changing the configuration file.
-rkt supports the `CNI_ARGS` variable through the command line argument `--private-net`. 
+rkt supports the `CNI_ARGS` variable through the command line argument `--net`. 
 
 ### Syntax
-The syntax for passing arguments to a network looks like `--private-net="$networkname1:$arg1=$val1;$arg2=val2"`.
+The syntax for passing arguments to a network looks like `--net="$networkname1:$arg1=$val1;$arg2=val2"`.
 The usage of `"` is mandatory due to the `;` being used as separator within the arguments for a single network.
 To allow the passing of arguments to different networks simply append the arguments to the network name with a colon (`:`), and separate the arguments by semicolon (`;`).
-All arguments can either be given in a single instance of the `--private-net`, or can be spread across multiple uses of `--private-net`.
-*Reminder:* the separator for the networks (and their arguments) within one `--private-net` instance is the comma `,`.
-A network name must not be passed more than once, not within the same nor throughout multiple instances of `--private-net`.
+All arguments can either be given in a single instance of the `--net`, or can be spread across multiple uses of `--net`.
+*Reminder:* the separator for the networks (and their arguments) within one `--net` instance is the comma `,`.
+A network name must not be passed more than once, not within the same nor throughout multiple instances of `--net`.
 
 ### Passing arguments to selected networks while loading all networks
 If all networks should be loaded but it's not necessary to pass arguments to all, add `all` to the list of networks. 
@@ -274,7 +294,7 @@ If all networks should be loaded but it's not necessary to pass arguments to all
 This example will load all configured networks and override the IP addresses for *net1* and *net2*.
 
 ```bash
-rkt run --private-net="all,net1:IP=1.2.3.4" --private-net="net2:IP=1.2.4.5" pod.aci
+rkt run --net="all,net1:IP=1.2.3.4" --net="net2:IP=1.2.4.5" pod.aci
 ```
 
 ### Supported CNI_ARGS

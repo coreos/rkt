@@ -23,30 +23,8 @@ import (
 )
 
 func runImage(t *testing.T, ctx *rktRunCtx, imageFile string, expected string, shouldFail bool) {
-	cmd := fmt.Sprintf(`%s --debug run --mds-register=false %s`,
-		ctx.cmd(), imageFile)
-	t.Logf("%s\n", cmd)
-	child, err := gexpect.Spawn(cmd)
-	if err != nil {
-		t.Fatalf("Cannot exec rkt")
-	}
-
-	if err = expectWithOutput(child, expected); err != nil {
-		t.Fatalf("Expected but didn't find %q in %v", expected, err)
-	}
-
-	err = child.Wait()
-	const exit1 = "exit status 1"
-	switch {
-	case shouldFail && err == nil:
-		t.Fatalf("Expected test to fail but it didn't")
-	case !shouldFail && err != nil:
-		t.Fatalf("rkt didn't terminate correctly: %v", err)
-	case err != nil && err.Error() != exit1:
-		t.Fatalf("rkt terminated with unexpected error: %v", err)
-	default:
-	}
-
+	cmd := fmt.Sprintf(`%s --debug run --mds-register=false %s`, ctx.cmd(), imageFile)
+	runRktAndCheckOutput(t, cmd, expected, shouldFail)
 }
 
 func runRktTrust(t *testing.T, ctx *rktRunCtx, prefix string) {
@@ -57,18 +35,15 @@ func runRktTrust(t *testing.T, ctx *rktRunCtx, prefix string) {
 		cmd = fmt.Sprintf(`%s trust --prefix %s %s`, ctx.cmd(), prefix, "key.gpg")
 	}
 
-	t.Logf("%s\n", cmd)
-	child, err := gexpect.Spawn(cmd)
-	if err != nil {
-		t.Fatalf("Cannot exec rkt trust: %s", err)
-	}
+	child := spawnOrFail(t, cmd)
+	defer waitOrFail(t, child, true)
 
 	expected := "Are you sure you want to trust this key"
-	if err = expectWithOutput(child, expected); err != nil {
+	if err := expectWithOutput(child, expected); err != nil {
 		t.Fatalf("Expected but didn't find %q in %v", expected, err)
 	}
 
-	if err = child.SendLine("yes"); err != nil {
+	if err := child.SendLine("yes"); err != nil {
 		t.Fatalf("Cannot confirm rkt trust: %s", err)
 	}
 
@@ -77,20 +52,15 @@ func runRktTrust(t *testing.T, ctx *rktRunCtx, prefix string) {
 	} else {
 		expected = fmt.Sprintf(`Added key for prefix "%s" at`, prefix)
 	}
-	if err = expectWithOutput(child, expected); err != nil {
+	if err := expectWithOutput(child, expected); err != nil {
 		t.Fatalf("Expected but didn't find %q in %v", expected, err)
-	}
-
-	err = child.Wait()
-	if err != nil {
-		t.Fatalf("rkt trust didn't terminate as expected: %v", err)
 	}
 }
 
 func runSignImage(t *testing.T, ctx *rktRunCtx, imageFile string) {
 	dir, err := os.Getwd()
 	if err != nil {
-		t.Fatalf("Cannot get current working directory")
+		t.Fatalf("Cannot get current working directory: %v", err)
 	}
 
 	cmd := fmt.Sprintf("gpg --no-default-keyring --secret-keyring %s/secring.gpg --keyring %s/pubring.gpg --default-key D9DCEF41 --output %s.asc --detach-sig %s",

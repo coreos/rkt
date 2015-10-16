@@ -1,4 +1,80 @@
-### v0.8.1
+## v0.9.0
+
+rkt v0.9.0 is a significant milestone release with a number of internal and user-facing changes.
+
+There are several notable breaking changes from the previous release:
+- The on-disk format for pod trees has changed slightly, meaning that `rkt gc` and `rkt run-prepared` may not work for pods created by previous versions of rkt. To work around this, we recommend removing the pods with an older version of rkt.
+- The `--private-net` flag has been renamed to `--net` and its semantic has changed (in particular, it is now enabled by default) - see below for details.
+- Several changes to CLI output (e.g. column names) from the `rkt list` and `rkt image list` subcommands.
+- The image fetching behaviour has changed, with the introduction of new flags to `rkt run` and `rkt fetch` and the removal of `--local` - see below for details.
+
+#### New features and UX changes
+
+###### `--private-net` --> `--net`, and networking is now private by default
+The `--private-net` flag has been changed to `--net`, and has been now made the default behaviour. (#1532, #1418)
+That is, a `rkt run` command will now by default set up a private network for the pod.
+To achieve the previous default behaviour of the pod sharing the networking namespace of the host, use `--net=host`.
+The flag still allows the specification of multiple networks via CNI plugins, and overriding plugin configuration on a per-network basis.
+For more details, see the [networking documentation](Documentation/networking.md).
+
+###### New image fetching behaviour
+When fetching images during `rkt fetch` or `rkt run`, rkt would previously behave inconsistently for different formats (e.g when performing discovery or when retrieving a Docker image) when deciding whether to use a cached version or not.
+`rkt run` featured a `--local` flag to adjust this behaviour but it provided an unintuitive semantic and was not available to the `rkt fetch` command.
+Instead, rkt now features two new flags, `--store-only` and `--no-store`, on both the `rkt fetch` and `rkt run` commands, to provide more consistent, controllable, and predictable behaviour regarding when images should be retrieved.
+For full details of the new behaviour see the [image fetching documentation](Documentation/image-fetching-behavior.md).
+
+###### Unprivileged users
+A number of changes were made to the permissions of rkt's internal store to facilitate unprivileged users to access information about images and pods on the system (#1542, #1569).
+In particular, the set-group-ID bit is applied to the directories touched by `rkt install` so that the `rkt` group (if it exists on the system) can retain read-access to information about pods and images.
+This will be used by the rkt API service (targeted for the next release) so that it can run as an unprivileged user on the system.
+This support is still considered partially experimental.
+Some tasks like `rkt image gc` remain a root-only operation.
+
+###### /etc/hosts support
+If no `/etc/hosts` exists in an application filesystem at the time it starts running, rkt will now provide a basic default version of this file.
+If rkt detects one already in the app's filesystem (whether through being included in an image, or a volume mounted in), it will make no changes. (#1541)
+
+##### Other new features
+- rkt now supports setting supplementary group IDs on processes (#1514).
+- rkt's use of cgroups has been reworked to facilitate rkt running on a variety of operating systems like Void and older non-systemd distributions (#1437, #1320, #1076, #1042)
+- If `rkt run` is used with an image that does not have an app section, rkt will now create one if the user provides an `--exec` flag (#1427)
+- A new `rkt image gc` command adds initial support for garbage collecting images from the store (#1487). This removes treeStores not referenced by any non-GCed rkt pod.
+- `rkt list` now provides more information including image version and hash (#1559)
+- `rkt image list` output now shows shortened hash identifiers by default, and human readable date formats.
+  To use the previous output format, use the `--full` flag. (#1455)
+- `rkt prepare` gained the `--exec` flag, which restores flag-parity with `rkt run` (#1410)
+- lkvm stage1 backend has experimental support for `rkt enter` (#1303)
+- rkt now supports empty volume types (#1502)
+- An early, experimental read-only API definition has been added (#1359, #1518).
+
+#### Bug fixes
+- Fixed bug in `--stage1-image` option which prevented it from using URLs (#1524)
+- Fixed bug in `rkt trust`'s handling of `--root` (#1494)
+- Fixed bug when decompressing xz-compressed images (#1462, #1224)
+- In earlier versions of rkt, hooks had an implicit timeout of 30 seconds, causing some pre-start jobs which took a long time to be killed. This implicit timeout has been removed. (#1547)
+- When running with the lkvm stage1, rkt now sets `$HOME` if it is not already set, working around a bug in the lkvm tool (#1447, #1393)
+- Fixed bug preventing `run-prepared` from working if the metadata service was not available (#1436)
+
+#### Other changes
+- Bumped appc spec to 0.7.1 (#1543)
+- Bumped CNI and netlink dependencies (#1476)
+- Bumped ioprogress to a version which prevents the download bar from being drawn when rkt is not drawing to a terminal (#1423, #1282)
+- Significantly reworked rkt's internal use of systemd to orchestrate apps, which should facilitate more granular control over pod lifecycles (#1407)
+- Reworked rkt's handling of images with non-deterministically dependencies (#1240, #1198).
+- rkt functional tests now run appc's ACE validator, which should ensure that rkt is always compliant with the specification. (#1473)
+- A swathe of improvements to the build system
+  - `make clean` should now work
+  - Different rkt stage1 images are now built with different names (#1406)
+  - rkt can now build on older Linux distributions (like CentOS 6) (#1529)
+- Various internal improvements to the functional test suite to improve coverage and consolidate code
+- The "ACI" field header in `rkt image` output has been changed to "IMAGE NAME"
+- `rkt image rm` now exits with status 1 on any failure (#1486)
+- Fixed permissions in the default stage1 image (#1503)
+- Added documentation for `prepare` and `run-prepared` subcommands (#1526)
+- rkt should now report more helpful errors when encountering manifests it does not understand (#1471)
+
+
+## v0.8.1
 
 rkt v0.8.1 is an incremental release with numerous bug fixes and clean-up to the build system. It also introduces a few small new features and UX improvements.
 
@@ -27,7 +103,7 @@ rkt v0.8.1 is an incremental release with numerous bug fixes and clean-up to the
   - Countless improvements and cleanup to the build system
   - Numerous documentation improvements, including splitting out all top-level `rkt` subcommands into their own documents
 
-### v0.8.0
+## v0.8.0
 
 rkt 0.8.0 includes support for running containers under an LKVM hypervisor
 and experimental user namespace support.
@@ -55,7 +131,7 @@ Full changelog:
 - Add experimental user namespace support
 - Bugfixes
 
-### v0.7.0
+## v0.7.0
 
 rkt 0.7.0 includes new subcommands for `rkt image` to manipulate images from
 the local store.
@@ -81,7 +157,7 @@ Full changelog:
 - Systemd integration: fix stop bug
 - Tests: Improve tests output
 
-### v0.6.1
+## v0.6.1
 
 The highlight of this release is the support of per-app memory and CPU
 isolators. This means that, in addition to restricting a pod’s CPU and memory
@@ -104,7 +180,7 @@ Full changelog:
 * more functional tests
 * bugfixes
 
-### v0.5.6
+## v0.5.6
 
 rkt 0.5.6 includes better integration with systemd on the host, some minor bug
 fixes and a new ipvlan network plugin.
@@ -123,7 +199,7 @@ fixes and a new ipvlan network plugin.
 - documentation improvements
 
 
-### v0.5.5
+## v0.5.5
 
 rkt 0.5.5 includes a move to [cni](https://github.com/appc/cni) network
 plugins, a number of minor bug fixes and two new experimental commands for
@@ -141,7 +217,7 @@ Full changelog:
   non-root apps, run context, port test, and more
 
 
-### v0.5.4
+## v0.5.4
 
 rkt 0.5.4 introduces a number of new features - repository authentication,
 per-app arguments + local image signature verification, port forwarding and
@@ -184,7 +260,7 @@ Full changelog:
 - added a test-auth-server to facilitate testing of fetching images
 
 
-### v0.5.3
+## v0.5.3
 This release contains minor updates over v0.5.2, notably finalising the move to
 pods in the latest appc spec and becoming completely name consistent on `rkt`.
 - {Container,container} changed globally to {Pod,pod}
@@ -196,7 +272,7 @@ pods in the latest appc spec and becoming completely name consistent on `rkt`.
 - Metadata service properly synchronizes access to pod state
 
 
-### v0.5.2
+## v0.5.2
 
 This release is a minor update over v0.5.1, incorporating several bug fixes and
 a couple of small new features:
@@ -211,7 +287,7 @@ a couple of small new features:
 - images in the cas are now locked at runtime (as described in #460)
 
 
-### v0.5.1
+## v0.5.1
 
 This release updates Rocket to follow the latest version of the appc spec,
 v0.5.1. This involves the major change of moving to _pods_ and _Pod Manifests_
@@ -241,7 +317,7 @@ This release also introduces a number of key features and minor changes:
 - documentation for the metadata service, as well as example systemd unit files
 
 
-### v0.4.2
+## v0.4.2
 
 - First support for interactive containers, with the `rkt run --interactive`
   flag. This is currently only supported if a container has one app. #562 #601 
@@ -253,7 +329,7 @@ This release also introduces a number of key features and minor changes:
 - Bump docker2aci dependency
 
 
-### v0.4.1
+## v0.4.1
 
 This is primarily a bug fix release with the addition of the `rkt install`
 subcommand to help people setup a unprivileged `rkt fetch` based on unix users.
@@ -264,7 +340,7 @@ subcommand to help people setup a unprivileged `rkt fetch` based on unix users.
 - Introduce the `rkt install` subcommand
 
 
-### v0.4.0
+## v0.4.0
 
 This release is mostly a milestone release and syncs up with the latest release
 of the [appc spec](https://github.com/appc/spec/releases/tag/v0.4.0) yesterday.
@@ -287,7 +363,7 @@ Major changes since v0.3.2:
 - Added documentation around networking, container lifecycle, and rkt commands
 
 
-### v0.3.2
+## v0.3.2
 
 This release introduces much improved documentation and a few new features.
 
@@ -318,7 +394,7 @@ they choose (for example, `/usr/lib/rkt/stage1.aci`). For more information, see
 https://github.com/coreos/rocket/pull/520
 
 
-### v0.3.1
+## v0.3.1
 
 The primary motivation for this release is to resynchronise versions with the
 appc spec. To minimise confusion in the short term we intend to keep the
@@ -331,7 +407,7 @@ This release also resolves an upstream bug in the appc discovery code which was
 causing rkt trust to fail in certain cases.
 
 
-### v0.3.0
+## v0.3.0
 
 This is largely a momentum release but it does introduce a few new user-facing
 features and some important changes under the hood which will be of interest to
@@ -367,14 +443,14 @@ that will still need to be done using the included ./build script, or some
 other way for those desiring to use a different stage1.
 
 
-### v0.2.0
+## v0.2.0
 
 This introduces countless features and improvements over v0.1.1. Highlights
 include several new commands (`rkt status`, `rkt enter`, `rkt gc`) and
 signature validation.
 
 
-### v0.1.1
+## v0.1.1
 
 The most significant change in this release is that the spec has been split
 into its own repository (https://github.com/appc/spec), and significantly
@@ -394,13 +470,13 @@ Numerous improvements and fixes over v0.1.0:
   the PID of the process
 
 
-### v0.1.0
+## v0.1.0
 
 - tons of documentation improvements added
 - actool introduced along with documentation
 - image discovery introduced to rkt run and rkt fetch
 
 
-### v0.0.0
+## v0.0.0
 
 Initial release.

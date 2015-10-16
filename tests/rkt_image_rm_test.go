@@ -27,8 +27,8 @@ import (
 )
 
 const (
-	rmImageReferenced = `rkt: imageID %q is referenced by some containers, cannot remove.`
-	rmImageOk         = "rkt: successfully removed aci for imageID:"
+	rmImageReferenced = `rkt: image ID %q is referenced by some containers, cannot remove.`
+	rmImageOk         = "rkt: successfully removed aci for image ID:"
 
 	unreferencedACI = "rkt-unreferencedACI.aci"
 	unreferencedApp = "coreos.com/rkt-unreferenced"
@@ -45,39 +45,27 @@ func TestImageRunRm(t *testing.T) {
 
 	cmd := fmt.Sprintf("%s --insecure-skip-verify fetch %s", ctx.cmd(), imageFile)
 	t.Logf("Fetching %s: %v", imageFile, cmd)
-	child, err := gexpect.Spawn(cmd)
-	if err != nil {
-		t.Fatalf("Cannot exec: %v", err)
-	}
-	if err := child.Wait(); err != nil {
-		t.Fatalf("rkt didn't terminate correctly: %v", err)
-	}
+	spawnAndWaitOrFail(t, cmd, true)
 
 	// at this point we know that RKT_INSPECT_IMAGE env var is not empty
 	referencedACI := os.Getenv("RKT_INSPECT_IMAGE")
 	cmd = fmt.Sprintf("%s --insecure-skip-verify run --mds-register=false %s", ctx.cmd(), referencedACI)
 	t.Logf("Running %s: %v", referencedACI, cmd)
-	child, err = gexpect.Spawn(cmd)
-	if err != nil {
-		t.Fatalf("Cannot exec: %v", err)
-	}
-	if err := child.Wait(); err != nil {
-		t.Fatalf("rkt didn't terminate correctly: %v", err)
-	}
+	spawnAndWaitOrFail(t, cmd, true)
 
-	t.Logf("Retrieving stage1 imageID")
+	t.Logf("Retrieving stage1 image ID")
 	stage1ImageID, err := getImageId(ctx, stage1App)
 	if err != nil {
 		t.Fatalf("rkt didn't terminate correctly: %v", err)
 	}
 
-	t.Logf("Retrieving %s imageID", referencedApp)
+	t.Logf("Retrieving %s image ID", referencedApp)
 	referencedImageID, err := getImageId(ctx, referencedApp)
 	if err != nil {
 		t.Fatalf("rkt didn't terminate correctly: %v", err)
 	}
 
-	t.Logf("Retrieving %s imageID", unreferencedApp)
+	t.Logf("Retrieving %s image ID", unreferencedApp)
 	unreferencedImageID, err := getImageId(ctx, unreferencedApp)
 	if err != nil {
 		t.Fatalf("rkt didn't terminate correctly: %v", err)
@@ -107,13 +95,7 @@ func TestImagePrepareRmRun(t *testing.T) {
 
 	cmd := fmt.Sprintf("%s --insecure-skip-verify fetch %s", ctx.cmd(), imageFile)
 	t.Logf("Fetching %s: %v", imageFile, cmd)
-	child, err := gexpect.Spawn(cmd)
-	if err != nil {
-		t.Fatalf("Cannot exec: %v", err)
-	}
-	if err := child.Wait(); err != nil {
-		t.Fatalf("rkt didn't terminate correctly: %v", err)
-	}
+	spawnAndWaitOrFail(t, cmd, true)
 
 	// at this point we know that RKT_INSPECT_IMAGE env var is not empty
 	referencedACI := os.Getenv("RKT_INSPECT_IMAGE")
@@ -137,13 +119,13 @@ func TestImagePrepareRmRun(t *testing.T) {
 		t.Fatalf("rkt didn't terminate correctly: %v", err)
 	}
 
-	t.Logf("Retrieving %s imageID", referencedApp)
+	t.Logf("Retrieving %s image ID", referencedApp)
 	referencedImageID, err := getImageId(ctx, referencedApp)
 	if err != nil {
 		t.Fatalf("rkt didn't terminate correctly: %v", err)
 	}
 
-	t.Logf("Retrieving %s imageID", unreferencedApp)
+	t.Logf("Retrieving %s image ID", unreferencedApp)
 	unreferencedImageID, err := getImageId(ctx, unreferencedApp)
 	if err != nil {
 		t.Fatalf("rkt didn't terminate correctly: %v", err)
@@ -166,17 +148,11 @@ func TestImagePrepareRmRun(t *testing.T) {
 
 	cmd = fmt.Sprintf("%s run-prepared --mds-register=false %s", ctx.cmd(), podID.String())
 	t.Logf("Running %s: %v", referencedACI, cmd)
-	child, err = gexpect.Spawn(cmd)
-	if err != nil {
-		t.Fatalf("Cannot exec: %v", err)
-	}
-	if err := child.Wait(); err != nil {
-		t.Fatalf("rkt didn't terminate correctly: %v", err)
-	}
+	spawnAndWaitOrFail(t, cmd, true)
 }
 
 func getImageId(ctx *rktRunCtx, name string) (string, error) {
-	cmd := fmt.Sprintf(`/bin/sh -c "%s image list --fields=key,name --no-legend | grep %s | awk '{print $1}'"`, ctx.cmd(), name)
+	cmd := fmt.Sprintf(`/bin/sh -c "%s image list --fields=id,name --no-legend | grep %s | awk '{print $1}'"`, ctx.cmd(), name)
 	child, err := gexpect.Spawn(cmd)
 	if err != nil {
 		return "", fmt.Errorf("Cannot exec rkt: %v", err)

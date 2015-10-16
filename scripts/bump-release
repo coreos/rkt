@@ -16,7 +16,7 @@ fi
 
 function replace_all() {
 	REPLACE=$(sed -e 's/[]\/$*.^|[]/\\&/g'<<< $1)
-	git ls-files | grep -Ev "(CHANGELOG.md|Godeps)" | xargs sed -i -e "s/$REPLACE/$2/g"
+	git ls-files | grep -Ev "(CHANGELOG.md|Godeps)" | xargs sed -i --follow-symlinks -e "s/$REPLACE/$2/g"
 }
 
 function replace_version() {

@@ -15,7 +15,6 @@
 package main
 
 import (
-	"os"
 	"runtime"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
@@ -28,8 +27,6 @@ import (
 const (
 	defaultOS   = runtime.GOOS
 	defaultArch = runtime.GOARCH
-
-	defaultPathPerm os.FileMode = 0777
 )
 
 var (

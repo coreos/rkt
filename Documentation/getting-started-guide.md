@@ -5,7 +5,7 @@ rkt, the reference implementation of the [App Container Specification](https://g
 
 ## Create a hello go application
 
-```
+```go
 package main
 
 import (
@@ -52,7 +52,7 @@ $ ldd hello
 
 Edit: manifest.json
 
-```
+```json
 {
     "acKind": "ImageManifest",
     "acVersion": "0.7.0",

@@ -141,7 +141,7 @@ pubkeys.gpg
 
 Host an HTML page with the following meta tags:
 
-```
+```html
 <!DOCTYPE html>
 <html lang="en">
   <head>

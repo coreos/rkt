@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/coreos/rkt/pkg/lock"
@@ -42,8 +43,8 @@ const (
 	blobType int64 = iota
 	imageManifestType
 
-	defaultPathPerm os.FileMode = 0777
-	defaultFilePerm os.FileMode = 0660
+	defaultPathPerm = os.FileMode(0770 | os.ModeSetgid)
+	defaultFilePerm = os.FileMode(0660)
 
 	// To ameliorate excessively long paths, keys for the (blob)store use
 	// only the first half of a sha512 rather than the entire sum
@@ -63,7 +64,7 @@ var diskvStores = [...]string{
 }
 
 var (
-	ErrKeyNotFound = errors.New("no keys found")
+	ErrKeyNotFound = errors.New("no image IDs found")
 )
 
 // ACINotFoundError is returned when an ACI cannot be found by GetACI
@@ -112,6 +113,11 @@ type Store struct {
 }
 
 func NewStore(baseDir string) (*Store, error) {
+	// We need to allow the store's setgid bits (if any) to propagate, so
+	// disable umask
+	um := syscall.Umask(0)
+	defer syscall.Umask(um)
+
 	storeDir := filepath.Join(baseDir, "cas")
 
 	s := &Store{
@@ -139,6 +145,8 @@ func NewStore(baseDir string) (*Store, error) {
 
 	for i, p := range diskvStores {
 		s.stores[i] = diskv.New(diskv.Options{
+			PathPerm:  defaultPathPerm,
+			FilePerm:  defaultFilePerm,
 			BasePath:  filepath.Join(storeDir, p),
 			Transform: blockTransform,
 		})
@@ -244,7 +252,7 @@ func (s Store) ResolveKey(key string) (string, error) {
 		return "", fmt.Errorf("wrong key prefix")
 	}
 	if len(key) < minlenKey {
-		return "", fmt.Errorf("key too short")
+		return "", fmt.Errorf("image ID too short")
 	}
 	if len(key) > lenKey {
 		key = key[:lenKey]
@@ -265,7 +273,7 @@ func (s Store) ResolveKey(key string) (string, error) {
 		return "", ErrKeyNotFound
 	}
 	if keyCount != 1 {
-		return "", fmt.Errorf("ambiguous key: %q", key)
+		return "", fmt.Errorf("ambiguous image ID: %q", key)
 	}
 	return aciInfos[0].BlobKey, nil
 }
@@ -273,7 +281,7 @@ func (s Store) ResolveKey(key string) (string, error) {
 func (s Store) ReadStream(key string) (io.ReadCloser, error) {
 	key, err := s.ResolveKey(key)
 	if err != nil {
-		return nil, fmt.Errorf("error resolving key: %v", err)
+		return nil, fmt.Errorf("error resolving image ID: %v", err)
 	}
 	keyLock, err := lock.SharedKeyLock(s.imageLockDir, key)
 	if err != nil {
@@ -290,6 +298,11 @@ func (s Store) ReadStream(key string) (io.ReadCloser, error) {
 // latest defines if the aci has to be marked as the latest. For example an ACI
 // discovered without asking for a specific version (latest pattern).
 func (s Store) WriteACI(r io.ReadSeeker, latest bool) (string, error) {
+	// We need to allow the store's setgid bits (if any) to propagate, so
+	// disable umask
+	um := syscall.Umask(0)
+	defer syscall.Umask(um)
+
 	dr, err := aci.NewCompressedReader(r)
 	if err != nil {
 		return "", fmt.Errorf("error decompressing image: %v", err)
@@ -367,6 +380,23 @@ func (ds Store) RemoveACI(key string) error {
 	}
 	defer imageKeyLock.Close()
 
+	// Try to see if we are the owner of the images, if not, returns not enough permission error.
+	for _, s := range ds.stores {
+		// XXX: The construction of 'path' depends on the implementation of diskv.
+		path := filepath.Join(s.BasePath, filepath.Join(s.Transform(key)...))
+		fi, err := os.Stat(path)
+		if err != nil {
+			return fmt.Errorf("cannot get the stat of the image directory: %v", err)
+		}
+
+		uid := os.Getuid()
+		dirUid := int(fi.Sys().(*syscall.Stat_t).Uid)
+
+		if uid != dirUid && uid != 0 {
+			return fmt.Errorf("permission denied, are you root or the owner of the image?")
+		}
+	}
+
 	// Firstly remove aciinfo and remote from the db in an unique transaction.
 	// remote needs to be removed or a GetRemote will return a blobKey not
 	// referenced by any ACIInfo.
@@ -386,7 +416,7 @@ func (ds Store) RemoveACI(key string) error {
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("cannot remove image with key: %s from db: %v", key, err)
+		return fmt.Errorf("cannot remove image with ID: %s from db: %v", key, err)
 	}
 
 	// Then remove non transactional entries from the blob, imageManifest
@@ -556,7 +586,7 @@ func (s Store) WriteRemote(remote *Remote) error {
 func (s Store) GetImageManifestJSON(key string) ([]byte, error) {
 	key, err := s.ResolveKey(key)
 	if err != nil {
-		return nil, fmt.Errorf("error resolving key: %v", err)
+		return nil, fmt.Errorf("error resolving image ID: %v", err)
 	}
 	keyLock, err := lock.SharedKeyLock(s.imageLockDir, key)
 	if err != nil {
@@ -682,7 +712,7 @@ func (s Store) Dump(hex bool) {
 			fmt.Printf("%s/%s: %s\n", s.BasePath, key, out)
 			keyCount++
 		}
-		fmt.Printf("%d total keys\n", keyCount)
+		fmt.Printf("%d total image ID(s)\n", keyCount)
 	}
 }
 

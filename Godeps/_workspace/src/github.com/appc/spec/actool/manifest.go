@@ -25,6 +25,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/aci"
@@ -36,18 +37,19 @@ var (
 	inputFile  string
 	outputFile string
 
-	patchNocompress   bool
-	patchOverwrite    bool
-	patchReplace      bool
-	patchManifestFile string
-	patchName         string
-	patchExec         string
-	patchUser         string
-	patchGroup        string
-	patchCaps         string
-	patchMounts       string
-	patchPorts        string
-	patchIsolators    string
+	patchNocompress        bool
+	patchOverwrite         bool
+	patchReplace           bool
+	patchManifestFile      string
+	patchName              string
+	patchExec              string
+	patchUser              string
+	patchGroup             string
+	patchSupplementaryGIDs string
+	patchCaps              string
+	patchMounts            string
+	patchPorts             string
+	patchIsolators         string
 
 	catPrettyPrint bool
 
@@ -63,6 +65,7 @@ var (
 		  [--capability=CAP_SYS_ADMIN,CAP_NET_ADMIN]
 		  [--mounts=work,path=/opt,readOnly=true[:work2,...]]
 		  [--ports=query,protocol=tcp,port=8080[:query2,...]]
+		  [--supplementary-groups=gid1,gid2,...]
 		  [--isolators=resource/cpu,request=50m,limit=100m[:resource/memory,...]]
 		  [--replace]
 		  INPUT_ACI_FILE
@@ -88,6 +91,7 @@ func init() {
 	cmdPatchManifest.Flags.StringVar(&patchExec, "exec", "", "Replace the command line to launch the executable")
 	cmdPatchManifest.Flags.StringVar(&patchUser, "user", "", "Replace user")
 	cmdPatchManifest.Flags.StringVar(&patchGroup, "group", "", "Replace group")
+	cmdPatchManifest.Flags.StringVar(&patchSupplementaryGIDs, "supplementary-groups", "", "Replace supplementary groups, expects a comma-separated list.")
 	cmdPatchManifest.Flags.StringVar(&patchCaps, "capability", "", "Replace capability")
 	cmdPatchManifest.Flags.StringVar(&patchMounts, "mounts", "", "Replace mount points")
 	cmdPatchManifest.Flags.StringVar(&patchPorts, "ports", "", "Replace ports")
@@ -157,7 +161,7 @@ func patchManifest(im *schema.ImageManifest) error {
 		app.Exec = strings.Split(patchExec, " ")
 	}
 
-	if patchUser != "" || patchGroup != "" || patchCaps != "" || patchMounts != "" || patchPorts != "" || patchIsolators != "" {
+	if patchUser != "" || patchGroup != "" || patchSupplementaryGIDs != "" || patchCaps != "" || patchMounts != "" || patchPorts != "" || patchIsolators != "" {
 		// ...but if we still don't have an app and the user is trying
 		// to patch one of its other parameters, it's an error
 		if app == nil {
@@ -171,6 +175,18 @@ func patchManifest(im *schema.ImageManifest) error {
 
 	if patchGroup != "" {
 		app.Group = patchGroup
+	}
+
+	if patchSupplementaryGIDs != "" {
+		app.SupplementaryGIDs = []int{}
+		gids := strings.Split(patchSupplementaryGIDs, ",")
+		for _, g := range gids {
+			gid, err := strconv.Atoi(g)
+			if err != nil {
+				return fmt.Errorf("invalid supplementary group %q: %v", g, err)
+			}
+			app.SupplementaryGIDs = append(app.SupplementaryGIDs, gid)
+		}
 	}
 
 	if patchCaps != "" {

@@ -82,12 +82,12 @@ func kvmSetupNetAddressing(network *Networking, n activeNet, ifName string) erro
 // kvmSetup prepare new Networking to be used in kvm environment based on tuntap pair interfaces
 // to allow communication with virtual machine created by lkvm tool
 // right now it only supports default "ptp" network type (other types ends with error)
-func kvmSetup(podRoot string, podID types.UUID, fps []ForwardedPort, privateNetList common.PrivateNetList, localConfig string) (*Networking, error) {
+func kvmSetup(podRoot string, podID types.UUID, fps []ForwardedPort, netList common.NetList, localConfig string) (*Networking, error) {
 	network := Networking{
 		podEnv: podEnv{
 			podRoot:      podRoot,
 			podID:        podID,
-			netsLoadList: privateNetList,
+			netsLoadList: netList,
 			localConfig:  localConfig,
 		},
 	}

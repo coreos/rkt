@@ -74,8 +74,9 @@ func gcTreeStore(s *store.Store) error {
 		if _, ok := referencedTreeStoreIDs[treeStoreID]; !ok {
 			if err := s.RemoveTreeStore(treeStoreID); err != nil {
 				stderr("rkt: error removing treestore %q: %v", treeStoreID, err)
+			} else {
+				stderr("rkt: removed treestore %q", treeStoreID)
 			}
-			stderr("rkt: removed treestore %q", treeStoreID)
 		}
 	}
 	return nil

@@ -22,7 +22,7 @@ rkt's native image format ([ACI](Documentation/app-container.md#ACI)) and runtim
 
 ## Project status
 
-rkt is at an early stage and under active development. We do not recommend its use in production, but we encourage you to try out rkt and provide feedback via issues and pull requests.
+rkt is maturing rapidly while under active development, and its interfaces are not yet considered stable. We do not recommend its use in production, but we encourage you to try out rkt and provide feedback via issues and pull requests.
 
 Check out the [roadmap](ROADMAP.md) for more details on the future of rkt.
 
@@ -35,9 +35,9 @@ Check out the [roadmap](ROADMAP.md) for more details on the future of rkt.
 To download the `rkt` binary, simply grab the latest release directly from GitHub:
 
 ```
-wget https://github.com/coreos/rkt/releases/download/v0.8.1/rkt-v0.8.1.tar.gz
-tar xzvf rkt-v0.8.1.tar.gz
-cd rkt-v0.8.1
+wget https://github.com/coreos/rkt/releases/download/v0.9.0/rkt-v0.9.0.tar.gz
+tar xzvf rkt-v0.9.0.tar.gz
+cd rkt-v0.9.0
 ./rkt help
 ```
 

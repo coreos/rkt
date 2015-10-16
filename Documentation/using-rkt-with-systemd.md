@@ -108,7 +108,7 @@ Environment=TMPDIR=/var/tmp
 # Fetch the app (not strictly required, `rkt run` will fetch the image if there is not one)
 ExecStartPre=/usr/bin/rkt fetch myapp.com/myapp-1.3.4
 # Start the app
-ExecStart=/usr/bin/rkt run --inherit-env --private-net --port=http:8888 myapp.com/myapp-1.3.4
+ExecStart=/usr/bin/rkt run --inherit-env --port=http:8888 myapp.com/myapp-1.3.4
 KillMode=mixed
 Restart=always
 ```
@@ -121,7 +121,7 @@ Note that your application needs to be able to accept sockets from systemd's nat
 
 To make socket activation work, you need to add to your application manifest a [socket-activated port](https://github.com/appc/spec/blob/master/spec/aci.md#image-manifest-schema):
 
-```
+```json
 ...
 {
 ...

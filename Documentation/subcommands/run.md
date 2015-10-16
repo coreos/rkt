@@ -3,6 +3,7 @@
 ## Image Addressing
 
 Images can be run by either their name, their hash, an explicit transport address, or a Docker registry URL.
+rkt will automatically [fetch](fetch.md) them if they're not present in the local store.
 
 ```
 # Run by name
@@ -27,7 +28,7 @@ Images can be run by either their name, their hash, an explicit transport addres
 ## Overriding Executable to launch
 
 Application images include an `exec` field that specifies the executable to launch.
-This executable can be overriden by rkt using the `--exec` flag:
+This executable can be overridden by rkt using the `--exec` flag:
 
 ```
 # rkt --insecure-skip-verify run docker://busybox --exec /bin/date
@@ -98,7 +99,7 @@ We also want this data to be available to a backup application that runs alongsi
 
 Below we show the abbreviated manifests for the respective applications (recall that the manifest is bundled into the application's ACI):
 
-```
+```json
 {
     "acKind": "ImageManifest",
     "name": "example.com/reduce-worker",
@@ -116,7 +117,7 @@ Below we show the abbreviated manifests for the respective applications (recall 
 }
 ```
 
-```
+```json
 {
     "acKind": "ImageManifest",
     "name": "example.com/worker-backup",
@@ -153,26 +154,25 @@ Now when the pod is running, the two apps will see the host's `/opt/tenant1/work
 By default, `rkt run` will register the pod with the [metadata service](https://github.com/coreos/rkt/blob/master/Documentation/subcommands/metadata-service.md).
 If the metadata service is not running, it is possible to disable this behavior with `--register-mds=false` command line option.
 
-## Customize Networking
+## Pod Networking
 
-The default networking configuration for rkt is "host networking".
-This means that the apps within the pod will share the network stack and the interfaces with the host machine.
+The `run` subcommand features the `--net` argument which takes options to configure the pod's network.
 
-### Private Networking
+### Default contained networking
 
-Another common configuration, "private networking", means the pod will be executed with its own network stack.
-This is similar to how other container tools work.
+When the argument is not given, `--net=default` is automatically assumed and the default contained network network will be loaded.
 
-By default, rkt private networking will create a loopback device and a veth device.
-The veth pair creates a point-to-point link between the pod and the host.
-rkt will allocate an IPv4 /31 (2 IP addresses) out of 172.16.28.0/24 and assign one IP to each end of the veth pair.
-It will additionally set a default route in the pod namespace.
-Finally, it will enable IP masquerading on the host to NAT the egress traffic.
+### Host networking
+
+Simplified, with `--net=host` the apps within the pod will share the network stack and the interfaces with the host machine.
 
 ```
-# rkt run --private-net coreos.com/etcd:v2.0.0
+# rkt run --net=host coreos.com/etcd:v2.0.0
 ```
+
+Strictly seen, this is only true when `rkt run` is invoked on the host directly, because the network stack will be inherited from the process that is invoking the `rkt run` command.
+
 
 ### Other Networking Examples
 
-Additional networking modes and more examples can be found in the [networking documentation](https://github.com/coreos/rkt/blob/master/Documentation/networking.md)
+More details about rkt's networking options and examples can be found in the [networking documentation](https://github.com/coreos/rkt/blob/master/Documentation/networking.md)

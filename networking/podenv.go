@@ -47,7 +47,7 @@ const (
 type podEnv struct {
 	podRoot      string
 	podID        types.UUID
-	netsLoadList common.PrivateNetList
+	netsLoadList common.NetList
 	localConfig  string
 }
 
@@ -217,7 +217,7 @@ func copyFileToDir(src, dstdir string) (string, error) {
 	return dst, err
 }
 
-func loadUserNets(localConfig string, netsLoadList common.PrivateNetList) ([]activeNet, error) {
+func loadUserNets(localConfig string, netsLoadList common.NetList) ([]activeNet, error) {
 	userNetPath := filepath.Join(localConfig, UserNetPathSuffix)
 	log.Printf("Loading networks from %v\n", userNetPath)
 
@@ -246,9 +246,9 @@ func loadUserNets(localConfig string, netsLoadList common.PrivateNetList) ([]act
 			continue
 		}
 
-		// "default" is slightly special
-		if n.conf.Name == "default" {
-			log.Printf(`Overriding "default" network with %v`, filename)
+		if n.conf.Name == "default" ||
+			n.conf.Name == "default-restricted" {
+			log.Printf(`Overriding %q network with %v`, n.conf.Name, filename)
 		}
 
 		if netExists(nets, n.conf.Name) {
@@ -264,7 +264,7 @@ func loadUserNets(localConfig string, netsLoadList common.PrivateNetList) ([]act
 	return nets, nil
 }
 
-func missingNets(defined common.PrivateNetList, loaded []activeNet) []string {
+func missingNets(defined common.NetList, loaded []activeNet) []string {
 	diff := make(map[string]struct{})
 	for _, n := range defined.StringsOnlyNames() {
 		if n != "all" {

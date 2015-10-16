@@ -22,8 +22,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/steveeJ/gexpect"
 )
 
 var volTests = []struct {
@@ -99,22 +97,13 @@ func TestVolumes(t *testing.T) {
 		cmd = strings.Replace(cmd, "^VOL_RW_READ_FILE^", volRwReadFileImage, -1)
 		cmd = strings.Replace(cmd, "^VOL_RW_WRITE_FILE^", volRwWriteFileImage, -1)
 
-		t.Logf("Running test #%v: %v", i, cmd)
+		t.Logf("Running test #%v", i)
+		child := spawnOrFail(t, cmd)
+		defer waitOrFail(t, child, true)
 
-		child, err := gexpect.Spawn(cmd)
-		if err != nil {
-			t.Fatalf("Cannot exec rkt #%v: %v", i, err)
-		}
-
-		err = expectTimeoutWithOutput(child, tt.expect, time.Minute)
-		if err != nil {
+		if err := expectTimeoutWithOutput(child, tt.expect, time.Minute); err != nil {
 			fmt.Printf("Command: %s\n", cmd)
 			t.Fatalf("Expected %q but not found #%v: %v", tt.expect, i, err)
-		}
-
-		err = child.Wait()
-		if err != nil {
-			t.Fatalf("rkt didn't terminate correctly: %v", err)
 		}
 	}
 }

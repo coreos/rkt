@@ -182,9 +182,8 @@ func DiscoverWalk(app App, insecure bool, discoverFn DiscoverWalkFunc) (err erro
 		pre := strings.Join(parts[:end], "/")
 
 		eps, err = doDiscover(pre, app, insecure)
-		derr := discoverFn(pre, eps, err)
-		if derr != nil {
-			return err
+		if derr := discoverFn(pre, eps, err); derr != nil {
+			return derr
 		}
 	}
 

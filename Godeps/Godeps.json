@@ -1,15 +1,10 @@
 {
 	"ImportPath": "github.com/coreos/rkt",
-	"GoVersion": "go1.4",
+	"GoVersion": "go1.4.2",
 	"Packages": [
 		"./..."
 	],
 	"Deps": [
-		{
-			"ImportPath": "github.com/GoogleCloudPlatform/kubernetes/pkg/api/resource",
-			"Comment": "v0.12.0-270-g53ec66c",
-			"Rev": "53ec66caf4e952a1384ec93b9f0cde37616e4caf"
-		},
 		{
 			"ImportPath": "github.com/appc/cni/pkg/invoke",
 			"Comment": "v0.1.0-35-g5b7aa09",
@@ -85,47 +80,47 @@
 		},
 		{
 			"ImportPath": "github.com/appc/goaci/proj2aci",
-			"Rev": "333820b419dc7930374b38e40660a45156a7b4c8"
+			"Rev": "f8124610a7fb34aa80e8cdf02361180b524193d6"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/ace",
-			"Comment": "v0.7.0",
-			"Rev": "579892dede84d04e54945c949be834e4facd7a0a"
+			"Comment": "v0.7.1",
+			"Rev": "818ac4d0073424f4e0a46f45abaa147ccc1b5a24"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/aci",
-			"Comment": "v0.7.0",
-			"Rev": "579892dede84d04e54945c949be834e4facd7a0a"
+			"Comment": "v0.7.1",
+			"Rev": "818ac4d0073424f4e0a46f45abaa147ccc1b5a24"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/actool",
-			"Comment": "v0.7.0",
-			"Rev": "579892dede84d04e54945c949be834e4facd7a0a"
+			"Comment": "v0.7.1",
+			"Rev": "818ac4d0073424f4e0a46f45abaa147ccc1b5a24"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/discovery",
-			"Comment": "v0.7.0",
-			"Rev": "579892dede84d04e54945c949be834e4facd7a0a"
+			"Comment": "v0.7.1",
+			"Rev": "818ac4d0073424f4e0a46f45abaa147ccc1b5a24"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/pkg/acirenderer",
-			"Comment": "v0.7.0",
-			"Rev": "579892dede84d04e54945c949be834e4facd7a0a"
+			"Comment": "v0.7.1",
+			"Rev": "818ac4d0073424f4e0a46f45abaa147ccc1b5a24"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/pkg/device",
-			"Comment": "v0.7.0",
-			"Rev": "579892dede84d04e54945c949be834e4facd7a0a"
+			"Comment": "v0.7.1",
+			"Rev": "818ac4d0073424f4e0a46f45abaa147ccc1b5a24"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/pkg/tarheader",
-			"Comment": "v0.7.0",
-			"Rev": "579892dede84d04e54945c949be834e4facd7a0a"
+			"Comment": "v0.7.1",
+			"Rev": "818ac4d0073424f4e0a46f45abaa147ccc1b5a24"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/schema",
-			"Comment": "v0.7.0",
-			"Rev": "579892dede84d04e54945c949be834e4facd7a0a"
+			"Comment": "v0.7.1",
+			"Rev": "818ac4d0073424f4e0a46f45abaa147ccc1b5a24"
 		},
 		{
 			"ImportPath": "github.com/bradfitz/http2",
@@ -246,8 +241,8 @@
 		},
 		{
 			"ImportPath": "github.com/kr/pty",
-			"Comment": "release.r56-25-g05017fc",
-			"Rev": "05017fcccf23c823bfdea560dcc958a136e54fb7"
+			"Comment": "release.r56-29-gf7ee69f31298",
+			"Rev": "f7ee69f31298ecbe5d2b349c711e2547a617d398"
 		},
 		{
 			"ImportPath": "github.com/pborman/uuid",
