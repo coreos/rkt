@@ -177,10 +177,10 @@ $(strip \
 	$(eval _MISC_GFD_ESCAPED_SRCDIR := $(subst /,\/,$(_MISC_GFD_ESCAPED_SRCDIR))) \
 	$(eval _MISC_GFD_SPACE_ :=) \
 	$(eval _MISC_GFD_SPACE_ +=) \
-	$(eval _MISC_GFD_FILES_ := $(shell $(GO_ENV) "$(GO)" list -f '{{.ImportPath}} {{.$2}}' $1 | \
+	$(eval _MISC_GFD_FILES_ := $(shell $$(GO_ENV) "$$(GO)" list -f '{{.ImportPath}} {{.$$2}}' $$1 | \
 		grep --invert-match '\[\]' | \
-		sed -e 's/.*$(_MISC_GFD_ESCAPED_SRCDIR)\///' -e 's/[[:space:]]*\[.*\]$$//' \
-		$(if $3,| grep --invert-match '^\($(subst $(_MISC_GFD_SPACE_),\|,$3)\)'))) \
+		sed -e 's/.*$$(_MISC_GFD_ESCAPED_SRCDIR)\///' -e 's/[[:space:]]*\[.*\]$$//' \
+		$(if $$3,| grep --invert-match '^\($(subst $(_MISC_GFD_SPACE_),\|,$$3)\)'))) \
 	$(_MISC_GFD_FILES_) \
 	$(call undefine-namespaces,_MISC_GFD))
 endef
