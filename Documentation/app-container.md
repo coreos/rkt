@@ -6,7 +6,10 @@ rkt's native [image format](#aci) and [runtime environment](#pods) are those def
 
 ## ACI
 
-The image format defined by appc and used in rkt is the [_Application Container Image_][appc-aci], or ACI. An ACI is a simple tarball bundle of a rootfs (containing all the files needed to execute an application) and an _Image Manifest_, which defines things like default execution parameters and default resource constraints. ACIs can be built with tools like [`actool`](https://github.com/appc/spec#building-acis) or [`goaci`](https://github.com/appc/goaci). Docker images can be converted to ACI using [`docker2aci`](https://github.com/appc/docker2aci), although rkt will [do this automatically](https://github.com/coreos/rkt/blob/master/Documentation/running-docker-images.md).
+The image format defined by appc and used in rkt is the [_Application Container Image_][appc-aci], or ACI.
+An ACI is a simple tarball bundle of a rootfs (containing all the files needed to execute an application) and an _Image Manifest_, which defines things like default execution parameters and default resource constraints.
+ACIs can be built with tools like [`acbuild`](https://github.com/appc/acbuild), [`actool`](https://github.com/appc/spec#building-acis), or [`goaci`](https://github.com/appc/goaci).
+Docker images can be converted to ACI using [`docker2aci`](https://github.com/appc/docker2aci), although rkt will [do this automatically](https://github.com/coreos/rkt/blob/master/Documentation/running-docker-images.md).
 
 Most parameters defined in an image can be overridden at runtime by rkt. For example, the `rkt run` command allows users to supply custom exec arguments to an image.
 

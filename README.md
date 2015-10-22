@@ -58,7 +58,7 @@ Keep in mind while running through the examples that right now `rkt` needs to be
 ### Building App Container Images (ACIs)
 
 rkt's native image format is ACI, defined in the [App Container spec](Documentation/app-container.md).
-To build ACIs, a simple way to get started is by using [`actool`](https://github.com/appc/spec/#working-with-the-spec).
+To build ACIs, a simple way to get started is by using [`acbuild`](https://github.com/appc/acbuild).
 Another good resource is the [appc build repository](https://github.com/appc/build-repository) which has resources for building ACIs from a number of popular projects and languages.
 There are also tools for converting [Docker images to ACIs](https://github.com/appc/docker2aci) (although note that rkt can [also run Docker images natively](Documentation/running-docker-images.md) directly from Docker repositories by using this library internally).
 

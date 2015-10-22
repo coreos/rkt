@@ -28,7 +28,7 @@ func main() {
 Next we need to build our application. We are going to statically link our app
 so we can ship an App Container Image with no external dependencies.
 
-With Go 1.3:
+With Go 1.3 or 1.5:
 
 ```
 $ CGO_ENABLED=0 GOOS=linux go build -o hello -a -tags netgo -ldflags '-w' .
@@ -49,87 +49,29 @@ $ ldd hello
 	not a dynamic executable
 ```
 
-## Create the image manifest
+## Create the image
 
-Edit: manifest.json
+To create the image, we can use `acbuild`, which can be downloaded via one of
+the [releases in the acbuild
+repository](https://github.com/appc/acbuild/releases)
 
-```json
-{
-    "acKind": "ImageManifest",
-    "acVersion": "0.7.0",
-    "name": "example.com/hello",
-    "labels": [
-        {
-            "name": "version",
-            "value": "0.0.1"
-        },
-        {
-            "name": "arch",
-            "value": "amd64"
-        },
-        {
-            "name": "os",
-            "value": "linux"
-        }
-    ],
-    "app": {
-        "user": "root",
-        "group": "root",
-        "exec": [
-            "/bin/hello"
-        ],
-        "ports": [
-            {
-                "name": "www",
-                "protocol": "tcp",
-                "port": 5000
-            }
-        ]
-    },
-    "annotations": [
-        {
-            "name": "authors",
-            "value": "Kelsey Hightower <kelsey.hightower@gmail.com>"
-        }
-    ]
-}
-```
+The following commands (run as root) will create an ACI containing our
+application and important metadata.
 
-### Validate the image manifest
+```bash
+acbuild begin
+acbuild set-name example.com/hello
+acbuild copy hello /bin/hello
+acbuild set-exec /bin/hello
+acbuild port add www tcp 5000
 
-To validate the manifest, we can use `actool`, which is currently provided in [releases in the App Container repository](https://github.com/appc/spec/releases).
+acbuild label add version 0.0.1
+acbuild label add arch amd64
+acbuild label add os linux
+acbuild annotation add authors "Kelsey Hightower <kelsey.hightower@gmail.com>"
 
-```
-$ actool --debug validate manifest.json
-manifest.json: valid ImageManifest
-```
-
-## Create the layout and the rootfs
-
-```
-$ mkdir hello-layout/
-$ mkdir hello-layout/rootfs
-$ mkdir hello-layout/rootfs/bin
-```
-
-Copy the image manifest and `hello` binary into the layout:
-
-```
-$ cp manifest.json hello-layout/manifest
-$ cp hello hello-layout/rootfs/bin/
-```
-
-## Build the application image
-
-```
-$ actool build hello-layout/ hello-0.0.1-linux-amd64.aci
-```
-
-### Validate the application image
-
-```
-$ actool --debug validate hello-0.0.1-linux-amd64.aci
-hello-0.0.1-linux-amd64.aci: valid app container image
+acbuild write hello-0.0.1-linux-amd64.aci
+acbuild end
 ```
 
 ## Run
