@@ -1,3 +1,32 @@
+## v0.10.0
+
+rkt v0.10.0 is an incremental release with numerous bug fixes and a few small new features and UX improvements.
+
+#### New features and UX changes
+
+- rkt/api_service: add implementation for basic api service interfaces. (#1508)
+- mount arbitrary volumes with `--inject-volume` (#1582)
+- `--net=none` only exposes the loopback interface (#1635)
+- better formating for rkt help (#1597)
+- metadata service disabled by default (#1635)
+
+#### Improved documentation
+- [compare rkt and other projects](https://github.com/coreos/rkt/blob/master/Documentation/rkt-vs-other-projects.md) (#1588)
+- [Stage 1 systemd Architecture](https://github.com/coreos/rkt/blob/master/Documentation/devel/architecture.md) (#1631)
+- [packaging rkt in Linux distributions](https://github.com/coreos/rkt/blob/master/Documentation/packaging.md) (#1511)
+
+#### Improved testing
+- new test for user namespaces (`--private-users`) (#1580)
+- fix races in tests (#1608)
+
+#### Bug fixes
+- suppress unnecessary output when `--debug` is not used (#1557)
+- fix permission of rootfs with overlayfs (#1607)
+- allow relative path in parameters (#1615)
+- fix pod garbage collect failure in some cases (#1621)
+- fix `rkt list` when an image was removed (#1655)
+- user namespace (`--private-users`) regression with rkt group fixed (1654)
+
 ## v0.9.0
 
 rkt v0.9.0 is a significant milestone release with a number of internal and user-facing changes.
