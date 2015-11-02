@@ -74,8 +74,11 @@ func RandomVethName() (string, error) {
 		return "", fmt.Errorf("failed to generate random veth name: %v", err)
 	}
 
-	// NetworkManager (recent versions) will ignore veth devices that start with "veth"
-	return fmt.Sprintf("veth%x", entropy), nil
+	// NetworkManager (recent versions) will ignore veth devices. It is
+	// matching them with the driver name, not the iface name:
+	// ENV{ID_NET_DRIVER}=="veth"
+	// http://cgit.freedesktop.org/NetworkManager/NetworkManager/tree/data/85-nm-unmanaged.rules
+	return fmt.Sprintf("cni-%x", entropy), nil
 }
 
 // SetupVeth sets up a virtual ethernet link.
