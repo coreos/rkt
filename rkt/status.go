@@ -80,7 +80,7 @@ func printStatus(p *pod) error {
 		stdout("networks=%s", fmtNets(p.nets))
 	}
 
-	if !p.isEmbryo && !p.isPreparing && !p.isPrepared && !p.isAbortedPrepare && !p.isGarbage && !p.isGone {
+	if p.isExited || p.isExitedGarbage || p.isExitedDeleting {
 		pid, err := p.getPID()
 		if err != nil {
 			return err
@@ -91,7 +91,7 @@ func printStatus(p *pod) error {
 			return err
 		}
 
-		stdout("pid=%d\nexited=%t", pid, p.isExited)
+		stdout("pid=%d", pid)
 		for app, stat := range stats {
 			stdout("app-%s=%d", app, stat)
 		}
