@@ -444,18 +444,13 @@ func testNetCustomDual(t *testing.T, nt networkTemplateT) {
 		child := ga.SpawnOrFail(cmd)
 		defer ga.WaitOrFail(child)
 
-		expectedRegex := `IPv4: (\d+\.\d+\.\d+\.\d+)`
-		result, out, err := expectRegexTimeoutWithOutput(child, expectedRegex, 30*time.Second)
+		expectedRegex := `IPv4: (\d+\.\d+\.\d+\.\d+).*\n.*(rkt-.*): serving on`
+		result, out, err := expectRegexWithOutput(child, expectedRegex)
 		if err != nil {
 			ga.Fatalf("Error: %v\nOutput: %v", err, out)
 		}
 		container1IPv4 <- result[1]
-		expectedRegex = `(rkt-.*): serving on`
-		result, out, err = expectRegexTimeoutWithOutput(child, expectedRegex, 30*time.Second)
-		if err != nil {
-			ga.Fatalf("Error: %v\nOutput: %v", err, out)
-		}
-		container1Hostname <- result[1]
+		container1Hostname <- result[2]
 	}()
 
 	go func() {
