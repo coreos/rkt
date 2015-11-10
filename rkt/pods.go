@@ -800,6 +800,9 @@ func getChildPID(ppid int) (int, error) {
 
 // getPID returns the pid of the stage1 process that started the pod.
 func (p *pod) getPID() (int, error) {
+	if !p.isRunning() {
+		return -1, nil
+	}
 	pid, err := p.readIntFromFile("ppid")
 	if err != nil {
 		return -1, err
