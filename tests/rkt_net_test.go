@@ -381,7 +381,7 @@ func TestNetTemplates(t *testing.T) {
 		Type: "ptp",
 		Ipam: ipamTemplateT{
 			Type:   "host-local",
-			Subnet: "10.1.3.0/24",
+			Subnet: "10.244.3.0/24",
 			Routes: []map[string]string{{"dst": "0.0.0.0/0"}},
 		},
 	}
@@ -390,7 +390,7 @@ func TestNetTemplates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-	expected := `{"Name":"ptp0","Type":"ptp","IpMasq":false,"IsGateway":false,"Ipam":{"Type":"host-local","subnet":"10.1.3.0/24","routes":[{"dst":"0.0.0.0/0"}]}}`
+	expected := `{"Name":"ptp0","Type":"ptp","IpMasq":false,"IsGateway":false,"Ipam":{"Type":"host-local","subnet":"10.244.3.0/24","routes":[{"dst":"0.0.0.0/0"}]}}`
 	if string(b) != expected {
 		t.Fatalf("Template extected:\n%v\ngot:\n%v\n", expected, string(b))
 	}
@@ -564,7 +564,7 @@ func TestNetCustomPtp(t *testing.T) {
 		IpMasq: true,
 		Ipam: ipamTemplateT{
 			Type:   "host-local",
-			Subnet: "10.1.1.0/24",
+			Subnet: "10.244.1.0/24",
 			Routes: []map[string]string{
 				{"dst": "0.0.0.0/0"},
 			},
@@ -589,7 +589,7 @@ func TestNetCustomMacvlan(t *testing.T) {
 		Master: iface.Name,
 		Ipam: ipamTemplateT{
 			Type:   "host-local",
-			Subnet: "10.1.2.0/24",
+			Subnet: "10.244.2.0/24",
 		},
 	}
 	testNetCustomDual(t, nt)
@@ -612,7 +612,7 @@ func TestNetCustomBridge(t *testing.T) {
 		Master:    iface.Name,
 		Ipam: ipamTemplateT{
 			Type:   "host-local",
-			Subnet: "10.1.3.0/24",
+			Subnet: "10.244.3.0/24",
 			Routes: []map[string]string{
 				{"dst": "0.0.0.0/0"},
 			},
@@ -640,7 +640,7 @@ func TestNetOverride(t *testing.T) {
 		Master: iface.Name,
 		Ipam: ipamTemplateT{
 			Type:   "host-local",
-			Subnet: "10.1.4.0/24",
+			Subnet: "10.244.4.0/24",
 		},
 	}
 
@@ -651,7 +651,7 @@ func TestNetOverride(t *testing.T) {
 	testImage := patchTestACI("rkt-inspect-networking1.aci", testImageArgs...)
 	defer os.Remove(testImage)
 
-	expectedIP := "10.1.4.244"
+	expectedIP := "10.244.4.244"
 
 	cmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --net=all --net=\"%s:IP=%s\" --mds-register=false %s", ctx.Cmd(), nt.Name, expectedIP, testImage)
 	child := spawnOrFail(t, cmd)
