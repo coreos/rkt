@@ -850,11 +850,11 @@ func discoverApp(app *discovery.App, insecure bool) (*discovery.Endpoints, error
 func getStoreKeyFromApp(s *store.Store, img string) (string, error) {
 	app, err := discovery.NewAppFromString(img)
 	if err != nil {
-		return "", fmt.Errorf("cannot parse the image name: %v", err)
+		return "", fmt.Errorf("cannot parse the image name %q: %v", img, err)
 	}
 	labels, err := types.LabelsFromMap(app.Labels)
 	if err != nil {
-		return "", fmt.Errorf("invalid labels in the name: %v", err)
+		return "", fmt.Errorf("invalid labels in the image %q: %v", img, err)
 	}
 	key, err := s.GetACI(app.Name, labels)
 	if err != nil {
@@ -862,7 +862,7 @@ func getStoreKeyFromApp(s *store.Store, img string) (string, error) {
 		case store.ACINotFoundError:
 			return "", err
 		default:
-			return "", fmt.Errorf("cannot find image: %v", err)
+			return "", fmt.Errorf("cannot find image %q: %v", img, err)
 		}
 	}
 	return key, nil

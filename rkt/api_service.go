@@ -283,20 +283,6 @@ func getApplist(p *pod) ([]*v1alpha.App, error) {
 	return apps, nil
 }
 
-// getPodPid returns the pid of the pod if it's running, otherwise returns -1.
-func getPodPid(p *pod) (int32, error) {
-	var pid int32 = -1
-	if p.getState() == Running {
-		podpid, err := p.getPID()
-		if err != nil {
-			log.Printf("Failed to get PID for pod %q: %v", p.uuid, err)
-			return -1, err
-		}
-		pid = int32(podpid)
-	}
-	return pid, nil
-}
-
 // getNetworks returns the list of the info of the network that the pod belongs to.
 func getNetworks(p *pod) []*v1alpha.Network {
 	var networks []*v1alpha.Network
@@ -318,7 +304,7 @@ func getBasicPod(p *pod) (*v1alpha.Pod, *schema.PodManifest, error) {
 		return nil, nil, err
 	}
 
-	pid, err := getPodPid(p)
+	pid, err := p.getPID()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -330,7 +316,7 @@ func getBasicPod(p *pod) (*v1alpha.Pod, *schema.PodManifest, error) {
 
 	return &v1alpha.Pod{
 		Id:       p.uuid.String(),
-		Pid:      pid,
+		Pid:      int32(pid),
 		State:    getPodState(p), // Get pod's state.
 		Apps:     apps,
 		Manifest: data,
@@ -610,6 +596,12 @@ func runAPIService(cmd *cobra.Command, args []string) (exit int) {
 	go publicServer.Serve(tcpl)
 
 	log.Printf("API service running on %v...", flagAPIServiceListenClientURL)
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Print("recovered panic", r)
+		}
+	}()
 
 	signal.Notify(exitCh, syscall.SIGINT, syscall.SIGTERM)
 	<-exitCh
