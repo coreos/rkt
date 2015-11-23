@@ -36,8 +36,6 @@ import (
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/goaci/proj2aci"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/coreos/go-systemd/util"
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/godbus/dbus"
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/godbus/dbus/introspect"
 
 	stage1common "github.com/coreos/rkt/stage1/common"
 	stage1commontypes "github.com/coreos/rkt/stage1/common/types"
@@ -123,35 +121,9 @@ func init() {
 
 // machinedRegister checks if nspawn should register the pod to machined
 func machinedRegister() bool {
-	// machined has a D-Bus interface following versioning guidelines, see:
-	// http://www.freedesktop.org/wiki/Software/systemd/machined/
-	// Therefore we can just check if the D-Bus method we need exists and we
-	// don't need to check the signature.
-	var found int
-
-	conn, err := dbus.SystemBus()
-	if err != nil {
-		return false
-	}
-	node, err := introspect.Call(conn.Object("org.freedesktop.machine1", "/org/freedesktop/machine1"))
-	if err != nil {
-		return false
-	}
-	for _, iface := range node.Interfaces {
-		if iface.Name != "org.freedesktop.machine1.Manager" {
-			continue
-		}
-		// machined v215 supports methods "RegisterMachine" and "CreateMachine" called by nspawn v215.
-		// machined v216+ (since commit 5aa4bb) additionally supports methods "CreateMachineWithNetwork"
-		// and "RegisterMachineWithNetwork", called by nspawn v216+.
-		for _, method := range iface.Methods {
-			if method.Name == "CreateMachineWithNetwork" || method.Name == "RegisterMachineWithNetwork" {
-				found++
-			}
-		}
-		break
-	}
-	return found == 2
+	// Disable registration. See:
+	// https://github.com/coreos/rkt/issues/1782
+	return false
 }
 
 func lookupPath(bin string, paths string) (string, error) {

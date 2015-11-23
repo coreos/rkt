@@ -6,4 +6,4 @@ DefaultDependencies=false
 
 [Service]
 RemainAfterExit=yes
-ExecStop=/usr/bin/systemctl halt --force
+ExecStop=/usr/bin/systemctl exit --force
