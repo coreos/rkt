@@ -59,7 +59,7 @@ func GenerateMounts(ra *schema.RuntimeApp, volumes map[types.ACName]types.Volume
 		}
 		vol, ok := volumes[mp.Name]
 		if !ok {
-			catCmd := fmt.Sprintf("sudo rkt image cat-manifest --pretty-print %v", id)
+			catCmd := fmt.Sprintf("sudo rkt image cat-manifest --pretty-print %s", id.String()[:19])
 			volumeCmd := ""
 			for _, mp := range app.MountPoints {
 				volumeCmd += fmt.Sprintf("--volume %s,kind=host,source=/some/path ", mp.Name)
