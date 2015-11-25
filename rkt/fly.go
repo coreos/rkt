@@ -156,28 +156,89 @@ func runFly(cmd *cobra.Command, args []string) (exit int) {
 	execargs := append(imApp.Exec, app.Args...)
 
 	rfs := filepath.Join(dir, "rootfs")
-	if err := os.Chdir(rfs); err != nil {
-		os.RemoveAll(dir)
-		stderr("fly: error changing directory: %v", err)
+	if _, err := os.Stat(rfs); os.IsNotExist(err) {
+		stderr("fly: target root directory %q", rfs, err)
 		return 1
 	}
-	if err := syscall.Chroot("."); err != nil {
-		os.RemoveAll(dir)
+
+	// create a separate mount namespace so the filesystems
+	// are unmounted when exiting the pod
+	if err := syscall.Unshare(syscall.CLONE_NEWNS); err != nil {
+		log.Fatalf("Error unsharing: %v", err)
+	}
+
+	for _, mount := range []struct {
+		HostPath         string
+		TargetPrefixPath string
+		RelTargetPath    string
+		Fs               string
+		Flags            uintptr
+	}{
+		// we recursively make / a "shared and slave" so mount events from the
+		// new namespace don't propagate to the host namespace but mount events
+		// from the host propagate to the new namespace and are forwarded to
+		// its peer group
+		// See https://www.kernel.org/doc/Documentation/filesystems/sharedsubtree.txt
+		{"", "", "/", "none", syscall.MS_REC | syscall.MS_SLAVE},
+		{"", "", "/", "none", syscall.MS_REC | syscall.MS_SHARED},
+
+		{"/dev", rfs, "/dev", "none", syscall.MS_BIND | syscall.MS_REC},
+		{"/proc", rfs, "/proc", "none", syscall.MS_BIND | syscall.MS_REC},
+		{"/sys", rfs, "/sys", "none", syscall.MS_BIND | syscall.MS_REC},
+		{"/", rfs, "/host", "none", syscall.MS_BIND | syscall.MS_REC | syscall.MS_RDONLY},
+	} {
+		absTargetPath := filepath.Join(mount.TargetPrefixPath, mount.RelTargetPath)
+		if _, err := os.Stat(absTargetPath); os.IsNotExist(err) {
+			if err := os.Mkdir(absTargetPath, 0700); err != nil {
+				stderr("fly: could not create directory %q: \n%v", absTargetPath, err)
+				return 1
+			}
+		}
+		if err := syscall.Mount(mount.HostPath, absTargetPath, mount.Fs, mount.Flags, ""); err != nil {
+			log.Fatalf("Error mounting %q on %q: %v", mount.HostPath, absTargetPath, err)
+		}
+	}
+
+	if err := syscall.Chroot(rfs); err != nil {
 		stderr("fly: error chrooting: %v", err)
 		return 1
 	}
+
+	if err := os.Chdir("/"); err != nil {
+		stderr("fly: couldn't change to root new directory: %v", err)
+		return 1
+	}
+
+	// TODO: change user
+
 	execPath := execargs[0]
 	if _, err := os.Stat(execPath); err != nil {
-		os.RemoveAll(dir)
 		stderr("fly: error finding exec %v: %v", execPath, err)
 		return 1
 	}
-	log.Printf("fly: running %q", execargs)
-	if err := syscall.Exec(execargs[0], execargs, os.Environ()); err != nil {
-		os.RemoveAll(dir)
-		stderr("fly: error execing: %v", err)
+
+	// TODO: insert environment from manifest
+	environ := []string{"PATH=/bin:/sbin:/usr/bin:/usr/local/bin"}
+
+	// should never reach here
+	if err := syscall.Exec(execPath, execargs, environ); err != nil {
+		stderr("fly: error executing app: %v", err)
 		return 1
 	}
-	// should never reach here
 	panic("exec did not occur!")
+
+	// TODO: explore this cleanup route
+	// * wait for app
+	// * ForkExec ourselves with cleanup flag and directory (is this enough to have the kernel unmount the mounts?)
+	// * forked' version only does cleanup
+	//appCmd := exec.Command(execargs[0], execargs...)
+	//appCmd.Env = environ
+	//appCmd.Stdout = os.Stdout
+	//appCmd.Stdin = os.Stdin
+	//appCmd.Stderr = os.Stderr
+	//if err := appCmd.Run(); err != nil {
+	//	stderr("fly: error running app: %v", err)
+	//	return 1
+	//}
+	//return 0
 }
