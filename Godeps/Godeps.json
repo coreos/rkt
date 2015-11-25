@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/coreos/rkt",
-	"GoVersion": "go1.4.2",
+	"GoVersion": "go1.4.3",
 	"Packages": [
 		"./..."
 	],
@@ -167,6 +167,11 @@
 			"Rev": "e7fc03058804de5488baed8df5b89f3924b9ec9a"
 		},
 		{
+			"ImportPath": "github.com/cpuguy83/go-md2man/md2man",
+			"Comment": "v1.0.4",
+			"Rev": "71acacd42f85e5e82f70a55327789582a5200a90"
+		},
+		{
 			"ImportPath": "github.com/cznic/b",
 			"Rev": "e2e747ce049fb910cff6b1fd7ad8faf3900939d5"
 		},
@@ -261,12 +266,21 @@
 			"Rev": "508f5671a72eeaef05cf8c24abe7fbc1c07faf69"
 		},
 		{
+			"ImportPath": "github.com/russross/blackfriday",
+			"Comment": "v1.4-2-g300106c",
+			"Rev": "300106c228d52c8941d4b3de6054a6062a86dda3"
+		},
+		{
+			"ImportPath": "github.com/shurcooL/sanitized_anchor_name",
+			"Rev": "10ef21a441db47d8b13ebcc5fd2310f636973c77"
+		},
+		{
 			"ImportPath": "github.com/spf13/cobra",
-			"Rev": "66816bcd0378e248c613e3c443c020f544c28804"
+			"Rev": "6c0cb34745aa37492239084a1ac4b45630084a09"
 		},
 		{
 			"ImportPath": "github.com/spf13/pflag",
-			"Rev": "67cbc198fd11dab704b214c1e629a97af392c085"
+			"Rev": "08b1a584251b5b62f458943640fc8ebd4d50aaa5"
 		},
 		{
 			"ImportPath": "github.com/syndtr/gocapability/capability",
