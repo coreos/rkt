@@ -23,8 +23,8 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/coreos/rkt/Godeps/_workspace/src/code.google.com/p/go-uuid/uuid"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/pborman/uuid"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
 	"github.com/coreos/rkt/common/apps"
 	"github.com/coreos/rkt/pkg/aci"
@@ -73,8 +73,9 @@ func runFlyPrepareApp(app *apps.Apps) (string, *types.App, error) {
 			insecureSkipVerify: globalFlags.InsecureSkipVerify,
 			debug:              globalFlags.Debug,
 		},
-		local:    flagLocal,
-		withDeps: true,
+		storeOnly: flagStoreOnly,
+		noStore:   flagNoStore,
+		withDeps:  false,
 	}
 
 	fn.ks = getKeystore()
@@ -171,6 +172,7 @@ func runFly(cmd *cobra.Command, args []string) (exit int) {
 		stderr("fly: error finding exec %v: %v", execPath, err)
 		return 1
 	}
+	log.Printf("fly: running %q", execargs)
 	if err := syscall.Exec(execargs[0], execargs, os.Environ()); err != nil {
 		os.RemoveAll(dir)
 		stderr("fly: error execing: %v", err)
