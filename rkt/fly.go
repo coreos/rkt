@@ -34,15 +34,30 @@ import (
 
 var (
 	cmdFly = &cobra.Command{
-		Use:   "fly IMAGE [ -- image-args...]",
+		Use:   "fly [--volume=name,kind=host,...] [--mount volume=VOL,target=PATH] IMAGE [-- image-args...[---]]...",
 		Short: "Run a single application image with no pod or isolation",
-		Long:  `IMAGE should be a string referencing an image; either a hash, local file on disk, or URL.`,
-		Run:   runWrapper(runFly),
+		Long: `
+IMAGE should be a string referencing an image; either a hash, local file on disk, or URL.
+
+Volumes are made available to the container via --volume.
+Mounts bind volumes into each image's root within the container via --mount.
+--mount is position-sensitive; occuring before any images applies to all images,
+occuring after any images applies only to the nearest preceding image. Per-app
+mounts take precedence over global ones if they have the same path.
+
+`,
+		Run: runWrapper(runFly),
 	}
+	flagExec string
 )
 
 func init() {
 	cmdRkt.AddCommand(cmdFly)
+
+	cmdFly.Flags().Var((*appsVolume)(&rktApps), "volume", "volumes to make available in the pod")
+	cmdFly.Flags().StringVar(&flagExec, "exec", "", "Override the executable")
+	//cmdRun.Flags().Var((*appExec)(&rktApps), "exec", "override the exec command for the preceding image")
+	cmdFly.Flags().Var((*appMount)(&rktApps), "mount", "mount point binding a volume to a path within an app")
 
 	// Disable interspersed flags to stop parsing after the first non flag
 	// argument. All the subsequent parsing will be done by parseApps.
@@ -50,7 +65,7 @@ func init() {
 	cmdFly.Flags().SetInterspersed(false)
 }
 
-func runFlyPrepareApp(app *apps.Apps) (string, *types.App, error) {
+func runFlyPrepareApp(apps *apps.Apps) (string, *types.App, error) {
 	privateUsers := uid.NewBlankUidRange()
 
 	s, err := store.NewStore(globalFlags.Dir)
@@ -79,7 +94,7 @@ func runFlyPrepareApp(app *apps.Apps) (string, *types.App, error) {
 	}
 
 	fn.ks = getKeystore()
-	if err := fn.findImages(app); err != nil {
+	if err := fn.findImages(apps); err != nil {
 		stderr("fly: cannot find image: %v", err)
 		return "", nil, err
 	}
@@ -98,7 +113,7 @@ func runFlyPrepareApp(app *apps.Apps) (string, *types.App, error) {
 		return "", nil, err
 	}
 
-	rktApp := app.Last()
+	rktApp := apps.Last()
 	id := rktApp.ImageID
 	image, err := s.GetImageManifest(id.String())
 	if err != nil {
@@ -124,17 +139,20 @@ func runFlyPrepareApp(app *apps.Apps) (string, *types.App, error) {
 }
 
 func runFly(cmd *cobra.Command, args []string) (exit int) {
-	var rktApp apps.Apps
-	err := parseApps(&rktApp, args, cmd.Flags(), true)
+	err := parseApps(&rktApps, args, cmd.Flags(), true)
 	if err != nil {
 		stderr("fly: error parsing app image arguments: %v", err)
 		return 1
 	}
 
-	if rktApp.Count() != 1 {
+	if rktApps.Count() != 1 {
 		stderr("fly: must provide exactly one image")
 		return 1
 	}
+
+	log.Println(rktApps.Volumes)
+	log.Println(rktApps.Mounts)
+	log.Println(rktApps.Last().Mounts)
 
 	if globalFlags.Dir == "" {
 		log.Printf("fly: dir unset - using temporary directory")
@@ -146,14 +164,21 @@ func runFly(cmd *cobra.Command, args []string) (exit int) {
 		}
 	}
 
-	dir, imApp, err := runFlyPrepareApp(&rktApp)
+	dir, imApp, err := runFlyPrepareApp(&rktApps)
 	if err != nil {
 		stderr("fly: error preparing App: %v", err)
 		return 1
 	}
 
-	app := rktApp.Last()
-	execargs := append(imApp.Exec, app.Args...)
+	app := rktApps.Last()
+	var execargs []string
+	if flagExec != "" {
+		log.Printf("Overriding exec with %q", flagExec)
+		execargs = []string{flagExec}
+	} else {
+		execargs = imApp.Exec
+	}
+	execargs = append(execargs, app.Args...)
 
 	rfs := filepath.Join(dir, "rootfs")
 	if _, err := os.Stat(rfs); os.IsNotExist(err) {
@@ -185,7 +210,7 @@ func runFly(cmd *cobra.Command, args []string) (exit int) {
 		{"/dev", rfs, "/dev", "none", syscall.MS_BIND | syscall.MS_REC},
 		{"/proc", rfs, "/proc", "none", syscall.MS_BIND | syscall.MS_REC},
 		{"/sys", rfs, "/sys", "none", syscall.MS_BIND | syscall.MS_REC},
-		{"/", rfs, "/host", "none", syscall.MS_BIND | syscall.MS_REC | syscall.MS_RDONLY},
+		{"/", rfs, "/rootfs", "none", syscall.MS_BIND | syscall.MS_REC | syscall.MS_RDONLY},
 	} {
 		absTargetPath := filepath.Join(mount.TargetPrefixPath, mount.RelTargetPath)
 		if _, err := os.Stat(absTargetPath); os.IsNotExist(err) {
