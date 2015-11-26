@@ -51,6 +51,14 @@ mounts take precedence over global ones if they have the same path.
 	flagExec string
 )
 
+type flyMount struct {
+	HostPath         string
+	TargetPrefixPath string
+	RelTargetPath    string
+	Fs               string
+	Flags            uintptr
+}
+
 func init() {
 	cmdRkt.AddCommand(cmdFly)
 
@@ -150,10 +158,6 @@ func runFly(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	log.Println(rktApps.Volumes)
-	log.Println(rktApps.Mounts)
-	log.Println(rktApps.Last().Mounts)
-
 	if globalFlags.Dir == "" {
 		log.Printf("fly: dir unset - using temporary directory")
 		var err error
@@ -192,13 +196,30 @@ func runFly(cmd *cobra.Command, args []string) (exit int) {
 		log.Fatalf("Error unsharing: %v", err)
 	}
 
-	for _, mount := range []struct {
-		HostPath         string
-		TargetPrefixPath string
-		RelTargetPath    string
-		Fs               string
-		Flags            uintptr
-	}{
+	argFlyMounts := []flyMount{}
+	for _, volume := range rktApps.Volumes {
+		var mountFound bool
+		for _, mount := range rktApps.Mounts {
+			if mountFound = (mount.Volume == volume.Name); mountFound {
+
+				argFlyMount := flyMount{volume.Source, rfs, mount.Path, "none", syscall.MS_BIND | syscall.MS_REC}
+
+				if volume.ReadOnly != nil && *volume.ReadOnly {
+					argFlyMount.Flags |= syscall.MS_RDONLY
+				}
+				argFlyMounts = append(argFlyMounts, argFlyMount)
+				break
+			}
+		}
+		if !mountFound {
+			stderr("fly: no mount given for volume %q", volume)
+			return 1
+		}
+	}
+
+	// TODO? respect volumes/mounts defined in the manifest
+
+	for _, mount := range append([]flyMount{
 		// we recursively make / a "shared and slave" so mount events from the
 		// new namespace don't propagate to the host namespace but mount events
 		// from the host propagate to the new namespace and are forwarded to
@@ -210,13 +231,55 @@ func runFly(cmd *cobra.Command, args []string) (exit int) {
 		{"/dev", rfs, "/dev", "none", syscall.MS_BIND | syscall.MS_REC},
 		{"/proc", rfs, "/proc", "none", syscall.MS_BIND | syscall.MS_REC},
 		{"/sys", rfs, "/sys", "none", syscall.MS_BIND | syscall.MS_REC},
-		{"/", rfs, "/rootfs", "none", syscall.MS_BIND | syscall.MS_REC | syscall.MS_RDONLY},
-	} {
-		absTargetPath := filepath.Join(mount.TargetPrefixPath, mount.RelTargetPath)
-		if _, err := os.Stat(absTargetPath); os.IsNotExist(err) {
-			if err := os.Mkdir(absTargetPath, 0700); err != nil {
-				stderr("fly: could not create directory %q: \n%v", absTargetPath, err)
+		{"/", rfs, "/rootfs", "none", syscall.MS_BIND | syscall.MS_REC | syscall.MS_RDONLY}},
+		argFlyMounts...,
+	) {
+		var (
+			err            error
+			hostPathInfo   os.FileInfo
+			targetPathInfo os.FileInfo
+		)
+		if mount.HostPath != "" {
+			if hostPathInfo, err = os.Stat(mount.HostPath); err != nil {
+				stderr("fly: something is wrong with the host directory %s: \n%v", mount.HostPath, err)
 				return 1
+			}
+		}
+		absTargetPath := filepath.Join(mount.TargetPrefixPath, mount.RelTargetPath)
+		if absTargetPath != "/" {
+			if targetPathInfo, err = os.Stat(absTargetPath); err != nil && !os.IsNotExist(err) {
+				stderr("fly: something is wrong with the target directory %s: \n%v", absTargetPath, err)
+				return 1
+			}
+
+			if targetPathInfo != nil {
+				switch {
+				case hostPathInfo.IsDir() && !targetPathInfo.IsDir():
+					stderr("fly: can't mount:  %q is a directory while %q is not", mount.HostPath, absTargetPath)
+					return 1
+				case !hostPathInfo.IsDir() && targetPathInfo.IsDir():
+					stderr("fly: can't mount:  %q is not a directory while %q is", mount.HostPath, absTargetPath)
+					return 1
+				}
+			} else {
+				absTargetPathParent, _ := filepath.Split(absTargetPath)
+				if err := os.MkdirAll(absTargetPathParent, 0700); err != nil {
+					stderr("fly: could not create directory %q: \n%v", absTargetPath, err)
+					return 1
+				}
+				if hostPathInfo.IsDir() {
+					if err := os.Mkdir(absTargetPath, 0700); err != nil {
+						stderr("fly: could not create directory %q: \n%v", absTargetPath, err)
+						return 1
+					}
+				} else {
+					file, err := os.OpenFile(absTargetPath, os.O_CREATE, 0700)
+					if err != nil {
+						stderr("fly: could not create file %q: \n%v", absTargetPath, err)
+						return 1
+					}
+					file.Close()
+				}
 			}
 		}
 		if err := syscall.Mount(mount.HostPath, absTargetPath, mount.Fs, mount.Flags, ""); err != nil {
