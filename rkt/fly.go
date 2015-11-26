@@ -17,6 +17,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -34,17 +35,13 @@ import (
 
 var (
 	cmdFly = &cobra.Command{
-		Use:   "fly [--volume=name,kind=host,...] [--mount volume=VOL,target=PATH] IMAGE [-- image-args...[---]]...",
+		Use:   "fly [--volume=name,kind=host,...] [--mount volume=VOL,target=PATH] IMAGE [-- image-args...]",
 		Short: "Run a single application image with no pod or isolation",
 		Long: `
 IMAGE should be a string referencing an image; either a hash, local file on disk, or URL.
 
 Volumes are made available to the container via --volume.
 Mounts bind volumes into each image's root within the container via --mount.
---mount is position-sensitive; occuring before any images applies to all images,
-occuring after any images applies only to the nearest preceding image. Per-app
-mounts take precedence over global ones if they have the same path.
-
 `,
 		Run: runWrapper(runFly),
 	}
@@ -98,7 +95,7 @@ func runFlyPrepareApp(apps *apps.Apps) (string, *types.App, error) {
 		},
 		storeOnly: flagStoreOnly,
 		noStore:   flagNoStore,
-		withDeps:  false,
+		withDeps:  false, // TODO? support dependencies
 	}
 
 	fn.ks = getKeystore()
@@ -187,13 +184,8 @@ func runFly(cmd *cobra.Command, args []string) (exit int) {
 	rfs := filepath.Join(dir, "rootfs")
 	if _, err := os.Stat(rfs); os.IsNotExist(err) {
 		stderr("fly: target root directory %q", rfs, err)
+		os.RemoveAll(dir)
 		return 1
-	}
-
-	// create a separate mount namespace so the filesystems
-	// are unmounted when exiting the pod
-	if err := syscall.Unshare(syscall.CLONE_NEWNS); err != nil {
-		log.Fatalf("Error unsharing: %v", err)
 	}
 
 	argFlyMounts := []flyMount{}
@@ -213,11 +205,22 @@ func runFly(cmd *cobra.Command, args []string) (exit int) {
 		}
 		if !mountFound {
 			stderr("fly: no mount given for volume %q", volume)
+			os.RemoveAll(dir)
 			return 1
 		}
 	}
-
 	// TODO? respect volumes/mounts defined in the manifest
+
+	// create a separate mount namespace so the filesystems
+	// are unmounted when exiting the pod
+	if err := syscall.Unshare(syscall.CLONE_NEWNS); err != nil {
+		stderr(fmt.Sprintf("fly: can not unshare: %v", err))
+		os.RemoveAll(dir)
+		return 1
+	}
+
+	// After this point we start to bind directories, so we can't simply RemoveAll(dir) anymore.
+	// TODO: subscribe to the GC mechanism to have the directory cleaned up
 
 	for _, mount := range append([]flyMount{
 		// we recursively make / a "shared and slave" so mount events from the
@@ -297,7 +300,7 @@ func runFly(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	// TODO: change user
+	// TODO: change user according to the manifest
 
 	execPath := execargs[0]
 	if _, err := os.Stat(execPath); err != nil {
