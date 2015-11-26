@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/pborman/uuid"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
@@ -188,28 +189,83 @@ func runFly(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	argFlyMounts := []flyMount{}
-	for _, volume := range rktApps.Volumes {
-		var mountFound bool
-		for _, mount := range rktApps.Mounts {
-			if mountFound = (mount.Volume == volume.Name); mountFound {
+	type vmTuple struct {
+		V types.Volume
+		M schema.Mount
+	}
 
-				argFlyMount := flyMount{volume.Source, rfs, mount.Path, "none", syscall.MS_BIND | syscall.MS_REC}
+	namedVolumeMounts := map[types.ACName]vmTuple{}
 
-				if volume.ReadOnly != nil && *volume.ReadOnly {
-					argFlyMount.Flags |= syscall.MS_RDONLY
-				}
-				argFlyMounts = append(argFlyMounts, argFlyMount)
-				break
-			}
-		}
-		if !mountFound {
-			stderr("fly: no mount given for volume %q", volume)
+	// Insert the command-line Mounts
+	for _, m := range rktApps.Mounts {
+		_, exists := namedVolumeMounts[m.Volume]
+		if exists {
+			stderr("fly: duplicated mount given: %q", m.Volume)
 			os.RemoveAll(dir)
 			return 1
 		}
+		namedVolumeMounts[m.Volume] = vmTuple{M: m}
 	}
-	// TODO? respect volumes/mounts defined in the manifest
+
+	// Merge command-line Mounts with ImageManifest's MountPoints
+	for _, mp := range imApp.MountPoints {
+		tuple, exists := namedVolumeMounts[mp.Name]
+		switch {
+		case exists && tuple.M.Path != mp.Path:
+			stderr("fly: conflicting path information from mount and mountpoint %q", mp.Name)
+			os.RemoveAll(dir)
+			return 1
+		case !exists:
+			namedVolumeMounts[mp.Name] = vmTuple{M: schema.Mount{Volume: mp.Name, Path: mp.Path}}
+		}
+	}
+
+	// Insert the command-line Volumes
+	for _, v := range rktApps.Volumes {
+		// Check if we have a mount for this volume
+		tuple, exists := namedVolumeMounts[v.Name]
+		if !exists {
+			stderr("fly: missing mount for volume %q", v.Name)
+			os.RemoveAll(dir)
+			return 1
+		} else if tuple.M.Volume != v.Name {
+			// TODO(steveeJ): remove this case. it's merely a safety mechanism regarding the implementation
+			stderr("fly: mismatched volume:mount pair: %q != %q", v.Name, tuple.M.Volume)
+			os.RemoveAll(dir)
+			return 1
+		}
+		namedVolumeMounts[v.Name] = vmTuple{V: v, M: tuple.M}
+	}
+
+	// Merge command-line Volumes with ImageManifest's MountPoints
+	for _, mp := range imApp.MountPoints {
+		// Check if we have a volume for this mountpoint
+		tuple, exists := namedVolumeMounts[mp.Name]
+		if !exists || tuple.V.Name == "" {
+			stderr("fly: missing volume for mountpoint %q", mp.Name)
+			os.RemoveAll(dir)
+			return 1
+		}
+
+		// If empty, fill in ReadOnly bit
+		if tuple.V.ReadOnly == nil {
+			v := tuple.V
+			v.ReadOnly = &mp.ReadOnly
+			namedVolumeMounts[mp.Name] = vmTuple{M: tuple.M, V: v}
+		}
+	}
+
+	argFlyMounts := []flyMount{}
+	for _, tuple := range namedVolumeMounts {
+		var flags uintptr = syscall.MS_BIND | syscall.MS_REC
+		if tuple.V.ReadOnly != nil && *tuple.V.ReadOnly {
+			flags |= syscall.MS_RDONLY
+		}
+		argFlyMounts = append(
+			argFlyMounts,
+			flyMount{tuple.V.Source, rfs, tuple.M.Path, "none", flags},
+		)
+	}
 
 	// create a separate mount namespace so the filesystems
 	// are unmounted when exiting the pod
@@ -222,19 +278,20 @@ func runFly(cmd *cobra.Command, args []string) (exit int) {
 	// After this point we start to bind directories, so we can't simply RemoveAll(dir) anymore.
 	// TODO: subscribe to the GC mechanism to have the directory cleaned up
 
-	for _, mount := range append([]flyMount{
-		// we recursively make / a "shared and slave" so mount events from the
-		// new namespace don't propagate to the host namespace but mount events
-		// from the host propagate to the new namespace and are forwarded to
-		// its peer group
-		// See https://www.kernel.org/doc/Documentation/filesystems/sharedsubtree.txt
-		{"", "", "/", "none", syscall.MS_REC | syscall.MS_SLAVE},
-		{"", "", "/", "none", syscall.MS_REC | syscall.MS_SHARED},
+	for _, mount := range append(
+		[]flyMount{
+			// we recursively make / a "shared and slave" so mount events from the
+			// new namespace don't propagate to the host namespace but mount events
+			// from the host propagate to the new namespace and are forwarded to
+			// its peer group
+			// See https://www.kernel.org/doc/Documentation/filesystems/sharedsubtree.txt
+			{"", "", "/", "none", syscall.MS_REC | syscall.MS_SLAVE},
+			{"", "", "/", "none", syscall.MS_REC | syscall.MS_SHARED},
 
-		{"/dev", rfs, "/dev", "none", syscall.MS_BIND | syscall.MS_REC},
-		{"/proc", rfs, "/proc", "none", syscall.MS_BIND | syscall.MS_REC},
-		{"/sys", rfs, "/sys", "none", syscall.MS_BIND | syscall.MS_REC},
-		{"/", rfs, "/rootfs", "none", syscall.MS_BIND | syscall.MS_REC | syscall.MS_RDONLY}},
+			{"/dev", rfs, "/dev", "none", syscall.MS_BIND | syscall.MS_REC},
+			{"/proc", rfs, "/proc", "none", syscall.MS_BIND | syscall.MS_REC},
+			{"/sys", rfs, "/sys", "none", syscall.MS_BIND | syscall.MS_REC},
+		},
 		argFlyMounts...,
 	) {
 		var (
@@ -286,8 +343,17 @@ func runFly(cmd *cobra.Command, args []string) (exit int) {
 			}
 		}
 		if err := syscall.Mount(mount.HostPath, absTargetPath, mount.Fs, mount.Flags, ""); err != nil {
-			log.Fatalf("Error mounting %q on %q: %v", mount.HostPath, absTargetPath, err)
+			stderr("Error mounting %q on %q: %v", mount.HostPath, absTargetPath, err)
+			return 1
 		}
+		if (mount.Flags & syscall.MS_RDONLY) != 0 {
+			// Read-Only needs to be remounted
+			if err := syscall.Mount("", absTargetPath, "", mount.Flags|syscall.MS_REMOUNT, ""); err != nil {
+				stderr("Error remounting %q read-only: %v", absTargetPath, err)
+				return 1
+			}
+		}
+
 	}
 
 	if err := syscall.Chroot(rfs); err != nil {
