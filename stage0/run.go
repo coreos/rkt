@@ -66,13 +66,14 @@ var debugEnabled bool
 // configuration parameters required by Prepare
 type PrepareConfig struct {
 	CommonConfig
-	Apps         *apps.Apps          // apps to prepare
-	InheritEnv   bool                // inherit parent environment into apps
-	ExplicitEnv  []string            // always set these environment variables for all the apps
-	Ports        []types.ExposedPort // list of ports that rkt will expose on the host
-	UseOverlay   bool                // prepare pod with overlay fs
-	PodManifest  string              // use the pod manifest specified by the user, this will ignore flags such as '--volume', '--port', etc.
-	PrivateUsers *uid.UidRange       // User namespaces
+	Apps               *apps.Apps          // apps to prepare
+	InheritEnv         bool                // inherit parent environment into apps
+	ExplicitEnv        []string            // always set these environment variables for all the apps
+	Ports              []types.ExposedPort // list of ports that rkt will expose on the host
+	UseOverlay         bool                // prepare pod with overlay fs
+	SkipTreeStoreCheck bool                // skip checking the treestore before rendering
+	PodManifest        string              // use the pod manifest specified by the user, this will ignore flags such as '--volume', '--port', etc.
+	PrivateUsers       *uid.UidRange       // User namespaces
 }
 
 // configuration parameters needed by Run
@@ -492,11 +493,13 @@ func prepareAppImage(cfg PrepareConfig, appName types.ACName, img types.Hash, cd
 		if err != nil {
 			return fmt.Errorf("error rendering tree image: %v", err)
 		}
-		if err := cfg.Store.CheckTreeStore(treeStoreID); err != nil {
-			log.Printf("Warning: tree cache is in a bad state: %v. Rebuilding...", err)
-			var err error
-			if treeStoreID, err = cfg.Store.RenderTreeStore(img.String(), true); err != nil {
-				return fmt.Errorf("error rendering tree image: %v", err)
+		if !cfg.SkipTreeStoreCheck {
+			if err := cfg.Store.CheckTreeStore(treeStoreID); err != nil {
+				log.Printf("Warning: tree cache is in a bad state: %v. Rebuilding...", err)
+				var err error
+				if treeStoreID, err = cfg.Store.RenderTreeStore(img.String(), true); err != nil {
+					return fmt.Errorf("error rendering tree image: %v", err)
+				}
 			}
 		}
 
@@ -567,11 +570,14 @@ func prepareStage1Image(cfg PrepareConfig, img types.Hash, cdir string, useOverl
 	if err != nil {
 		return fmt.Errorf("error rendering tree image: %v", err)
 	}
-	if err := cfg.Store.CheckTreeStore(treeStoreID); err != nil {
-		log.Printf("Warning: tree cache is in a bad state: %v. Rebuilding...", err)
-		var err error
-		if treeStoreID, err = cfg.Store.RenderTreeStore(img.String(), true); err != nil {
-			return fmt.Errorf("error rendering tree image: %v", err)
+
+	if !cfg.SkipTreeStoreCheck {
+		if err := cfg.Store.CheckTreeStore(treeStoreID); err != nil {
+			log.Printf("Warning: tree cache is in a bad state: %v. Rebuilding...", err)
+			var err error
+			if treeStoreID, err = cfg.Store.RenderTreeStore(img.String(), true); err != nil {
+				return fmt.Errorf("error rendering tree image: %v", err)
+			}
 		}
 	}
 
