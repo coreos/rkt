@@ -61,7 +61,7 @@ func (r *UidRange) ShiftRange(uid uint32, gid uint32) (uint32, uint32, error) {
 		return 0, 0, fmt.Errorf("uid %d or gid %d are out of range %d", uid, gid, r.Count)
 	}
 	if math.MaxUint32-r.Shift < uid || math.MaxUint32-r.Shift < gid {
-		return 0, 0, fmt.Errorf("uid or gid are out of range %d after shifting", math.MaxUint32)
+		return 0, 0, fmt.Errorf("uid or gid are out of range %d after shifting", uint32(math.MaxUint32))
 	}
 	return uid + r.Shift, gid + r.Shift, nil
 }

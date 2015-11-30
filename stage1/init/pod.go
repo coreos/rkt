@@ -25,6 +25,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/common/cgroup"
 	"github.com/coreos/rkt/pkg/uid"
+	initcommon "github.com/coreos/rkt/stage1/init/common"
 	"github.com/coreos/rkt/stage1/init/kvm"
 )
 
@@ -107,28 +109,40 @@ func LoadPod(root string, uuid *types.UUID) (*Pod, error) {
 	return p, nil
 }
 
+// execEscape uses Golang's string quoting for ", \, \n, and regex for special cases
+func execEscape(i int, str string) string {
+	escapeMap := map[string]string{
+		`'`: `\`,
+	}
+
+	if i > 0 { // These are escaped only after the first argument
+		escapeMap[`$`] = `$`
+	}
+
+	escArg := fmt.Sprintf("%q", str)
+	for k, _ := range escapeMap {
+		reStr := `([` + regexp.QuoteMeta(k) + `])`
+		re := regexp.MustCompile(reStr)
+		escArg = re.ReplaceAllStringFunc(escArg, func(s string) string {
+			escaped := escapeMap[s] + s
+			return escaped
+		})
+	}
+	return escArg
+}
+
 // quoteExec returns an array of quoted strings appropriate for systemd execStart usage
 func quoteExec(exec []string) string {
 	if len(exec) == 0 {
-		// existing callers prefix {"/diagexec", "/app/root", "/work/dir", "/env/file"} so this shouldn't occur.
+		// existing callers prefix {"/appexec", "/app/root", "/work/dir", "/env/file"} so this shouldn't occur.
 		panic("empty exec")
 	}
 
 	var qexec []string
-	qexec = append(qexec, exec[0])
-	// FIXME(vc): systemd gets angry if qexec[0] is quoted
-	// https://bugs.freedesktop.org/show_bug.cgi?id=86171
-
-	if len(exec) > 1 {
-		for _, arg := range exec[1:] {
-			escArg := strings.Replace(arg, `\`, `\\`, -1)
-			escArg = strings.Replace(escArg, `"`, `\"`, -1)
-			escArg = strings.Replace(escArg, `'`, `\'`, -1)
-			escArg = strings.Replace(escArg, `$`, `$$`, -1)
-			qexec = append(qexec, `"`+escArg+`"`)
-		}
+	for i, arg := range exec {
+		escArg := execEscape(i, arg)
+		qexec = append(qexec, escArg)
 	}
-
 	return strings.Join(qexec, " ")
 }
 
@@ -243,7 +257,9 @@ func (p *Pod) appToSystemd(ra *schema.RuntimeApp, interactive bool, flavor strin
 	env := app.Environment
 
 	env.Set("AC_APP_NAME", appName.String())
-	env.Set("AC_METADATA_URL", p.MetadataServiceURL)
+	if p.MetadataServiceURL != "" {
+		env.Set("AC_METADATA_URL", p.MetadataServiceURL)
+	}
 
 	if err := p.writeEnvFile(env, appName, privateUsers); err != nil {
 		return fmt.Errorf("unable to write environment file: %v", err)
@@ -270,7 +286,7 @@ func (p *Pod) appToSystemd(ra *schema.RuntimeApp, interactive bool, flavor strin
 		}
 	}
 
-	execWrap := []string{"/diagexec", common.RelAppRootfsPath(appName), workDir, RelEnvFilePath(appName), strconv.Itoa(uid), generateGidArg(gid, app.SupplementaryGIDs)}
+	execWrap := []string{"/appexec", common.RelAppRootfsPath(appName), workDir, RelEnvFilePath(appName), strconv.Itoa(uid), generateGidArg(gid, app.SupplementaryGIDs)}
 	execStart := quoteExec(append(execWrap, app.Exec...))
 	opts := []*unit.UnitOption{
 		unit.NewUnitOption("Unit", "Description", fmt.Sprintf("Application=%v Image=%v", appName, imgName)),
@@ -312,7 +328,7 @@ func (p *Pod) appToSystemd(ra *schema.RuntimeApp, interactive bool, flavor strin
 	// Some pre-start jobs take a long time, set the timeout to 0
 	opts = append(opts, unit.NewUnitOption("Service", "TimeoutStartSec", "0"))
 
-	saPorts := []types.Port{}
+	var saPorts []types.Port
 	for _, p := range app.Ports {
 		if p.SocketActivated {
 			saPorts = append(saPorts, p)
@@ -391,7 +407,7 @@ func (p *Pod) appToSystemd(ra *schema.RuntimeApp, interactive bool, flavor strin
 
 	if flavor == "kvm" {
 		// bind mount all shared volumes from /mnt/volumeName (we don't use mechanism for bind-mounting given by nspawn)
-		err := kvm.AppToSystemdMountUnits(common.Stage1RootfsPath(p.Root), appName, app.MountPoints, unitsDir)
+		err := kvm.AppToSystemdMountUnits(common.Stage1RootfsPath(p.Root), appName, p.Manifest.Volumes, ra, unitsDir)
 		if err != nil {
 			return fmt.Errorf("failed to prepare mount units: %v", err)
 		}
@@ -444,22 +460,6 @@ func (p *Pod) writeEnvFile(env types.Environment, appName types.ACName, privateU
 // all the constituent apps of the Pod
 func (p *Pod) PodToSystemd(interactive bool, flavor string, privateUsers string) error {
 
-	if flavor == "kvm" {
-		// prepare all applications names to become dependency for mount units
-		// all host-shared folder has to become available before applications starts
-		appNames := []types.ACName{}
-		for _, runtimeApp := range p.Manifest.Apps {
-			appNames = append(appNames, runtimeApp.Name)
-		}
-
-		// mount host volumes through some remote file system e.g. 9p to /mnt/volumeName location
-		// order is important here: podToSystemHostMountUnits prepares folders that are checked by each appToSystemdMountUnits later
-		err := kvm.PodToSystemdHostMountUnits(common.Stage1RootfsPath(p.Root), p.Manifest.Volumes, appNames, unitsDir)
-		if err != nil {
-			return fmt.Errorf("failed to transform pod volumes into mount units: %v", err)
-		}
-	}
-
 	for i := range p.Manifest.Apps {
 		ra := &p.Manifest.Apps[i]
 		if err := p.appToSystemd(ra, interactive, flavor, privateUsers); err != nil {
@@ -472,17 +472,9 @@ func (p *Pod) PodToSystemd(interactive bool, flavor string, privateUsers string)
 // appToNspawnArgs transforms the given app manifest, with the given associated
 // app name, into a subset of applicable systemd-nspawn argument
 func (p *Pod) appToNspawnArgs(ra *schema.RuntimeApp) ([]string, error) {
-	args := []string{}
+	var args []string
 	appName := ra.Name
-	id := ra.Image.ID
 	app := ra.App
-
-	vols := make(map[types.ACName]types.Volume)
-
-	// TODO(philips): this is implicitly creating a mapping from MountPoint
-	// to volumes. This is a nice convenience for users but we will need to
-	// introduce a --mount flag so they can control which mountPoint maps to
-	// which volume.
 
 	sharedVolPath := common.SharedVolumesPath(p.Root)
 	if err := os.MkdirAll(sharedVolPath, sharedVolPerm); err != nil {
@@ -491,40 +483,36 @@ func (p *Pod) appToNspawnArgs(ra *schema.RuntimeApp) ([]string, error) {
 	if err := os.Chmod(sharedVolPath, sharedVolPerm); err != nil {
 		return nil, fmt.Errorf("could not change permissions of %q: %v", sharedVolPath, err)
 	}
+
+	vols := make(map[types.ACName]types.Volume)
 	for _, v := range p.Manifest.Volumes {
 		vols[v.Name] = v
-		if v.Kind == "empty" {
-			if err := os.MkdirAll(filepath.Join(sharedVolPath, v.Name.String()), sharedVolPerm); err != nil {
-				return nil, fmt.Errorf("could not create shared volume %q: %v", v.Name, err)
-			}
-		}
 	}
 
-	for _, mp := range app.MountPoints {
-		key := mp.Name
-		vol, ok := vols[key]
-		if !ok {
-			catCmd := fmt.Sprintf("sudo rkt image cat-manifest --pretty-print %v", id)
-			volumeCmd := ""
-			for _, mp := range app.MountPoints {
-				volumeCmd += fmt.Sprintf("--volume %s,kind=host,source=/some/path ", mp.Name)
-			}
+	mounts := initcommon.GenerateMounts(ra, vols)
+	for _, m := range mounts {
+		vol := vols[m.Volume]
 
-			return nil, fmt.Errorf("no volume for mountpoint %q in app %q.\n"+
-				"You can inspect the volumes with:\n\t%v\n"+
-				"App %q requires the following volumes:\n\t%v",
-				key, appName, catCmd, appName, volumeCmd)
+		if vol.Kind == "empty" {
+			p := filepath.Join(sharedVolPath, vol.Name.String())
+			if err := os.MkdirAll(p, sharedVolPerm); err != nil {
+				return nil, fmt.Errorf("could not create shared volume %q: %v", vol.Name, err)
+			}
+			if err := os.Chown(p, *vol.UID, *vol.GID); err != nil {
+				return nil, fmt.Errorf("could not change owner of %q: %v", p, err)
+			}
+			mod, err := strconv.ParseUint(*vol.Mode, 8, 32)
+			if err != nil {
+				return nil, fmt.Errorf("invalid mode %q for volume %q: %v", *vol.Mode, vol.Name, err)
+			}
+			if err := os.Chmod(p, os.FileMode(mod)); err != nil {
+				return nil, fmt.Errorf("could not change permissions of %q: %v", p, err)
+			}
 		}
+
 		opt := make([]string, 4)
 
-		// If the readonly flag in the pod manifest is not nil,
-		// then use it to override the readonly flag in the image manifest.
-		readOnly := mp.ReadOnly
-		if vol.ReadOnly != nil {
-			readOnly = *vol.ReadOnly
-		}
-
-		if readOnly {
+		if initcommon.IsMountReadOnly(vol, app.MountPoints) {
 			opt[0] = "--bind-ro="
 		} else {
 			opt[0] = "--bind="
@@ -543,7 +531,7 @@ func (p *Pod) appToNspawnArgs(ra *schema.RuntimeApp) ([]string, error) {
 			return nil, fmt.Errorf(`invalid volume kind %q. Must be one of "host" or "empty".`, vol.Kind)
 		}
 		opt[2] = ":"
-		opt[3] = filepath.Join(common.RelAppRootfsPath(appName), mp.Path)
+		opt[3] = filepath.Join(common.RelAppRootfsPath(appName), m.Path)
 
 		args = append(args, strings.Join(opt, ""))
 	}

@@ -15,40 +15,57 @@ Consequently, standard `systemd` idioms like `systemctl start` and `systemctl st
 To start a daemonized container from the command line, use [`systemd-run`](http://www.freedesktop.org/software/systemd/man/systemd-run.html):
 
 ```
-# systemd-run rkt run --mds-register=false coreos.com/etcd:v2.0.10
+# systemd-run rkt run coreos.com/etcd:v2.0.10
 Running as unit run-29075.service.
 ```
 
 This creates a transient systemd unit on which you can use standard systemd tools:
 
 ```
-$ systemctl status run-29075.service
-● run-29075.service - /usr/bin/rkt run --mds-register=false coreos.com/etcd:v2.0.10
-   Loaded: loaded (/run/systemd/system/run-29075.service; static; vendor preset: disabled)
-  Drop-In: /run/systemd/system/run-29075.service.d
+$ systemctl status run-3247.service
+● run-3247.service - /home/iaguis/work/coreos/go/src/github.com/coreos/rkt/build-rkt/bin/rkt run coreos.com/etcd:v2.0.10
+   Loaded: loaded
+  Drop-In: /run/systemd/system/run-3247.service.d
            └─50-Description.conf, 50-ExecStart.conf
-   Active: active (running) since Fri 2015-08-28 10:39:02 CEST; 1min 5s ago
- Main PID: 29076 (ld-linux-x86-64)
-   CGroup: /system.slice/run-29075.service
-           ├─29076 stage1/rootfs/usr/lib/ld-linux-x86-64.so.2 stage1/rootfs/usr/bin/systemd-nspawn --boot --register=true --link-journal=...
-           ├─29120 /usr/lib/systemd/systemd --default-standard-output=tty --log-target=null --log-level=warning --show-status=0
+   Active: active (running) since Mon 2015-10-26 17:38:06 CET; 41s ago
+ Main PID: 3254 (ld-linux-x86-64)
+   CGroup: /system.slice/run-3247.service
+           ├─3254 stage1/rootfs/usr/lib/ld-linux-x86-64.so.2 stage1/rootfs/usr/bin/systemd-nspawn --boot --register=true --link-jou...
+           ├─3321 /usr/lib/systemd/systemd --default-standard-output=tty --log-target=null --log-level=warning --show-status=0
            └─system.slice
              ├─etcd.service
-             │ └─29125 /etcd
+             │ └─3326 /etcd
              └─systemd-journald.service
-               └─29121 /usr/lib/systemd/systemd-journald
+               └─3322 /usr/lib/systemd/systemd-journald
 
-Aug 28 10:39:18 locke-work rkt[29076]: [237056.734150] etcd[4]: 2015/08/28 08:39:18 raft: ce2a822cea30bfca became follower at term 0
-Aug 28 10:39:18 locke-work rkt[29076]: [237056.734299] etcd[4]: 2015/08/28 08:39:18 raft: newRaft ce2a822cea30bfca [peers: [], te...term: 0]
-Aug 28 10:39:18 locke-work rkt[29076]: [237056.734408] etcd[4]: 2015/08/28 08:39:18 raft: ce2a822cea30bfca became follower at term 1
-Aug 28 10:39:18 locke-work rkt[29076]: [237056.738374] etcd[4]: 2015/08/28 08:39:18 etcdserver: added local member ce2a822cea30bf...22e8b2ae
-Aug 28 10:39:19 locke-work rkt[29076]: [237058.034590] etcd[4]: 2015/08/28 08:39:19 raft: ce2a822cea30bfca is starting a new elec...t term 1
-Aug 28 10:39:19 locke-work rkt[29076]: [237058.035125] etcd[4]: 2015/08/28 08:39:19 raft: ce2a822cea30bfca became candidate at term 2
-Aug 28 10:39:19 locke-work rkt[29076]: [237058.035419] etcd[4]: 2015/08/28 08:39:19 raft: ce2a822cea30bfca received vote from ce2...t term 2
-Aug 28 10:39:19 locke-work rkt[29076]: [237058.036527] etcd[4]: 2015/08/28 08:39:19 raft: ce2a822cea30bfca became leader at term 2
-Aug 28 10:39:19 locke-work rkt[29076]: [237058.036889] etcd[4]: 2015/08/28 08:39:19 raft.node: ce2a822cea30bfca elected leader ce...t term 2
-Aug 28 10:39:19 locke-work rkt[29076]: [237058.042516] etcd[4]: 2015/08/28 08:39:19 etcdserver: published {Name:default ClientURL...22e8b2ae
+Oct 26 17:38:11 locke rkt[3254]: [25966.375411] etcd[4]: 2015/10/26 16:38:11 raft: ce2a822cea30bfca became follower at term 0
+Oct 26 17:38:11 locke rkt[3254]: [25966.375685] etcd[4]: 2015/10/26 16:38:11 raft: newRaft ce2a822cea30bfca [peers: [], ter...term: 0]
+Oct 26 17:38:11 locke rkt[3254]: [25966.375942] etcd[4]: 2015/10/26 16:38:11 raft: ce2a822cea30bfca became follower at term 1
+Oct 26 17:38:11 locke rkt[3254]: [25966.382092] etcd[4]: 2015/10/26 16:38:11 etcdserver: added local member ce2a822cea30bfc...22e8b2ae
+Oct 26 17:38:12 locke rkt[3254]: [25967.675888] etcd[4]: 2015/10/26 16:38:12 raft: ce2a822cea30bfca is starting a new elect...t term 1
+Oct 26 17:38:12 locke rkt[3254]: [25967.676920] etcd[4]: 2015/10/26 16:38:12 raft: ce2a822cea30bfca became candidate at term 2
+Oct 26 17:38:12 locke rkt[3254]: [25967.677563] etcd[4]: 2015/10/26 16:38:12 raft: ce2a822cea30bfca received vote from ce2a...t term 2
+Oct 26 17:38:12 locke rkt[3254]: [25967.678296] etcd[4]: 2015/10/26 16:38:12 raft: ce2a822cea30bfca became leader at term 2
+Oct 26 17:38:12 locke rkt[3254]: [25967.678780] etcd[4]: 2015/10/26 16:38:12 raft.node: ce2a822cea30bfca elected leader ce2...t term 2
+Oct 26 17:38:12 locke rkt[3254]: [25967.682464] etcd[4]: 2015/10/26 16:38:12 etcdserver: published {Name:default ClientURLs...22e8b2ae
 Hint: Some lines were ellipsized, use -l to show in full.
+```
+
+Since every pod is registered with machined with a machine name of the form `rkt-$UUID`, you can use the systemd tools to stop pods or get their logs:
+
+```
+# journalctl -M rkt-f0261476-7044-4a84-b729-e0f7a47dcffe
+...
+# machinectl
+MACHINE                                  CLASS     SERVICE
+rkt-f0261476-7044-4a84-b729-e0f7a47dcffe container nspawn
+
+1 machines listed.
+# machinectl poweroff rkt-f0261476-7044-4a84-b729-e0f7a47dcffe
+# machinectl
+MACHINE CLASS SERVICE
+
+0 machines listed.
 ```
 
 ## Simple Unit File
@@ -60,7 +77,7 @@ The following is a simple example of a unit file using `rkt` to run an `etcd` in
 Description=etcd
 
 [Service]
-ExecStart=/usr/bin/rkt --insecure-skip-verify run --mds-register=false coreos.com/etcd:v2.0.10
+ExecStart=/usr/bin/rkt run --mds-register=false coreos.com/etcd:v2.0.10
 KillMode=mixed
 Restart=always
 ```
@@ -111,6 +128,16 @@ ExecStartPre=/usr/bin/rkt fetch myapp.com/myapp-1.3.4
 ExecStart=/usr/bin/rkt run --inherit-env --port=http:8888 myapp.com/myapp-1.3.4
 KillMode=mixed
 Restart=always
+```
+
+rkt must be the main process of the service in order to support [isolators](https://github.com/appc/spec/blob/master/spec/ace.md#isolators) correctly and to be well-integrated with [systemd-machined](http://www.freedesktop.org/software/systemd/man/systemd-machined.service.html).
+To ensure that rkt is the main process of the service, the pattern `/bin/sh -c "foo ; rkt run ..."` should be avoided because in that case the main process would be sh.
+
+In most cases, the parameters `Environment=` and `ExecStartPre=` can simply be used instead of starting a shell.
+If it is not possible, use exec to ensure rkt is not started as a new process:
+
+```
+ExecStart=/bin/sh -c "foo ; exec rkt run ..."
 ```
 
 ## Socket-activated service

@@ -71,7 +71,7 @@ func labelsToString(inLabels types.Labels) string {
 	labels := append(types.Labels(nil), inLabels...)
 	sort.Sort(labelsSlice(labels))
 
-	out := []string{}
+	var out []string
 	for _, l := range labels {
 		out = append(out, fmt.Sprintf("%q:%q", l.Name, l.Value))
 	}

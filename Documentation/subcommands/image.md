@@ -31,13 +31,18 @@ rkt: 1 image(s) successfully remove
 
 ## rkt image gc
 
-You can garbage collect the rkt store to clean up unused internal data and remove old images (this one to be implemented).
+You can garbage collect the rkt store to clean up unused internal data and remove old images.
+
+By default, images not used in the last 24h will be removed. This can be configured with the `--grace-period` flag.
 
 ```
-# rkt image gc
-rkt: removed treestore "deps-sha512-120e20cf5c4588b9ed9727e9963f87cc587bec8f23e26fb607cb6adf6d3953f2"
+# rkt image gc --grace-period 48h
+rkt: removed treestore "deps-sha512-219204dd54481154aec8f6eafc0f2064d973c8a2c0537eab827b7414f0a36248"
+rkt: removed treestore "deps-sha512-3f2a1ad0e9739d977278f0019b6d7d9024a10a2b1166f6c9fdc98f77a357856d"
+rkt: successfully removed aci for image ID: "sha512-e39d4089a224718c41e6bef4c1ac692a6c1832c8c69cf28123e1f205a9355444"
+rkt: successfully removed aci for image ID: "sha512-0648aa44a37a8200147d41d1a9eff0757d0ac113a22411f27e4e03cbd1e84d0d"
+rkt: 2 image(s) successfully removed
 ```
-
 
 ## rkt image export
 

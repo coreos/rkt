@@ -57,7 +57,7 @@ func (t *aciToolkit) prepareACI() ([]byte, error) {
 }
 
 const (
-	manifestStr    = `{"acKind":"ImageManifest","acVersion":"0.7.0","name":"testprog","app":{"exec":["/prog"],"user":"0","group":"0"},"labels":[{"name":"os","value":"linux"},{"name":"arch","value":"amd64"}]}`
+	manifestStr    = `{"acKind":"ImageManifest","acVersion":"0.7.3","name":"testprog","app":{"exec":["/prog"],"user":"0","group":"0"},"labels":[{"name":"os","value":"linux"},{"name":"arch","value":"amd64"}]}`
 	testProgSrcStr = `
 package main
 

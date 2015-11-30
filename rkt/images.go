@@ -19,6 +19,7 @@ package main
 import (
 	"bytes"
 	"container/list"
+	"crypto/sha512"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -36,6 +37,7 @@ import (
 	"github.com/coreos/rkt/common/apps"
 	"github.com/coreos/rkt/pkg/keystore"
 	"github.com/coreos/rkt/rkt/config"
+	"github.com/coreos/rkt/rkt/pubkey"
 	"github.com/coreos/rkt/stage0"
 	"github.com/coreos/rkt/store"
 	"github.com/coreos/rkt/version"
@@ -51,12 +53,12 @@ import (
 )
 
 type imageActionData struct {
-	s                  *store.Store
-	ks                 *keystore.Keystore
-	headers            map[string]config.Headerer
-	dockerAuth         map[string]config.BasicCredentials
-	insecureSkipVerify bool
-	debug              bool
+	s             *store.Store
+	ks            *keystore.Keystore
+	headers       map[string]config.Headerer
+	dockerAuth    map[string]config.BasicCredentials
+	insecureFlags *secFlags
+	debug         bool
 }
 
 type finder struct {
@@ -265,7 +267,7 @@ func (f *fetcher) fetchImageByName(img string, ascFile *os.File) (string, error)
 			return "", fmt.Errorf("invalid image name for discovery: %s", img)
 		}
 		stderr("rkt: searching for app image %s", img)
-		ep, err := discoverApp(app, true)
+		ep, err := discoverApp(app, f.headers, true)
 		if err != nil {
 			return "", fmt.Errorf("discovery failed for %q: %v", img, err)
 		}
@@ -329,11 +331,16 @@ func (f *fetcher) fetchImageFromURL(imgurl string, scheme string, ascFile *os.Fi
 func (f *fetcher) fetchImageFrom(appName string, aciURL, ascURL, scheme string, ascFile *os.File, latest bool) (string, error) {
 	var rem *store.Remote
 
-	if f.insecureSkipVerify && f.ks != nil {
-		stderr("rkt: warning: TLS verification and signature verification has been disabled")
+	if f.insecureFlags.SkipTlsCheck() && f.ks != nil {
+		stderr("rkt: warning: TLS verification has been disabled")
 	}
-	if !f.insecureSkipVerify && scheme == "docker" {
-		return "", fmt.Errorf("signature verification for docker images is not supported (try --insecure-skip-verify)")
+
+	if f.insecureFlags.SkipImageCheck() && f.ks != nil {
+		stderr("rkt: warning: image signature verification has been disabled")
+	}
+
+	if !f.insecureFlags.SkipImageCheck() && scheme == "docker" {
+		return "", fmt.Errorf("signature verification for docker images is not supported (try --insecure-options=image)")
 	}
 
 	if scheme != "file" {
@@ -373,7 +380,7 @@ func (f *fetcher) fetchImageFrom(appName string, aciURL, ascURL, scheme string, 
 		defer os.Remove(aciFile.Name())
 	}
 
-	if entity != nil && !f.insecureSkipVerify {
+	if entity != nil && !f.insecureFlags.SkipImageCheck() {
 		stderr("rkt: signature verified:")
 		for _, v := range entity.Identities {
 			stderr("  %s", v.Name)
@@ -451,13 +458,19 @@ func (f *fetcher) fetch(appName string, aciURL, ascURL string, ascFile *os.File,
 	}
 
 	// attempt to automatically fetch the public key in case it is available on a TLS connection.
-	if globalFlags.TrustKeysFromHttps && !globalFlags.InsecureSkipVerify && appName != "" {
-		pkls, err := getPubKeyLocations(appName, false, globalFlags.Debug)
+	if globalFlags.TrustKeysFromHttps && !globalFlags.InsecureFlags.SkipTlsCheck() && appName != "" && f.ks != nil {
+		m := &pubkey.Manager{
+			AuthPerHost:        f.headers,
+			InsecureAllowHttp:  false,
+			TrustKeysFromHttps: true,
+			Ks:                 f.ks,
+			Debug:              globalFlags.Debug,
+		}
+		pkls, err := m.GetPubKeyLocations(appName)
 		if err != nil {
 			stderr("Error determining key location: %v", err)
 		} else {
-			// no http, don't ask user for accepting the key, no overriding
-			if err := addKeys(pkls, appName, false, true, false); err != nil {
+			if err := m.AddKeys(pkls, appName, pubkey.AcceptForce, pubkey.OverrideDeny); err != nil {
 				stderr("Error adding keys: %v", err)
 			}
 		}
@@ -517,7 +530,11 @@ func (f *fetcher) fetch(appName string, aciURL, ascURL string, ascFile *os.File,
 			return nil, nil, nil, fmt.Errorf("error opening ACI file: %v", err)
 		}
 	} else {
-		aciFile, err = f.s.TmpFile()
+		h := sha512.New()
+		h.Write([]byte(aciURL))
+		aciURLHash := f.s.HashToKey(h)
+
+		aciFile, err = f.s.TmpNamedFile(aciURLHash)
 		if err != nil {
 			return nil, aciFile, nil, fmt.Errorf("error setting up temporary file: %v", err)
 		}
@@ -539,7 +556,7 @@ func (f *fetcher) fetch(appName string, aciURL, ascURL string, ascFile *os.File,
 
 	manifest, err := aci.ManifestFromImage(aciFile)
 	if err != nil {
-		return nil, aciFile, nil, err
+		return nil, aciFile, nil, fmt.Errorf("invalid image manifest: %v", err)
 	}
 	// Check if the downloaded ACI has the correct app name.
 	// The check is only performed when the aci is downloaded through the
@@ -593,11 +610,15 @@ func (f *fetcher) downloadHTTP(url, label string, out writeSyncer, etag string) 
 		return nil, err
 	}
 	transport := http.DefaultTransport
-	if f.insecureSkipVerify {
+	if f.insecureFlags.SkipTlsCheck() {
 		transport = &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		}
 	}
+
+	var etagFilePath string
+	var amountAlreadyHere int64
+	byteRangeSupported := false
 
 	client := &http.Client{Transport: transport}
 	f.setHTTPHeaders(req, etag)
@@ -607,7 +628,79 @@ func (f *fetcher) downloadHTTP(url, label string, out writeSyncer, etag string) 
 			return fmt.Errorf("too many redirects")
 		}
 		f.setHTTPHeaders(req, etag)
+		if amountAlreadyHere > 0 && byteRangeSupported {
+			req.Header.Add("Range", fmt.Sprintf("bytes=%d-", amountAlreadyHere))
+		}
 		return nil
+	}
+
+	if f, ok := out.(*os.File); ok {
+		finfo, err := f.Stat()
+		if err != nil {
+			return nil, err
+		}
+
+		etagFilePath = f.Name() + ".etag"
+
+		amountAlreadyHere = finfo.Size()
+		if amountAlreadyHere > 0 {
+			// There's already some data in the file we're going to write the
+			// aci to. We're going to send an HTTP HEAD request to see if the
+			// server accepts Range requests. If so, just request the
+			// remaining data. If not, seek to the beginning of the file.
+			resp, err := client.Head(url)
+			if err != nil {
+				return nil, err
+			}
+			if resp.StatusCode != http.StatusOK {
+				stderr("bad HTTP status code from HEAD request: %d",
+					resp.StatusCode)
+			} else {
+				var modOK bool
+				var etagOK bool
+				lastModified := resp.Header.Get("Last-Modified")
+				etag := resp.Header.Get("ETag")
+				acceptRanges, rangeOK := resp.Header["Accept-Ranges"]
+				if lastModified != "" {
+					t, err := time.Parse("Mon, 02 Jan 2006 15:04:05 MST",
+						lastModified)
+					if err == nil && t.Before(finfo.ModTime()) {
+						modOK = true
+					}
+				}
+				if etag != "" {
+					savedEtag, err := ioutil.ReadFile(etagFilePath)
+					if err == nil && string(savedEtag) == etag {
+						etagOK = true
+					}
+				}
+				if rangeOK && (modOK || etagOK) {
+					for _, rng := range acceptRanges {
+						if rng == "bytes" {
+							byteRangeSupported = true
+							req.Header.Add("Range",
+								fmt.Sprintf("bytes=%d-", amountAlreadyHere))
+						}
+					}
+				}
+				if !byteRangeSupported {
+					if rangeOK {
+						stderr("Can't use cached partial download, resource updated.")
+					} else {
+						stderr("Can't use cached partial download, range request unsupported.")
+					}
+					amountAlreadyHere = 0
+					_, err := f.Seek(0, os.SEEK_SET)
+					if err != nil {
+						return nil, err
+					}
+					err = f.Truncate(0)
+					if err != nil {
+						return nil, err
+					}
+				}
+			}
+		}
 	}
 
 	res, err := client.Do(req)
@@ -623,7 +716,7 @@ func (f *fetcher) downloadHTTP(url, label string, out writeSyncer, etag string) 
 		// If the server returns Status Accepted (HTTP 202), we should retry
 		// downloading the signature later.
 		return nil, errStatusAccepted
-	case http.StatusOK:
+	case http.StatusOK, http.StatusPartialContent:
 		fallthrough
 	case http.StatusNotModified:
 		cd.etag = res.Header.Get("ETag")
@@ -632,9 +725,31 @@ func (f *fetcher) downloadHTTP(url, label string, out writeSyncer, etag string) 
 		if cd.useCached {
 			return cd, nil
 		}
+	case http.StatusRequestedRangeNotSatisfiable:
+		if file, ok := out.(*os.File); ok {
+			finfo, err := file.Stat()
+			if err != nil {
+				return nil, err
+			}
+			if finfo.Size() != 0 {
+				_, err = file.Seek(0, os.SEEK_SET)
+				if err != nil {
+					return nil, err
+				}
+				err = file.Truncate(0)
+				if err != nil {
+					return nil, err
+				}
+				os.Remove(etagFilePath)
+				return f.downloadHTTP(url, label, out, etag)
+			}
+		}
+		fallthrough
 	default:
 		return nil, fmt.Errorf("bad HTTP status code: %d", res.StatusCode)
 	}
+
+	_ = ioutil.WriteFile(etagFilePath, []byte(res.Header.Get("ETag")), 0644)
 
 	prefix := "Downloading " + label
 	fmtBytesSize := 18
@@ -671,6 +786,8 @@ func (f *fetcher) downloadHTTP(url, label string, out writeSyncer, etag string) 
 	if err := out.Sync(); err != nil {
 		return nil, fmt.Errorf("error writing %s: %v", label, err)
 	}
+
+	os.Remove(etagFilePath)
 
 	return cd, nil
 }
@@ -720,8 +837,9 @@ func newDiscoveryApp(img string) *discovery.App {
 	return app
 }
 
-func discoverApp(app *discovery.App, insecure bool) (*discovery.Endpoints, error) {
-	ep, attempts, err := discovery.DiscoverEndpoints(*app, insecure)
+func discoverApp(app *discovery.App, headers map[string]config.Headerer, insecure bool) (*discovery.Endpoints, error) {
+	hostHeaders := config.ResolveAuthPerHost(headers)
+	ep, attempts, err := discovery.DiscoverEndpoints(*app, hostHeaders, insecure)
 	if globalFlags.Debug {
 		for _, a := range attempts {
 			stderr("meta tag 'ac-discovery' not found on %s: %v", a.Prefix, a.Error)
@@ -739,11 +857,11 @@ func discoverApp(app *discovery.App, insecure bool) (*discovery.Endpoints, error
 func getStoreKeyFromApp(s *store.Store, img string) (string, error) {
 	app, err := discovery.NewAppFromString(img)
 	if err != nil {
-		return "", fmt.Errorf("cannot parse the image name: %v", err)
+		return "", fmt.Errorf("cannot parse the image name %q: %v", img, err)
 	}
 	labels, err := types.LabelsFromMap(app.Labels)
 	if err != nil {
-		return "", fmt.Errorf("invalid labels in the name: %v", err)
+		return "", fmt.Errorf("invalid labels in the image %q: %v", img, err)
 	}
 	key, err := s.GetACI(app.Name, labels)
 	if err != nil {
@@ -751,7 +869,7 @@ func getStoreKeyFromApp(s *store.Store, img string) (string, error) {
 		case store.ACINotFoundError:
 			return "", err
 		default:
-			return "", fmt.Errorf("cannot find image: %v", err)
+			return "", fmt.Errorf("cannot find image %q: %v", img, err)
 		}
 	}
 	return key, nil

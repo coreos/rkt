@@ -1,8 +1,13 @@
+set -e;
+
 # maintain a cached copy of coreos pxe image
 
-if [ -z "${IMG_URL}" -o -z "${ITMP}" ]
-then
-    exit 1
+if [ -z "${IMG_URL}" -o -z "${ITMP}" -o -z "${V}" ]; then
+	exit 1
+fi
+
+if [ ${V} -eq 3 ]; then
+	set -x
 fi
 
 # coreos gpg signing key
@@ -151,50 +156,128 @@ X8FjXVJ/8MWi91Z0pHcLzhYZYn2IACvaaUh06HyyAIiDlgWRC7zgMQ==
 -----END PGP PUBLIC KEY BLOCK-----
 "
 
+# prints passed flags if verbosity level is lower; to be used inside
+# output capture (backticks or $())
+function be_quiet() {
+	local verbosity	#verbosity level
+	local flags	#silencing flags to use
+
+	verbosity=$1
+	flags=$2
+
+	if [ $verbosity -lt 3 ]; then
+		printf '%s\n' "${flags}"
+	fi
+}
+
 # gpg verify a file using the provided key
 function gpg_verify() {
+	local file	#file to verify
+	local sigfile	#signature file (assumed to be suffixed form of file to verify)
+	local key	#signing key
+	local keyid	#signing key signature
+	local verbosity	#verbosity level
+
+	local quiet
+	local gpghome
+
 	file=$1
-	sigfile=$2	#signature file (assumed to be suffixed form of file to verify)
-	key=$3		#signing key
-	keyid=$4	#signing key signature
+	sigfile=$2
+	key=$3
+	keyid=$4
+	verbosity=$5
 
+	quiet=$(be_quiet $verbosity '--quiet --no-verbose')
 	gpghome=$(mktemp -d)
-	gpg --homedir="${gpghome}" --batch --quiet --import <<<"${key}"
-	gpg --homedir="${gpghome}" --batch --trusted-key "${keyid}" --verify "${sigfile}" "${cache}"
-	RES=$?
+	trap "{ rm -rf '${gpghome}'; }" RETURN EXIT
+	if ! gpg --homedir="${gpghome}" --batch --quiet --import <<<"${key}"; then
+		return 1
+	fi
+	if ! gpg --homedir="${gpghome}" --batch ${quiet} --trusted-key "${keyid}" --verify "${sigfile}" "${file}"; then
+		return 1
+	fi
+	return 0
+}
 
-	rm -Rf "${gpghome}"
+function do_wget() {
+	local out	#output file
+	local url	#url of a file to be downloaded
+	local verbosity	#verbosity level
 
-	return ${RES}
+	local quiet
+	local short_out
+
+	out=$1
+	url=$2
+	verbosity=$3
+
+	quiet=$(be_quiet $verbosity '--quiet')
+	if [ "${quiet}" ]; then
+		# strip the working directory from output path, so we get
+		# something like build-rkt/tmp/coreos-common/pxe.img
+		# instead of /home/foo/projects/coreos/rkt/build-rkt/...
+		short_out="${out#${PWD}/}"
+		printf '  %-12s %s\n' 'WGET' "${url} => ${short_out}"
+	fi
+	wget ${quiet} --tries=20 --output-document="${out}" "${url}" # the wget default for retries is 20 times.
+}
+
+function cat_to_stderr_if_verbose() {
+	local file
+	local verbosity
+
+	file=$1
+	verbosity=$2
+
+	if [ -z $(be_quiet $verbosity 'empty-if-verbose') ]; then
+		cat "${file}" >&2
+	fi
 }
 
 # maintain an gpg-verified url cache, assumes signature available @ $url.sig
 function cache_url() {
+	local cache	#verified cache, will be downloaded from the url if bad or missing
+	local url	#url of the file to be downloaded
+	local key	#key used for verification
+	local keyid	#id of a key used for verification
+	local verbosity	#verbosity level
+
+	local urlhash
+	local sigfile
+	local sigurl
+	local gpgout
+
 	cache=$1
 	url=$2
 	key=$3
 	keyid=$4
+	verbosity=$5
 
 	urlhash=$(echo -n "${url}" | md5sum)
 	sigfile="${cache}.${urlhash%% *}.sig"
 	sigurl="${url}.sig"
 
-	# ensure the cache directory exists
-	mkdir -p $(dirname "${cache}")
-
+	gpgout=$(mktemp)
+	trap "{ rm -f '${gpgout}'; }" RETURN EXIT
 	# verify the cached copy if it exists
-	if ! gpg_verify "${cache}" "${sigfile}" "${key}" "${keyid}"; then
-
+	if ! gpg_verify "${cache}" "${sigfile}" "${key}" "${keyid}" "${verbosity}" 2>"${gpgout}"; then
 		# refresh the cache on failure, and verify it again
-		wget --tries=20 --output-document="${cache}" "${url}" # the wget default for retries is 20 times.
-		wget --tries=20 --output-document="${sigfile}" "${sigurl}"
-
-		gpg_verify "${cache}" "${sigfile}" "${key}" "${keyid}" || return 1
+		cat_to_stderr_if_verbose "${gpgout}" "${verbosity}"
+		do_wget "${cache}" "${url}" "${verbosity}"
+		do_wget "${sigfile}" "${sigurl}" "${verbosity}"
+		if ! gpg_verify "${cache}" "${sigfile}" "${key}" "${keyid}" "${verbosity}" 2>"${gpgout}"; then
+			# print an error if verification failed
+			cat "${gpgout}" >&2
+			return 1
+		fi
+		cat_to_stderr_if_verbose "${gpgout}" "${verbosity}"
+	else
+		cat_to_stderr_if_verbose "${gpgout}" "${verbosity}"
 	fi
 
 	# file $cache exists and can be trusted
-	touch ${cache}
+	touch "${cache}"
 }
 
 # cache pxe image
-cache_url "${ITMP}/pxe.img" "${IMG_URL}" "${GPG_KEY}" "${GPG_LONG_ID}"
+cache_url "${ITMP}/pxe.img" "${IMG_URL}" "${GPG_KEY}" "${GPG_LONG_ID}" "${V}"

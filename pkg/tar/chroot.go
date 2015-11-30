@@ -80,7 +80,11 @@ func extractTarCommand() error {
 	if err := json.NewDecoder(fileMapFile).Decode(&fileMap); err != nil {
 		return fmt.Errorf("error decoding fileMap: %v", err)
 	}
-	if err := extractTar(tar.NewReader(os.Stdin), overwrite, fileMap, uidRange); err != nil {
+	editor, err := NewUidShiftingFilePermEditor(uidRange)
+	if err != nil {
+		return fmt.Errorf("error determining current user: %v", err)
+	}
+	if err := ExtractTarInsecure(tar.NewReader(os.Stdin), "/", overwrite, fileMap, editor); err != nil {
 		return fmt.Errorf("error extracting tar: %v", err)
 	}
 

@@ -56,6 +56,21 @@ type serverHandler struct {
 	auth string
 }
 
+func getSecFlags(opts []string, defOpts string, fm map[string]int) *secFlags {
+	bf, err := newBitFlags(opts, defOpts, fm)
+	if err != nil {
+		panic(fmt.Sprintf("fetch-test: problem initializing flags: %s", err))
+	}
+
+	return (*secFlags)(bf)
+}
+
+var (
+	insecParams   = "image,tls"
+	insecureFlags = getSecFlags(insecureOptions, insecParams, insecureOptionsMap)
+	secureFlags   = getSecFlags(insecureOptions, "none", insecureOptionsMap)
+)
+
 func (h *serverHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch h.auth {
 	case "deny":
@@ -226,7 +241,7 @@ func TestDownloading(t *testing.T) {
 
 	imj := `{
 			"acKind": "ImageManifest",
-			"acVersion": "0.7.0",
+			"acVersion": "0.7.3",
 			"name": "example.com/test01"
 		}`
 
@@ -338,11 +353,12 @@ func TestDownloading(t *testing.T) {
 		headers := map[string]config.Headerer{
 			parsed.Host: &testHeaderer{tt.options},
 		}
+
 		ft := &fetcher{
 			imageActionData: imageActionData{
-				s:                  s,
-				headers:            headers,
-				insecureSkipVerify: true,
+				s:             s,
+				headers:       headers,
+				insecureFlags: insecureFlags,
 			},
 		}
 		_, aciFile, _, err := ft.fetch("", tt.ACIURL, "", nil, "")
@@ -432,8 +448,9 @@ func TestFetchImage(t *testing.T) {
 	defer ts.Close()
 	ft := &fetcher{
 		imageActionData: imageActionData{
-			s:  s,
-			ks: ks,
+			s:             s,
+			ks:            ks,
+			insecureFlags: secureFlags,
 		},
 	}
 	_, err = ft.fetchImage(fmt.Sprintf("%s/app.aci", ts.URL), "")
@@ -620,8 +637,9 @@ func TestFetchImageCache(t *testing.T) {
 		}
 		ft := &fetcher{
 			imageActionData: imageActionData{
-				s:  s,
-				ks: ks,
+				s:             s,
+				ks:            ks,
+				insecureFlags: secureFlags,
 			},
 			// Skip local store
 			noStore: true,

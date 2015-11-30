@@ -1,8 +1,9 @@
 package diskv
 
 import (
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/petar/GoLLRB/llrb"
 	"sync"
+
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/petar/GoLLRB/llrb"
 )
 
 // Index is a generic interface for things that can

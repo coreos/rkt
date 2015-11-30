@@ -17,8 +17,6 @@
 package main
 
 import (
-	"io/ioutil"
-	"log"
 	"os"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
@@ -32,7 +30,7 @@ import (
 
 var (
 	cmdPrepare = &cobra.Command{
-		Use:   "prepare [--volume=name,kind=host,...] [--quiet] IMAGE [-- image-args...[---]]...",
+		Use:   "prepare [--volume=name,kind=host,...] [--mount volume=VOL,target=PATH] [--quiet] IMAGE [-- image-args...[---]]...",
 		Short: "Prepare to run image(s) in a pod in rkt",
 		Long: `IMAGE should be a string referencing an image; either a hash, local file on disk, or URL.
 They will be checked in that order and the first match will be used.
@@ -49,7 +47,6 @@ func init() {
 	cmdRkt.AddCommand(cmdPrepare)
 
 	addStage1ImageFlag(cmdPrepare.Flags())
-	cmdPrepare.Flags().Var(&flagVolumes, "volume", "volumes to mount into the pod")
 	cmdPrepare.Flags().Var(&flagPorts, "port", "ports to expose on the host (needs contained networking with NAT)")
 	cmdPrepare.Flags().BoolVar(&flagQuiet, "quiet", false, "suppress superfluous output on stdout, print only the UUID on success")
 	cmdPrepare.Flags().BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
@@ -59,7 +56,11 @@ func init() {
 	cmdPrepare.Flags().BoolVar(&flagStoreOnly, "store-only", false, "use only available images in the store (do not discover or download from remote URLs)")
 	cmdPrepare.Flags().BoolVar(&flagNoStore, "no-store", false, "fetch images ignoring the local store")
 	cmdPrepare.Flags().StringVar(&flagPodManifest, "pod-manifest", "", "the path to the pod manifest. If it's non-empty, then only '--quiet' and '--no-overlay' will have effects")
+	cmdPrepare.Flags().Var((*appsVolume)(&rktApps), "volume", "volumes to make available in the pod")
+
+	// per-app flags
 	cmdPrepare.Flags().Var((*appExec)(&rktApps), "exec", "override the exec command for the preceding image")
+	cmdPrepare.Flags().Var((*appMount)(&rktApps), "mount", "mount point binding a volume to a path within an app")
 
 	// Disable interspersed flags to stop parsing after the first non flag
 	// argument. This is need to permit to correctly handle
@@ -96,7 +97,7 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	if len(flagPodManifest) > 0 && (len(flagVolumes) > 0 || len(flagPorts) > 0 || flagInheritEnv || !flagExplicitEnv.IsEmpty() || flagStoreOnly || flagNoStore) {
+	if len(flagPodManifest) > 0 && (len(flagPorts) > 0 || flagInheritEnv || !flagExplicitEnv.IsEmpty() || flagStoreOnly || flagNoStore) {
 		stderr("prepare: conflicting flags set with --pod-manifest (see --help)")
 		return 1
 	}
@@ -104,15 +105,6 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 	if rktApps.Count() < 1 && len(flagPodManifest) == 0 {
 		stderr("prepare: must provide at least one image or specify the pod manifest")
 		return 1
-	}
-
-	if globalFlags.Dir == "" {
-		log.Printf("dir unset - using temporary directory")
-		globalFlags.Dir, err = ioutil.TempDir("", "rkt")
-		if err != nil {
-			stderr("prepare: error creating temporary directory: %v", err)
-			return 1
-		}
 	}
 
 	s, err := store.NewStore(globalFlags.Dir)
@@ -128,11 +120,11 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 	}
 	fn := &finder{
 		imageActionData: imageActionData{
-			s:                  s,
-			headers:            config.AuthPerHost,
-			dockerAuth:         config.DockerCredentialsPerRegistry,
-			insecureSkipVerify: globalFlags.InsecureSkipVerify,
-			debug:              globalFlags.Debug,
+			s:             s,
+			headers:       config.AuthPerHost,
+			dockerAuth:    config.DockerCredentialsPerRegistry,
+			insecureFlags: globalFlags.InsecureFlags,
+			debug:         globalFlags.Debug,
 		},
 		storeOnly: flagStoreOnly,
 		noStore:   flagNoStore,
@@ -148,7 +140,7 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 	fn.ks = getKeystore()
 	fn.withDeps = true
 	if err := fn.findImages(&rktApps); err != nil {
-		stderr("%v", err)
+		stderr("prepare: %v", err)
 		return 1
 	}
 
@@ -174,7 +166,6 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 	if len(flagPodManifest) > 0 {
 		pcfg.PodManifest = flagPodManifest
 	} else {
-		pcfg.Volumes = []types.Volume(flagVolumes)
 		pcfg.Ports = []types.ExposedPort(flagPorts)
 		pcfg.InheritEnv = flagInheritEnv
 		pcfg.ExplicitEnv = flagExplicitEnv.Strings()

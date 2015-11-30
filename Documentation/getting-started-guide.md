@@ -2,6 +2,7 @@
 
 The following guide will show you how to build and run a self-contained Go app using
 rkt, the reference implementation of the [App Container Specification](https://github.com/appc/spec).
+If you're not on Linux, you should do all of this inside [the rkt Vagrant](https://github.com/coreos/rkt#trying-out-rkt-using-vagrant).
 
 ## Create a hello go application
 
@@ -27,16 +28,16 @@ func main() {
 Next we need to build our application. We are going to statically link our app
 so we can ship an App Container Image with no external dependencies.
 
-With Go 1.3:
-
-```
-$ CGO_ENABLED=0 GOOS=linux go build -o hello -a -tags netgo -ldflags '-w' .
-```
-
-or, on [Go 1.4](https://github.com/golang/go/issues/9344#issuecomment-69944514):
+With [Go 1.4](https://github.com/golang/go/issues/9344#issuecomment-69944514):
 
 ```
 $ CGO_ENABLED=0 GOOS=linux go build -o hello -a -installsuffix cgo .
+```
+
+or with Go 1.5:
+
+```
+$ CGO_ENABLED=0 GOOS=linux go build -o hello -a -tags netgo -ldflags '-w' .
 ```
 
 Before proceeding, verify that the produced binary is statically linked:
@@ -48,111 +49,40 @@ $ ldd hello
 	not a dynamic executable
 ```
 
-## Create the image manifest
+## Create the image
 
-Edit: manifest.json
+To create the image, we can use `acbuild`, which can be downloaded via one of the [releases in the acbuild repository](https://github.com/appc/acbuild/releases)
 
-```json
-{
-    "acKind": "ImageManifest",
-    "acVersion": "0.7.0",
-    "name": "example.com/hello",
-    "labels": [
-        {
-            "name": "version",
-            "value": "0.0.1"
-        },
-        {
-            "name": "arch",
-            "value": "amd64"
-        },
-        {
-            "name": "os",
-            "value": "linux"
-        }
-    ],
-    "app": {
-        "user": "root",
-        "group": "root",
-        "exec": [
-            "/bin/hello"
-        ],
-        "ports": [
-            {
-                "name": "www",
-                "protocol": "tcp",
-                "port": 5000
-            }
-        ]
-    },
-    "annotations": [
-        {
-            "name": "authors",
-            "value": "Kelsey Hightower <kelsey.hightower@gmail.com>"
-        }
-    ]
-}
-```
+The following commands will create an ACI containing our application and important metadata.
 
-### Validate the image manifest
-
-To validate the manifest, we can use `actool`, which is currently provided in [releases in the App Container repository](https://github.com/appc/spec/releases).
-
-```
-$ actool --debug validate manifest.json
-manifest.json: valid ImageManifest
-```
-
-## Create the layout and the rootfs
-
-```
-$ mkdir hello-layout/
-$ mkdir hello-layout/rootfs
-$ mkdir hello-layout/rootfs/bin
-```
-
-Copy the image manifest and `hello` binary into the layout:
-
-```
-$ cp manifest.json hello-layout/manifest
-$ cp hello hello-layout/rootfs/bin/
-```
-
-## Build the application image
-
-```
-$ actool build hello-layout/ hello-0.0.1-linux-amd64.aci
-```
-
-### Validate the application image
-
-```
-$ actool --debug validate hello-0.0.1-linux-amd64.aci
-hello-0.0.1-linux-amd64.aci: valid app container image
+```bash
+acbuild begin
+acbuild set-name example.com/hello
+acbuild copy hello /bin/hello
+acbuild set-exec /bin/hello
+acbuild port add www tcp 5000
+acbuild label add version 0.0.1
+acbuild label add arch amd64
+acbuild label add os linux
+acbuild annotation add authors "Carly Container <carly.container@gmail.com>"
+acbuild write hello-0.0.1-linux-amd64.aci
+acbuild end
 ```
 
 ## Run
 
-### Launch the metadata service
-
-Start the metadata service from your init system or simply from another terminal:
-
-```
-# rkt metadata-service
-```
-
-rkt will register pods with the [metadata service](https://github.com/coreos/rkt/blob/master/Documentation/subcommands/metadata-service.md) so they can introspect their environment.
-
 ### Launch a local application image
 
 ```
-# rkt --insecure-skip-verify run hello-0.0.1-linux-amd64.aci
+# rkt --insecure-options=image run hello-0.0.1-linux-amd64.aci
 ```
 
-Note that `--insecure-skip-verify` is required because, by default, rkt expects our signature to be signed. See the [Signing and Verification Guide](https://github.com/coreos/rkt/blob/master/Documentation/signing-and-verification-guide.md) for more details.
+Note that `--insecure-options=image` is required because, by default, rkt expects our images to be signed. See the [Signing and Verification Guide](https://github.com/coreos/rkt/blob/master/Documentation/signing-and-verification-guide.md) for more details.
 
 At this point our hello app is running on port 5000 and ready to handle HTTP
 requests.
+
+You can also [run rkt as a daemon](https://github.com/coreos/rkt/blob/master/Documentation/subcommands/run.md#run-rkt-as-a-daemon).
 
 ### Test with curl
 
@@ -160,5 +90,28 @@ Open a new terminal and run the following command:
 
 ```
 $ curl 127.0.0.1:5000
+hello
+```
+
+#### When curl Fails to Connect
+
+If you're running in Vagrant, the above may not work. You might see this instead:
+
+```
+$ curl 127.0.0.1:5000
+curl: (7) Failed to connect to 127.0.0.1 port 5000: Connection refused
+```
+
+Instead, use `rkt list` to find out what IP to use:
+
+```
+# rkt list
+UUID		APP	IMAGE NAME		STATE	NETWORKS
+885876b0	hello	example.com/hello:0.0.1	running	default:ip4=172.16.28.2
+```
+
+Then you can `curl` that IP:
+```
+$ curl 172.16.28.2:5000
 hello
 ```

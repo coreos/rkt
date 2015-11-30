@@ -49,9 +49,9 @@ sha512-fa1cb92dc276b0f9bedf87981e61ecde
 If you want to run an existing Docker image, you can fetch from a Docker registry. rkt will download and convert the image to ACI.
 
 ```
-# rkt --insecure-skip-verify fetch docker://busybox
+# rkt --insecure-options=image fetch docker://busybox
 rkt: fetching image from docker://busybox
-rkt: warning: signature verification has been disabled
+rkt: warning: image signature verification has been disabled
 Downloading layer: 4986bf8c15363d1c5d15512d5266f8777bfba4974ac56e3270e7760f6f0a8125
 Downloading layer: ea13149945cb6b1e746bf28032f02e9b5a793523481a0a18645fc77ad53c4ea2
 Downloading layer: df7546f9f060a2268024c8a230d8639878585defcc1bc6f79d2728a13957871b

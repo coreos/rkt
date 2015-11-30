@@ -23,12 +23,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/steveeJ/gexpect"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/coreos/gexpect"
+	"github.com/coreos/rkt/tests/testutils"
 )
 
-func preparePidFileRace(t *testing.T, ctx *rktRunCtx, sleepImage string) (*gexpect.ExpectSubprocess, *gexpect.ExpectSubprocess, string, string) {
+func preparePidFileRace(t *testing.T, ctx *testutils.RktRunCtx, sleepImage string) (*gexpect.ExpectSubprocess, *gexpect.ExpectSubprocess, string, string) {
 	// Start the pod
-	runCmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --mds-register=false --interactive %s", ctx.cmd(), sleepImage)
+	runCmd := fmt.Sprintf("%s --debug --insecure-options=image run --mds-register=false --interactive %s", ctx.Cmd(), sleepImage)
 	runChild := spawnOrFail(t, runCmd)
 
 	if err := expectWithOutput(runChild, "Enter text:"); err != nil {
@@ -36,14 +37,14 @@ func preparePidFileRace(t *testing.T, ctx *rktRunCtx, sleepImage string) (*gexpe
 	}
 
 	// Check the ppid file is really created
-	cmd := fmt.Sprintf(`%s list --full|grep running`, ctx.cmd())
+	cmd := fmt.Sprintf(`%s list --full|grep running`, ctx.Cmd())
 	output, err := exec.Command("/bin/sh", "-c", cmd).CombinedOutput()
 	if err != nil {
 		t.Fatalf("Couldn't list the pods: %v", err)
 	}
 	UUID := strings.Split(string(output), "\t")[0]
 
-	pidFileName := filepath.Join(ctx.dataDir(), "pods/run", UUID, "ppid")
+	pidFileName := filepath.Join(ctx.DataDir(), "pods/run", UUID, "ppid")
 	if _, err := os.Stat(pidFileName); err != nil {
 		t.Fatalf("Pid file missing: %v", err)
 	}
@@ -55,7 +56,7 @@ func preparePidFileRace(t *testing.T, ctx *rktRunCtx, sleepImage string) (*gexpe
 	}
 
 	// Start the "enter" command without the pidfile
-	enterCmd := fmt.Sprintf("%s --debug enter %s /inspect --print-msg=RktEnterWorksFine", ctx.cmd(), UUID)
+	enterCmd := fmt.Sprintf("%s --debug enter %s /inspect --print-msg=RktEnterWorksFine", ctx.Cmd(), UUID)
 	t.Logf("%s", enterCmd)
 	enterChild := spawnOrFail(t, enterCmd)
 
@@ -70,8 +71,8 @@ func TestPidFileDelayedStart(t *testing.T) {
 	sleepImage := patchTestACI("rkt-inspect-sleep.aci", "--exec=/inspect --read-stdin")
 	defer os.Remove(sleepImage)
 
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	runChild, enterChild, pidFileName, pidFileNameBackup := preparePidFileRace(t, ctx, sleepImage)
 
@@ -105,8 +106,8 @@ func TestPidFileAbortedStart(t *testing.T) {
 	sleepImage := patchTestACI("rkt-inspect-sleep.aci", "--exec=/inspect --read-stdin")
 	defer os.Remove(sleepImage)
 
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	runChild, enterChild, _, _ := preparePidFileRace(t, ctx, sleepImage)
 

@@ -38,7 +38,7 @@ func GC(pdir string, uuid *types.UUID, stage1Path string, debug bool) error {
 
 	ep, err := getStage1Entrypoint(pdir, gcEntrypoint)
 	if err != nil {
-		return fmt.Errorf("error determining gc entrypoint: %v", err)
+		return fmt.Errorf("error determining 'gc' entrypoint: %v", err)
 	}
 
 	args := []string{filepath.Join(stage1Path, ep)}

@@ -16,73 +16,53 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
-	"strings"
 	"testing"
+
+	"github.com/coreos/rkt/tests/testutils"
 )
 
-const (
-
-	// The expected image manifest of the 'rkt-inspect-image-cat-manifest.aci'.
-	manifestTemplate = `{"acKind":"ImageManifest","acVersion":"0.7.0","name":"IMG_NAME","labels":[{"name":"version","value":"1.0.0"},{"name":"arch","value":"amd64"},{"name":"os","value":"linux"}],"app":{"exec":["/inspect"],"user":"0","group":"0","workingDirectory":"/","environment":[{"name":"VAR_FROM_MANIFEST","value":"manifest"}]}}`
-)
-
-// TestCatManifest tests 'rkt image cat-manifest', it will:
-// Read some existing image manifest via the image name, and verify the result.
-// Read some existing image manifest via the image hash, and verify the result.
-// Read some non-existing image manifest via the image name, and verify nothing is found.
-// Read some non-existing image manifest via the image hash, and verify nothing is found.
+// TestCatManifest tests 'rkt cat-manifest', it will:
 func TestCatManifest(t *testing.T) {
-	testImageName := "coreos.com/rkt-cat-manifest-test"
-	expectManifest := strings.Replace(manifestTemplate, "IMG_NAME", testImageName, -1)
+	const imgName = "rkt-cat-manifest-test"
 
-	tmpManifest, err := ioutil.TempFile("", "rkt-TestCatManifest-")
-	if err != nil {
-		t.Fatalf("Cannot create temp manifest: %v", err)
-	}
-	defer os.Remove(tmpManifest.Name())
-	if err := ioutil.WriteFile(tmpManifest.Name(), []byte(expectManifest), 0600); err != nil {
-		t.Fatalf("Cannot write to temp manifest: %v", err)
-	}
+	image := patchTestACI(fmt.Sprintf("%s.aci", imgName), fmt.Sprintf("--name=%s", imgName))
+	defer os.Remove(image)
 
-	testImage := patchTestACI("rkt-inspect-image-cat-manifest.aci", "--manifest", tmpManifest.Name())
-	defer os.Remove(testImage)
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	imageHash := getHashOrPanic(image)
+	imgID := ImageId{path: image, hash: imageHash}
 
-	testImageHash := importImageAndFetchHash(t, ctx, testImage)
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
+
+	// Prepare image
+	cmd := fmt.Sprintf("%s --insecure-options=image prepare %s", ctx.Cmd(), imgID.path)
+	podUuid := runRktAndGetUUID(t, cmd)
+
+	tmpDir := createTempDirOrPanic(imgName)
+	defer os.RemoveAll(tmpDir)
 
 	tests := []struct {
-		image      string
-		shouldFind bool
-		expect     string
+		uuid  string
+		match string
 	}{
 		{
-			testImageName,
-			true,
-			expectManifest,
+			podUuid,
+			imgName,
 		},
 		{
-			testImageHash,
-			true,
-			expectManifest,
+			podUuid,
+			imageHash[:20],
 		},
 		{
-			"sha512-not-existed",
-			false,
-			"",
-		},
-		{
-			"some~random~aci~name",
-			false,
-			"",
+			"1234567890abcdef",
+			"unable to resolve UUID: no matches found for",
 		},
 	}
 
 	for i, tt := range tests {
-		runCmd := fmt.Sprintf("%s image cat-manifest %s", ctx.cmd(), tt.image)
+		runCmd := fmt.Sprintf("%s cat-manifest %s", ctx.Cmd(), tt.uuid)
 		t.Logf("Running test #%d", i)
-		runRktAndCheckOutput(t, runCmd, tt.expect, !tt.shouldFind)
+		runRktAndCheckRegexOutput(t, runCmd, tt.match)
 	}
 }

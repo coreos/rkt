@@ -43,9 +43,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/coreos/go-systemd/unit"
 	"github.com/coreos/rkt/common"
+	initcommon "github.com/coreos/rkt/stage1/init/common"
 )
 
 const (
@@ -61,14 +63,13 @@ func serviceUnitName(appName types.ACName) string {
 	return appName.String() + ".service"
 }
 
-// installNewMountUnit creates and installs new mount unit in default
-// systemd location (/usr/lib/systemd/system) in pod stage1 filesystem.
-// root is a stage1 relative to pod filesystem path like /var/lib/uuid/rootfs/
-// (from Pod.Root).
-// beforeAndrequiredBy creates systemd unit dependency (can be space separated
+// installNewMountUnit creates and installs a new mount unit in the default
+// systemd location (/usr/lib/systemd/system) inside the pod stage1 filesystem.
+// root is pod's absolute stage1 path (from Pod.Root).
+// beforeAndrequiredBy creates a systemd unit dependency (can be space separated
 // for multi).
-func installNewMountUnit(root, what, where, fsType, options, beforeAndrequiredBy, unitsDir string) error {
-
+// It returns the name of the generated unit.
+func installNewMountUnit(root, what, where, fsType, options, beforeAndrequiredBy, unitsDir string) (string, error) {
 	opts := []*unit.UnitOption{
 		unit.NewUnitOption("Unit", "Description", fmt.Sprintf("Mount unit for %s", where)),
 		unit.NewUnitOption("Unit", "DefaultDependencies", "false"),
@@ -82,17 +83,26 @@ func installNewMountUnit(root, what, where, fsType, options, beforeAndrequiredBy
 
 	unitsPath := filepath.Join(root, unitsDir)
 	unitName := unit.UnitNamePathEscape(where + ".mount")
+
+	if err := writeUnit(opts, filepath.Join(unitsPath, unitName)); err != nil {
+		return "", err
+	}
+	log.Printf("mount unit created: %q in %q (what=%q, where=%q)", unitName, unitsPath, what, where)
+
+	return unitName, nil
+}
+
+func writeUnit(opts []*unit.UnitOption, unitPath string) error {
 	unitBytes, err := ioutil.ReadAll(unit.Serialize(opts))
 	if err != nil {
-		return fmt.Errorf("failed to serialize mount unit file to bytes %q: %v", unitName, err)
+		return fmt.Errorf("failed to serialize mount unit file to bytes %q: %v", unitPath, err)
 	}
 
-	err = ioutil.WriteFile(filepath.Join(unitsPath, unitName), unitBytes, 0644)
+	err = ioutil.WriteFile(unitPath, unitBytes, 0644)
 	if err != nil {
-		return fmt.Errorf("failed to create mount unit file %q: %v", unitName, err)
+		return fmt.Errorf("failed to create mount unit file %q: %v", unitPath, err)
 	}
 
-	log.Printf("mount unit created: %q in %q (what=%q, where=%q)", unitName, unitsPath, what, where)
 	return nil
 }
 
@@ -104,31 +114,28 @@ func installNewMountUnit(root, what, where, fsType, options, beforeAndrequiredBy
 // appNames are used to create before/required dependency between mount unit and
 // app service units.
 func PodToSystemdHostMountUnits(root string, volumes []types.Volume, appNames []types.ACName, unitsDir string) error {
-
 	// pod volumes need to mount p9 qemu mount_tags
 	for _, vol := range volumes {
 		// only host shared volumes
 
 		name := vol.Name.String() // acts as a mount tag 9p
-		// /var/lib/.../pod/run/rootfs/mnt/{volumeName}
-		mountPoint := filepath.Join(root, stage1MntDir, name)
-
-		// for kind "empty" that will be shared among applications
-		log.Printf("creating an empty volume folder for sharing: %q", mountPoint)
-		err := os.MkdirAll(mountPoint, 0700)
-		if err != nil {
-			return err
-		}
 
 		// serviceNames for ordering and requirements dependency for apps
-		serviceNames := []string{}
+		var serviceNames []string
 		for _, appName := range appNames {
 			serviceNames = append(serviceNames, serviceUnitName(appName))
 		}
 
 		// for host kind we create a mount unit to mount host shared folder
 		if vol.Kind == "host" {
-			err = installNewMountUnit(root,
+			// /var/lib/.../pod/run/rootfs/mnt/{volumeName}
+			mountPoint := filepath.Join(root, stage1MntDir, name)
+			err := os.MkdirAll(mountPoint, 0700)
+			if err != nil {
+				return err
+			}
+
+			_, err = installNewMountUnit(root,
 				name, // what (source) in 9p it is a channel tag which equals to volume.Name/mountPoint.name
 				filepath.Join(stage1MntDir, name), // where - destination
 				"9p",                            // fsType
@@ -147,45 +154,54 @@ func PodToSystemdHostMountUnits(root string, volumes []types.Volume, appNames []
 
 // AppToSystemdMountUnits prepare bind mount unit for empty or host kind mounting
 // between stage1 rootfs and chrooted filesystem for application
-func AppToSystemdMountUnits(root string, appName types.ACName, mountPoints []types.MountPoint, unitsDir string) error {
+func AppToSystemdMountUnits(root string, appName types.ACName, volumes []types.Volume, ra *schema.RuntimeApp, unitsDir string) error {
+	app := ra.App
 
-	for _, mountPoint := range mountPoints {
+	vols := make(map[types.ACName]types.Volume)
+	for _, v := range volumes {
+		vols[v.Name] = v
+	}
 
-		name := mountPoint.Name.String()
+	mounts := initcommon.GenerateMounts(ra, vols)
+	for _, m := range mounts {
+		vol := vols[m.Volume]
+
 		// source relative to stage1 rootfs to relative pod root
-		whatPath := filepath.Join(stage1MntDir, name)
+		whatPath := filepath.Join(stage1MntDir, vol.Name.String())
 		whatFullPath := filepath.Join(root, whatPath)
 
-		// destination relative to stage1 rootfs and relative to pod root
-		wherePath := filepath.Join(common.RelAppRootfsPath(appName), mountPoint.Path)
-		whereFullPath := filepath.Join(root, wherePath)
-
-		// readOnly
-		mountOptions := "bind"
-		if mountPoint.ReadOnly {
-			mountOptions += ",ro"
+		if vol.Kind == "empty" {
+			log.Printf("creating an empty volume folder for sharing: %q", whatFullPath)
+			err := os.MkdirAll(whatFullPath, 0700)
+			if err != nil {
+				return err
+			}
 		}
 
-		// assertion to make sure that "what" exists (created earlier by podToSystemdHostMountUnits)
+		// destination relative to stage1 rootfs and relative to pod root
+		wherePath := filepath.Join(common.RelAppRootfsPath(appName), m.Path)
+		whereFullPath := filepath.Join(root, wherePath)
+
+		// assertion to make sure that "what" exists (created earlier by PodToSystemdHostMountUnits)
 		log.Printf("checking required source path: %q", whatFullPath)
 		if _, err := os.Stat(whatFullPath); os.IsNotExist(err) {
-			return fmt.Errorf("app requires a volume that is not defined in Pod (try adding --volume=%s,kind=empty)!", name)
+			return fmt.Errorf("bug: missing source for volume %v", vol.Name)
 		}
 
 		// optionally prepare app directory
 		log.Printf("optionally preparing destination path: %q", whereFullPath)
 		err := os.MkdirAll(whereFullPath, 0700)
 		if err != nil {
-			return fmt.Errorf("failed to prepare dir for mountPoint %v: %v", mountPoint.Name, err)
+			return fmt.Errorf("failed to prepare dir for mount %v: %v", m.Volume, err)
 		}
 
 		// install new mount unit for bind mount /mnt/volumeName -> /opt/stage2/{app-id}/rootfs/{{mountPoint.Path}}
-		err = installNewMountUnit(
+		mu, err := installNewMountUnit(
 			root,      // where put a mount unit
 			whatPath,  // what - stage1 rootfs /mnt/VolumeName
 			wherePath, // where - inside chroot app filesystem
 			"bind",    // fstype
-			mountOptions,
+			"bind",    // options
 			serviceUnitName(appName),
 			unitsDir,
 		)
@@ -193,6 +209,24 @@ func AppToSystemdMountUnits(root string, appName types.ACName, mountPoints []typ
 			return fmt.Errorf("cannot install new mount unit for app %q: %v", appName.String(), err)
 		}
 
+		// TODO(iaguis) when we update util-linux to 2.27, this code can go
+		// away and we can bind-mount RO with one unit file.
+		// http://ftp.kernel.org/pub/linux/utils/util-linux/v2.27/v2.27-ReleaseNotes
+		if initcommon.IsMountReadOnly(vol, app.MountPoints) {
+			opts := []*unit.UnitOption{
+				unit.NewUnitOption("Unit", "Description", fmt.Sprintf("Remount read-only unit for %s", wherePath)),
+				unit.NewUnitOption("Unit", "DefaultDependencies", "false"),
+				unit.NewUnitOption("Unit", "After", mu),
+				unit.NewUnitOption("Unit", "Wants", mu),
+				unit.NewUnitOption("Service", "ExecStart", fmt.Sprintf("/usr/bin/mount -o remount,ro %s", wherePath)),
+				unit.NewUnitOption("Install", "RequiredBy", mu),
+			}
+
+			remountUnitPath := filepath.Join(root, unitsDir, unit.UnitNamePathEscape(wherePath+"-remount.service"))
+			if err := writeUnit(opts, remountUnitPath); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -201,7 +235,7 @@ func AppToSystemdMountUnits(root string, appName types.ACName, mountPoints []typ
 // shared volumes (only for "host" kind).
 // Example return is ["--9p,src/folder,9ptag"].
 func VolumesToKvmDiskArgs(volumes []types.Volume) []string {
-	args := []string{}
+	var args []string
 
 	for _, vol := range volumes {
 		mountTag := vol.Name.String() // tag/channel name for virtio

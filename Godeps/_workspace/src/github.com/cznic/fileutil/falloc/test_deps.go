@@ -11,6 +11,5 @@ package falloc
 import (
 	_ "github.com/coreos/rkt/Godeps/_workspace/src/github.com/cznic/fileutil"
 	_ "github.com/coreos/rkt/Godeps/_workspace/src/github.com/cznic/fileutil/storage"
-
 	_ "github.com/coreos/rkt/Godeps/_workspace/src/github.com/cznic/mathutil"
 )

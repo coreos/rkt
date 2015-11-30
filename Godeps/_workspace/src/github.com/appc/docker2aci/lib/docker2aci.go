@@ -230,6 +230,27 @@ func writeSquashedImage(outputFile *os.File, renderedACI acirenderer.RenderedACI
 	outputWriter := tar.NewWriter(gw)
 	defer outputWriter.Close()
 
+	finalManifest := mergeManifests(manifests)
+
+	if err := common.WriteManifest(outputWriter, finalManifest); err != nil {
+		return err
+	}
+
+	if err := common.WriteRootfsDir(outputWriter); err != nil {
+		return err
+	}
+
+	type hardLinkEntry struct {
+		firstLinkCleanName string
+		firstLinkHeader    tar.Header
+		keepOriginal       bool
+		walked             bool
+	}
+	// map aciFileKey -> cleanTarget -> hardLinkEntry
+	hardLinks := make(map[string]map[string]hardLinkEntry)
+
+	// first pass: read all the entries and build the hardLinks map in memory
+	// but don't write on disk
 	for _, aciFile := range renderedACI {
 		rs, err := aciProvider.ReadStream(aciFile.Key)
 		if err != nil {
@@ -237,19 +258,20 @@ func writeSquashedImage(outputFile *os.File, renderedACI acirenderer.RenderedACI
 		}
 		defer rs.Close()
 
+		hardLinks[aciFile.Key] = map[string]hardLinkEntry{}
+
 		squashWalker := func(t *tarball.TarFile) error {
 			cleanName := filepath.Clean(t.Name())
-
-			if _, ok := aciFile.FileMap[cleanName]; ok {
-				// we generate and add the squashed manifest later
-				if cleanName == "manifest" {
-					return nil
-				}
-				if err := outputWriter.WriteHeader(t.Header); err != nil {
-					return fmt.Errorf("error writing header: %v", err)
-				}
-				if _, err := io.Copy(outputWriter, t.TarStream); err != nil {
-					return fmt.Errorf("error copying file into the tar out: %v", err)
+			// the rootfs and the squashed manifest are added separately
+			if cleanName == "manifest" || cleanName == "rootfs" {
+				return nil
+			}
+			_, keep := aciFile.FileMap[cleanName]
+			if keep && t.Header.Typeflag == tar.TypeLink {
+				cleanTarget := filepath.Clean(t.Linkname())
+				if _, ok := hardLinks[aciFile.Key][cleanTarget]; !ok {
+					_, keepOriginal := aciFile.FileMap[cleanTarget]
+					hardLinks[aciFile.Key][cleanTarget] = hardLinkEntry{cleanName, *t.Header, keepOriginal, false}
 				}
 			}
 			return nil
@@ -261,14 +283,82 @@ func writeSquashedImage(outputFile *os.File, renderedACI acirenderer.RenderedACI
 		}
 	}
 
-	if err := common.WriteRootfsDir(outputWriter); err != nil {
-		return err
-	}
+	// second pass: write on disk
+	for _, aciFile := range renderedACI {
+		rs, err := aciProvider.ReadStream(aciFile.Key)
+		if err != nil {
+			return err
+		}
+		defer rs.Close()
 
-	finalManifest := mergeManifests(manifests)
+		squashWalker := func(t *tarball.TarFile) error {
+			cleanName := filepath.Clean(t.Name())
+			// the rootfs and the squashed manifest are added separately
+			if cleanName == "manifest" || cleanName == "rootfs" {
+				return nil
+			}
+			_, keep := aciFile.FileMap[cleanName]
 
-	if err := common.WriteManifest(outputWriter, finalManifest); err != nil {
-		return err
+			if link, ok := hardLinks[aciFile.Key][cleanName]; ok {
+				if keep != link.keepOriginal {
+					return fmt.Errorf("logic error: should we keep file %q?", cleanName)
+				}
+				if keep {
+					if err := outputWriter.WriteHeader(t.Header); err != nil {
+						return fmt.Errorf("error writing header: %v", err)
+					}
+					if _, err := io.Copy(outputWriter, t.TarStream); err != nil {
+						return fmt.Errorf("error copying file into the tar out: %v", err)
+					}
+				} else {
+					// The current file does not remain but there is a hard link pointing to
+					// it. Write the current file but with the filename of the first hard link
+					// pointing to it. That first hard link will not be written later, see
+					// variable "alreadyWritten".
+					link.firstLinkHeader.Size = t.Header.Size
+					link.firstLinkHeader.Typeflag = t.Header.Typeflag
+					link.firstLinkHeader.Linkname = ""
+
+					if err := outputWriter.WriteHeader(&link.firstLinkHeader); err != nil {
+						return fmt.Errorf("error writing header: %v", err)
+					}
+					if _, err := io.Copy(outputWriter, t.TarStream); err != nil {
+						return fmt.Errorf("error copying file into the tar out: %v", err)
+					}
+				}
+			} else if keep {
+				alreadyWritten := false
+				if t.Header.Typeflag == tar.TypeLink {
+					cleanTarget := filepath.Clean(t.Linkname())
+					if link, ok := hardLinks[aciFile.Key][cleanTarget]; ok {
+						if !link.keepOriginal {
+							if link.walked {
+								t.Header.Linkname = link.firstLinkCleanName
+							} else {
+								alreadyWritten = true
+							}
+						}
+						link.walked = true
+						hardLinks[aciFile.Key][cleanTarget] = link
+					}
+				}
+
+				if !alreadyWritten {
+					if err := outputWriter.WriteHeader(t.Header); err != nil {
+						return fmt.Errorf("error writing header: %v", err)
+					}
+					if _, err := io.Copy(outputWriter, t.TarStream); err != nil {
+						return fmt.Errorf("error copying file into the tar out: %v", err)
+					}
+				}
+			}
+			return nil
+		}
+
+		tr := tar.NewReader(rs)
+		if err := tarball.Walk(*tr, squashWalker); err != nil {
+			return err
+		}
 	}
 
 	return nil

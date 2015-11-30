@@ -1,6 +1,6 @@
 {
     "acKind": "ImageManifest",
-    "acVersion": "0.7.0",
+    "acVersion": "0.7.3",
     "name": "coreos.com/rkt-inspect",
     "labels": [
         {

@@ -57,27 +57,21 @@ func runEnter(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	podUUID, err := resolveUUID(args[0])
+	p, err := getPodFromUUIDString(args[0])
 	if err != nil {
-		stderr("Unable to resolve UUID: %v", err)
-		return 1
-	}
-
-	p, err := getPod(podUUID)
-	if err != nil {
-		stderr("Failed to open pod %q: %v", podUUID, err)
+		stderr("Problem problem retrieving pod: %v", err)
 		return 1
 	}
 	defer p.Close()
 
 	if !p.isRunning() {
-		stderr("Pod %q isn't currently running", podUUID)
+		stderr("Pod %q isn't currently running", p.uuid)
 		return 1
 	}
 
-	podPID, err := p.getPID()
+	podPID, err := p.getContainerPID1()
 	if err != nil {
-		stderr("Unable to determine the pid for pod %q: %v", podUUID, err)
+		stderr("Unable to determine the pid for pod %q: %v", p.uuid, err)
 		return 1
 	}
 
@@ -132,7 +126,7 @@ func getAppName(p *pod) (*types.ACName, error) {
 
 	m := schema.PodManifest{}
 	if err = m.UnmarshalJSON(b); err != nil {
-		return nil, fmt.Errorf("unable to load manifest: %v", err)
+		return nil, fmt.Errorf("invalid pod manifest: %v", err)
 	}
 
 	switch len(m.Apps) {

@@ -17,6 +17,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -113,6 +114,8 @@ func emptyExitedGarbage(gracePeriod time.Duration) error {
 			stdout("Garbage collecting pod %q", p.uuid)
 
 			deletePod(p)
+		} else {
+			stderr("Pod %q not removed: still within grace period (%s)", p.uuid, gracePeriod)
 		}
 	}); err != nil {
 		return err
@@ -181,7 +184,7 @@ func emptyGarbage() error {
 // or Garbage state
 func deletePod(p *pod) {
 	if !p.isExitedGarbage && !p.isGarbage {
-		panic("logic error: deletePod called with non-garbage pod")
+		panic(fmt.Sprintf("logic error: deletePod called with non-garbage pod %q (status %q)", p.uuid, p.getState()))
 	}
 
 	if p.isExitedGarbage {
@@ -190,6 +193,7 @@ func deletePod(p *pod) {
 			stderr("Cannot open store: %v", err)
 			return
 		}
+		defer s.Close()
 		stage1TreeStoreID, err := p.getStage1TreeStoreID()
 		if err != nil {
 			stderr("Error getting stage1 treeStoreID: %v", err)

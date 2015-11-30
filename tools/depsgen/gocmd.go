@@ -127,7 +127,7 @@ func goGetFiles(repo string, pkgs []string) []string {
 		"GoFiles",
 		"CgoFiles",
 	}
-	allFiles := []string{}
+	var allFiles []string
 	rawTuples := goRun(goList(params, pkgs))
 	for _, raw := range rawTuples {
 		tuple := goSliceRawTuple(raw)

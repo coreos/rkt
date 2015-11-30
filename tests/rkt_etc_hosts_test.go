@@ -22,7 +22,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/steveeJ/gexpect"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/coreos/gexpect"
+	"github.com/coreos/rkt/tests/testutils"
 )
 
 // stage1/prepare-app will populate /etc/hosts with a 127.0.0.1 entry when absent,
@@ -32,11 +33,11 @@ var etcHostsTests = []struct {
 	expectRegEx string
 }{
 	{
-		`/bin/sh -c "export FILE=/etc/hosts; ^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --inherit-env=true ^ETC_HOSTS_CREATE^"`,
+		`/bin/sh -c "export FILE=/etc/hosts; ^RKT_BIN^ --debug --insecure-options=image run --mds-register=false --inherit-env=true ^ETC_HOSTS_CREATE^"`,
 		`127\.0\.0\.1.*`,
 	},
 	{
-		`/bin/sh -c "export FILE=/etc/hosts; ^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --inherit-env=true --volume=etc,kind=host,source=^TMPETC^ ^ETC_HOSTS_EXISTS^"`,
+		`/bin/sh -c "export FILE=/etc/hosts; ^RKT_BIN^ --debug --insecure-options=image run --mds-register=false --inherit-env=true --volume=etc,kind=host,source=^TMPETC^ ^ETC_HOSTS_EXISTS^"`,
 		`<<<preexisting etc>>>`,
 	},
 }
@@ -46,8 +47,8 @@ func TestPrepareAppEnsureEtcHosts(t *testing.T) {
 	defer os.Remove(etcHostsCreateImage)
 	etcHostsExistsImage := patchTestACI("rkt-inspect-etc-hosts-exists.aci", "--exec=/inspect --read-file", "--mounts=etc,path=/etc,readOnly=false")
 	defer os.Remove(etcHostsExistsImage)
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	tmpdir := createTempDirOrPanic("rkt-tests.")
 	defer os.RemoveAll(tmpdir)
@@ -61,7 +62,7 @@ func TestPrepareAppEnsureEtcHosts(t *testing.T) {
 
 	for i, tt := range etcHostsTests {
 		cmd := strings.Replace(tt.rktCmd, "^TMPDIR^", tmpdir, -1)
-		cmd = strings.Replace(cmd, "^RKT_BIN^", ctx.cmd(), -1)
+		cmd = strings.Replace(cmd, "^RKT_BIN^", ctx.Cmd(), -1)
 		cmd = strings.Replace(cmd, "^ETC_HOSTS_CREATE^", etcHostsCreateImage, -1)
 		cmd = strings.Replace(cmd, "^ETC_HOSTS_EXISTS^", etcHostsExistsImage, -1)
 		cmd = strings.Replace(cmd, "^TMPETC^", tmpetc, -1)

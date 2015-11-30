@@ -12,22 +12,23 @@ Let's get started:
 - Update the [roadmap](https://github.com/coreos/rkt/blob/master/ROADMAP.md) to remove the release you're performing, if necessary
 - Branch from the latest master, make sure your git status is clean
 - Ensure the build is clean!
-  - `./autogen.sh && ./configure --enable-functional-tests && make && make check` should work
+  - `git clean -ffdx && ./autogen.sh && ./configure --enable-functional-tests && make && make check` should work
   - Integration tests on CI should be green
 - Update the [release notes](https://github.com/coreos/rkt/blob/master/CHANGELOG.md). Try to capture most of the salient changes since the last release, but don't go into unnecessary detail (better to link/reference the documentation wherever possible).
 
-The rkt version is [hardcoded in the repository](https://github.com/coreos/rkt/blob/master/version/version.go#L17), so the first thing to do is bump it:
+The rkt version is [hardcoded in the repository](https://github.com/coreos/rkt/blob/master/configure.ac#L2), so the first thing to do is bump it:
 - Run `scripts/bump-release v0.7.0`. This should generate two commits: a bump to the actual release (e.g. v0.7.0), and then a bump to the release+git (e.g. v0.7.0+git). The actual release version should only exist in a single commit!
 - Sanity check what the script did with `git diff HEAD^^` or similar. As well as changing the actual version, it also attempts to fix a bunch of references in the documentation etc.
-- Fix the commit `HEAD^^` so that the version in `stage1/aci/aci-manifest` is correct.
+- Fix the commit `HEAD^^` so that the version in `stage1/aci/aci-manifest.in` is correct.
 - If the script didn't work, yell at the author and/or fix it. It can almost certainly be improved.
 - File a PR and get a review from another [MAINTAINER](https://github.com/coreos/rkt/blob/master/MAINTAINERS). This is useful to a) sanity check the diff, and b) be very explicit/public that a release is happening
 - Ensure the CI on the release PR is green!
 
 After merging and going back to master branch, we check out the release version and tag it:
-- `git checkout HEAD^` should work (or `git checkout HEAD^2~`? git how does it work); sanity check version/version.go after doing this
-- Build rkt twice - once to build `coreos` stage1 and once to build `lkvm` stage1, we'll use this in a minute:
-  - `./autogen.sh && ./configure --with-stage1=kvm && BUILDDIR=release-build make && mv release-build/bin/stage1.aci release-build/bin/stage1-lkvm.aci && ./configure && BUILDDIR=release-build make`
+- `git checkout HEAD^` should work; sanity check configure.ac (2nd line) after doing this
+- Build rkt, we'll use this in a minute:
+  - `git clean -ffdx && ./autogen.sh && ./configure && make BUILDDIR=release-build`
+    - This will build both `coreos` and `kvm` flavors and make `coreos` the default
     - Use make's `-j` parameter as you see fit
   - Sanity check `release-build/bin/rkt version`
 - Add a signed tag: `git tag -s v0.7.0`. (We previously used tags for release notes, but now we store them in CHANGELOG.md, so a short tag with the release name is fine).
@@ -44,7 +45,7 @@ Now we switch to the GitHub web UI to conduct the release:
 ```
 	export NAME="rkt-v0.7.0"
 	mkdir $NAME
-	cp release-build/bin/rkt release-build/bin/stage1.aci release-build/bin/stage1-lkvm.aci $NAME/
+	cp release-build/bin/rkt release-build/bin/stage1-{coreos,kvm}.aci $NAME/
 	tar czvf $NAME.tar.gz $NAME/
 ```
 

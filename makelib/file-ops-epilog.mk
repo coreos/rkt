@@ -3,7 +3,12 @@
 define _FILE_OPS_CREATE_DIRS_RULE_
 CLEAN_DIRS += $1
 $1:
-	[[ -e "$$@" ]] || mkdir -p "$$@"
+	$(VQ) \
+	set -e; \
+	if [[ ! -e "$$@" ]]; then \
+		$(call vb,v2,MKDIR,$$(call vsp,$$@)) \
+		mkdir -p "$$@"; \
+	fi; \
 	$$(call _FILE_OPS_BAIL_OUT_IF_NOT_DIR_,$$@)
 endef
 
@@ -18,7 +23,12 @@ $$(call forward-vars,$$(_FILE_OPS_CIDR_DIR_), \
 # TODO: Create a proper dependency on parent directory
 # $$(_FILE_OPS_CIDR_DIR_): | $$(call to-dir,$$(_FILE_OPS_CIDR_DIR_))
 $$(_FILE_OPS_CIDR_DIR_):
-	[[ -e "$$@" ]] || $$(INSTALL) $$(call _FILE_OPS_DASH_M_,$$(_FILE_OPS_CIDR_MODE_)) -d "$$@"
+	$(VQ) \
+	set -e; \
+	if [[ ! -e "$$@" ]]; then \
+		$(call vb,v2,MKDIR,$$(call vsp,$$@)) \
+		$$(INSTALL) $$(call _FILE_OPS_DASH_M_,$$(_FILE_OPS_CIDR_MODE_)) -d "$$@"; \
+	fi;\
 	$$(call _FILE_OPS_BAIL_OUT_IF_NOT_DIR_,$$@)
 $$(call undefine-namespaces,_FILE_OPS_CIDR)
 endef
@@ -33,6 +43,8 @@ CLEAN_FILES += $$(_FILE_OPS_CIFR_DEST_)
 $$(call forward-vars,$$(_FILE_OPS_CIFR_DEST_), \
 	INSTALL _FILE_OPS_CIFR_MODE_)
 $$(_FILE_OPS_CIFR_DEST_): $$(_FILE_OPS_CIFR_SRC_) | $$(call to-dir,$$(_FILE_OPS_CIFR_DEST_))
+	$(VQ) \
+	$(call vb,v2,CP,$$(call vsp,$$<) => $$(call vsp,$$@)) \
 	$$(INSTALL) $$(call _FILE_OPS_DASH_M_,$$(_FILE_OPS_CIFR_MODE_)) "$$<" "$$@"
 $$(call undefine-namespaces,_FILE_OPS_CIFR)
 endef
@@ -46,6 +58,7 @@ CLEAN_SYMLINKS += $$(_FILE_OPS_CISR_LINK_NAME_)
 $$(call forward-vars,$$(_FILE_OPS_CISR_LINK_NAME_), \
 	_FILE_OPS_CISR_TARGET_)
 $$(_FILE_OPS_CISR_LINK_NAME_): | $$(call to-dir,$$(_FILE_OPS_CISR_LINK_NAME_))
+	$(VQ) \
 	set -e; \
 	if [ -h "$$@" ]; then \
 		tgt=$$$$(readlink "$$@"); \
@@ -57,6 +70,7 @@ $$(_FILE_OPS_CISR_LINK_NAME_): | $$(call to-dir,$$(_FILE_OPS_CISR_LINK_NAME_))
 		echo "$$@ already exists and is not a symlink, bailing out" >&2; \
 		exit 1; \
 	else \
+		$(call vb,v2,LN S,$$(_FILE_OPS_CISR_TARGET_) $$(call vsp,$$@)) \
 		ln -s "$$(_FILE_OPS_CISR_TARGET_)" "$$@"; \
 	fi
 $$(call undefine-namespaces,_FILE_OPS_CISR)

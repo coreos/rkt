@@ -21,13 +21,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/steveeJ/gexpect"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/coreos/gexpect"
 	"github.com/coreos/rkt/common"
+	"github.com/coreos/rkt/tests/testutils"
 )
 
 func TestImageGCTreeStore(t *testing.T) {
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	expectedTreeStores := 2
 	// If overlayfs is not supported only the stage1 image is rendered in the treeStore
@@ -37,7 +38,7 @@ func TestImageGCTreeStore(t *testing.T) {
 
 	// at this point we know that RKT_INSPECT_IMAGE env var is not empty
 	referencedACI := os.Getenv("RKT_INSPECT_IMAGE")
-	cmd := fmt.Sprintf("%s --insecure-skip-verify run --mds-register=false %s", ctx.cmd(), referencedACI)
+	cmd := fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s", ctx.Cmd(), referencedACI)
 	t.Logf("Running %s: %v", referencedACI, cmd)
 	child, err := gexpect.Spawn(cmd)
 	if err != nil {
@@ -79,9 +80,9 @@ func TestImageGCTreeStore(t *testing.T) {
 	}
 }
 
-func getTreeStoreIDs(ctx *rktRunCtx) (map[string]struct{}, error) {
+func getTreeStoreIDs(ctx *testutils.RktRunCtx) (map[string]struct{}, error) {
 	treeStoreIDs := map[string]struct{}{}
-	ls, err := ioutil.ReadDir(filepath.Join(ctx.dataDir(), "cas", "tree"))
+	ls, err := ioutil.ReadDir(filepath.Join(ctx.DataDir(), "cas", "tree"))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return treeStoreIDs, nil

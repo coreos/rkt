@@ -19,6 +19,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/coreos/rkt/tests/testutils"
 )
 
 type ImageId struct {
@@ -77,12 +79,12 @@ func TestShortHash(t *testing.T) {
 		imageIds = append(imageIds, imageId)
 		iter++
 	}
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	// Pull the 2 images with matching first 2 hash chars into cas
 	for _, imageId := range imageIds {
-		cmd := fmt.Sprintf("%s --insecure-skip-verify fetch %s", ctx.cmd(), imageId.path)
+		cmd := fmt.Sprintf("%s --insecure-options=image fetch %s", ctx.Cmd(), imageId.path)
 		t.Logf("Fetching %s: %v", imageId.path, cmd)
 		spawnAndWaitOrFail(t, cmd, true)
 	}
@@ -91,7 +93,7 @@ func TestShortHash(t *testing.T) {
 	hash0 := fmt.Sprintf("sha512-%s", imageIds[0].hash[:12])
 	hash1 := fmt.Sprintf("sha512-%s", imageIds[1].hash[:12])
 	for _, hash := range []string{hash0, hash1} {
-		imageListCmd := fmt.Sprintf("%s image list --fields=id --no-legend", ctx.cmd())
+		imageListCmd := fmt.Sprintf("%s image list --fields=id --no-legend", ctx.Cmd())
 		runRktAndCheckOutput(t, imageListCmd, hash, false)
 	}
 
@@ -162,7 +164,7 @@ func TestShortHash(t *testing.T) {
 
 	// Run tests
 	for i, tt := range tests {
-		runCmd := fmt.Sprintf("%s %s", ctx.cmd(), tt.cmd)
+		runCmd := fmt.Sprintf("%s %s", ctx.Cmd(), tt.cmd)
 		t.Logf("Running test #%d", i)
 		runRktAndCheckOutput(t, runCmd, tt.expect, tt.shouldFail)
 	}

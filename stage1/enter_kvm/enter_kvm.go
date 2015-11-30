@@ -63,16 +63,23 @@ func getPodDefaultIP(workDir string) (string, error) {
 	}
 	// kvm flavored container must have at first position default vm<->host network
 	if len(nets) == 0 {
-		return "", fmt.Errorf("Pod has no configured networks")
+		return "", fmt.Errorf("pod has no configured networks")
 	}
-	return nets[0].IP.String(), nil
+
+	for _, net := range nets {
+		if net.NetName == "default" || net.NetName == "default-restricted" {
+			return net.IP.String(), nil
+		}
+	}
+
+	return "", fmt.Errorf("pod has no default network!")
 }
 
-func getDiagexecArgs() []string {
+func getAppexecArgs() []string {
 	// Documentation/devel/stage1-implementors-guide.md#arguments-1
 	// also from ../enter/enter.c
 	args := []string{
-		"/diagexec",
+		"/appexec",
 		fmt.Sprintf("/opt/stage2/%s/rootfs", appName),
 		"/", // as in ../enter/enter.c - this should be app.WorkingDirectory
 		fmt.Sprintf("/rkt/env/%s", appName),
@@ -85,23 +92,23 @@ func getDiagexecArgs() []string {
 func execSSH() error {
 	workDir, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("Cannot get working directory: %v", err)
+		return fmt.Errorf("cannot get working directory: %v", err)
 	}
 
 	podDefaultIP, err := getPodDefaultIP(workDir)
 	if err != nil {
-		return fmt.Errorf("Cannot load networking configuration: %v", err)
+		return fmt.Errorf("cannot load networking configuration: %v", err)
 	}
 
 	// escape from running pod directory into base directory
 	if err = os.Chdir("../../.."); err != nil {
-		return fmt.Errorf("Cannot change directory to rkt work directory: %v", err)
+		return fmt.Errorf("cannot change directory to rkt work directory: %v", err)
 	}
 
 	// find path to ssh binary
 	sshPath, err := exec.LookPath("ssh")
 	if err != nil {
-		return fmt.Errorf("Cannot find 'ssh' binary in PATH: %v", err)
+		return fmt.Errorf("cannot find 'ssh' binary in PATH: %v", err)
 	}
 
 	// prepare args for ssh invocation
@@ -117,11 +124,11 @@ func execSSH() error {
 		"-o", "LogLevel=quiet", // do not log minor informations
 		podDefaultIP,
 	}
-	args = append(args, getDiagexecArgs()...)
+	args = append(args, getAppexecArgs()...)
 
 	// this should not return in case of success
 	err = syscall.Exec(sshPath, args, os.Environ())
-	return fmt.Errorf("Cannot exec to ssh: %v", err)
+	return fmt.Errorf("cannot exec to ssh: %v", err)
 }
 
 func main() {

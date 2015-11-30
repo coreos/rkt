@@ -16,11 +16,16 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/pkg/lock"
 	"github.com/coreos/rkt/store"
+)
+
+const (
+	defaultImageGracePeriod = 24 * time.Hour
 )
 
 var (
@@ -29,10 +34,12 @@ var (
 		Short: "Garbage collect local store",
 		Run:   runWrapper(runGcImage),
 	}
+	flagImageGracePeriod time.Duration
 )
 
 func init() {
 	cmdImage.AddCommand(cmdImageGc)
+	cmdImageGc.Flags().DurationVar(&flagImageGracePeriod, "grace-period", defaultImageGracePeriod, "duration to wait since an image was last used before removing it")
 }
 
 func runGcImage(cmd *cobra.Command, args []string) (exit int) {
@@ -46,6 +53,12 @@ func runGcImage(cmd *cobra.Command, args []string) (exit int) {
 		stderr("rkt: failed to remove unreferenced treestores: %v", err)
 		return 1
 	}
+
+	if err := gcStore(s, flagImageGracePeriod); err != nil {
+		stderr("rkt: %v", err)
+		return 1
+	}
+
 	return 0
 }
 
@@ -109,4 +122,24 @@ func getReferencedTreeStoreIDs() (map[string]struct{}, error) {
 		return nil, walkErr
 	}
 	return treeStoreIDs, nil
+}
+
+func gcStore(s *store.Store, gracePeriod time.Duration) error {
+	var imagesToRemove []string
+	aciinfos, err := s.GetAllACIInfos([]string{"lastusedtime"}, true)
+	if err != nil {
+		return fmt.Errorf("Failed to get aciinfos: %v", err)
+	}
+	for _, ai := range aciinfos {
+		if time.Now().Sub(ai.LastUsed) <= gracePeriod {
+			break
+		}
+		imagesToRemove = append(imagesToRemove, ai.BlobKey)
+	}
+
+	if err := rmImages(s, imagesToRemove); err != nil {
+		return err
+	}
+
+	return nil
 }

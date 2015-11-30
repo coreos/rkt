@@ -19,7 +19,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/steveeJ/gexpect"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/coreos/gexpect"
+	"github.com/coreos/rkt/tests/testutils"
 )
 
 var usernsTests = []struct {
@@ -30,16 +31,16 @@ var usernsTests = []struct {
 	expectGid  string
 }{
 	{
-		`^RKT_BIN^ --debug --insecure-skip-verify run ^USERNS^ --no-overlay --set-env=FILE=^FILE^ --mds-register=false ^IMAGE^`,
+		`^RKT_BIN^ --debug --insecure-options=image run ^USERNS^ --no-overlay --set-env=FILE=^FILE^ --mds-register=false ^IMAGE^`,
 		"/", // stage2 rootfs ($POD/stage1/rootfs/opt/stage2/rkt-inspect)
 		"drwxr-xr-x",
 		"0",
 		"0",
 	},
 	{
-		`^RKT_BIN^ --debug --insecure-skip-verify run ^USERNS^ --no-overlay --set-env=FILE=^FILE^ --mds-register=false ^IMAGE^`,
+		`^RKT_BIN^ --debug --insecure-options=image run ^USERNS^ --no-overlay --set-env=FILE=^FILE^ --mds-register=false ^IMAGE^`,
 		"/proc/1/root/", // stage1 rootfs ($POD/stage1/rootfs)
-		"drwxr-x---",
+		"drwxr-xr-x",
 		"0",
 		"", // no check: it could be 0 but also the gid of 'rkt', see https://github.com/coreos/rkt/pull/1452
 	},
@@ -50,14 +51,14 @@ var usernsTests = []struct {
 func TestUserns(t *testing.T) {
 	image := patchTestACI("rkt-inspect-stat.aci", "--exec=/inspect --stat-file")
 	defer os.Remove(image)
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	for i, tt := range usernsTests {
 		for _, userNsOpt := range []string{"", "--private-users"} {
 			runCmd := tt.runCmd
 			runCmd = strings.Replace(runCmd, "^IMAGE^", image, -1)
-			runCmd = strings.Replace(runCmd, "^RKT_BIN^", ctx.cmd(), -1)
+			runCmd = strings.Replace(runCmd, "^RKT_BIN^", ctx.Cmd(), -1)
 			runCmd = strings.Replace(runCmd, "^FILE^", tt.file, -1)
 			runCmd = strings.Replace(runCmd, "^USERNS^", userNsOpt, -1)
 
@@ -85,7 +86,7 @@ func TestUserns(t *testing.T) {
 				t.Fatalf("rkt didn't terminate correctly: %v", err)
 			}
 
-			ctx.reset()
+			ctx.Reset()
 		}
 	}
 }

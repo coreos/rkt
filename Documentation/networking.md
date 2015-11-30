@@ -47,8 +47,10 @@ The *default-restricted* network does not set up the default route and IP masque
 It only allows communication with the host via the veth interface and thus enables the pod to communicate with the metadata service which runs on the host.
 If *default* is not among the specified networks, the *default-restricted* network will be added to the list of networks automatically.
 It can also be loaded directly by explicitly passing `--net=default-restricted`.
-The special alias network name ***none*** (`--net=none`) will effectively load the *default-restricted* network to always guarantee access to the metadata service that runs on the host.
 
+### No (loopback only) networking
+The passing of `--net=none` will put the pod in a network namespace with only the loopback networking.
+This can be used to completely isolate the pods network.
 
 ### Setting up additional networks
 In addition to the default network (veth) described in the previous sections, rkt pods can be configured to join additional networks.
@@ -202,7 +204,7 @@ The DHCP plugin binary can be executed in the daemon mode by launching it with `
 However the DHCP plugin is bundled in stage1.aci so this requires extracting the binary from it:
 
 ```
-$ sudo ./rkt fetch --insecure-skip-verify ./stage1.aci
+$ sudo ./rkt fetch --insecure-options=image ./stage1.aci
 $ sudo ./rkt image extract coreos.com/rkt/stage1 /tmp/stage1
 $ sudo cp /tmp/stage1/rootfs/usr/lib/rkt/plugins/net/dhcp .
 ```

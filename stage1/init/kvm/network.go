@@ -15,16 +15,23 @@
 package kvm
 
 import (
+	"crypto/rand"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"net"
+	"path/filepath"
 
 	"github.com/coreos/rkt/networking"
+
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/cni/pkg/types"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/coreos/go-systemd/unit"
 )
 
 // GetNetworkDescriptions explicitly convert slice of activeNets to slice of netDescribers
 // which is slice required by GetKVMNetArgs
 func GetNetworkDescriptions(n *networking.Networking) []netDescriber {
-	nds := []netDescriber{}
+	var nds []netDescriber
 	for _, an := range n.GetActiveNetworks() {
 		nds = append(nds, an)
 	}
@@ -33,36 +40,125 @@ func GetNetworkDescriptions(n *networking.Networking) []netDescriber {
 
 // netDescriber is something that describes network configuration
 type netDescriber interface {
-	HostIP() net.IP
 	GuestIP() net.IP
 	Mask() net.IP
 	IfName() string
 	IPMasq() bool
+	Name() string
+	Gateway() net.IP
+	Routes() []types.Route
 }
 
-// GetKVMNetArgs returns additional arguments that need to be passed to kernel
-// and lkvm tool to configure networks properly.
+// GetKVMNetArgs returns additional arguments that need to be passed
+// to lkvm tool to configure networks properly.
 // Logic is based on Network configuration extracted from Networking struct
 // and essentially from activeNets that expose netDescriber behavior
-func GetKVMNetArgs(nds []netDescriber) ([]string, []string, error) {
+func GetKVMNetArgs(nds []netDescriber) ([]string, error) {
 
-	lkvmArgs := []string{}
-	kernelParams := []string{}
+	var lkvmArgs []string
 
-	for i, nd := range nds {
-		// https://www.kernel.org/doc/Documentation/filesystems/nfs/nfsroot.txt
-		// ip=<client-ip>:<server-ip>:<gw-ip>:<netmask>:<hostname>:<device>:<autoconf>:<dns0-ip>:<dns1-ip>
-		var gw string
-		if nd.IPMasq() {
-			gw = nd.HostIP().String()
-		}
-		kernelParam := fmt.Sprintf("ip=%s::%s:%s::%s:::", nd.GuestIP(), gw, nd.Mask(), fmt.Sprintf(networking.IfNamePattern, i))
-		kernelParams = append(kernelParams, kernelParam)
-
+	for _, nd := range nds {
 		lkvmArgs = append(lkvmArgs, "--network")
-		lkvmArg := fmt.Sprintf("mode=tap,tapif=%s,host_ip=%s,guest_ip=%s", nd.IfName(), nd.HostIP(), nd.GuestIP())
+		lkvmArg := fmt.Sprintf("mode=tap,tapif=%s,host_ip=%s,guest_ip=%s", nd.IfName(), nd.Gateway(), nd.GuestIP())
 		lkvmArgs = append(lkvmArgs, lkvmArg)
 	}
 
-	return lkvmArgs, kernelParams, nil
+	return lkvmArgs, nil
+}
+
+// generateMacAddress returns net.HardwareAddr filled with fixed 3 byte prefix
+// complemented by 3 random bytes.
+func generateMacAddress() (net.HardwareAddr, error) {
+	mac := []byte{
+		2,          // locally administred unicast
+		0x65, 0x02, // OUI (randomly choosen by jell)
+		0, 0, 0, // bytes to randomly overwrite
+	}
+
+	_, err := rand.Read(mac[3:6])
+	if err != nil {
+		return nil, fmt.Errorf("cannot generate random mac address: %v", err)
+	}
+
+	return mac, nil
+}
+
+func setMacCommand(ifName, mac string) string {
+	return fmt.Sprintf("/bin/ip link set dev %s address %s", ifName, mac)
+}
+
+func addAddressCommand(address, ifName string) string {
+	return fmt.Sprintf("/bin/ip address add %s dev %s", address, ifName)
+}
+
+func addRouteCommand(destination, router string) string {
+	return fmt.Sprintf("/bin/ip route add %s via %s", destination, router)
+}
+
+func downInterfaceCommand(ifName string) string {
+	return fmt.Sprintf("/bin/ip link set dev %s down", ifName)
+}
+
+func upInterfaceCommand(ifName string) string {
+	return fmt.Sprintf("/bin/ip link set dev %s up", ifName)
+}
+
+func GenerateNetworkInterfaceUnits(unitsPath string, netDescriptions []netDescriber) error {
+
+	for i, netDescription := range netDescriptions {
+		ifName := fmt.Sprintf(networking.IfNamePattern, i)
+		netAddress := net.IPNet{
+			IP:   netDescription.GuestIP(),
+			Mask: net.IPMask(netDescription.Mask()),
+		}
+
+		address := netAddress.String()
+
+		mac, err := generateMacAddress()
+		if err != nil {
+			return err
+		}
+
+		opts := []*unit.UnitOption{
+			unit.NewUnitOption("Unit", "Description", fmt.Sprintf("Network configuration for device: %v", ifName)),
+			unit.NewUnitOption("Unit", "DefaultDependencies", "false"),
+			unit.NewUnitOption("Service", "Type", "oneshot"),
+			unit.NewUnitOption("Service", "RemainAfterExit", "true"),
+			unit.NewUnitOption("Service", "ExecStartPre", downInterfaceCommand(ifName)),
+			unit.NewUnitOption("Service", "ExecStartPre", setMacCommand(ifName, mac.String())),
+			unit.NewUnitOption("Service", "ExecStartPre", upInterfaceCommand(ifName)),
+			unit.NewUnitOption("Service", "ExecStart", addAddressCommand(address, ifName)),
+			unit.NewUnitOption("Install", "RequiredBy", "default.target"),
+		}
+
+		for _, route := range netDescription.Routes() {
+			gw := route.GW
+			if gw == nil {
+				gw = netDescription.Gateway()
+			}
+
+			opts = append(
+				opts,
+				unit.NewUnitOption(
+					"Service",
+					"ExecStartPost",
+					addRouteCommand(route.Dst.String(), gw.String()),
+				),
+			)
+		}
+
+		unitName := fmt.Sprintf("interface-%s", ifName) + ".service"
+		unitBytes, err := ioutil.ReadAll(unit.Serialize(opts))
+		if err != nil {
+			return fmt.Errorf("failed to serialize network unit file to bytes %q: %v", unitName, err)
+		}
+
+		err = ioutil.WriteFile(filepath.Join(unitsPath, unitName), unitBytes, 0644)
+		if err != nil {
+			return fmt.Errorf("failed to create network unit file %q: %v", unitName, err)
+		}
+
+		log.Printf("network unit created: %q in %q (iface=%q, addr=%q)", unitName, unitsPath, ifName, address)
+	}
+	return nil
 }

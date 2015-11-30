@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/coreos/rkt/common/cgroup"
+	"github.com/coreos/rkt/tests/testutils"
 )
 
 const (
@@ -59,15 +60,15 @@ func TestAppIsolatorMemory(t *testing.T) {
 		t.Skip("Memory isolator not supported.")
 	}
 
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	t.Logf("Running test: %v", memoryTest.testName)
 
 	aciFileName := patchTestACI("rkt-inspect-isolators.aci", memoryTest.aciBuildArgs...)
 	defer os.Remove(aciFileName)
 
-	rktCmd := fmt.Sprintf("%s --insecure-skip-verify run --mds-register=false %s", ctx.cmd(), aciFileName)
+	rktCmd := fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s", ctx.Cmd(), aciFileName)
 	expectedLine := "Memory Limit: " + strconv.Itoa(maxMemoryUsage)
 	runRktAndCheckOutput(t, rktCmd, expectedLine, false)
 }
@@ -78,29 +79,29 @@ func TestAppIsolatorCPU(t *testing.T) {
 		t.Skip("CPU isolator not supported.")
 	}
 
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	t.Logf("Running test: %v", cpuTest.testName)
 
 	aciFileName := patchTestACI("rkt-inspect-isolators.aci", cpuTest.aciBuildArgs...)
 	defer os.Remove(aciFileName)
 
-	rktCmd := fmt.Sprintf("%s --insecure-skip-verify run --mds-register=false %s", ctx.cmd(), aciFileName)
+	rktCmd := fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s", ctx.Cmd(), aciFileName)
 	expectedLine := "CPU Quota: " + strconv.Itoa(CPUQuota)
 	runRktAndCheckOutput(t, rktCmd, expectedLine, false)
 }
 
 func TestCgroups(t *testing.T) {
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	t.Logf("Running test: %v", cgroupsTest.testName)
 
 	aciFileName := patchTestACI("rkt-inspect-isolators.aci", cgroupsTest.aciBuildArgs...)
 	defer os.Remove(aciFileName)
 
-	rktCmd := fmt.Sprintf("%s --insecure-skip-verify run --mds-register=false %s", ctx.cmd(), aciFileName)
+	rktCmd := fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s", ctx.Cmd(), aciFileName)
 	expectedLine := "check-cgroups: SUCCESS"
 	runRktAndCheckOutput(t, rktCmd, expectedLine, false)
 }

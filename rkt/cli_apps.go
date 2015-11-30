@@ -18,10 +18,15 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"path/filepath"
+	"strings"
 
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/pflag"
 	"github.com/coreos/rkt/common/apps"
+
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/pflag"
 )
 
 var (
@@ -98,7 +103,7 @@ func parseApps(al *apps.Apps, args []string, flags *pflag.FlagSet, allowAppArgs 
 		}
 	}
 
-	return nil
+	return al.Validate()
 }
 
 // Value interface implementations for the various per-app fields we provide flags for
@@ -150,6 +155,48 @@ func (ae *appExec) Set(s string) error {
 	return nil
 }
 
+// appMount is for --mount flags in the form of: --mount volume=VOLNAME,target=PATH
+type appMount apps.Apps
+
+func (al *appMount) Set(s string) error {
+	mount := schema.Mount{}
+
+	// this is intentionally made similar to types.VolumeFromString()
+	// TODO(iaguis) use MakeQueryString() when appc/spec#520 is merged
+	m, err := url.ParseQuery(strings.Replace(s, ",", "&", -1))
+	if err != nil {
+		return err
+	}
+
+	for key, val := range m {
+		if len(val) > 1 {
+			return fmt.Errorf("label %s with multiple values %q", key, val)
+		}
+		switch key {
+		case "volume":
+			mv, err := types.NewACName(val[0])
+			if err != nil {
+				return fmt.Errorf("invalid volume name %q in --mount flag %q: %v", val[0], s, err)
+			}
+			mount.Volume = *mv
+		case "target":
+			mount.Path = val[0]
+		default:
+			return fmt.Errorf("unknown mount parameter %q", key)
+		}
+	}
+
+	as := (*apps.Apps)(al)
+	if as.Count() == 0 {
+		as.Mounts = append(as.Mounts, mount)
+	} else {
+		app := as.Last()
+		app.Mounts = append(app.Mounts, mount)
+	}
+
+	return nil
+}
+
 func (ae *appExec) String() string {
 	app := (*apps.Apps)(ae).Last()
 	if app == nil {
@@ -162,4 +209,147 @@ func (ae *appExec) Type() string {
 	return "appExec"
 }
 
-// TODO(vc): --mount, --set-env, etc.
+// TODO(vc): --set-env should also be per-app and should implement the flags.Value interface.
+func (al *appMount) String() string {
+	var ms []string
+	for _, m := range ((*apps.Apps)(al)).Mounts {
+		ms = append(ms, m.Volume.String(), ":", m.Path)
+	}
+	return strings.Join(ms, " ")
+}
+
+func (al *appMount) Type() string {
+	return "appMount"
+}
+
+// appsVolume is for --volume flags in the form name,kind=host,source=/tmp,readOnly=true (defined by appc)
+type appsVolume apps.Apps
+
+func (al *appsVolume) Set(s string) error {
+	vol, err := types.VolumeFromString(s)
+	if err != nil {
+		return fmt.Errorf("invalid value in --volume flag %q: %v", s, err)
+	}
+
+	(*apps.Apps)(al).Volumes = append((*apps.Apps)(al).Volumes, *vol)
+	return nil
+}
+
+func (al *appsVolume) Type() string {
+	return "appsVolume"
+}
+
+func (al *appsVolume) String() string {
+	var vs []string
+	for _, v := range (*apps.Apps)(al).Volumes {
+		vs = append(vs, v.String())
+	}
+	return strings.Join(vs, " ")
+}
+
+// optionList is a flag value type supporting a csv list of options
+type optionList struct {
+	options     []string
+	allOptions  []string
+	permissible map[string]struct{}
+	typeName    string
+}
+
+var _ pflag.Value = (*optionList)(nil)
+
+func newOptionList(permissibleOptions []string, defaultOptions string) (*optionList, error) {
+	permissible := make(map[string]struct{})
+	ol := &optionList{
+		allOptions:  permissibleOptions,
+		permissible: permissible,
+		typeName:    "optionList",
+	}
+
+	for _, o := range permissibleOptions {
+		ol.permissible[o] = struct{}{}
+	}
+
+	if err := ol.Set(defaultOptions); err != nil {
+		return nil, fmt.Errorf("problem setting defaults: %v", err)
+	}
+
+	return ol, nil
+}
+
+func (ol *optionList) Set(s string) error {
+	ol.options = nil
+	if s == "" {
+		return nil
+	}
+	options := strings.Split(strings.ToLower(s), ",")
+	seen := map[string]struct{}{}
+	for _, o := range options {
+		if _, ok := ol.permissible[o]; !ok {
+			return fmt.Errorf("unknown option %q", o)
+		}
+		if _, ok := seen[o]; ok {
+			return fmt.Errorf("duplicated option %q", o)
+		}
+		ol.options = append(ol.options, o)
+		seen[o] = struct{}{}
+	}
+
+	return nil
+}
+
+func (ol *optionList) String() string {
+	return strings.Join(ol.options, ",")
+}
+
+func (ol *optionList) Type() string {
+	return ol.typeName
+}
+
+func (ol *optionList) PermissibleString() string {
+	return fmt.Sprintf(`"%s"`, strings.Join(ol.allOptions, `", "`))
+}
+
+// bitFlags is a flag value type supporting a csv list of options stored as bits
+type bitFlags struct {
+	*optionList
+	flags   int
+	flagMap map[string]int
+}
+
+func newBitFlags(permissibleOptions []string, defaultOptions string, flagMap map[string]int) (*bitFlags, error) {
+	ol, err := newOptionList(permissibleOptions, defaultOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	bf := &bitFlags{
+		optionList: ol,
+		flagMap:    flagMap,
+	}
+	bf.typeName = "bitFlags"
+
+	if err := bf.Set(defaultOptions); err != nil {
+		return nil, fmt.Errorf("problem setting defaults: %v", err)
+	}
+
+	return bf, nil
+}
+
+func (bf *bitFlags) Set(s string) error {
+	if err := bf.optionList.Set(s); err != nil {
+		return err
+	}
+	bf.flags = 0
+	for _, o := range bf.options {
+		if b, ok := bf.flagMap[o]; ok {
+			bf.flags |= b
+		} else {
+			return fmt.Errorf("couldn't find flag for %v", o)
+		}
+	}
+	return nil
+}
+
+func (bf *bitFlags) hasFlag(f int) bool {
+	return (bf.flags & f) == f
+}

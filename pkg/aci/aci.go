@@ -106,7 +106,7 @@ func (aw *imageArchiveWriter) Close() error {
 // NewBasicACI creates a new ACI in the given directory with the given name.
 // Used for testing.
 func NewBasicACI(dir string, name string) (*os.File, error) {
-	manifest := fmt.Sprintf(`{"acKind":"ImageManifest","acVersion":"0.7.0","name":"%s"}`, name)
+	manifest := fmt.Sprintf(`{"acKind":"ImageManifest","acVersion":"0.7.3","name":"%s"}`, name)
 	return NewACI(dir, manifest, nil)
 }
 
@@ -116,7 +116,7 @@ func NewBasicACI(dir string, name string) (*os.File, error) {
 func NewACI(dir string, manifest string, entries []*ACIEntry) (*os.File, error) {
 	var im schema.ImageManifest
 	if err := im.UnmarshalJSON([]byte(manifest)); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid image manifest: %v", err)
 	}
 
 	tf, err := ioutil.TempFile(dir, "")

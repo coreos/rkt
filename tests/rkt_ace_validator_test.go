@@ -16,44 +16,65 @@ package main
 
 import (
 	"fmt"
-	"os"
+	"strings"
 	"testing"
+
+	"github.com/coreos/rkt/tests/testutils"
 )
 
-var expectedResults = []string{
-	"prestart OK",
-	"main OK",
-	"sidekick OK",
-	"poststop OK",
-}
-
 func TestAceValidator(t *testing.T) {
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	newStringSet := func(strs ...string) map[string]struct{} {
+		m := make(map[string]struct{}, len(strs))
+		for _, s := range strs {
+			m[s] = struct{}{}
+		}
+		return m
+	}
+	expected := []map[string]struct{}{
+		newStringSet("prestart"),
+		newStringSet("main", "sidekick"),
+		newStringSet("poststop"),
+	}
+	pattern := `ace-validator\[\d+\]: ([[:alpha:]]+) OK`
 
-	if err := ctx.launchMDS(); err != nil {
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
+
+	if err := ctx.LaunchMDS(); err != nil {
 		t.Fatalf("Cannot launch metadata service: %v", err)
 	}
 
-	aceMain := os.Getenv("RKT_ACE_MAIN_IMAGE")
-	if aceMain == "" {
-		panic("empty RKT_ACE_MAIN_IMAGE env var")
-	}
-	aceSidekick := os.Getenv("RKT_ACE_SIDEKICK_IMAGE")
-	if aceSidekick == "" {
-		panic("empty RKT_ACE_SIDEKICK_IMAGE env var")
-	}
+	aceMain := testutils.GetValueFromEnvOrPanic("RKT_ACE_MAIN_IMAGE")
+	aceSidekick := testutils.GetValueFromEnvOrPanic("RKT_ACE_SIDEKICK_IMAGE")
 
-	rktArgs := fmt.Sprintf("--debug --insecure-skip-verify run --volume database,kind=empty %s %s",
+	rktArgs := fmt.Sprintf("--debug --insecure-options=image run --mds-register --volume database,kind=empty %s %s",
 		aceMain, aceSidekick)
-	rktCmd := fmt.Sprintf("%s %s", ctx.cmd(), rktArgs)
+	rktCmd := fmt.Sprintf("%s %s", ctx.Cmd(), rktArgs)
 
 	child := spawnOrFail(t, rktCmd)
 	defer waitOrFail(t, child, true)
 
-	for _, e := range expectedResults {
-		if err := expectWithOutput(child, e); err != nil {
-			t.Fatalf("Expected %q but not found: %v", e, err)
+	for _, set := range expected {
+		for len(set) > 0 {
+			results, _, err := expectRegexWithOutput(child, pattern)
+			if err != nil {
+				var keys []string
+				for k := range set {
+					keys = append(keys, fmt.Sprintf("%q", k))
+				}
+				ex := strings.Join(keys, " or ")
+				t.Fatalf("Expected %s, but not found: %v", ex, err)
+			}
+			if len(results) != 2 {
+				t.Fatalf("Unexpected regex results, expected a whole match and one submatch, got %#v", results)
+			}
+			aceStage := results[1]
+			if _, ok := set[aceStage]; ok {
+				t.Logf("Got expected ACE stage %q", aceStage)
+				delete(set, aceStage)
+			} else {
+				t.Logf("Ignoring unknown ACE stage %q", aceStage)
+			}
 		}
 	}
 }

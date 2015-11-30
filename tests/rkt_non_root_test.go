@@ -20,12 +20,13 @@ import (
 	"testing"
 
 	"github.com/coreos/rkt/common"
+	"github.com/coreos/rkt/tests/testutils"
 )
 
 // TestNonRootReadInfo tests that non-root users that can do rkt list, rkt image list.
 func TestNonRootReadInfo(t *testing.T) {
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	gid, err := common.LookupGid(common.RktGroup)
 	if err != nil {
@@ -33,7 +34,7 @@ func TestNonRootReadInfo(t *testing.T) {
 	}
 
 	// Do 'rkt install. and launch some pods in root'.
-	cmd := fmt.Sprintf("%s install", ctx.cmd())
+	cmd := fmt.Sprintf("%s install", ctx.Cmd())
 	t.Logf("Running rkt install")
 	runRktAndCheckOutput(t, cmd, "rkt directory structure successfully created", false)
 
@@ -58,13 +59,13 @@ func TestNonRootReadInfo(t *testing.T) {
 
 	runCmds := []string{
 		// Run with overlay, without private-users.
-		fmt.Sprintf("%s --insecure-skip-verify run --mds-register=false %s", ctx.cmd(), imgs[0].imgFile),
+		fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s", ctx.Cmd(), imgs[0].imgFile),
 
 		// Run without overlay, without private-users.
-		fmt.Sprintf("%s --insecure-skip-verify run --no-overlay --mds-register=false %s", ctx.cmd(), imgs[1].imgFile),
+		fmt.Sprintf("%s --insecure-options=image run --no-overlay --mds-register=false %s", ctx.Cmd(), imgs[1].imgFile),
 
 		// Run without overlay, with private-users.
-		fmt.Sprintf("%s --insecure-skip-verify run --no-overlay --private-users --mds-register=false %s", ctx.cmd(), imgs[2].imgFile),
+		fmt.Sprintf("%s --insecure-options=image run --no-overlay --private-users --mds-register=false %s", ctx.Cmd(), imgs[2].imgFile),
 	}
 
 	for i, cmd := range runCmds {
@@ -72,7 +73,7 @@ func TestNonRootReadInfo(t *testing.T) {
 		runRktAndCheckOutput(t, cmd, imgs[i].msg, false)
 	}
 
-	imgListCmd := fmt.Sprintf("%s image list", ctx.cmd())
+	imgListCmd := fmt.Sprintf("%s image list", ctx.Cmd())
 	t.Logf("Running %s", imgListCmd)
 	runRktAsGidAndCheckOutput(t, imgListCmd, "inspect-", false, gid)
 }
@@ -80,8 +81,8 @@ func TestNonRootReadInfo(t *testing.T) {
 // TestNonRootFetchRmGcImage tests that non-root users can remove images fetched by themselves but
 // cannot remove images fetched by root, or gc any images.
 func TestNonRootFetchRmGcImage(t *testing.T) {
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	gid, err := common.LookupGid(common.RktGroup)
 	if err != nil {
@@ -89,7 +90,7 @@ func TestNonRootFetchRmGcImage(t *testing.T) {
 	}
 
 	// Do `rkt install` and fetch an image with root.
-	cmd := fmt.Sprintf("%s install", ctx.cmd())
+	cmd := fmt.Sprintf("%s install", ctx.Cmd())
 	t.Logf("Running rkt install")
 	runRktAndCheckOutput(t, cmd, "rkt directory structure successfully created", false)
 
@@ -98,18 +99,18 @@ func TestNonRootFetchRmGcImage(t *testing.T) {
 	rootImgHash := importImageAndFetchHash(t, ctx, rootImg)
 
 	// Launch/gc a pod so we can test non-root image gc.
-	runCmd := fmt.Sprintf("%s --insecure-skip-verify run --mds-register=false %s", ctx.cmd(), rootImg)
+	runCmd := fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s", ctx.Cmd(), rootImg)
 	runRktAndCheckOutput(t, runCmd, "foobar", false)
 
-	ctx.runGC()
+	ctx.RunGC()
 
 	// Should not be able to do image gc.
-	imgGcCmd := fmt.Sprintf("%s image gc", ctx.cmd())
+	imgGcCmd := fmt.Sprintf("%s image gc", ctx.Cmd())
 	t.Logf("Running %s", imgGcCmd)
 	runRktAsGidAndCheckOutput(t, imgGcCmd, "permission denied", true, gid)
 
 	// Should not be able to remove the image fetched by root.
-	imgRmCmd := fmt.Sprintf("%s image rm %s", ctx.cmd(), rootImgHash)
+	imgRmCmd := fmt.Sprintf("%s image rm %s", ctx.Cmd(), rootImgHash)
 	t.Logf("Running %s", imgRmCmd)
 	runRktAsGidAndCheckOutput(t, imgRmCmd, "permission denied", true, gid)
 
@@ -118,7 +119,7 @@ func TestNonRootFetchRmGcImage(t *testing.T) {
 	defer os.Remove(nonrootImg)
 	nonrootImgHash := importImageAndFetchHashAsGid(t, ctx, nonrootImg, gid)
 
-	imgRmCmd = fmt.Sprintf("%s image rm %s", ctx.cmd(), nonrootImgHash)
+	imgRmCmd = fmt.Sprintf("%s image rm %s", ctx.Cmd(), nonrootImgHash)
 	t.Logf("Running %s", imgRmCmd)
 	runRktAsGidAndCheckOutput(t, imgRmCmd, "successfully removed", false, gid)
 }

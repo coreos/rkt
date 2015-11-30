@@ -22,11 +22,11 @@ Ready, waiting for connections at https://127.0.0.1:48608
 (You can run `test-aci-auth-server start` with either `none`, `basic` or `oauth` parameter)
 
 Copy the snippet to `/etc/rkt/auth.d/test.json` and run `rkt
---insecure-skip-verify run
+--insecure-options=image,tls run
 https://127.0.0.1:48608/<WHATEVER>/prog.aci`. The `rkt` output ought
 to be something like:
 ```
-# rkt --insecure-skip-verify run https://127.0.0.1:48608/basic1/prog.aci
+# rkt --insecure-options=image,tls run https://127.0.0.1:48608/basic1/prog.aci
 rkt: fetching image from https://127.0.0.1:48608/basic1/prog.aci
 
 

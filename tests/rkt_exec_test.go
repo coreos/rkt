@@ -19,10 +19,12 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
+
+	"github.com/coreos/rkt/tests/testutils"
 )
 
 const (
-	noappManifestStr = `{"acKind":"ImageManifest","acVersion":"0.7.0","name":"coreos.com/rkt-inspect","labels":[{"name":"version","value":"1.0.0"},{"name":"arch","value":"amd64"},{"name":"os","value":"linux"}]}`
+	noappManifestStr = `{"acKind":"ImageManifest","acVersion":"0.7.3","name":"coreos.com/rkt-inspect","labels":[{"name":"version","value":"1.0.0"},{"name":"arch","value":"amd64"},{"name":"os","value":"linux"}]}`
 )
 
 func TestRunOverrideExec(t *testing.T) {
@@ -35,8 +37,8 @@ func TestRunOverrideExec(t *testing.T) {
 	defer os.Remove(noappImage)
 	execImage := patchTestACI("rkt-exec-override.aci", "--exec=/inspect")
 	defer os.Remove(execImage)
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	for _, tt := range []struct {
 		rktCmd       string
@@ -44,17 +46,17 @@ func TestRunOverrideExec(t *testing.T) {
 	}{
 		{
 			// Sanity check - make sure no --exec override prints the expected exec invocation
-			rktCmd:       fmt.Sprintf("%s --insecure-skip-verify run --mds-register=false %s -- --print-exec", ctx.cmd(), execImage),
+			rktCmd:       fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s -- --print-exec", ctx.Cmd(), execImage),
 			expectedLine: "inspect execed as: /inspect",
 		},
 		{
 			// Now test overriding the entrypoint (which is a symlink to /inspect so should behave identically)
-			rktCmd:       fmt.Sprintf("%s --insecure-skip-verify run --mds-register=false %s --exec /inspect-link -- --print-exec", ctx.cmd(), execImage),
+			rktCmd:       fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s --exec /inspect-link -- --print-exec", ctx.Cmd(), execImage),
 			expectedLine: "inspect execed as: /inspect-link",
 		},
 		{
 			// Test overriding the entrypoint with a missing app section
-			rktCmd:       fmt.Sprintf("%s --insecure-skip-verify run --mds-register=false %s --exec /inspect -- --print-exec", ctx.cmd(), noappImage),
+			rktCmd:       fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s --exec /inspect -- --print-exec", ctx.Cmd(), noappImage),
 			expectedLine: "inspect execed as: /inspect",
 		},
 	} {
@@ -65,24 +67,24 @@ func TestRunOverrideExec(t *testing.T) {
 func TestRunPreparedOverrideExec(t *testing.T) {
 	execImage := patchTestACI("rkt-exec-override.aci", "--exec=/inspect")
 	defer os.Remove(execImage)
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	var rktCmd, uuid, expected string
 
 	// Sanity check - make sure no --exec override prints the expected exec invocation
-	rktCmd = fmt.Sprintf("%s prepare --insecure-skip-verify %s -- --print-exec", ctx.cmd(), execImage)
+	rktCmd = fmt.Sprintf("%s prepare --insecure-options=image %s -- --print-exec", ctx.Cmd(), execImage)
 	uuid = runRktAndGetUUID(t, rktCmd)
 
-	rktCmd = fmt.Sprintf("%s run-prepared --mds-register=false %s", ctx.cmd(), uuid)
+	rktCmd = fmt.Sprintf("%s run-prepared --mds-register=false %s", ctx.Cmd(), uuid)
 	expected = "inspect execed as: /inspect"
 	runRktAndCheckOutput(t, rktCmd, expected, false)
 
 	// Now test overriding the entrypoint (which is a symlink to /inspect so should behave identically)
-	rktCmd = fmt.Sprintf("%s prepare --insecure-skip-verify %s --exec /inspect-link -- --print-exec", ctx.cmd(), execImage)
+	rktCmd = fmt.Sprintf("%s prepare --insecure-options=image %s --exec /inspect-link -- --print-exec", ctx.Cmd(), execImage)
 	uuid = runRktAndGetUUID(t, rktCmd)
 
-	rktCmd = fmt.Sprintf("%s run-prepared --mds-register=false %s", ctx.cmd(), uuid)
+	rktCmd = fmt.Sprintf("%s run-prepared --mds-register=false %s", ctx.Cmd(), uuid)
 	expected = "inspect execed as: /inspect-link"
 	runRktAndCheckOutput(t, rktCmd, expected, false)
 }

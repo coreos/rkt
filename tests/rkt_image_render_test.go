@@ -21,10 +21,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/coreos/rkt/tests/testutils"
 )
 
 const (
-	manifestRenderTemplate = `{"acKind":"ImageManifest","acVersion":"0.7.0","name":"IMG_NAME","labels":[{"name":"version","value":"1.0.0"},{"name":"arch","value":"amd64"},{"name":"os","value":"linux"}],"dependencies":[{"imageName":"coreos.com/rkt-inspect"}],"app":{"exec":["/inspect"],"user":"0","group":"0","workingDirectory":"/","environment":[{"name":"VAR_FROM_MANIFEST","value":"manifest"}]}}`
+	manifestRenderTemplate = `{"acKind":"ImageManifest","acVersion":"0.7.3","name":"IMG_NAME","labels":[{"name":"version","value":"1.0.0"},{"name":"arch","value":"amd64"},{"name":"os","value":"linux"}],"dependencies":[{"imageName":"coreos.com/rkt-inspect"}],"app":{"exec":["/inspect"],"user":"0","group":"0","workingDirectory":"/","environment":[{"name":"VAR_FROM_MANIFEST","value":"manifest"}]}}`
 )
 
 // TestImageRender tests 'rkt image render', it will import some existing empty
@@ -37,7 +39,7 @@ func TestImageRender(t *testing.T) {
 
 	testImageName := "coreos.com/rkt-image-render-test"
 
-	inspectFile := getValueFromEnvOrPanic("INSPECT_BINARY")
+	inspectFile := testutils.GetValueFromEnvOrPanic("INSPECT_BINARY")
 	inspectHash := getHashOrPanic(inspectFile)
 
 	expectManifest := strings.Replace(manifestRenderTemplate, "IMG_NAME", testImageName, -1)
@@ -56,8 +58,8 @@ func TestImageRender(t *testing.T) {
 
 	testImage := patchACI(emptyImage, "rkt-inspect-image-render.aci", "--manifest", tmpManifest.Name())
 	defer os.Remove(testImage)
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	_ = importImageAndFetchHash(t, ctx, baseImage)
 	testImageShortHash := importImageAndFetchHash(t, ctx, testImage)
@@ -91,7 +93,7 @@ func TestImageRender(t *testing.T) {
 
 	for i, tt := range tests {
 		outputPath := filepath.Join(tmpDir, fmt.Sprintf("rendered-%d", i))
-		runCmd := fmt.Sprintf("%s image render --rootfs-only %s %s", ctx.cmd(), tt.image, outputPath)
+		runCmd := fmt.Sprintf("%s image render --rootfs-only %s %s", ctx.Cmd(), tt.image, outputPath)
 		t.Logf("Running 'image render' test #%v: %v", i, runCmd)
 		spawnAndWaitOrFail(t, runCmd, tt.shouldFind)
 

@@ -36,7 +36,7 @@ func Enter(cdir string, podPID int, appName types.ACName, stage1Path string, cmd
 
 	ep, err := getStage1Entrypoint(cdir, enterEntrypoint)
 	if err != nil {
-		return fmt.Errorf("error determining entrypoint: %v", err)
+		return fmt.Errorf("error determining 'enter' entrypoint: %v", err)
 	}
 
 	argv := []string{filepath.Join(stage1Path, ep)}

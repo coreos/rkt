@@ -20,10 +20,12 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/coreos/rkt/tests/testutils"
 )
 
 const (
-	manifestOSArchTemplate = `{"acKind":"ImageManifest","acVersion":"0.7.0","name":"IMG_NAME","labels":[{"name":"version","value":"1.0.0"}ARCH_OS],"app":{"exec":["/inspect", "--print-msg=HelloWorld"],"user":"0","group":"0","workingDirectory":"/"}}`
+	manifestOSArchTemplate = `{"acKind":"ImageManifest","acVersion":"0.7.3","name":"IMG_NAME","labels":[{"name":"version","value":"1.0.0"}ARCH_OS],"app":{"exec":["/inspect", "--print-msg=HelloWorld"],"user":"0","group":"0","workingDirectory":"/"}}`
 )
 
 type osArchTest struct {
@@ -39,8 +41,8 @@ func osArchTestRemoveImages(tests []osArchTest) {
 	}
 }
 
-func getMissingOrInvalidTests(t *testing.T, ctx *rktRunCtx) []osArchTest {
-	tests := []osArchTest{}
+func getMissingOrInvalidTests(t *testing.T, ctx *testutils.RktRunCtx) []osArchTest {
+	var tests []osArchTest
 
 	defer osArchTestRemoveImages(tests)
 	testImageName := "coreos.com/rkt-missing-os-arch-test"
@@ -57,7 +59,7 @@ func getMissingOrInvalidTests(t *testing.T, ctx *rktRunCtx) []osArchTest {
 	goodImage := patchTestACI("rkt-good-image.aci", fmt.Sprintf("--manifest=%s", goodManifestFile))
 	goodTest := osArchTest{
 		image:        goodImage,
-		rktCmd:       fmt.Sprintf("%s --insecure-skip-verify run --mds-register=false %s", ctx.cmd(), goodImage),
+		rktCmd:       fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s", ctx.Cmd(), goodImage),
 		expectedLine: "HelloWorld",
 		expectError:  false,
 	}
@@ -74,7 +76,7 @@ func getMissingOrInvalidTests(t *testing.T, ctx *rktRunCtx) []osArchTest {
 	missingOSImage := patchTestACI("rkt-missing-os.aci", fmt.Sprintf("--manifest=%s", missingOSManifestFile))
 	missingOSTest := osArchTest{
 		image:        missingOSImage,
-		rktCmd:       fmt.Sprintf("%s --insecure-skip-verify run %s", ctx.cmd(), missingOSImage),
+		rktCmd:       fmt.Sprintf("%s --insecure-options=image run %s", ctx.Cmd(), missingOSImage),
 		expectedLine: "missing os label in the image manifest",
 		expectError:  true,
 	}
@@ -91,7 +93,7 @@ func getMissingOrInvalidTests(t *testing.T, ctx *rktRunCtx) []osArchTest {
 	missingArchImage := patchTestACI("rkt-missing-arch.aci", fmt.Sprintf("--manifest=%s", missingArchManifestFile))
 	missingArchTest := osArchTest{
 		image:        missingArchImage,
-		rktCmd:       fmt.Sprintf("%s --insecure-skip-verify run %s", ctx.cmd(), missingArchImage),
+		rktCmd:       fmt.Sprintf("%s --insecure-options=image run %s", ctx.Cmd(), missingArchImage),
 		expectedLine: "missing arch label in the image manifest",
 		expectError:  true,
 	}
@@ -108,7 +110,7 @@ func getMissingOrInvalidTests(t *testing.T, ctx *rktRunCtx) []osArchTest {
 	invalidOSImage := patchTestACI("rkt-invalid-os.aci", fmt.Sprintf("--manifest=%s", invalidOSManifestFile))
 	invalidOSTest := osArchTest{
 		image:        invalidOSImage,
-		rktCmd:       fmt.Sprintf("%s --insecure-skip-verify run %s", ctx.cmd(), invalidOSImage),
+		rktCmd:       fmt.Sprintf("%s --insecure-options=image run %s", ctx.Cmd(), invalidOSImage),
 		expectedLine: `bad os "freebsd"`,
 		expectError:  true,
 	}
@@ -125,7 +127,7 @@ func getMissingOrInvalidTests(t *testing.T, ctx *rktRunCtx) []osArchTest {
 	invalidArchImage := patchTestACI("rkt-invalid-arch.aci", fmt.Sprintf("--manifest=%s", invalidArchManifestFile))
 	invalidArchTest := osArchTest{
 		image:        invalidArchImage,
-		rktCmd:       fmt.Sprintf("%s --insecure-skip-verify run %s", ctx.cmd(), invalidArchImage),
+		rktCmd:       fmt.Sprintf("%s --insecure-options=image run %s", ctx.Cmd(), invalidArchImage),
 		expectedLine: `bad arch "armv6l"`,
 		expectError:  true,
 	}
@@ -139,8 +141,8 @@ func getMissingOrInvalidTests(t *testing.T, ctx *rktRunCtx) []osArchTest {
 // TestMissingOrInvalidOSArchRun tests that rkt errors out when it tries to run
 // an image (not present in the store) with a missing or unsupported os/arch
 func TestMissingOrInvalidOSArchRun(t *testing.T) {
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 	tests := getMissingOrInvalidTests(t, ctx)
 	defer osArchTestRemoveImages(tests)
 
@@ -153,14 +155,14 @@ func TestMissingOrInvalidOSArchRun(t *testing.T) {
 // TestMissingOrInvalidOSArchFetchRun tests that rkt errors out when it tries
 // to run an already fetched image with a missing or unsupported os/arch
 func TestMissingOrInvalidOSArchFetchRun(t *testing.T) {
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 	tests := getMissingOrInvalidTests(t, ctx)
 	defer osArchTestRemoveImages(tests)
 
 	for i, tt := range tests {
 		imgHash := importImageAndFetchHash(t, ctx, tt.image)
-		rktCmd := fmt.Sprintf("%s run --mds-register=false %s", ctx.cmd(), imgHash)
+		rktCmd := fmt.Sprintf("%s run --mds-register=false %s", ctx.Cmd(), imgHash)
 		t.Logf("Running test #%v: %v", i, rktCmd)
 		runRktAndCheckOutput(t, rktCmd, tt.expectedLine, tt.expectError)
 	}

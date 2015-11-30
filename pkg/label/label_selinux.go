@@ -48,6 +48,12 @@ func InitLabels(options []string) (string, string, error) {
 			if con[0] == "level" || con[0] == "user" {
 				mcon[con[0]] = con[1]
 			}
+			if con[0] == "mcsdir" {
+				err := selinux.SetMCSDir(con[1])
+				if err != nil {
+					return "", "", fmt.Errorf("Unable to configure MCS storage directory: %v", err)
+				}
+			}
 		}
 		processLabel = pcon.Get()
 		mountLabel = mcon.Get()

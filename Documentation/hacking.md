@@ -31,6 +31,15 @@ cd rkt
 ./autogen.sh && ./configure && make
 ```
 
+Build verbosity can be controlled with the V variable.
+Set V to 0 to have a silent build.
+Set V to either 1 or 2 to get short messages about what is being done (level 2 prints more of them).
+Set V to 3 to get raw output.
+Instead of a number, english words can be used.
+`quiet` or `silent` for level 0, `info` for level 1, `all` for level 2 and `raw` for level 3. Example:
+
+`make V=raw`
+
 ### Run-time requirements
 
 rkt is statically linked and does not require any dynamic libraries to be installed. However, it requires the following kernel features:
@@ -52,7 +61,7 @@ Alternatively, you can build rkt in a Docker container with the following comman
 Replace $SRC with the absolute path to your rkt source code:
 
 ```
-# docker run -v $SRC:/opt/rkt -i -t golang:1.4 /bin/bash -c "apt-get update && apt-get install -y coreutils cpio squashfs-tools realpath autoconf file && cd /opt/rkt && go get github.com/appc/spec/... && ./autogen.sh && ./configure && make"
+# docker run -v $SRC:/opt/rkt -i -t golang:1.4 /bin/bash -c "apt-get update && apt-get install -y coreutils cpio squashfs-tools realpath autoconf file xz-utils patch bc && cd /opt/rkt && go get github.com/appc/spec/... && ./autogen.sh && ./configure && make"
 ```
 
 ### Building systemd in stage1 from the sources
@@ -60,21 +69,22 @@ Replace $SRC with the absolute path to your rkt source code:
 By default, rkt gets systemd from a CoreOS image to generate stage1. But it's also possible to build systemd from the sources.
 After running `./autogen.sh` you can select the following options:
 
-* ./configure --with-stage1=none|coreos|src|host|kvm`: choose how to generate systemd for stage1 (default: 'coreos')
-* ./configure --with-stage1-systemd-version=version`: if stage1 is set to build from src, choose the systemd branch or tag to build (default: 'v222')
-* ./configure --with-stage1-systemd-src=git-path`: if stage1 is set to build from src, systemd git repository's address (default: 'https://github.com/systemd/systemd.git')
+* `./configure --with-stage1-flavors=coreos,src,host,kvm`: choose which flavors to build (default: 'coreos,kvm') (kvm also uses systemd from CoreOS, the difference is in the execution engine, see next section)
+* `./configure --with-stage1-default-flavor=coreos|src|host|kvm`: choose which built flavor should be the default (default: first from the flavors list)
+* `./configure --with-stage1-systemd-version=version`: if 'src' flavor is built, choose the systemd branch or tag to build (default: 'v222')
+* `./configure --with-stage1-systemd-src=git-path`: if 'src' flavor is built, systemd git repository's address (default: 'https://github.com/systemd/systemd.git')
 
 Example:
 
 ```
-./autogen.sh && ./configure --with-stage1=src --with-stage1-systemd-version=master --with-stage1-systemd-src=$HOME/src/systemd && make
+./autogen.sh && ./configure --with-stage1-flavors=src --with-stage1-systemd-version=master --with-stage1-systemd-src=$HOME/src/systemd && make
 ```
 
 ### Building stage1 with kvm as execution engine
 
 The stage1 kvm image is based on CoreOS, but with additional components for running containers on top of a hypervisor.
 
-To build, use `--with-stage1=kvm` flag in `./configure`
+To build, use `--with-stage1-flavors=kvm` flag in `./configure`
 
 This will generate stage1 with embedded kernel and kvmtool to start pod in virtual machine.
 
@@ -90,14 +100,16 @@ Additional build dependencies for the stage1 kvm follow. If building with docker
 rkt is designed and intended to be modular, using a [staged architecture](devel/architecture.md).
 
 `rkt run` determines the stage1 image it should use via its `-stage1-image` flag.
-By default, if this flag is unset at runtime, rkt will default to looking for a file called `stage1.aci` that is in the same directory as the rkt binary itself.
+By default, if this flag is unset at runtime, rkt will default to the configure-time settings. It usually means that rkt will look for a file called `stage1-<default flavor>.aci` that is in the same directory as the rkt binary itself.
 
-However, a default value can be set for this parameter at build time by setting the option `--with-stage1-image-path` when invoking `./configure`
+However, a default value can be set for this parameter at build time by setting the option `--with-stage1-default-location` when invoking `./configure`
 This is useful for those packaging rkt for distribution who will provide the stage1 in a fixed/known location.
 
 The option should be set to the fully qualified path at which rkt can find the stage1 image - for example:
 
-	./autogen.sh && ./configure --with-stage1-image-path=/usr/lib/rkt/stage1.aci && make
+```
+./autogen.sh && ./configure --with-stage1-default-location=/usr/lib/rkt/stage1.aci && make
+```
 
 rkt will then use this environment variable to set the default value for the `stage1-image` flag.
 
@@ -176,7 +188,7 @@ In this case, assuming we're updating `github.com/foo/bar`:
 
 ```
 $ cd $GOPATH/src/github.com/foo/bar
-$ git pull   # or 'go get -d -u github.com/foo/bar/...' 
+$ git pull   # or 'go get -d -u github.com/foo/bar/...'
 $ git checkout $DESIRED_REVISION
 $ cd $GOPATH/src/github.com/coreos/rkt
 $ godep update github.com/foo/bar/...

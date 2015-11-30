@@ -633,6 +633,7 @@ func runPublicServer(l net.Listener) {
 }
 
 func runMetadataService(cmd *cobra.Command, args []string) (exit int) {
+	signal.Notify(exitCh, syscall.SIGINT, syscall.SIGTERM)
 	log.Print("Metadata service starting...")
 
 	unixl, err := unixListener()
@@ -659,7 +660,6 @@ func runMetadataService(cmd *cobra.Command, args []string) (exit int) {
 
 	log.Print("Metadata service running...")
 
-	signal.Notify(exitCh, syscall.SIGINT, syscall.SIGTERM)
 	<-exitCh
 
 	log.Print("Metadata service exiting...")

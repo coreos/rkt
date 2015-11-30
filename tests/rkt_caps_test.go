@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/syndtr/gocapability/capability"
+	"github.com/coreos/rkt/tests/testutils"
 )
 
 var capsTests = []struct {
@@ -73,8 +74,8 @@ var capsTests = []struct {
 }
 
 func TestCaps(t *testing.T) {
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	for i, tt := range capsTests {
 		stage1Args := []string{"--exec=/inspect --print-caps-pid=1 --print-user"}
@@ -92,7 +93,7 @@ func TestCaps(t *testing.T) {
 		for _, stage := range []int{1, 2} {
 			t.Logf("Running test #%v: %v [stage %v]", i, tt.testName, stage)
 
-			cmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --mds-register=false --set-env=CAPABILITY=%d %s", ctx.cmd(), int(tt.capa), stageFileNames[stage-1])
+			cmd := fmt.Sprintf("%s --debug --insecure-options=image run --mds-register=false --set-env=CAPABILITY=%d %s", ctx.Cmd(), int(tt.capa), stageFileNames[stage-1])
 			child := spawnOrFail(t, cmd)
 
 			expectedLine := tt.capa.String()
@@ -110,13 +111,13 @@ func TestCaps(t *testing.T) {
 			}
 			waitOrFail(t, child, true)
 		}
-		ctx.reset()
+		ctx.Reset()
 	}
 }
 
 func TestCapsNonRoot(t *testing.T) {
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	for i, tt := range capsTests {
 		args := []string{"--exec=/inspect --print-caps-pid=0 --print-user", "--user=9000", "--group=9000"}
@@ -128,7 +129,7 @@ func TestCapsNonRoot(t *testing.T) {
 
 		t.Logf("Running test #%v: %v [non-root]", i, tt.testName)
 
-		cmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --mds-register=false --set-env=CAPABILITY=%d %s", ctx.cmd(), int(tt.capa), fileName)
+		cmd := fmt.Sprintf("%s --debug --insecure-options=image run --mds-register=false --set-env=CAPABILITY=%d %s", ctx.Cmd(), int(tt.capa), fileName)
 		child := spawnOrFail(t, cmd)
 
 		expectedLine := tt.capa.String()
@@ -146,6 +147,6 @@ func TestCapsNonRoot(t *testing.T) {
 		}
 
 		waitOrFail(t, child, true)
-		ctx.reset()
+		ctx.Reset()
 	}
 }

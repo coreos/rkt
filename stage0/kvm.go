@@ -29,23 +29,22 @@ const (
 
 // fileAccessible checks if the given path exists and is a regular file
 func fileAccessible(path string) bool {
-	info, err := os.Stat(path)
-	if err == nil {
+	if info, err := os.Stat(path); err == nil {
 		return info.Mode().IsRegular()
 	}
 	return false
 }
 
+func kvmSettingsDirPath(dataDir string) string {
+	return filepath.Join(dataDir, kvmSettingsDir)
+}
+
 func sshPrivateKeyPath(dataDir string) string {
-	return filepath.Join(dataDir, kvmSettingsDir, kvmPrivateKeyFilename)
+	return filepath.Join(kvmSettingsDirPath(dataDir), kvmPrivateKeyFilename)
 }
 
 func sshPublicKeyPath(dataDir string) string {
-	return filepath.Join(dataDir, kvmSettingsDir, kvmPrivateKeyFilename+".pub")
-}
-
-func createKvmSettingsDir(dataDir string) error {
-	return os.MkdirAll(filepath.Join(dataDir, kvmSettingsDir), 0700)
+	return filepath.Join(kvmSettingsDirPath(dataDir), kvmPrivateKeyFilename+".pub")
 }
 
 // generateKeyPair calls ssh-keygen with private key location for key generation purpose
@@ -60,7 +59,7 @@ func generateKeyPair(private string) error {
 	).Output()
 	if err != nil {
 		// out is in form of bytes buffer and we have to turn it into slice ending on first \0 occurence
-		return fmt.Errorf("error in keygen time. ret_val: %v, output: %v", err, string(out[:len(out)]))
+		return fmt.Errorf("error in keygen time. ret_val: %v, output: %v", err, string(out[:]))
 	}
 	return nil
 }
@@ -68,13 +67,11 @@ func generateKeyPair(private string) error {
 func ensureKeysExistOnHost(dataDir string) error {
 	private, public := sshPrivateKeyPath(dataDir), sshPublicKeyPath(dataDir)
 	if !fileAccessible(private) || !fileAccessible(public) {
-		err := createKvmSettingsDir(dataDir)
-		if err != nil {
+		if err := os.MkdirAll(kvmSettingsDirPath(dataDir), 0700); err != nil {
 			return err
 		}
 
-		err = generateKeyPair(private)
-		if err != nil {
+		if err := generateKeyPair(private); err != nil {
 			return err
 		}
 	}
@@ -98,7 +95,7 @@ func ensureAuthorizedKeysExist(keyDirPath, dataDir string) error {
 	}
 	defer fin.Close()
 
-	if _, err = io.Copy(fout, fin); err != nil {
+	if _, err := io.Copy(fout, fin); err != nil {
 		return err
 	}
 	return fout.Sync()
@@ -116,6 +113,5 @@ func kvmCheckSSHSetup(rootfsPath, dataDir string) error {
 	if err := ensureKeysExistOnHost(dataDir); err != nil {
 		return err
 	}
-
 	return ensureKeysExistInPod(rootfsPath, dataDir)
 }

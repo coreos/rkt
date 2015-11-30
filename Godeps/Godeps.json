@@ -1,82 +1,82 @@
 {
 	"ImportPath": "github.com/coreos/rkt",
-	"GoVersion": "go1.4.2",
+	"GoVersion": "go1.4.3",
 	"Packages": [
 		"./..."
 	],
 	"Deps": [
 		{
 			"ImportPath": "github.com/appc/cni/pkg/invoke",
-			"Comment": "v0.1.0-35-g5b7aa09",
+			"Comment": "v0.1.0-35-g5b7aa09e52da",
 			"Rev": "5b7aa09e52da1c490ace2ec2c940fe5ef1575d27"
 		},
 		{
 			"ImportPath": "github.com/appc/cni/pkg/ip",
-			"Comment": "v0.1.0-35-g5b7aa09",
+			"Comment": "v0.1.0-35-g5b7aa09e52da",
 			"Rev": "5b7aa09e52da1c490ace2ec2c940fe5ef1575d27"
 		},
 		{
 			"ImportPath": "github.com/appc/cni/pkg/ipam",
-			"Comment": "v0.1.0-35-g5b7aa09",
+			"Comment": "v0.1.0-35-g5b7aa09e52da",
 			"Rev": "5b7aa09e52da1c490ace2ec2c940fe5ef1575d27"
 		},
 		{
 			"ImportPath": "github.com/appc/cni/pkg/ns",
-			"Comment": "v0.1.0-35-g5b7aa09",
+			"Comment": "v0.1.0-35-g5b7aa09e52da",
 			"Rev": "5b7aa09e52da1c490ace2ec2c940fe5ef1575d27"
 		},
 		{
 			"ImportPath": "github.com/appc/cni/pkg/skel",
-			"Comment": "v0.1.0-35-g5b7aa09",
+			"Comment": "v0.1.0-35-g5b7aa09e52da",
 			"Rev": "5b7aa09e52da1c490ace2ec2c940fe5ef1575d27"
 		},
 		{
 			"ImportPath": "github.com/appc/cni/pkg/types",
-			"Comment": "v0.1.0-35-g5b7aa09",
+			"Comment": "v0.1.0-35-g5b7aa09e52da",
 			"Rev": "5b7aa09e52da1c490ace2ec2c940fe5ef1575d27"
 		},
 		{
 			"ImportPath": "github.com/appc/cni/plugins/ipam/dhcp",
-			"Comment": "v0.1.0-35-g5b7aa09",
+			"Comment": "v0.1.0-35-g5b7aa09e52da",
 			"Rev": "5b7aa09e52da1c490ace2ec2c940fe5ef1575d27"
 		},
 		{
 			"ImportPath": "github.com/appc/cni/plugins/ipam/host-local",
-			"Comment": "v0.1.0-35-g5b7aa09",
+			"Comment": "v0.1.0-35-g5b7aa09e52da",
 			"Rev": "5b7aa09e52da1c490ace2ec2c940fe5ef1575d27"
 		},
 		{
 			"ImportPath": "github.com/appc/cni/plugins/main/bridge",
-			"Comment": "v0.1.0-35-g5b7aa09",
+			"Comment": "v0.1.0-35-g5b7aa09e52da",
 			"Rev": "5b7aa09e52da1c490ace2ec2c940fe5ef1575d27"
 		},
 		{
 			"ImportPath": "github.com/appc/cni/plugins/main/ipvlan",
-			"Comment": "v0.1.0-35-g5b7aa09",
+			"Comment": "v0.1.0-35-g5b7aa09e52da",
 			"Rev": "5b7aa09e52da1c490ace2ec2c940fe5ef1575d27"
 		},
 		{
 			"ImportPath": "github.com/appc/cni/plugins/main/macvlan",
-			"Comment": "v0.1.0-35-g5b7aa09",
+			"Comment": "v0.1.0-35-g5b7aa09e52da",
 			"Rev": "5b7aa09e52da1c490ace2ec2c940fe5ef1575d27"
 		},
 		{
 			"ImportPath": "github.com/appc/cni/plugins/main/ptp",
-			"Comment": "v0.1.0-35-g5b7aa09",
+			"Comment": "v0.1.0-35-g5b7aa09e52da",
 			"Rev": "5b7aa09e52da1c490ace2ec2c940fe5ef1575d27"
 		},
 		{
 			"ImportPath": "github.com/appc/cni/plugins/meta/flannel",
-			"Comment": "v0.1.0-35-g5b7aa09",
+			"Comment": "v0.1.0-35-g5b7aa09e52da",
 			"Rev": "5b7aa09e52da1c490ace2ec2c940fe5ef1575d27"
 		},
 		{
 			"ImportPath": "github.com/appc/docker2aci/lib",
-			"Rev": "9c1b472ce804899a5db94a98fb2ad791f4bce2b2"
+			"Rev": "fce83d1375e33a840e455f51a102491111984924"
 		},
 		{
 			"ImportPath": "github.com/appc/docker2aci/tarball",
-			"Rev": "9c1b472ce804899a5db94a98fb2ad791f4bce2b2"
+			"Rev": "fce83d1375e33a840e455f51a102491111984924"
 		},
 		{
 			"ImportPath": "github.com/appc/goaci/proj2aci",
@@ -84,51 +84,59 @@
 		},
 		{
 			"ImportPath": "github.com/appc/spec/ace",
-			"Comment": "v0.7.1",
-			"Rev": "818ac4d0073424f4e0a46f45abaa147ccc1b5a24"
+			"Comment": "v0.7.3",
+			"Rev": "bd945b97e7b02aabbea5b772d3375aa44a100dcd"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/aci",
-			"Comment": "v0.7.1",
-			"Rev": "818ac4d0073424f4e0a46f45abaa147ccc1b5a24"
+			"Comment": "v0.7.3",
+			"Rev": "bd945b97e7b02aabbea5b772d3375aa44a100dcd"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/actool",
-			"Comment": "v0.7.1",
-			"Rev": "818ac4d0073424f4e0a46f45abaa147ccc1b5a24"
+			"Comment": "v0.7.3",
+			"Rev": "bd945b97e7b02aabbea5b772d3375aa44a100dcd"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/discovery",
-			"Comment": "v0.7.1",
-			"Rev": "818ac4d0073424f4e0a46f45abaa147ccc1b5a24"
+			"Comment": "v0.7.3",
+			"Rev": "bd945b97e7b02aabbea5b772d3375aa44a100dcd"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/pkg/acirenderer",
-			"Comment": "v0.7.1",
-			"Rev": "818ac4d0073424f4e0a46f45abaa147ccc1b5a24"
+			"Comment": "v0.7.3",
+			"Rev": "bd945b97e7b02aabbea5b772d3375aa44a100dcd"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/pkg/device",
-			"Comment": "v0.7.1",
-			"Rev": "818ac4d0073424f4e0a46f45abaa147ccc1b5a24"
+			"Comment": "v0.7.3",
+			"Rev": "bd945b97e7b02aabbea5b772d3375aa44a100dcd"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/pkg/tarheader",
-			"Comment": "v0.7.1",
-			"Rev": "818ac4d0073424f4e0a46f45abaa147ccc1b5a24"
+			"Comment": "v0.7.3",
+			"Rev": "bd945b97e7b02aabbea5b772d3375aa44a100dcd"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/schema",
-			"Comment": "v0.7.1",
-			"Rev": "818ac4d0073424f4e0a46f45abaa147ccc1b5a24"
+			"Comment": "v0.7.3",
+			"Rev": "bd945b97e7b02aabbea5b772d3375aa44a100dcd"
 		},
 		{
 			"ImportPath": "github.com/bradfitz/http2",
 			"Rev": "f8202bc903bda493ebba4aa54922d78430c2c42f"
 		},
 		{
+			"ImportPath": "github.com/camlistore/camlistore/pkg/errorutil",
+			"Rev": "9868aa0f8d8a93ff0b30ff0de46cc351b6b88b30"
+		},
+		{
 			"ImportPath": "github.com/camlistore/lock",
 			"Rev": "ae27720f340952636b826119b58130b9c1a847a0"
+		},
+		{
+			"ImportPath": "github.com/coreos/gexpect",
+			"Rev": "5173270e159f5aa8fbc999dc7e3dcb50f4098a69"
 		},
 		{
 			"ImportPath": "github.com/coreos/go-iptables/iptables",
@@ -140,27 +148,32 @@
 		},
 		{
 			"ImportPath": "github.com/coreos/go-systemd/activation",
-			"Comment": "v2-55-gd7b0894",
-			"Rev": "d7b08942d0d85bfcb4694864881c4af7324784d2"
+			"Comment": "v3",
+			"Rev": "be94bc700879ae8217780e9d141789a2defa302b"
 		},
 		{
 			"ImportPath": "github.com/coreos/go-systemd/dbus",
-			"Comment": "v2-57-gbe94bc7",
+			"Comment": "v3",
 			"Rev": "be94bc700879ae8217780e9d141789a2defa302b"
 		},
 		{
 			"ImportPath": "github.com/coreos/go-systemd/unit",
-			"Comment": "v2-57-gbe94bc7",
+			"Comment": "v3",
 			"Rev": "be94bc700879ae8217780e9d141789a2defa302b"
 		},
 		{
 			"ImportPath": "github.com/coreos/go-systemd/util",
-			"Comment": "v2-57-gbe94bc7",
+			"Comment": "v3",
 			"Rev": "be94bc700879ae8217780e9d141789a2defa302b"
 		},
 		{
 			"ImportPath": "github.com/coreos/ioprogress",
 			"Rev": "e7fc03058804de5488baed8df5b89f3924b9ec9a"
+		},
+		{
+			"ImportPath": "github.com/cpuguy83/go-md2man/md2man",
+			"Comment": "v1.0.4",
+			"Rev": "71acacd42f85e5e82f70a55327789582a5200a90"
 		},
 		{
 			"ImportPath": "github.com/cznic/b",
@@ -212,7 +225,7 @@
 		},
 		{
 			"ImportPath": "github.com/godbus/dbus",
-			"Comment": "v2-3-g4160802",
+			"Comment": "v2-3-g41608027bdce",
 			"Rev": "41608027bdce7bfa8959d653a00b954591220e67"
 		},
 		{
@@ -257,16 +270,21 @@
 			"Rev": "508f5671a72eeaef05cf8c24abe7fbc1c07faf69"
 		},
 		{
+			"ImportPath": "github.com/russross/blackfriday",
+			"Comment": "v1.4-2-g300106c",
+			"Rev": "300106c228d52c8941d4b3de6054a6062a86dda3"
+		},
+		{
+			"ImportPath": "github.com/shurcooL/sanitized_anchor_name",
+			"Rev": "10ef21a441db47d8b13ebcc5fd2310f636973c77"
+		},
+		{
 			"ImportPath": "github.com/spf13/cobra",
-			"Rev": "66816bcd0378e248c613e3c443c020f544c28804"
+			"Rev": "1c44ec8d3f1552cac48999f9306da23c4d8a288b"
 		},
 		{
 			"ImportPath": "github.com/spf13/pflag",
-			"Rev": "67cbc198fd11dab704b214c1e629a97af392c085"
-		},
-		{
-			"ImportPath": "github.com/steveeJ/gexpect",
-			"Rev": "d56b2c62c0a0ba2733c18b27024a961195f10a17"
+			"Rev": "08b1a584251b5b62f458943640fc8ebd4d50aaa5"
 		},
 		{
 			"ImportPath": "github.com/syndtr/gocapability/capability",

@@ -78,12 +78,12 @@ func runFetch(cmd *cobra.Command, args []string) (exit int) {
 	}
 	ft := &fetcher{
 		imageActionData: imageActionData{
-			s:                  s,
-			ks:                 ks,
-			headers:            config.AuthPerHost,
-			dockerAuth:         config.DockerCredentialsPerRegistry,
-			insecureSkipVerify: globalFlags.InsecureSkipVerify,
-			debug:              globalFlags.Debug,
+			s:             s,
+			ks:            ks,
+			headers:       config.AuthPerHost,
+			dockerAuth:    config.DockerCredentialsPerRegistry,
+			insecureFlags: globalFlags.InsecureFlags,
+			debug:         globalFlags.Debug,
 		},
 		storeOnly: flagStoreOnly,
 		noStore:   flagNoStore,

@@ -18,8 +18,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
-	"log"
 	"strconv"
 	"strings"
 
@@ -35,17 +33,22 @@ import (
 
 var (
 	cmdRun = &cobra.Command{
-		Use:   "run [--volume=name,kind=host,...] IMAGE [-- image-args...[---]]...",
+		Use:   "run [--volume=name,kind=host,...] [--mount volume=VOL,target=PATH] IMAGE [-- image-args...[---]]...",
 		Short: "Run image(s) in a pod in rkt",
 		Long: `IMAGE should be a string referencing an image; either a hash, local file on disk, or URL.
 They will be checked in that order and the first match will be used.
+
+Volumes are made available to the container via --volume.
+Mounts bind volumes into each image's root within the container via --mount.
+--mount is position-sensitive; occuring before any images applies to all images,
+occuring after any images applies only to the nearest preceding image. Per-app
+mounts take precedence over global ones if they have the same path.
 
 An "--" may be used to inhibit rkt run's parsing of subsequent arguments,
 which will instead be appended to the preceding image app's exec arguments.
 End the image arguments with a lone "---" to resume argument parsing.`,
 		Run: runWrapper(runRun),
 	}
-	flagVolumes      volumeList
 	flagPorts        portList
 	flagNet          common.NetList
 	flagPrivateUsers bool
@@ -64,7 +67,6 @@ func init() {
 	cmdRkt.AddCommand(cmdRun)
 
 	addStage1ImageFlag(cmdRun.Flags())
-	cmdRun.Flags().Var(&flagVolumes, "volume", "volumes to mount into the pod")
 	cmdRun.Flags().Var(&flagPorts, "port", "ports to expose on the host (requires --net)")
 	cmdRun.Flags().Var(&flagNet, "net", "configure the pod's networking and optionally pass a list of user-configured networks to load and arguments to pass to them. syntax: --net[=n[:args], ...]")
 	cmdRun.Flags().Lookup("net").NoOptDefVal = "default"
@@ -76,14 +78,15 @@ func init() {
 	cmdRun.Flags().BoolVar(&flagStoreOnly, "store-only", false, "use only available images in the store (do not discover or download from remote URLs)")
 	cmdRun.Flags().BoolVar(&flagNoStore, "no-store", false, "fetch images ignoring the local store")
 	cmdRun.Flags().StringVar(&flagPodManifest, "pod-manifest", "", "the path to the pod manifest. If it's non-empty, then only '--net', '--no-overlay' and '--interactive' will have effects")
-	cmdRun.Flags().BoolVar(&flagMDSRegister, "mds-register", true, "register pod with metadata service")
+	cmdRun.Flags().BoolVar(&flagMDSRegister, "mds-register", false, "register pod with metadata service. needs network connectivity to the host (--net=(default|default-restricted|host)")
 	cmdRun.Flags().StringVar(&flagUUIDFileSave, "uuid-file-save", "", "write out pod UUID to specified file")
+	cmdRun.Flags().Var((*appsVolume)(&rktApps), "volume", "volumes to make available in the pod")
 
 	// per-app flags
 	cmdRun.Flags().Var((*appAsc)(&rktApps), "signature", "local signature file to use in validating the preceding image")
 	cmdRun.Flags().Var((*appExec)(&rktApps), "exec", "override the exec command for the preceding image")
+	cmdRun.Flags().Var((*appMount)(&rktApps), "mount", "mount point binding a volume to a path within an app")
 
-	flagVolumes = volumeList{}
 	flagPorts = portList{}
 
 	// Disable interspersed flags to stop parsing after the first non flag
@@ -113,24 +116,23 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		privateUsers.SetRandomUidRange(uid.DefaultRangeCount)
 	}
 
-	if len(flagPorts) > 0 && !flagNet.Any() {
-		stderr("--port flag requires --net")
+	if len(flagPorts) > 0 && flagNet.None() {
+		stderr("--port flag does not work with 'none' networking")
+		return 1
+	}
+	if len(flagPorts) > 0 && flagNet.Host() {
+		stderr("--port flag does not work with 'host' networking")
 		return 1
 	}
 
-	if len(flagPodManifest) > 0 && (len(flagVolumes) > 0 || len(flagPorts) > 0 || flagInheritEnv || !flagExplicitEnv.IsEmpty() || rktApps.Count() > 0 || flagStoreOnly || flagNoStore) {
+	if flagMDSRegister && flagNet.None() {
+		stderr("--mds-register flag does not work with --net=none. Please use 'host', 'default' or an equivalent network")
+		return 1
+	}
+
+	if len(flagPodManifest) > 0 && (len(flagPorts) > 0 || flagInheritEnv || !flagExplicitEnv.IsEmpty() || rktApps.Count() > 0 || flagStoreOnly || flagNoStore) {
 		stderr("conflicting flags set with --pod-manifest (see --help)")
 		return 1
-	}
-
-	if globalFlags.Dir == "" {
-		log.Printf("dir unset - using temporary directory")
-		var err error
-		globalFlags.Dir, err = ioutil.TempDir("", "rkt")
-		if err != nil {
-			stderr("error creating temporary directory: %v", err)
-			return 1
-		}
 	}
 
 	if flagInteractive && rktApps.Count() > 1 {
@@ -156,11 +158,11 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 	}
 	fn := &finder{
 		imageActionData: imageActionData{
-			s:                  s,
-			headers:            config.AuthPerHost,
-			dockerAuth:         config.DockerCredentialsPerRegistry,
-			insecureSkipVerify: globalFlags.InsecureSkipVerify,
-			debug:              globalFlags.Debug,
+			s:             s,
+			headers:       config.AuthPerHost,
+			dockerAuth:    config.DockerCredentialsPerRegistry,
+			insecureFlags: globalFlags.InsecureFlags,
+			debug:         globalFlags.Debug,
 		},
 		storeOnly: flagStoreOnly,
 		noStore:   flagNoStore,
@@ -169,14 +171,14 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 
 	s1img, err := getStage1Hash(s, cmd)
 	if err != nil {
-		stderr("%v", err)
+		stderr("run: %v", err)
 		return 1
 	}
 
 	fn.ks = getKeystore()
 	fn.withDeps = true
 	if err := fn.findImages(&rktApps); err != nil {
-		stderr("%v", err)
+		stderr("run: %v", err)
 		return 1
 	}
 
@@ -195,7 +197,7 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		}
 	}
 
-	processLabel, mountLabel, err := label.InitLabels(nil)
+	processLabel, mountLabel, err := label.InitLabels([]string{"mcsdir:/var/run/rkt/mcs"})
 	if err != nil {
 		stderr("Error initialising SELinux: %v", err)
 		return 1
@@ -211,15 +213,15 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 	}
 
 	pcfg := stage0.PrepareConfig{
-		CommonConfig: cfg,
-		UseOverlay:   !flagNoOverlay && common.SupportsOverlay(),
-		PrivateUsers: privateUsers,
+		CommonConfig:       cfg,
+		UseOverlay:         !flagNoOverlay && common.SupportsOverlay(),
+		PrivateUsers:       privateUsers,
+		SkipTreeStoreCheck: globalFlags.InsecureFlags.SkipOnDiskCheck(),
 	}
 
 	if len(flagPodManifest) > 0 {
 		pcfg.PodManifest = flagPodManifest
 	} else {
-		pcfg.Volumes = []types.Volume(flagVolumes)
 		pcfg.Ports = []types.ExposedPort(flagPorts)
 		pcfg.InheritEnv = flagInheritEnv
 		pcfg.ExplicitEnv = flagExplicitEnv.Strings()
@@ -281,32 +283,6 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 	stage0.Run(rcfg, p.path(), globalFlags.Dir) // execs, never returns
 
 	return 1
-}
-
-// volumeList implements the flag.Value interface to contain a set of mappings
-// from mount label --> mount path
-type volumeList []types.Volume
-
-func (vl *volumeList) Set(s string) error {
-	vol, err := types.VolumeFromString(s)
-	if err != nil {
-		return err
-	}
-
-	*vl = append(*vl, *vol)
-	return nil
-}
-
-func (vl *volumeList) String() string {
-	var vs []string
-	for _, v := range []types.Volume(*vl) {
-		vs = append(vs, v.String())
-	}
-	return strings.Join(vs, " ")
-}
-
-func (vl *volumeList) Type() string {
-	return "volumeList"
 }
 
 // portList implements the flag.Value interface to contain a set of mappings

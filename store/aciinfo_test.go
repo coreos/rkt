@@ -48,7 +48,7 @@ func TestWriteACIInfo(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	aciinfos := []*ACIInfo{}
+	var aciinfos []*ACIInfo
 	ok := false
 	if err = s.db.Do(func(tx *sql.Tx) error {
 		aciinfos, ok, err = GetACIInfosWithName(tx, "name01")

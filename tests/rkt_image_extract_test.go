@@ -19,6 +19,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/coreos/rkt/tests/testutils"
 )
 
 // TestImageExtract tests 'rkt image extract', it will import some existing
@@ -28,14 +30,14 @@ func TestImageExtract(t *testing.T) {
 	testImage := getInspectImagePath()
 	testImageName := "coreos.com/rkt-inspect"
 
-	inspectFile := getValueFromEnvOrPanic("INSPECT_BINARY")
+	inspectFile := testutils.GetValueFromEnvOrPanic("INSPECT_BINARY")
 	inspectHash := getHashOrPanic(inspectFile)
 
 	tmpDir := createTempDirOrPanic("rkt-TestImageRender-")
 	defer os.RemoveAll(tmpDir)
 
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	testImageShortHash := importImageAndFetchHash(t, ctx, testImage)
 
@@ -68,7 +70,7 @@ func TestImageExtract(t *testing.T) {
 
 	for i, tt := range tests {
 		outputPath := filepath.Join(tmpDir, fmt.Sprintf("extracted-%d", i))
-		runCmd := fmt.Sprintf("%s image extract --rootfs-only %s %s", ctx.cmd(), tt.image, outputPath)
+		runCmd := fmt.Sprintf("%s image extract --rootfs-only %s %s", ctx.Cmd(), tt.image, outputPath)
 		t.Logf("Running 'image extract' test #%v: %v", i, runCmd)
 		spawnAndWaitOrFail(t, runCmd, tt.shouldFind)
 

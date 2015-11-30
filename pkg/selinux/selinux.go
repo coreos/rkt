@@ -49,10 +49,10 @@ const (
 var (
 	assignRegex           = regexp.MustCompile(`^([^=]+)=(.*)$`)
 	spaceRegex            = regexp.MustCompile(`^([^=]+) (.*)$`)
-	mcsList               = make(map[string]bool)
 	selinuxfs             = "unknown"
 	selinuxEnabled        = false // Stores whether selinux is currently enabled
 	selinuxEnabledChecked = false // Stores whether selinux enablement has been checked or established yet
+	mcsdir                = ""    // Directory to use for MCS storage
 )
 
 type SELinuxContext map[string]string
@@ -269,20 +269,37 @@ func SelinuxGetEnforceMode() int {
 	return Disabled
 }
 
+func mcsPath(mcs string) string {
+	filename := fmt.Sprintf("%s/%s", mcsdir, mcs)
+	return filename
+}
+
 func mcsAdd(mcs string) error {
-	if mcsList[mcs] {
-		return fmt.Errorf("MCS Label already exists")
+	filename := mcsPath(mcs)
+	file, err := os.OpenFile(filename, os.O_CREATE|os.O_EXCL|os.O_RDONLY, 0644)
+	if err != nil {
+		if os.IsExist(err) {
+			return fmt.Errorf("MCS label already exists")
+		} else {
+			return fmt.Errorf("unable to test MCS: %v", err)
+		}
 	}
-	mcsList[mcs] = true
+	file.Close()
 	return nil
 }
 
 func mcsDelete(mcs string) {
-	mcsList[mcs] = false
+	filename := mcsPath(mcs)
+	os.Remove(filename)
 }
 
 func mcsExists(mcs string) bool {
-	return mcsList[mcs]
+	filename := mcsPath(mcs)
+	_, err := os.Stat(filename)
+	if err == nil {
+		return true
+	}
+	return false
 }
 
 func IntToMcs(id int, catRange uint32) string {
@@ -483,4 +500,11 @@ func DupSecOpt(src string) []string {
 // labeling support for future container processes
 func DisableSecOpt() []string {
 	return []string{"label:disable"}
+}
+
+// Set the directory used for storage of used MCS contexts
+func SetMCSDir(arg string) error {
+	mcsdir = arg
+	err := os.MkdirAll(mcsdir, 0755)
+	return err
 }

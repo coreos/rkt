@@ -1,13 +1,4 @@
-LOCAL_NAME := reaper.sh
-LOCAL_REAPER := $(MK_SRCDIR)/$(LOCAL_NAME)
-LOCAL_ACI_REAPER := $(ACIROOTFSDIR)/$(LOCAL_NAME)
+AIB_FLAVORS := $(STAGE1_FLAVORS)
+AIB_BINARY := $(MK_SRCDIR)/reaper.sh
 
-$(call setup-stamp-file,LOCAL_STAMP)
-
-$(LOCAL_STAMP): $(LOCAL_ACI_REAPER)
-	touch "$@"
-
-STAGE1_INSTALL_FILES += $(LOCAL_REAPER):$(LOCAL_ACI_REAPER):0755
-STAGE1_STAMPS += $(LOCAL_STAMP)
-
-$(call undefine-namespaces,LOCAL)
+include stage1/makelib/aci_install_bin.mk

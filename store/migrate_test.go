@@ -238,7 +238,7 @@ type ACIInfoV3 struct {
 }
 
 func getAllACIInfosV0_2(tx *sql.Tx) ([]*ACIInfoV0_2, error) {
-	aciinfos := []*ACIInfoV0_2{}
+	var aciinfos []*ACIInfoV0_2
 	rows, err := tx.Query("SELECT * from aciinfo")
 	if err != nil {
 		return nil, err
@@ -257,7 +257,7 @@ func getAllACIInfosV0_2(tx *sql.Tx) ([]*ACIInfoV0_2, error) {
 }
 
 func getAllACIInfosV3(tx *sql.Tx) ([]*ACIInfoV3, error) {
-	aciinfos := []*ACIInfoV3{}
+	var aciinfos []*ACIInfoV3
 	rows, err := tx.Query("SELECT * from aciinfo")
 	if err != nil {
 		return nil, err
@@ -283,7 +283,7 @@ type RemoteV0_1 struct {
 }
 
 func getAllRemoteV0_1(tx *sql.Tx) ([]*RemoteV0_1, error) {
-	remotes := []*RemoteV0_1{}
+	var remotes []*RemoteV0_1
 	rows, err := tx.Query("SELECT * from remote")
 	if err != nil {
 		return nil, err
@@ -311,7 +311,7 @@ type RemoteV2_3 struct {
 }
 
 func getAllRemoteV2_3(tx *sql.Tx) ([]*RemoteV2_3, error) {
-	remotes := []*RemoteV2_3{}
+	var remotes []*RemoteV2_3
 	rows, err := tx.Query("SELECT * from remote")
 	if err != nil {
 		return nil, err

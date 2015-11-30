@@ -1,3 +1,105 @@
+## v0.12.0
+
+rkt v0.12.0 is an incremental release with UX improvements like fine-grained security controls and implicit generation of empty volumes, performance improvements, bug fixes and testing enhancements.
+
+#### New features and UX changes
+
+- implement `rkt cat-manifest` for pods ([#1744](https://github.com/coreos/rkt/pull/1744))
+- generate an empty volume if a required one is not provided ([#1753](https://github.com/coreos/rkt/pull/1753))
+- make disabling security features granular; `--insecure-skip-verify` is now `--insecure-options={feature(s)-to-disable}` ([#1738](https://github.com/coreos/rkt/pull/1738)). See rkt's [Global Options](https://github.com/coreos/rkt/blob/master/Documentation/commands.md#global-options) documentation.
+- allow skipping the on-disk integrity check using `--insecure-options=ondisk`. This greatly speeds up start time. ([#1804](https://github.com/coreos/rkt/pull/1804))
+- set empty volumes' permissions following the [spec](https://github.com/appc/spec/blob/master/spec/pods.md#pod-manifest-schema) ([1803](https://github.com/coreos/rkt/pull/1803))
+- flannel networking support in kvm flavor ([#1563](https://github.com/coreos/rkt/pull/1563))
+
+#### Bug fixes
+
+- store used MCS contexts on the filesystem ([#1742](https://github.com/coreos/rkt/pull/1742))
+- fix Docker images with whiteout-ed hard links ([#1653](https://github.com/coreos/rkt/pull/1653))
+- fix Docker images relying on /dev/stdout ([#1617](https://github.com/coreos/rkt/pull/1617))
+- use authentication for discovery and trust ([#1801](https://github.com/coreos/rkt/pull/1801))
+- fix build in Docker ([#1798](https://github.com/coreos/rkt/pull/1798))
+- fix kvm networking ([#1530](https://github.com/coreos/rkt/pull/1530))
+
+#### Improved testing
+
+- add functional tests for rkt api service ([#1761](https://github.com/coreos/rkt/pull/1761))
+- fix TestSocketActivation on systemd-v219 ([#1768](https://github.com/coreos/rkt/pull/1768))
+- fix the ACE validator test ([#1802](https://github.com/coreos/rkt/pull/1802))
+
+#### Other changes
+- Bumped appc spec to 0.7.3 ([#1800](https://github.com/coreos/rkt/pull/1800))
+
+## v0.11.0
+
+rkt v0.11.0 is an incremental release with mostly bug fixes and testing improvements.
+
+#### New features and UX changes
+
+- support resuming ACI downloads ([#1444](https://github.com/coreos/rkt/pull/1444))
+- `rkt image gc` now also removes images from the store ([#1697](https://github.com/coreos/rkt/pull/1697))
+
+#### Build
+
+- handle building multiple flavors ([#1683](https://github.com/coreos/rkt/pull/1683))
+- verbosity control ([#1685](https://github.com/coreos/rkt/pull/1685), [#1686](https://github.com/coreos/rkt/pull/1686))
+- fix bugs in `make clean` ([#1695](https://github.com/coreos/rkt/pull/1695))
+
+#### Improved testing
+
+- nicer output in tests ([#1698](https://github.com/coreos/rkt/pull/1698))
+- refactor test code ([#1709](https://github.com/coreos/rkt/pull/1709))
+- skip CI tests when the source was not modified ([#1619](https://github.com/coreos/rkt/pull/1619))
+- better output when tests fail ([#1728](https://github.com/coreos/rkt/pull/1728))
+- fix tests in `10.*` IP range ([#1736](https://github.com/coreos/rkt/pull/1736))
+- document how to run functional tests ([#1736](https://github.com/coreos/rkt/pull/1736))
+
+#### Improved documentation
+
+- add some help on how to run rkt as a daemon ([#1684](https://github.com/coreos/rkt/pull/1684))
+
+#### API service
+
+- do not return manifest in `ListPods()` and `ListImages()` ([#1688](https://github.com/coreos/rkt/pull/1688))
+
+#### Bug fixes
+
+- parameter `--mount` fixed in kvm flavour ([#1687](https://github.com/coreos/rkt/pull/1687))
+- fix rkt leaking containers in machinectl on CoreOS ([#1694](https://github.com/coreos/rkt/pull/1694), [#1704](https://github.com/coreos/rkt/pull/1704))
+- `rkt status` now returns the stage1 pid ([#1699](https://github.com/coreos/rkt/pull/1699))
+- fix crash in `rkt status` when an image is removed ([#1701](https://github.com/coreos/rkt/pull/1701))
+- fix fd leak in store ([#1716](https://github.com/coreos/rkt/pull/1716))
+- fix exec line parsing in ACI manifest ([#1652](https://github.com/coreos/rkt/pull/1652))
+- fix build on 32-bit systems ([#1729](https://github.com/coreos/rkt/pull/1729))
+
+## v0.10.0
+
+rkt v0.10.0 is an incremental release with numerous bug fixes and a few small new features and UX improvements.
+
+#### New features and UX changes
+
+- added implementation for basic API service (`rkt api-service`) ([#1508](https://github.com/coreos/rkt/pull/1508))
+- mount arbitrary volumes with `--mount` ([#1582](https://github.com/coreos/rkt/pull/1582), [#1678](https://github.com/coreos/rkt/pull/1678))
+- `--net=none` only exposes the loopback interface ([#1635](https://github.com/coreos/rkt/pull/1635))
+- better formatting for rkt help ([#1597](https://github.com/coreos/rkt/pull/1597))
+- metadata service registration (`--mds-register`) disabled by default ([#1635](https://github.com/coreos/rkt/pull/1635))
+
+#### Improved documentation
+- [compare rkt and other projects](https://github.com/coreos/rkt/blob/master/Documentation/rkt-vs-other-projects.md) ([#1588](https://github.com/coreos/rkt/pull/1588))
+- [Stage 1 systemd Architecture](https://github.com/coreos/rkt/blob/master/Documentation/devel/architecture.md) ([#1631](https://github.com/coreos/rkt/pull/1631))
+- [packaging rkt in Linux distributions](https://github.com/coreos/rkt/blob/master/Documentation/packaging.md) ([#1511](https://github.com/coreos/rkt/pull/1511))
+
+#### Improved testing
+- new test for user namespaces (`--private-users`) ([#1580](https://github.com/coreos/rkt/pull/1580))
+- fix races in tests ([#1608](https://github.com/coreos/rkt/pull/1608))
+
+#### Bug fixes
+- suppress unnecessary output when `--debug` is not used ([#1557](https://github.com/coreos/rkt/pull/1557))
+- fix permission of rootfs with overlayfs ([#1607](https://github.com/coreos/rkt/pull/1607))
+- allow relative path in parameters ([#1615](https://github.com/coreos/rkt/pull/1615))
+- fix pod garbage collection failure in some cases ([#1621](https://github.com/coreos/rkt/pull/1621))
+- fix `rkt list` when an image was removed ([#1655](https://github.com/coreos/rkt/pull/1655))
+- user namespace (`--private-users`) regression with rkt group fixed ([#1654](//github.com/coreos/rkt/pull/1654))
+
 ## v0.9.0
 
 rkt v0.9.0 is a significant milestone release with a number of internal and user-facing changes.
@@ -11,7 +113,7 @@ There are several notable breaking changes from the previous release:
 #### New features and UX changes
 
 ###### `--private-net` --> `--net`, and networking is now private by default
-The `--private-net` flag has been changed to `--net`, and has been now made the default behaviour. (#1532, #1418)
+The `--private-net` flag has been changed to `--net`, and has been now made the default behaviour. ([#1532](https://github.com/coreos/rkt/pull/1532), [#1418](https://github.com/coreos/rkt/pull/1418))
 That is, a `rkt run` command will now by default set up a private network for the pod.
 To achieve the previous default behaviour of the pod sharing the networking namespace of the host, use `--net=host`.
 The flag still allows the specification of multiple networks via CNI plugins, and overriding plugin configuration on a per-network basis.
@@ -24,7 +126,7 @@ Instead, rkt now features two new flags, `--store-only` and `--no-store`, on bot
 For full details of the new behaviour see the [image fetching documentation](Documentation/image-fetching-behavior.md).
 
 ###### Unprivileged users
-A number of changes were made to the permissions of rkt's internal store to facilitate unprivileged users to access information about images and pods on the system (#1542, #1569).
+A number of changes were made to the permissions of rkt's internal store to facilitate unprivileged users to access information about images and pods on the system ([#1542](https://github.com/coreos/rkt/pull/1542), [#1569](https://github.com/coreos/rkt/pull/1569)).
 In particular, the set-group-ID bit is applied to the directories touched by `rkt install` so that the `rkt` group (if it exists on the system) can retain read-access to information about pods and images.
 This will be used by the rkt API service (targeted for the next release) so that it can run as an unprivileged user on the system.
 This support is still considered partially experimental.
@@ -32,46 +134,46 @@ Some tasks like `rkt image gc` remain a root-only operation.
 
 ###### /etc/hosts support
 If no `/etc/hosts` exists in an application filesystem at the time it starts running, rkt will now provide a basic default version of this file.
-If rkt detects one already in the app's filesystem (whether through being included in an image, or a volume mounted in), it will make no changes. (#1541)
+If rkt detects one already in the app's filesystem (whether through being included in an image, or a volume mounted in), it will make no changes. ([#1541](https://github.com/coreos/rkt/pull/1541))
 
 ##### Other new features
-- rkt now supports setting supplementary group IDs on processes (#1514).
-- rkt's use of cgroups has been reworked to facilitate rkt running on a variety of operating systems like Void and older non-systemd distributions (#1437, #1320, #1076, #1042)
-- If `rkt run` is used with an image that does not have an app section, rkt will now create one if the user provides an `--exec` flag (#1427)
-- A new `rkt image gc` command adds initial support for garbage collecting images from the store (#1487). This removes treeStores not referenced by any non-GCed rkt pod.
-- `rkt list` now provides more information including image version and hash (#1559)
+- rkt now supports setting supplementary group IDs on processes ([#1514](https://github.com/coreos/rkt/pull/1514)).
+- rkt's use of cgroups has been reworked to facilitate rkt running on a variety of operating systems like Void and older non-systemd distributions ([#1437](https://github.com/coreos/rkt/pull/1437), [#1320](https://github.com/coreos/rkt/pull/1320), [#1076](https://github.com/coreos/rkt/pull/1076), [#1042](https://github.com/coreos/rkt/pull/1042))
+- If `rkt run` is used with an image that does not have an app section, rkt will now create one if the user provides an `--exec` flag ([#1427](https://github.com/coreos/rkt/pull/1427))
+- A new `rkt image gc` command adds initial support for garbage collecting images from the store ([#1487](https://github.com/coreos/rkt/pull/1487)). This removes treeStores not referenced by any non-GCed rkt pod.
+- `rkt list` now provides more information including image version and hash ([#1559](https://github.com/coreos/rkt/pull/1559))
 - `rkt image list` output now shows shortened hash identifiers by default, and human readable date formats.
-  To use the previous output format, use the `--full` flag. (#1455)
-- `rkt prepare` gained the `--exec` flag, which restores flag-parity with `rkt run` (#1410)
-- lkvm stage1 backend has experimental support for `rkt enter` (#1303)
-- rkt now supports empty volume types (#1502)
-- An early, experimental read-only API definition has been added (#1359, #1518).
+  To use the previous output format, use the `--full` flag. ([#1455](https://github.com/coreos/rkt/pull/1455))
+- `rkt prepare` gained the `--exec` flag, which restores flag-parity with `rkt run` ([#1410](https://github.com/coreos/rkt/pull/1410))
+- lkvm stage1 backend has experimental support for `rkt enter` ([#1303](https://github.com/coreos/rkt/pull/1303))
+- rkt now supports empty volume types ([#1502](https://github.com/coreos/rkt/pull/1502))
+- An early, experimental read-only API definition has been added ([#1359](https://github.com/coreos/rkt/pull/1359), [#1518](https://github.com/coreos/rkt/pull/1518)).
 
 #### Bug fixes
-- Fixed bug in `--stage1-image` option which prevented it from using URLs (#1524)
-- Fixed bug in `rkt trust`'s handling of `--root` (#1494)
-- Fixed bug when decompressing xz-compressed images (#1462, #1224)
-- In earlier versions of rkt, hooks had an implicit timeout of 30 seconds, causing some pre-start jobs which took a long time to be killed. This implicit timeout has been removed. (#1547)
-- When running with the lkvm stage1, rkt now sets `$HOME` if it is not already set, working around a bug in the lkvm tool (#1447, #1393)
-- Fixed bug preventing `run-prepared` from working if the metadata service was not available (#1436)
+- Fixed bug in `--stage1-image` option which prevented it from using URLs ([#1524](https://github.com/coreos/rkt/pull/1524))
+- Fixed bug in `rkt trust`'s handling of `--root` ([#1494](https://github.com/coreos/rkt/pull/1494))
+- Fixed bug when decompressing xz-compressed images ([#1462](https://github.com/coreos/rkt/pull/1462), [#1224](https://github.com/coreos/rkt/pull/1224))
+- In earlier versions of rkt, hooks had an implicit timeout of 30 seconds, causing some pre-start jobs which took a long time to be killed. This implicit timeout has been removed. ([#1547](https://github.com/coreos/rkt/pull/1547))
+- When running with the lkvm stage1, rkt now sets `$HOME` if it is not already set, working around a bug in the lkvm tool ([#1447](https://github.com/coreos/rkt/pull/1447), [#1393](https://github.com/coreos/rkt/pull/1393))
+- Fixed bug preventing `run-prepared` from working if the metadata service was not available ([#1436](https://github.com/coreos/rkt/pull/1436))
 
 #### Other changes
-- Bumped appc spec to 0.7.1 (#1543)
-- Bumped CNI and netlink dependencies (#1476)
-- Bumped ioprogress to a version which prevents the download bar from being drawn when rkt is not drawing to a terminal (#1423, #1282)
-- Significantly reworked rkt's internal use of systemd to orchestrate apps, which should facilitate more granular control over pod lifecycles (#1407)
-- Reworked rkt's handling of images with non-deterministically dependencies (#1240, #1198).
-- rkt functional tests now run appc's ACE validator, which should ensure that rkt is always compliant with the specification. (#1473)
+- Bumped appc spec to 0.7.1 ([#1543](https://github.com/coreos/rkt/pull/1543))
+- Bumped CNI and netlink dependencies ([#1476](https://github.com/coreos/rkt/pull/1476))
+- Bumped ioprogress to a version which prevents the download bar from being drawn when rkt is not drawing to a terminal ([#1423](https://github.com/coreos/rkt/pull/1423), [#1282](https://github.com/coreos/rkt/pull/1282))
+- Significantly reworked rkt's internal use of systemd to orchestrate apps, which should facilitate more granular control over pod lifecycles ([#1407](https://github.com/coreos/rkt/pull/1407))
+- Reworked rkt's handling of images with non-deterministically dependencies ([#1240](https://github.com/coreos/rkt/pull/1240), [#1198](https://github.com/coreos/rkt/pull/1198)).
+- rkt functional tests now run appc's ACE validator, which should ensure that rkt is always compliant with the specification. ([#1473](https://github.com/coreos/rkt/pull/1473))
 - A swathe of improvements to the build system
   - `make clean` should now work
-  - Different rkt stage1 images are now built with different names (#1406)
-  - rkt can now build on older Linux distributions (like CentOS 6) (#1529)
+  - Different rkt stage1 images are now built with different names ([#1406](https://github.com/coreos/rkt/pull/1406))
+  - rkt can now build on older Linux distributions (like CentOS 6) ([#1529](https://github.com/coreos/rkt/pull/1529))
 - Various internal improvements to the functional test suite to improve coverage and consolidate code
 - The "ACI" field header in `rkt image` output has been changed to "IMAGE NAME"
-- `rkt image rm` now exits with status 1 on any failure (#1486)
-- Fixed permissions in the default stage1 image (#1503)
-- Added documentation for `prepare` and `run-prepared` subcommands (#1526)
-- rkt should now report more helpful errors when encountering manifests it does not understand (#1471)
+- `rkt image rm` now exits with status 1 on any failure ([#1486](https://github.com/coreos/rkt/pull/1486))
+- Fixed permissions in the default stage1 image ([#1503](https://github.com/coreos/rkt/pull/1503))
+- Added documentation for `prepare` and `run-prepared` subcommands ([#1526](https://github.com/coreos/rkt/pull/1526))
+- rkt should now report more helpful errors when encountering manifests it does not understand ([#1471](https://github.com/coreos/rkt/pull/1471))
 
 
 ## v0.8.1
@@ -284,7 +386,7 @@ a couple of small new features:
 - metadata-service no longer manipulates IP tables rules as it connects over a
   unix socket by default
 - pkg/lock has been improved to also support regular (non-directory) files
-- images in the cas are now locked at runtime (as described in #460)
+- images in the cas are now locked at runtime (as described in [#460](https://github.com/coreos/rkt/pull/460))
 
 
 ## v0.5.1
@@ -320,7 +422,7 @@ This release also introduces a number of key features and minor changes:
 ## v0.4.2
 
 - First support for interactive containers, with the `rkt run --interactive`
-  flag. This is currently only supported if a container has one app. #562 #601 
+  flag. This is currently only supported if a container has one app. [#562](https://github.com/coreos/rkt/pull/562) #[601](//github.com/coreos/rkt/pull/601)
 - Add container IP address information to `rkt list`
 - Provide `/sys` and `/dev/shm` to apps (per spec)
 - Introduce "latest" pattern handling for local image index

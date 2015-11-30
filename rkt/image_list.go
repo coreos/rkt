@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema"
@@ -30,105 +31,47 @@ import (
 const (
 	defaultTimeLayout = "2006-01-02 15:04:05.999 -0700 MST"
 
-	idField         = "id"
-	nameField       = "name"
-	importTimeField = "importtime"
-	latestField     = "latest"
+	id         = "id"
+	name       = "name"
+	importTime = "import time"
+	lastUsed   = "last used"
+	latest     = "latest"
 )
 
-var (
-	// map of valid fields and related flag value
-	imagesAllFields = map[string]struct{}{
-		idField:         struct{}{},
-		nameField:       struct{}{},
-		importTimeField: struct{}{},
-		latestField:     struct{}{},
-	}
+// Convenience methods for formatting fields
+func l(s string) string {
+	return strings.ToLower(strings.Replace(s, " ", "", -1))
+}
+func u(s string) string {
+	return strings.ToUpper(s)
+}
 
+var (
 	// map of valid fields and related header name
 	ImagesFieldHeaderMap = map[string]string{
-		idField:         "ID",
-		nameField:       "NAME",
-		importTimeField: "IMPORT TIME",
-		latestField:     "LATEST",
+		l(id):         u(id),
+		l(name):       u(name),
+		l(importTime): u(importTime),
+		l(lastUsed):   u(lastUsed),
+		l(latest):     u(latest),
 	}
 
 	// map of valid sort fields containing the mapping between the provided field name
 	// and the related aciinfo's field name.
 	ImagesFieldAciInfoMap = map[string]string{
-		idField:         "blobkey",
-		nameField:       "name",
-		importTimeField: "importtime",
-		latestField:     "latest",
+		l(id):         "blobkey",
+		l(name):       l(name),
+		l(importTime): l(importTime),
+		l(lastUsed):   l(lastUsed),
+		l(latest):     l(latest),
 	}
 
 	ImagesSortableFields = map[string]struct{}{
-		nameField:       struct{}{},
-		importTimeField: struct{}{},
+		l(name):       struct{}{},
+		l(importTime): struct{}{},
+		l(lastUsed):   struct{}{},
 	}
 )
-
-type ImagesFields []string
-
-func (ifs *ImagesFields) Set(s string) error {
-	*ifs = []string{}
-	fields := strings.Split(s, ",")
-	seen := map[string]struct{}{}
-	for _, f := range fields {
-		// accept any case
-		f = strings.ToLower(f)
-		_, ok := imagesAllFields[f]
-		if !ok {
-			return fmt.Errorf("unknown field %q", f)
-		}
-		if _, ok := seen[f]; ok {
-			return fmt.Errorf("duplicated field %q", f)
-		}
-		*ifs = append(*ifs, f)
-		seen[f] = struct{}{}
-	}
-
-	return nil
-}
-
-func (ifs *ImagesFields) String() string {
-	return strings.Join(*ifs, ",")
-}
-
-func (ifs *ImagesFields) Type() string {
-	return "imagesFields"
-}
-
-type ImagesSortFields []string
-
-func (isf *ImagesSortFields) Set(s string) error {
-	*isf = []string{}
-	fields := strings.Split(s, ",")
-	seen := map[string]struct{}{}
-	for _, f := range fields {
-		// accept any case
-		f = strings.ToLower(f)
-		_, ok := ImagesSortableFields[f]
-		if !ok {
-			return fmt.Errorf("unknown field %q", f)
-		}
-		if _, ok := seen[f]; ok {
-			return fmt.Errorf("duplicated field %q", f)
-		}
-		*isf = append(*isf, f)
-		seen[f] = struct{}{}
-	}
-
-	return nil
-}
-
-func (isf *ImagesSortFields) String() string {
-	return strings.Join(*isf, ",")
-}
-
-func (isf *ImagesSortFields) Type() string {
-	return "imagesSortFields"
-}
 
 type ImagesSortAsc bool
 
@@ -161,33 +104,47 @@ var (
 		Short: "List images in the local store",
 		Run:   runWrapper(runImages),
 	}
-	flagImagesFields     ImagesFields
-	flagImagesSortFields ImagesSortFields
+	flagImagesFields     *optionList
+	flagImagesSortFields *optionList
 	flagImagesSortAsc    ImagesSortAsc
 )
 
 func init() {
+	sortFields := []string{l(name), l(importTime), l(lastUsed)}
+	fields := append([]string{l(id)}, append(sortFields, l(latest))...)
+
 	// Set defaults
-	flagImagesFields = []string{idField, nameField, importTimeField, latestField}
-	flagImagesSortFields = []string{importTimeField}
+	var err error
+	flagImagesFields, err = newOptionList(fields, strings.Join(fields, ","))
+	if err != nil {
+		stderr("image-list: %v", err)
+		os.Exit(1)
+	}
+	flagImagesSortFields, err = newOptionList(sortFields, l(importTime))
+	if err != nil {
+		stderr("image-list: %v", err)
+		os.Exit(1)
+	}
 	flagImagesSortAsc = true
 
 	cmdImage.AddCommand(cmdImageList)
-	cmdImageList.Flags().Var(&flagImagesFields, "fields", `comma separated list of fields to display. Accepted values: "id", "name", "importtime", "latest"`)
-	cmdImageList.Flags().Var(&flagImagesSortFields, "sort", `sort the output according to the provided comma separated list of fields. Accepted values: "name", "importtime"`)
+	cmdImageList.Flags().Var(flagImagesFields, "fields", fmt.Sprintf(`comma-separated list of fields to display. Accepted values: %s`,
+		flagImagesFields.PermissibleString()))
+	cmdImageList.Flags().Var(flagImagesSortFields, "sort", fmt.Sprintf(`sort the output according to the provided comma-separated list of fields. Accepted values: %s`,
+		flagImagesSortFields.PermissibleString()))
 	cmdImageList.Flags().Var(&flagImagesSortAsc, "order", `choose the sorting order if at least one sort field is provided (--sort). Accepted values: "asc", "desc"`)
 	cmdImageList.Flags().BoolVar(&flagNoLegend, "no-legend", false, "suppress a legend with the list")
 	cmdImageList.Flags().BoolVar(&flagFullOutput, "full", false, "use long output format")
 }
 
 func runImages(cmd *cobra.Command, args []string) int {
-	errors := []error{}
+	var errors []error
 	tabBuffer := new(bytes.Buffer)
 	tabOut := getTabOutWithWriter(tabBuffer)
 
 	if !flagNoLegend {
-		headerFields := []string{}
-		for _, f := range flagImagesFields {
+		var headerFields []string
+		for _, f := range flagImagesFields.options {
 			headerFields = append(headerFields, ImagesFieldHeaderMap[f])
 		}
 		fmt.Fprintf(tabOut, "%s\n", strings.Join(headerFields, "\t"))
@@ -199,8 +156,8 @@ func runImages(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
-	sortAciinfoFields := []string{}
-	for _, f := range flagImagesSortFields {
+	var sortAciinfoFields []string
+	for _, f := range flagImagesSortFields.options {
 		sortAciinfoFields = append(sortAciinfoFields, ImagesFieldAciInfoMap[f])
 	}
 	aciInfos, err := s.GetAllACIInfos(sortAciinfoFields, bool(flagImagesSortAsc))
@@ -221,11 +178,11 @@ func runImages(cmd *cobra.Command, args []string) int {
 			continue
 		}
 		version, ok := im.Labels.Get("version")
-		fieldValues := []string{}
-		for _, f := range flagImagesFields {
+		var fieldValues []string
+		for _, f := range flagImagesFields.options {
 			fieldValue := ""
 			switch f {
-			case idField:
+			case l(id):
 				hashKey := aciInfo.BlobKey
 				if !flagFullOutput {
 					// The short hash form is [HASH_ALGO]-[FIRST 12 CHAR]
@@ -237,18 +194,24 @@ func runImages(cmd *cobra.Command, args []string) int {
 					}
 				}
 				fieldValue = hashKey
-			case nameField:
+			case l(name):
 				fieldValue = aciInfo.Name
 				if ok {
 					fieldValue = fmt.Sprintf("%s:%s", fieldValue, version)
 				}
-			case importTimeField:
+			case l(importTime):
 				if flagFullOutput {
 					fieldValue = aciInfo.ImportTime.Format(defaultTimeLayout)
 				} else {
 					fieldValue = humanize.Time(aciInfo.ImportTime)
 				}
-			case latestField:
+			case l(lastUsed):
+				if flagFullOutput {
+					fieldValue = aciInfo.LastUsed.Format(defaultTimeLayout)
+				} else {
+					fieldValue = humanize.Time(aciInfo.LastUsed)
+				}
+			case l(latest):
 				fieldValue = fmt.Sprintf("%t", aciInfo.Latest)
 			}
 			fieldValues = append(fieldValues, fieldValue)
@@ -276,7 +239,7 @@ func runImages(cmd *cobra.Command, args []string) int {
 }
 
 func newImgListLoadError(err error, imj []byte, blobKey string) error {
-	lines := []string{}
+	var lines []string
 	im := lastditch.ImageManifest{}
 	imErr := im.UnmarshalJSON(imj)
 	if imErr == nil {

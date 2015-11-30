@@ -19,6 +19,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/common"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 )
 
@@ -93,7 +94,7 @@ func prepareAppString(app string) (string, error) {
 	}
 
 	app = "name=" + strings.Replace(app, ":", ",version=", 1)
-	return makeQueryString(app)
+	return common.MakeQueryString(app)
 }
 
 func checkColon(app string) error {
@@ -106,19 +107,6 @@ func checkColon(app string) error {
 		return fmt.Errorf("malformed app string - colon may appear at most once")
 	}
 	return nil
-}
-
-func makeQueryString(app string) (string, error) {
-	parts := strings.Split(app, ",")
-	escapedParts := make([]string, len(parts))
-	for i, s := range parts {
-		p := strings.SplitN(s, "=", 2)
-		if len(p) != 2 {
-			return "", fmt.Errorf("malformed app string - has a label without a value: %s", p[0])
-		}
-		escapedParts[i] = fmt.Sprintf("%s=%s", p[0], url.QueryEscape(p[1]))
-	}
-	return strings.Join(escapedParts, "&"), nil
 }
 
 func (a *App) Copy() *App {

@@ -329,6 +329,7 @@ func writeACI(layer io.ReadSeeker, manifest schema.ImageManifest, curPwl []strin
 		return nil, fmt.Errorf("error writing rootfs entry: %v", err)
 	}
 
+	fileMap := make(map[string]struct{})
 	var whiteouts []string
 	convWalker := func(t *tarball.TarFile) error {
 		name := t.Name()
@@ -337,6 +338,12 @@ func writeACI(layer io.ReadSeeker, manifest schema.ImageManifest, curPwl []strin
 		}
 		t.Header.Name = path.Join("rootfs", name)
 		absolutePath := strings.TrimPrefix(t.Header.Name, "rootfs")
+
+		if filepath.Clean(absolutePath) == "/dev" && t.Header.Typeflag != tar.TypeDir {
+			return fmt.Errorf(`invalid layer: "/dev" is not a directory`)
+		}
+
+		fileMap[absolutePath] = struct{}{}
 		if strings.Contains(t.Header.Name, "/.wh.") {
 			whiteouts = append(whiteouts, strings.Replace(absolutePath, ".wh.", "", 1))
 			return nil
@@ -373,7 +380,11 @@ func writeACI(layer io.ReadSeeker, manifest schema.ImageManifest, curPwl []strin
 	}
 	newPwl := subtractWhiteouts(curPwl, whiteouts)
 
-	manifest.PathWhitelist = newPwl
+	manifest.PathWhitelist, err = writeStdioSymlinks(trw, fileMap, newPwl)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := WriteManifest(trw, manifest); err != nil {
 		return nil, fmt.Errorf("error writing manifest: %v", err)
 	}
@@ -469,6 +480,41 @@ func WriteRootfsDir(tarWriter *tar.Writer) error {
 	hdr.Typeflag = tar.TypeDir
 
 	return tarWriter.WriteHeader(hdr)
+}
+
+// writeStdioSymlinks adds the /dev/stdin, /dev/stdout, /dev/stderr, and
+// /dev/fd symlinks expected by Docker to the converted ACIs so apps can find
+// them as expected
+func writeStdioSymlinks(tarWriter *tar.Writer, fileMap map[string]struct{}, pwl []string) ([]string, error) {
+	stdioSymlinks := map[string]string{
+		"/dev/stdin": "/proc/self/fd/0",
+		// Docker makes /dev/{stdout,stderr} point to /proc/self/fd/{1,2} but
+		// we point to /dev/console instead in order to support the case when
+		// stdout/stderr is a Unix socket (e.g. for the journal).
+		"/dev/stdout": "/dev/console",
+		"/dev/stderr": "/dev/console",
+		"/dev/fd":     "/proc/self/fd",
+	}
+
+	for name, target := range stdioSymlinks {
+		if _, exists := fileMap[name]; exists {
+			continue
+		}
+		hdr := &tar.Header{
+			Name:     filepath.Join("rootfs", name),
+			Mode:     0777,
+			Typeflag: tar.TypeSymlink,
+			Linkname: target,
+		}
+		if err := tarWriter.WriteHeader(hdr); err != nil {
+			return nil, err
+		}
+		if !util.In(pwl, name) {
+			pwl = append(pwl, name)
+		}
+	}
+
+	return pwl, nil
 }
 
 func getGenericTarHeader() *tar.Header {

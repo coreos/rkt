@@ -15,8 +15,16 @@
 package main
 
 import (
+	"io/ioutil"
+	"os"
+	"regexp"
 	"testing"
+
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 )
+
+const tstprefix = "pod-test"
 
 func TestQuoteExec(t *testing.T) {
 	tests := []struct {
@@ -25,16 +33,31 @@ func TestQuoteExec(t *testing.T) {
 	}{
 		{
 			input:  []string{`path`, `"arg1"`, `"'arg2'"`, `'arg3'`},
-			output: `path "\"arg1\"" "\"\'arg2\'\"" "\'arg3\'"`,
+			output: `"path" "\"arg1\"" "\"\'arg2\'\"" "\'arg3\'"`,
 		}, {
 			input:  []string{`path`},
-			output: `path`,
+			output: `"path"`,
 		}, {
 			input:  []string{`path`, ``, `arg2`},
-			output: `path "" "arg2"`,
+			output: `"path" "" "arg2"`,
 		}, {
 			input:  []string{`path`, `"foo\bar"`, `\`},
-			output: `path "\"foo\\bar\"" "\\"`,
+			output: `"path" "\"foo\\bar\"" "\\"`,
+		}, {
+			input:  []string{`path with spaces`, `"foo\bar"`, `\`},
+			output: `"path with spaces" "\"foo\\bar\"" "\\"`,
+		}, {
+			input:  []string{`path with "quo't'es" and \slashes`, `"arg"`, `\`},
+			output: `"path with \"quo\'t\'es\" and \\slashes" "\"arg\"" "\\"`,
+		}, {
+			input:  []string{`$path$`, `$argument`},
+			output: `"$path$" "$$argument"`,
+		}, {
+			input:  []string{`path`, `Args\nwith\nnewlines`},
+			output: `"path" "Args\\nwith\\nnewlines"`,
+		}, {
+			input:  []string{`path`, "Args\nwith\nnewlines"},
+			output: `"path" "Args\nwith\nnewlines"`,
 		},
 	}
 
@@ -44,4 +67,107 @@ func TestQuoteExec(t *testing.T) {
 			t.Errorf("#%d: expected `%v` got `%v`", i, tt.output, o)
 		}
 	}
+}
+
+// TestAppToNspawnArgsOverridesImageManifestReadOnly tests
+// that the ImageManifest's `readOnly` volume setting will be
+// overrided by PodManifest.
+func TestAppToNspawnArgsOverridesImageManifestReadOnly(t *testing.T) {
+	falseVar := false
+	trueVar := true
+	tests := []struct {
+		imageManifestVolumeReadOnly bool
+		podManifestVolumeReadOnly   *bool
+		expectReadOnly              bool
+	}{
+		{
+			false,
+			nil,
+			false,
+		},
+		{
+			false,
+			&falseVar,
+			false,
+		},
+		{
+			false,
+			&trueVar,
+			true,
+		},
+		{
+			true,
+			nil,
+			true,
+		},
+		{
+			true,
+			&falseVar,
+			false,
+		},
+		{
+			true,
+			&trueVar,
+			true,
+		},
+	}
+
+	for i, tt := range tests {
+		podManifest := &schema.PodManifest{
+			Volumes: []types.Volume{
+				{
+					Name:     *types.MustACName("foo-mount"),
+					Kind:     "host",
+					Source:   "/host/foo",
+					ReadOnly: tt.podManifestVolumeReadOnly,
+				},
+			},
+		}
+		appManifest := &schema.RuntimeApp{
+			Mounts: []schema.Mount{
+				{
+					Volume: *types.MustACName("foo-mount"),
+					Path:   "/app/foo",
+				},
+			},
+			App: &types.App{
+				Exec:  []string{"/bin/foo"},
+				User:  "0",
+				Group: "0",
+				MountPoints: []types.MountPoint{
+					{
+						Name:     *types.MustACName("foo-mount"),
+						Path:     "/app/foo",
+						ReadOnly: tt.imageManifestVolumeReadOnly,
+					},
+				},
+			},
+		}
+
+		tmpDir, err := ioutil.TempDir("", tstprefix)
+		if err != nil {
+			t.Errorf("error creating tempdir: %v", err)
+		}
+		defer os.RemoveAll(tmpDir)
+
+		p := &Pod{Manifest: podManifest, Root: tmpDir}
+		output, err := p.appToNspawnArgs(appManifest)
+		if err != nil {
+			t.Errorf("#%d: unexpected error: `%v`", i, err)
+		}
+
+		if ro := hasBindROArg(output); ro != tt.expectReadOnly {
+			t.Errorf("#%d: expected: readOnly: %v, saw: %v", i, tt.expectReadOnly, ro)
+		}
+	}
+}
+
+func hasBindROArg(output []string) bool {
+	roRegexp := regexp.MustCompile("^--bind-ro=/host/foo:.*/app/foo$")
+	for i := len(output) - 1; i >= 0; i-- {
+		if roRegexp.MatchString(output[i]) {
+			return true
+		}
+	}
+	return false
 }

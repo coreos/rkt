@@ -19,20 +19,21 @@ import (
 	"os"
 	"testing"
 
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/steveeJ/gexpect"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/coreos/gexpect"
+	"github.com/coreos/rkt/tests/testutils"
 )
 
-func runImage(t *testing.T, ctx *rktRunCtx, imageFile string, expected string, shouldFail bool) {
-	cmd := fmt.Sprintf(`%s --debug run --mds-register=false %s`, ctx.cmd(), imageFile)
+func runImage(t *testing.T, ctx *testutils.RktRunCtx, imageFile string, expected string, shouldFail bool) {
+	cmd := fmt.Sprintf(`%s --debug run --mds-register=false %s`, ctx.Cmd(), imageFile)
 	runRktAndCheckOutput(t, cmd, expected, shouldFail)
 }
 
-func runRktTrust(t *testing.T, ctx *rktRunCtx, prefix string) {
+func runRktTrust(t *testing.T, ctx *testutils.RktRunCtx, prefix string) {
 	var cmd string
 	if prefix == "" {
-		cmd = fmt.Sprintf(`%s trust --root %s`, ctx.cmd(), "key.gpg")
+		cmd = fmt.Sprintf(`%s trust --root %s`, ctx.Cmd(), "key.gpg")
 	} else {
-		cmd = fmt.Sprintf(`%s trust --prefix %s %s`, ctx.cmd(), prefix, "key.gpg")
+		cmd = fmt.Sprintf(`%s trust --prefix %s %s`, ctx.Cmd(), prefix, "key.gpg")
 	}
 
 	child := spawnOrFail(t, cmd)
@@ -57,7 +58,7 @@ func runRktTrust(t *testing.T, ctx *rktRunCtx, prefix string) {
 	}
 }
 
-func runSignImage(t *testing.T, ctx *rktRunCtx, imageFile string) {
+func runSignImage(t *testing.T, ctx *testutils.RktRunCtx, imageFile string) {
 	dir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Cannot get current working directory: %v", err)
@@ -84,8 +85,8 @@ func TestTrust(t *testing.T) {
 	imageFile2 := patchTestACI("rkt-inspect-trust2.aci", "--exec=/inspect --print-msg=Hello", "--name=rkt-alternative.com/my-app")
 	defer os.Remove(imageFile2)
 
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	t.Logf("Run the non-signed image: it should fail\n")
 	runImage(t, ctx, imageFile, "error opening signature file", true)

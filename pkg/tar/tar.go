@@ -38,14 +38,46 @@ var ErrNotSupportedPlatform = errors.New("platform and architecture is not suppo
 // root of the tar file and should be cleaned (for example using filepath.Clean)
 type PathWhitelistMap map[string]struct{}
 
-// extractTar extracts a tarball (from a tar.Reader) into the root directory
-// if pwl is not nil, only the paths in the map are extracted.
-// If overwrite is true, existing files will be overwritten.
-func extractTar(tr *tar.Reader, overwrite bool, pwl PathWhitelistMap, uidRange *uid.UidRange) error {
+type FilePermissionsEditor func(string, int, int, byte, os.FileInfo) error
+
+func NewUidShiftingFilePermEditor(uidRange *uid.UidRange) (FilePermissionsEditor, error) {
+	if os.Geteuid() != 0 {
+		return func(_ string, _, _ int, _ byte, _ os.FileInfo) error {
+			// The files are owned by the current user on creation.
+			// If we do nothing, they will remain so.
+			return nil
+		}, nil
+	}
+
+	return func(path string, uid, gid int, typ byte, fi os.FileInfo) error {
+		shiftedUid, shiftedGid, err := uidRange.ShiftRange(uint32(uid), uint32(gid))
+		if err != nil {
+			return err
+		}
+		if err := os.Lchown(path, int(shiftedUid), int(shiftedGid)); err != nil {
+			return err
+		}
+
+		// lchown(2) says that, depending on the linux kernel version, it
+		// can change the file's mode also if executed as root. So call
+		// os.Chmod after it.
+		if typ != tar.TypeSymlink {
+			if err := os.Chmod(path, fi.Mode()); err != nil {
+				return err
+			}
+		}
+		return nil
+	}, nil
+}
+
+// ExtractTarInsecure extracts a tarball (from a tar.Reader) into the target
+// directory. If pwl is not nil, only the paths in the map are extracted. If
+// overwrite is true, existing files will be overwritten.
+func ExtractTarInsecure(tr *tar.Reader, target string, overwrite bool, pwl PathWhitelistMap, editor FilePermissionsEditor) error {
 	um := syscall.Umask(0)
 	defer syscall.Umask(um)
 
-	dirhdrs := []*tar.Header{}
+	var dirhdrs []*tar.Header
 Tar:
 	for {
 		hdr, err := tr.Next()
@@ -59,7 +91,7 @@ Tar:
 					continue
 				}
 			}
-			err = extractFile(tr, hdr, overwrite, uidRange)
+			err = extractFile(tr, target, hdr, overwrite, editor)
 			if err != nil {
 				return fmt.Errorf("error extracting tarball: %v", err)
 			}
@@ -74,7 +106,7 @@ Tar:
 	// Restore dirs atime and mtime. This has to be done after extracting
 	// as a file extraction will change its parent directory's times.
 	for _, hdr := range dirhdrs {
-		p := filepath.Join("/", hdr.Name)
+		p := filepath.Join(target, hdr.Name)
 		if err := syscall.UtimesNano(p, HdrToTimespec(hdr)); err != nil {
 			return err
 		}
@@ -83,10 +115,10 @@ Tar:
 }
 
 // extractFile extracts the file described by hdr from the given tarball into
-// the root directory.
+// the target directory.
 // If overwrite is true, existing files will be overwritten.
-func extractFile(tr *tar.Reader, hdr *tar.Header, overwrite bool, uidRange *uid.UidRange) error {
-	p := filepath.Join("/", hdr.Name)
+func extractFile(tr *tar.Reader, target string, hdr *tar.Header, overwrite bool, editor FilePermissionsEditor) error {
+	p := filepath.Join(target, hdr.Name)
 	fi := hdr.FileInfo()
 	typ := hdr.Typeflag
 	if overwrite {
@@ -166,19 +198,8 @@ func extractFile(tr *tar.Reader, hdr *tar.Header, overwrite bool, uidRange *uid.
 		return fmt.Errorf("unsupported type: %v", typ)
 	}
 
-	shiftedUid, shiftedGid, err := uidRange.ShiftRange(uint32(hdr.Uid), uint32(hdr.Gid))
-	if err != nil {
-		return err
-	}
-	if err := os.Lchown(p, int(shiftedUid), int(shiftedGid)); err != nil {
-		return err
-	}
-
-	// lchown(2) says that, depending on the linux kernel version, it
-	// can change the file's mode also if executed as root. So call
-	// os.Chmod after it.
-	if typ != tar.TypeSymlink {
-		if err := os.Chmod(p, fi.Mode()); err != nil {
+	if editor != nil {
+		if err := editor(p, hdr.Uid, hdr.Gid, hdr.Typeflag, fi); err != nil {
 			return err
 		}
 	}

@@ -44,15 +44,9 @@ func runStatus(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	podUUID, err := resolveUUID(args[0])
+	p, err := getPodFromUUIDString(args[0])
 	if err != nil {
-		stderr("Unable to resolve UUID: %v", err)
-		return 1
-	}
-
-	p, err := getPod(podUUID)
-	if err != nil {
-		stderr("Unable to get pod: %v", err)
+		stderr("Problem retrieving pod: %v", err)
 		return 1
 	}
 	defer p.Close()

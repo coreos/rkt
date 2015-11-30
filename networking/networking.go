@@ -56,6 +56,7 @@ type Networking struct {
 type NetConf struct {
 	cnitypes.NetConf
 	IPMasq bool `json:"ipMasq"`
+	MTU    int  `json:"mtu"`
 }
 
 // Setup creates a new networking namespace and executes network plugins to
@@ -135,7 +136,7 @@ func Load(podRoot string, podID *types.UUID) (*Networking, error) {
 		return nil, err
 	}
 
-	nets := []activeNet{}
+	var nets []activeNet
 	for _, ni := range nis {
 		n, err := loadNet(ni.ConfPath)
 		if err != nil {
@@ -230,7 +231,7 @@ func (n *Networking) enterHostNS() error {
 // Save writes out the info about active nets
 // for "rkt list" and friends to display
 func (e *Networking) Save() error {
-	nis := []netinfo.NetInfo{}
+	var nis []netinfo.NetInfo
 	for _, n := range e.nets {
 		nis = append(nis, *n.runtime)
 	}

@@ -67,6 +67,7 @@ var (
 		GetHttp           string
 		ServeHttp         string
 		ServeHttpTimeout  int
+		PrintIfaceCount   bool
 	}{}
 )
 
@@ -101,6 +102,7 @@ func init() {
 	globalFlagset.StringVar(&globalFlags.GetHttp, "get-http", "", "HTTP-Get from the given address")
 	globalFlagset.StringVar(&globalFlags.ServeHttp, "serve-http", "", "Serve the hostname via HTTP on the given address:port")
 	globalFlagset.IntVar(&globalFlags.ServeHttpTimeout, "serve-http-timeout", 30, "HTTP Timeout to wait for a client connection")
+	globalFlagset.BoolVar(&globalFlags.PrintIfaceCount, "print-iface-count", false, "Print the interface count")
 }
 
 func in(list []int, el int) bool {
@@ -426,6 +428,15 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Printf("HTTP-Get received: %s\n", body)
+	}
+
+	if globalFlags.PrintIfaceCount {
+		ifaceCount, err := testutils.GetIfaceCount()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Interface count: %d\n", ifaceCount)
 	}
 
 	os.Exit(globalFlags.ExitCode)

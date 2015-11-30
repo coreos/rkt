@@ -30,6 +30,8 @@ type ACIInfo struct {
 	Name string
 	// ImportTime is the time this ACI was imported in the store.
 	ImportTime time.Time
+	// LastUsed is the last time this image was read
+	LastUsed time.Time
 	// Latest defines if the ACI was imported using the latest pattern (no
 	// version label was provided on ACI discovery)
 	Latest bool
@@ -40,17 +42,18 @@ func NewACIInfo(blobKey string, latest bool, t time.Time) *ACIInfo {
 		BlobKey:    blobKey,
 		Latest:     latest,
 		ImportTime: t,
+		LastUsed:   time.Now(),
 	}
 }
 
 func aciinfoRowScan(rows *sql.Rows, aciinfo *ACIInfo) error {
 	// This ordering MUST match that in schema.go
-	return rows.Scan(&aciinfo.BlobKey, &aciinfo.Name, &aciinfo.ImportTime, &aciinfo.Latest)
+	return rows.Scan(&aciinfo.BlobKey, &aciinfo.Name, &aciinfo.ImportTime, &aciinfo.LastUsed, &aciinfo.Latest)
 }
 
 // GetAciInfosWithKeyPrefix returns all the ACIInfos with a blobkey starting with the given prefix.
 func GetACIInfosWithKeyPrefix(tx *sql.Tx, prefix string) ([]*ACIInfo, error) {
-	aciinfos := []*ACIInfo{}
+	var aciinfos []*ACIInfo
 	rows, err := tx.Query("SELECT * from aciinfo WHERE hasPrefix(blobkey, $1)", prefix)
 	if err != nil {
 		return nil, err
@@ -71,7 +74,7 @@ func GetACIInfosWithKeyPrefix(tx *sql.Tx, prefix string) ([]*ACIInfo, error) {
 // GetAciInfosWithName returns all the ACIInfos for a given name. found will be
 // false if no aciinfo exists.
 func GetACIInfosWithName(tx *sql.Tx, name string) ([]*ACIInfo, bool, error) {
-	aciinfos := []*ACIInfo{}
+	var aciinfos []*ACIInfo
 	found := false
 	rows, err := tx.Query("SELECT * from aciinfo WHERE name == $1", name)
 	if err != nil {
@@ -117,7 +120,7 @@ func GetACIInfoWithBlobKey(tx *sql.Tx, blobKey string) (*ACIInfo, bool, error) {
 // GetAllACIInfos returns all the ACIInfos sorted by optional sortfields and
 // with ascending or descending order.
 func GetAllACIInfos(tx *sql.Tx, sortfields []string, ascending bool) ([]*ACIInfo, error) {
-	aciinfos := []*ACIInfo{}
+	var aciinfos []*ACIInfo
 	query := "SELECT * from aciinfo"
 	if len(sortfields) > 0 {
 		query += fmt.Sprintf(" ORDER BY %s ", strings.Join(sortfields, ", "))
@@ -152,7 +155,7 @@ func WriteACIInfo(tx *sql.Tx, aciinfo *ACIInfo) error {
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec("INSERT into aciinfo (blobkey, name, importtime, latest) VALUES ($1, $2, $3, $4)", aciinfo.BlobKey, aciinfo.Name, aciinfo.ImportTime, aciinfo.Latest)
+	_, err = tx.Exec("INSERT into aciinfo (blobkey, name, importtime, lastusedtime, latest) VALUES ($1, $2, $3, $4, $5)", aciinfo.BlobKey, aciinfo.Name, aciinfo.ImportTime, aciinfo.LastUsed, aciinfo.Latest)
 	if err != nil {
 		return err
 	}

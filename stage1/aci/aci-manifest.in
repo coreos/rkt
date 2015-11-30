@@ -1,11 +1,11 @@
 {
     "acKind": "ImageManifest",
-    "acVersion": "0.7.0",
-    "name": "@RKT_STAGE1_DEFAULT_NAME@",
+    "acVersion": "0.7.3",
+    "name": "@RKT_STAGE1_NAME@",
     "labels": [
         {
             "name": "version",
-            "value": "@RKT_STAGE1_DEFAULT_VERSION@"
+            "value": "@RKT_STAGE1_VERSION@"
         },
         {
             "name": "arch",
@@ -23,7 +23,7 @@
         },
         {
             "name": "coreos.com/rkt/stage1/enter",
-            "value": "/enter"
+            "value": "@RKT_STAGE1_ENTER@"
         },
         {
             "name": "coreos.com/rkt/stage1/gc",

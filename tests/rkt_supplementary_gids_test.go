@@ -18,18 +18,20 @@ import (
 	"fmt"
 	"os"
 	"testing"
+
+	"github.com/coreos/rkt/tests/testutils"
 )
 
 func TestSupplementaryGIDs(t *testing.T) {
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	printSupplGroups := patchTestACI("rkt-inspect-print-supplementary-groups.aci",
 		"--supplementary-groups=400,500,1200",
 		"--exec=/inspect --print-groups")
 	defer os.Remove(printSupplGroups)
 
-	cmd := fmt.Sprintf("%s --debug --insecure-skip-verify run --mds-register=false %s", ctx.cmd(), printSupplGroups)
+	cmd := fmt.Sprintf("%s --debug --insecure-options=image run --mds-register=false %s", ctx.Cmd(), printSupplGroups)
 	t.Logf("Command: %v", cmd)
 	runRktAndCheckOutput(t, cmd, "Groups: 0 400 500 1200", false)
 }

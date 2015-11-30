@@ -17,9 +17,6 @@
 package main
 
 import (
-	"io/ioutil"
-	"log"
-
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/stage0"
@@ -45,7 +42,7 @@ func init() {
 	cmdRunPrepared.Flags().Var(&flagNet, "net", "configure the pod's networking. optionally pass a list of user-configured networks to load and arguments to pass to them. syntax: --net[=n[:args]][,]")
 	cmdRunPrepared.Flags().Lookup("net").NoOptDefVal = "default"
 	cmdRunPrepared.Flags().BoolVar(&flagInteractive, "interactive", false, "the pod is interactive")
-	cmdRunPrepared.Flags().BoolVar(&flagMDSRegister, "mds-register", true, "register pod with metadata service")
+	cmdRunPrepared.Flags().BoolVar(&flagMDSRegister, "mds-register", false, "register pod with metadata service")
 }
 
 func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
@@ -54,21 +51,12 @@ func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	podUUID, err := resolveUUID(args[0])
+	p, err := getPodFromUUIDString(args[0])
 	if err != nil {
-		stderr("Unable to resolve UUID: %v", err)
+		stderr("prepared-run: problem retrieving pod: %v", err)
 		return 1
 	}
-
-	if globalFlags.Dir == "" {
-		log.Printf("dir unset - using temporary directory")
-		var err error
-		globalFlags.Dir, err = ioutil.TempDir("", "rkt")
-		if err != nil {
-			stderr("error creating temporary directory: %v", err)
-			return 1
-		}
-	}
+	defer p.Close()
 
 	s, err := store.NewStore(globalFlags.Dir)
 	if err != nil {
@@ -76,14 +64,8 @@ func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	p, err := getPod(podUUID)
-	if err != nil {
-		stderr("prepared-run: cannot get pod: %v", err)
-		return 1
-	}
-
 	if !p.isPrepared {
-		stderr("prepared-run: pod %q is not prepared", podUUID.String())
+		stderr("prepared-run: pod %q is not prepared", p.uuid)
 		return 1
 	}
 

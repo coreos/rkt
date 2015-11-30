@@ -57,7 +57,7 @@ The resolved entrypoint must inform rkt of its PID for the benefit of `rkt enter
 2. resolves the "coreos.com/rkt/stage1/enter" entrypoint via Annotations found within "/var/lib/rkt/pods/$uuid/stage1/manifest"
 3. executes the resolved entrypoint relative to "/var/lib/rkt/pods/$uuid/stage1/rootfs"
 
-In the bundled rkt stage 1 the entrypoint is a statically-linked C program found at "/enter" within the stage 1 ACI rootfs.  This program enters the namespaces of the systemd-nspawn container's PID 1 before executing the "/diagexec" program which then chroots into the specific application's rootfs loading the application's environment variables as well.
+In the bundled rkt stage 1 the entrypoint is a statically-linked C program found at "/enter" within the stage 1 ACI rootfs.  This program enters the namespaces of the systemd-nspawn container's PID 1 before executing the "/appexec" program which then chroots into the specific application's rootfs loading the application's environment variables as well.
 
 An alternative stage 1 would need to do whatever is appropriate for entering the application's environment created by its own "coreos.com/rkt/stage1/run" entrypoint.
 
@@ -86,28 +86,28 @@ Examples
 ```json
 {
     "acKind": "ImageManifest",
-    "acVersion": "0.7.0",
+    "acVersion": "0.7.3",
     "name": "foo.com/rkt/stage1",
     "labels": [
-        {   
+        {
             "name": "version",
             "value": "0.0.1"
         },
-        {   
+        {
             "name": "arch",
             "value": "amd64"
         },
-        {   
+        {
             "name": "os",
             "value": "linux"
         }
     ],
     "annotations": [
-        {   
+        {
             "name": "coreos.com/rkt/stage1/run",
             "value": "/ex/run"
         },
-        {   
+        {
             "name": "coreos.com/rkt/stage1/enter",
             "value": "/ex/enter"
         },

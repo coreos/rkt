@@ -174,12 +174,22 @@ define _UTIL_MK_EXPAND_INC_FILE_
 $(strip $(call _UTIL_MK_EXPAND_INC_FILE_UNSTRIPPED_,$1))
 endef
 
+define _UTIL_MK_CANONICALIZE_
+$(strip \
+	$(eval _UTIL_MK_TMP_PATH_ := $(abspath $1)) \
+	$(eval _UTIL_MK_TMP_PATH_ := $(patsubst $(MK_TOPLEVEL_ABS_SRCDIR)/%,%,$(_UTIL_MK_TMP_PATH_))) \
+	$(eval _UTIL_MK_TMP_PATH_ := $(MK_TOPLEVEL_SRCDIR)/$(_UTIL_MK_TMP_PATH_)) \
+	$(_UTIL_MK_TMP_PATH_) \
+	$(eval _UTIL_MK_TMP_PATH_ :=))
+endef
+
 # See docs of inc-one.
 define _UTIL_MK_INC_ONE_
 $(eval _UTIL_MK_INC_FILE_ := $(strip $1)) \
 $(eval $(if $(filter-out 1,$(words $(_UTIL_MK_INC_FILE_))),$(error Expected one file to include, got '$(_UTIL_MK_INC_FILE_)'))) \
  \
 $(eval _UTIL_MK_INC_FILE_ := $(call _UTIL_MK_EXPAND_INC_FILE_,$(_UTIL_MK_INC_FILE_))) \
+$(eval _UTIL_MK_INC_FILE_ := $(call _UTIL_MK_CANONICALIZE_,$(_UTIL_MK_INC_FILE_)))
 $(eval $(call _UTIL_MK_SAVE_VALUE_,_UTIL_MK_SRCDIR_DO_POP_,_UTIL_MK_SRCDIR_STACK_,MK_SRCDIR)) \
 $(eval $(call _UTIL_MK_SAVE_VALUE_,_UTIL_MK_FILENAME_DO_POP_,_UTIL_MK_FILENAME_STACK_,MK_FILENAME)) \
 $(eval $(call _UTIL_MK_SAVE_VALUE_,_UTIL_MK_PATH_DO_POP_,_UTIL_MK_PATH_STACK_,MK_PATH)) \

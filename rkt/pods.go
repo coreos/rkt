@@ -17,7 +17,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -277,6 +276,22 @@ func getPod(uuid *types.UUID) (*pod, error) {
 		if err != nil && !os.IsNotExist(err) {
 			return nil, fmt.Errorf("error opening pod %v netinfo: %v", uuid, err)
 		}
+	}
+
+	return p, nil
+}
+
+// getPodFromUUIDString attempts to resolve the supplied UUID and return a pod.
+// The pod must be closed using pod.Close()
+func getPodFromUUIDString(uuid string) (*pod, error) {
+	podUUID, err := resolveUUID(uuid)
+	if err != nil {
+		return nil, fmt.Errorf("unable to resolve UUID: %v", err)
+	}
+
+	p, err := getPod(podUUID)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get pod: %v", err)
 	}
 
 	return p, nil
@@ -799,8 +814,17 @@ func getChildPID(ppid int) (int, error) {
 	return -1, ErrChildNotReady{}
 }
 
-// getPID returns the pid of the pod.
-func (p *pod) getPID() (pid int, err error) {
+// getPID returns the pid of the stage1 process that started the pod.
+func (p *pod) getPID() (int, error) {
+	pid, err := p.readIntFromFile("ppid")
+	if err != nil {
+		return -1, err
+	}
+	return pid, nil
+}
+
+// getContainerPID1 returns the pid of the process with pid 1 in the pod.
+func (p *pod) getContainerPID1() (pid int, err error) {
 	// rkt supports two methods to find the container's PID 1:
 	// the pid file and the ppid file.
 	// See Documentation/devel/stage1-implementors-guide.md
@@ -853,13 +877,13 @@ func (p *pod) getStage1TreeStoreID() (string, error) {
 // getAppTreeStoreIDs returns the treeStoreIDs of the apps images used in
 // this pod
 func (p *pod) getAppsTreeStoreIDs() ([]string, error) {
-	treeStoreIDs := []string{}
+	var treeStoreIDs []string
 	apps, err := p.getApps()
 	if err != nil {
 		return nil, err
 	}
 	for _, a := range apps {
-		path, err := filepath.Rel("/", filepath.Join(common.AppsInfoDir, a.Name.String(), common.AppTreeStoreIDFilename))
+		path, err := filepath.Rel("/", common.AppTreeStoreIDPath("", a.Name))
 		if err != nil {
 			return nil, err
 		}
@@ -883,7 +907,7 @@ func (p *pod) getAppsHashes() ([]types.Hash, error) {
 		return nil, err
 	}
 
-	hashes := []types.Hash{}
+	var hashes []types.Hash
 	for _, a := range apps {
 		hashes = append(hashes, a.Image.ID)
 	}
@@ -891,17 +915,60 @@ func (p *pod) getAppsHashes() ([]types.Hash, error) {
 	return hashes, nil
 }
 
-// getApps returns a list of apps in the pod
-func (p *pod) getApps() (schema.AppList, error) {
-	pmb, err := p.readFile("pod")
+type AppsImageManifests map[types.ACName]*schema.ImageManifest
+
+// getAppsImageManifests returns a map of ImageManifests keyed to the
+// corresponding App name.
+func (p *pod) getAppsImageManifests() (AppsImageManifests, error) {
+	apps, err := p.getApps()
 	if err != nil {
 		return nil, err
 	}
-	var pm *schema.PodManifest
-	if err = json.Unmarshal(pmb, &pm); err != nil {
+
+	aim := make(AppsImageManifests)
+	for _, a := range apps {
+		imb, err := ioutil.ReadFile(common.AppInfoImageManifestPath(p.path(), a.Name))
+		if err != nil {
+			return nil, err
+		}
+
+		im := &schema.ImageManifest{}
+		if err := im.UnmarshalJSON(imb); err != nil {
+			return nil, fmt.Errorf("invalid image manifest for app %q: %v", a.Name.String(), err)
+		}
+
+		aim[a.Name] = im
+	}
+
+	return aim, nil
+}
+
+// getManifest returns the PodManifest of the pod
+func (p *pod) getManifest() (*schema.PodManifest, error) {
+	pmb, err := p.readFile("pod")
+	if err != nil {
+		return nil, fmt.Errorf("error reading pod manifest: %v", err)
+	}
+	pm := &schema.PodManifest{}
+	if err = pm.UnmarshalJSON(pmb); err != nil {
+		return nil, fmt.Errorf("invalid pod manifest: %v", err)
+	}
+	return pm, nil
+}
+
+// getApps returns a list of apps in the pod
+func (p *pod) getApps() (schema.AppList, error) {
+	pm, err := p.getManifest()
+	if err != nil {
 		return nil, err
 	}
 	return pm.Apps, nil
+}
+
+// getAppCount returns the app count of a pod.
+func (p *pod) getAppCount() (int, error) {
+	apps, err := p.getApps()
+	return len(apps), err
 }
 
 // getDirNames returns the list of names from a pod's directory
@@ -918,25 +985,6 @@ func (p *pod) getDirNames(path string) ([]string, error) {
 	}
 
 	return ld, nil
-}
-
-// getAppCount returns the app count of a pod. It can only be called on prepared pods.
-func (p *pod) getAppCount() (int, error) {
-	if !p.isPrepared {
-		return -1, fmt.Errorf("error: only prepared pods can get their app count")
-	}
-
-	b, err := ioutil.ReadFile(common.PodManifestPath(p.path()))
-	if err != nil {
-		return -1, fmt.Errorf("error reading pod manifest: %v", err)
-	}
-
-	m := schema.PodManifest{}
-	if err = m.UnmarshalJSON(b); err != nil {
-		return -1, fmt.Errorf("unable to load manifest: %v", err)
-	}
-
-	return len(m.Apps), nil
 }
 
 func (p *pod) usesOverlay() bool {

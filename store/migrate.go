@@ -29,6 +29,7 @@ var (
 		1: migrateToV1,
 		2: migrateToV2,
 		3: migrateToV3,
+		4: migrateToV4,
 	}
 )
 
@@ -101,3 +102,32 @@ func migrateToV3(tx *sql.Tx) error {
 	}
 	return nil
 }
+
+func migrateToV4(tx *sql.Tx) error {
+	for _, t := range []string{
+		"CREATE TABLE aciinfo_tmp (blobkey string, name string, importtime time, lastusedtime time, latest bool);",
+		"INSERT INTO aciinfo_tmp (blobkey, name, importtime, latest) SELECT blobkey, name, importtime, latest from aciinfo",
+		"DROP TABLE aciinfo",
+		// We don't use now() as a DEFAULT for lastusedtime because it doesn't
+		// return a UTC time, which is what we want. Instead, we UPDATE it
+		// below.
+		"CREATE TABLE aciinfo (blobkey string, name string, importtime time, lastusedtime time, latest bool);",
+		"CREATE UNIQUE INDEX IF NOT EXISTS blobkeyidx ON aciinfo (blobkey)",
+		"CREATE INDEX IF NOT EXISTS nameidx ON aciinfo (name)",
+		"INSERT INTO aciinfo SELECT * from aciinfo_tmp",
+		"DROP TABLE aciinfo_tmp",
+	} {
+		_, err := tx.Exec(t)
+		if err != nil {
+			return err
+		}
+	}
+	t := time.Now().UTC()
+	_, err := tx.Exec("UPDATE aciinfo lastusedtime = $1", t)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+//TODO:  With next schema change rename 'lastusedtime' to 'lastused'.

@@ -27,14 +27,22 @@ import (
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/syndtr/gocapability/capability"
+	"github.com/coreos/rkt/tests/testutils"
 
 	"github.com/coreos/rkt/common/cgroup"
 )
 
 const baseAppName = "rkt-inspect"
 
+func intP(i int) *int {
+	return &i
+}
+func stringP(s string) *string {
+	return &s
+}
+
 func generatePodManifestFile(t *testing.T, manifest *schema.PodManifest) string {
-	tmpDir := getValueFromEnvOrPanic("FUNCTIONAL_TMP")
+	tmpDir := testutils.GetValueFromEnvOrPanic("FUNCTIONAL_TMP")
 	f, err := ioutil.TempFile(tmpDir, "rkt-test-manifest-")
 	if err != nil {
 		t.Fatalf("Cannot create tmp pod manifest: %v", err)
@@ -89,8 +97,8 @@ type imagePatch struct {
 // Test running pod manifests that contains just one app.
 // TODO(yifan): Figure out a way to test port mapping on single host.
 func TestPodManifest(t *testing.T) {
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	tmpdir := createTempDirOrPanic("rkt-tests.")
 	defer os.RemoveAll(tmpdir)
@@ -105,6 +113,27 @@ func TestPodManifest(t *testing.T) {
 		expectedResult string
 		cgroup         string
 	}{
+		{
+			// Special characters
+			[]imagePatch{
+				{"rkt-test-run-pod-manifest-special-characters.aci", []string{}},
+			},
+			&schema.PodManifest{
+				Apps: []schema.RuntimeApp{
+					{
+						Name: baseAppName,
+						App: &types.App{
+							Exec:  []string{"/inspect", "--print-msg=\n'\"$"},
+							User:  "0",
+							Group: "0",
+						},
+					},
+				},
+			},
+			true,
+			`'"[$]`,
+			"",
+		},
 		{
 			// Simple read.
 			[]imagePatch{
@@ -127,6 +156,79 @@ func TestPodManifest(t *testing.T) {
 			},
 			true,
 			"dir1",
+			"",
+		},
+		{
+			// Simple read after write with *empty* volume mounted.
+			[]imagePatch{
+				{"rkt-test-run-pod-manifest-empty-vol-rw.aci", []string{}},
+			},
+			&schema.PodManifest{
+				Apps: []schema.RuntimeApp{
+					{
+						Name: baseAppName,
+						App: &types.App{
+							Exec:  []string{"/inspect", "--write-file", "--read-file"},
+							User:  "0",
+							Group: "0",
+							Environment: []types.EnvironmentVariable{
+								{"FILE", "/dir1/file"},
+								{"CONTENT", "empty:foo"},
+							},
+							MountPoints: []types.MountPoint{
+								{"dir1", "/dir1", false},
+							},
+						},
+					},
+				},
+				Volumes: []types.Volume{
+					{
+						Name: "dir1",
+						Kind: "empty",
+						Mode: stringP("0755"),
+						UID:  intP(0),
+						GID:  intP(0),
+					},
+				},
+			},
+			true,
+			"empty:foo",
+			"",
+		},
+		{
+			// Stat directory in a *empty* volume mounted.
+			[]imagePatch{
+				{"rkt-test-run-pod-manifest-empty-vol-stat.aci", []string{}},
+			},
+			&schema.PodManifest{
+				Apps: []schema.RuntimeApp{
+					{
+						Name: baseAppName,
+						App: &types.App{
+							Exec:  []string{"/inspect", "--stat-file"},
+							User:  "0",
+							Group: "0",
+							Environment: []types.EnvironmentVariable{
+								{"FILE", "/dir1"},
+							},
+							MountPoints: []types.MountPoint{
+								{"dir1", "/dir1", false},
+							},
+						},
+					},
+				},
+				Volumes: []types.Volume{
+					{
+						Name: "dir1",
+						Kind: "empty",
+						Mode: stringP("0123"),
+						UID:  intP(9991),
+						GID:  intP(9992),
+					},
+				},
+			},
+			true,
+			"(?s)/dir1: mode: d--x-w--wx.*" + "/dir1: user: 9991.*" + "/dir1: group: 9992",
 			"",
 		},
 		{
@@ -153,7 +255,7 @@ func TestPodManifest(t *testing.T) {
 					},
 				},
 				Volumes: []types.Volume{
-					{"dir1", "host", tmpdir, nil},
+					{"dir1", "host", tmpdir, nil, nil, nil, nil},
 				},
 			},
 			true,
@@ -184,7 +286,7 @@ func TestPodManifest(t *testing.T) {
 					},
 				},
 				Volumes: []types.Volume{
-					{"dir1", "host", tmpdir, nil},
+					{"dir1", "host", tmpdir, nil, nil, nil, nil},
 				},
 			},
 			false,
@@ -217,7 +319,7 @@ func TestPodManifest(t *testing.T) {
 					},
 				},
 				Volumes: []types.Volume{
-					{"dir1", "host", tmpdir, &boolTrue},
+					{"dir1", "host", tmpdir, &boolTrue, nil, nil, nil},
 				},
 			},
 			false,
@@ -249,7 +351,7 @@ func TestPodManifest(t *testing.T) {
 					},
 				},
 				Volumes: []types.Volume{
-					{"dir1", "host", tmpdir, nil},
+					{"dir1", "host", tmpdir, nil, nil, nil, nil},
 				},
 			},
 			true,
@@ -272,7 +374,7 @@ func TestPodManifest(t *testing.T) {
 					{Name: baseAppName},
 				},
 				Volumes: []types.Volume{
-					{"dir1", "host", tmpdir, nil},
+					{"dir1", "host", tmpdir, nil, nil, nil, nil},
 				},
 			},
 			true,
@@ -297,7 +399,7 @@ func TestPodManifest(t *testing.T) {
 					{Name: baseAppName},
 				},
 				Volumes: []types.Volume{
-					{"dir1", "host", tmpdir, &boolFalse},
+					{"dir1", "host", tmpdir, &boolFalse, nil, nil, nil},
 				},
 			},
 			true,
@@ -321,7 +423,7 @@ func TestPodManifest(t *testing.T) {
 					{Name: baseAppName},
 				},
 				Volumes: []types.Volume{
-					{"dir1", "host", tmpdir, &boolTrue},
+					{"dir1", "host", tmpdir, &boolTrue, nil, nil, nil},
 				},
 			},
 			false,
@@ -423,7 +525,7 @@ func TestPodManifest(t *testing.T) {
 					},
 				},
 				Volumes: []types.Volume{
-					{"dir", "host", tmpdir, nil},
+					{"dir", "host", tmpdir, nil, nil, nil, nil},
 				},
 			},
 			true,
@@ -514,13 +616,13 @@ func TestPodManifest(t *testing.T) {
 		defer os.Remove(manifestFile)
 
 		// 1. Test 'rkt run'.
-		runCmd := fmt.Sprintf("%s run --mds-register=false --pod-manifest=%s", ctx.cmd(), manifestFile)
+		runCmd := fmt.Sprintf("%s run --mds-register=false --pod-manifest=%s", ctx.Cmd(), manifestFile)
 		t.Logf("Running 'run' test #%v", i)
 		child := spawnOrFail(t, runCmd)
 
 		if tt.expectedResult != "" {
-			if err := expectWithOutput(child, tt.expectedResult); err != nil {
-				t.Fatalf("Expected %q but not found: %v", tt.expectedResult, err)
+			if _, out, err := expectRegexWithOutput(child, tt.expectedResult); err != nil {
+				t.Fatalf("Expected %q but not found: %v\n%s", tt.expectedResult, err, out)
 			}
 		}
 		if err := child.Wait(); err != nil {
@@ -531,17 +633,17 @@ func TestPodManifest(t *testing.T) {
 		verifyHostFile(t, tmpdir, "file", i, tt.expectedResult)
 
 		// 2. Test 'rkt prepare' + 'rkt run-prepared'.
-		rktCmd := fmt.Sprintf("%s --insecure-skip-verify prepare --pod-manifest=%s",
-			ctx.cmd(), manifestFile)
+		rktCmd := fmt.Sprintf("%s --insecure-options=image prepare --pod-manifest=%s",
+			ctx.Cmd(), manifestFile)
 		uuid := runRktAndGetUUID(t, rktCmd)
 
-		runPreparedCmd := fmt.Sprintf("%s run-prepared --mds-register=false %s", ctx.cmd(), uuid)
+		runPreparedCmd := fmt.Sprintf("%s run-prepared --mds-register=false %s", ctx.Cmd(), uuid)
 		t.Logf("Running 'run-prepared' test #%v", i)
 		child = spawnOrFail(t, runPreparedCmd)
 
 		if tt.expectedResult != "" {
-			if err := expectWithOutput(child, tt.expectedResult); err != nil {
-				t.Fatalf("Expected %q but not found: %v", tt.expectedResult, err)
+			if _, out, err := expectRegexWithOutput(child, tt.expectedResult); err != nil {
+				t.Fatalf("Expected %q but not found: %v\n%s", tt.expectedResult, err, out)
 			}
 		}
 		if err := child.Wait(); err != nil {

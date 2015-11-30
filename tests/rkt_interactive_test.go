@@ -20,6 +20,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/coreos/rkt/tests/testutils"
 )
 
 var interactiveTests = []struct {
@@ -32,50 +34,50 @@ var interactiveTests = []struct {
 	{
 		`Check tty without interactive`,
 		[]string{"--exec=/inspect --check-tty"},
-		`--debug --insecure-skip-verify run --mds-register=false ^INTERACTIVE^`,
+		`--debug --insecure-options=image run --mds-register=false ^INTERACTIVE^`,
 		``,
 		`stdin is not a terminal`,
 	},
 	{
 		`Check tty without interactive (with parameter)`,
 		[]string{"--exec=/inspect"},
-		`--debug --insecure-skip-verify run --mds-register=false ^INTERACTIVE^ -- --check-tty`,
+		`--debug --insecure-options=image run --mds-register=false ^INTERACTIVE^ -- --check-tty`,
 		``,
 		`stdin is not a terminal`,
 	},
 	{
 		`Check tty with interactive`,
 		[]string{"--exec=/inspect --check-tty"},
-		`--debug --insecure-skip-verify run --mds-register=false --interactive ^INTERACTIVE^`,
+		`--debug --insecure-options=image run --mds-register=false --interactive ^INTERACTIVE^`,
 		``,
 		`stdin is a terminal`,
 	},
 	{
 		`Check tty with interactive (with parameter)`,
 		[]string{"--exec=/inspect"},
-		`--debug --insecure-skip-verify run --mds-register=false --interactive ^INTERACTIVE^ -- --check-tty`,
+		`--debug --insecure-options=image run --mds-register=false --interactive ^INTERACTIVE^ -- --check-tty`,
 		``,
 		`stdin is a terminal`,
 	},
 	{
 		`Reading from stdin`,
 		[]string{"--exec=/inspect --read-stdin"},
-		`--debug --insecure-skip-verify run --mds-register=false --interactive ^INTERACTIVE^`,
+		`--debug --insecure-options=image run --mds-register=false --interactive ^INTERACTIVE^`,
 		`Saluton`,
 		`Received text: Saluton`,
 	},
 	{
 		`Reading from stdin (with parameter)`,
 		[]string{"--exec=/inspect"},
-		`--debug --insecure-skip-verify run --mds-register=false --interactive ^INTERACTIVE^ -- --read-stdin`,
+		`--debug --insecure-options=image run --mds-register=false --interactive ^INTERACTIVE^ -- --read-stdin`,
 		`Saluton`,
 		`Received text: Saluton`,
 	},
 }
 
 func TestInteractive(t *testing.T) {
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	for i, tt := range interactiveTests {
 		t.Logf("Running test #%v: %v", i, tt.testName)
@@ -83,7 +85,7 @@ func TestInteractive(t *testing.T) {
 		aciFileName := patchTestACI("rkt-inspect-interactive.aci", tt.aciBuildArgs...)
 		defer os.Remove(aciFileName)
 
-		rktCmd := fmt.Sprintf("%s %s", ctx.cmd(), tt.rktArgs)
+		rktCmd := fmt.Sprintf("%s %s", ctx.Cmd(), tt.rktArgs)
 		rktCmd = strings.Replace(rktCmd, "^INTERACTIVE^", aciFileName, -1)
 		child := spawnOrFail(t, rktCmd)
 		if tt.say != "" {

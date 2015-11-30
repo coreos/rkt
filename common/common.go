@@ -37,7 +37,7 @@ const (
 	AppsInfoDir      = "/appsinfo"
 
 	EnvLockFd                    = "RKT_LOCK_FD"
-	SELinuxContext               = "RKT_SELINUX_CONTEXT"
+	EnvSELinuxContext            = "RKT_SELINUX_CONTEXT"
 	Stage1TreeStoreIDFilename    = "stage1TreeStoreID"
 	AppTreeStoreIDFilename       = "treeStoreID"
 	OverlayPreparedFilename      = "overlay-prepared"
@@ -47,6 +47,8 @@ const (
 
 	MetadataServicePort    = 18112
 	MetadataServiceRegSock = "/run/rkt/metadata-svc.sock"
+
+	APIServiceListenClientURL = "localhost:15441"
 
 	DefaultLocalConfigDir  = "/etc/rkt"
 	DefaultSystemConfigDir = "/usr/lib/rkt"
@@ -118,6 +120,11 @@ func AppTreeStoreIDPath(root string, appName types.ACName) string {
 	return filepath.Join(AppInfoPath(root, appName), AppTreeStoreIDFilename)
 }
 
+// AppImageManifestPath returns the path to the app's ImageManifest file
+func AppInfoImageManifestPath(root string, appName types.ACName) string {
+	return filepath.Join(AppInfoPath(root, appName), aci.ManifestFile)
+}
+
 // SharedVolumesPath returns the path to the shared (empty) volumes of a pod.
 func SharedVolumesPath(root string) string {
 	return filepath.Join(root, sharedVolumesDir)
@@ -185,34 +192,24 @@ func (l *NetList) Set(value string) error {
 	for _, s := range strings.Split(value, ",") {
 		netArgsPair := strings.Split(s, ":")
 		netName := netArgsPair[0]
-		var effectiveNetName string
-
-		// TODO (steveeJ): remove this case and allow none when mds-register=false
-		if netName == "none" {
-			// we still provide access to the host
-			effectiveNetName = "default-restricted"
-		} else {
-			effectiveNetName = netName
-		}
 
 		if netName == "" {
 			return fmt.Errorf("netname must not be empty")
 		}
+
 		if _, duplicate := l.mapping[netName]; duplicate {
 			return fmt.Errorf("found duplicate netname %q", netName)
 		}
 
 		switch {
 		case len(netArgsPair) == 1:
-			l.mapping[effectiveNetName] = ""
+			l.mapping[netName] = ""
 		case len(netArgsPair) == 2:
 			if netName == "all" ||
 				netName == "host" {
 				return fmt.Errorf("arguments are not supported by special netname %q", netName)
-			} else if netName == "none" {
-				return fmt.Errorf("%q is only a convenience name which is translated to %q internally. please use that instead when supplying arguments", netName, effectiveNetName)
 			}
-			l.mapping[effectiveNetName] = netArgsPair[1]
+			l.mapping[netName] = netArgsPair[1]
 		case len(netArgsPair) > 2:
 			return fmt.Errorf("network %q provided with invalid arguments: %v", netName, netArgsPair[1:])
 		default:
@@ -250,13 +247,19 @@ func (l *NetList) StringsOnlyNames() []string {
 	return list
 }
 
+// Check if host networking has been requested
 func (l *NetList) Host() bool {
 	return l.Specific("host")
 }
 
-func (l *NetList) Any() bool {
-	any := !l.Host()
-	return any
+// Check if 'none' (loopback only) networking has been requested
+func (l *NetList) None() bool {
+	return l.Specific("none")
+}
+
+// Check if the container needs to be put in a separate network namespace
+func (l *NetList) Contained() bool {
+	return !l.Host() && len(l.mapping) > 0
 }
 
 func (l *NetList) Specific(net string) bool {

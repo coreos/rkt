@@ -7,8 +7,7 @@ BGB_BINARY := $(ACTOOL)
 
 CLEAN_FILES += $(ACTOOL)
 
-$(ACTOOL_STAMP):
-	touch "$@"
+$(call generate-stamp-rule,$(ACTOOL_STAMP))
 
 $(ACTOOL): $(MK_PATH) | $(BINDIR)
 

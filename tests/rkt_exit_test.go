@@ -19,6 +19,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/coreos/rkt/tests/testutils"
 )
 
 // TestExitCodeSimple is testing a few exit codes on 1 pod containing just 1 app
@@ -27,11 +29,11 @@ func TestExitCodeSimple(t *testing.T) {
 		t.Logf("%d\n", i)
 		imageFile := patchTestACI("rkt-inspect-exit.aci", fmt.Sprintf("--exec=/inspect --print-msg=Hello --exit-code=%d", i))
 		defer os.Remove(imageFile)
-		ctx := newRktRunCtx()
-		defer ctx.cleanup()
+		ctx := testutils.NewRktRunCtx()
+		defer ctx.Cleanup()
 
-		cmd := fmt.Sprintf(`%s --debug --insecure-skip-verify run --mds-register=false %s`,
-			ctx.cmd(), imageFile)
+		cmd := fmt.Sprintf(`%s --debug --insecure-options=image run --mds-register=false %s`,
+			ctx.Cmd(), imageFile)
 		t.Logf("%s\n", cmd)
 		spawnAndWaitOrFail(t, cmd, true)
 		checkAppStatus(t, ctx, false, "rkt-inspect", fmt.Sprintf("status=%d", i))
@@ -53,11 +55,11 @@ func TestExitCodeWithSeveralApps(t *testing.T) {
 		"--exec=/inspect --print-msg=HelloWorld --exit-code=2 --sleep=1")
 	defer os.Remove(image2File)
 
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
-	cmd := fmt.Sprintf(`%s --debug --insecure-skip-verify run --mds-register=false %s %s %s`,
-		ctx.cmd(), image0File, image1File, image2File)
+	cmd := fmt.Sprintf(`%s --debug --insecure-options=image run --mds-register=false %s %s %s`,
+		ctx.Cmd(), image0File, image1File, image2File)
 	child := spawnOrFail(t, cmd)
 
 	for i := 0; i < 3; i++ {

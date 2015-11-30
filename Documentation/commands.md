@@ -11,49 +11,63 @@ rkt runs applications packaged as [Application Container Images (ACI)][aci-image
 
 ACIs are named with a URL-like structure. This naming scheme allows for a decentralized discovery of ACIs, related signatures and public keys. rkt uses these hints to execute [meta discovery][appc-discovery].
 
-* [trust](/Documentation/subcommands/trust.md)
-* [fetch](/Documentation/subcommands/fetch.md)
+* [trust](subcommands/trust.md)
+* [fetch](subcommands/fetch.md)
 
 ## Running Pods
 
 rkt can run ACIs based on name, hash, local file on disk or URL. If an ACI hasn't been cached on disk, rkt will attempt to find and download it.
-Prior to running pods, ensure that the [metadata service](https://github.com/coreos/rkt/blob/master/Documentation/subcommands/metadata-service.md) is running.
+If you want to use the [metadata service](https://github.com/appc/spec/blob/master/spec/ace.md#app-container-metadata-service), make sure [it is running](https://github.com/coreos/rkt/blob/mastersubcommands/metadata-service.md) and you enable registration with the `--mds-register` flag.
 
-* [run](/Documentation/subcommands/run.md)
-* [enter](/Documentation/subcommands/enter.md)
-* [prepare](/Documentation/subcommands/prepare.md)
-* [run-prepared](/Documentation/subcommands/run-prepared.md)
+* [run](subcommands/run.md)
+* [enter](subcommands/enter.md)
+* [prepare](subcommands/prepare.md)
+* [run-prepared](subcommands/run-prepared.md)
 
 ## Pod inspection and management
 
 rkt provides subcommands to list, get status, and clean its pods.
 
-* [list](/Documentation/subcommands/list.md)
-* [status](/Documentation/subcommands/status.md)
-* [gc](/Documentation/subcommands/gc.md)
-* [rm](/Documentation/subcommands/rm.md)
+* [list](subcommands/list.md)
+* [status](subcommands/status.md)
+* [gc](subcommands/gc.md)
+* [rm](subcommands/rm.md)
+* [cat-manifest](subcommands/cat-manifest.md)
 
 ## Interacting with the local image store
 
 rkt provides subcommands to list, inspect and export images in its local store.
 
-* [image](/Documentation/subcommands/image.md)
+* [image](subcommands/image.md)
 
 ## Metadata Service
 
 The metadata service helps running apps introspect their execution environment and assert their pod identity.
 
-* [metadata-service](/Documentation/subcommands/metadata-service.md)
+* [metadata-service](subcommands/metadata-service.md)
+
+##Global Options
+
+In addition to the flags used by individual `rkt` commands, `rkt` has a set of global options that are applicable to all commands.
+
+| Flag | Default | Options | Desription |
+| --- | --- | --- | --- |
+| `--debug` |  `false` | `true` or `false` | Prints out more debug information to `stderr` |
+| `--dir` | `/var/lib/rkt` | A directory path | Path to the `rkt` data directory |
+| `--insecure-options` |  none | <ul><li>**none**: All security features are enabled</li><li>**image**: Disables verifying image signatures</li><li>**tls**: Accept any certificate from the server and any host name in that certificate</li><li>**ondisk**: Disables verifying the integrity of the on-disk, rendered image before running. This significantly speeds up start time.</li><li>**all**: Disables all security checks</li></ul>  | Comma-separated list of security features to disable |
+| `--local-config` |  `/etc/rkt` | A directory path | Path to the local configuration directory |
+| `--system-config` |  `/usr/lib/rkt` | A directory path | Path to the system configuration directory |
+| `--trust-keys-from-https` |  `true` | `true` or `false` | Automatically trust gpg keys fetched from https || Flag | Default | Options | Desription |
 
 ## Logging
 
-By default, rkt will send logs directly to stdout/stderr, allowing them to be caputered by the invoking process.
+By default, rkt will send logs directly to stdout/stderr, allowing them to be captured by the invoking process.
 On host systems running systemd, rkt will attempt to integrate with journald on the host.
 In this case, the logs can be accessed directly via journalctl.
 
 #### Accessing logs via journalctl
 
-To get the logs of a running pod you need to get pod's machine name. You can use machinectl
+To get the logs of a running pod, you need to get the pod's machine name. You can use machinectl:
 
 ```
 $ machinectl

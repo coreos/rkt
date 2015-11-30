@@ -56,6 +56,16 @@ var (
 	parsersForKind = make(map[string]map[string]configParser)
 )
 
+// ResolveAuthPerHost takes a map of strings to Headerer and resolves the
+// Headerers to http.Headers
+func ResolveAuthPerHost(authPerHost map[string]Headerer) map[string]http.Header {
+	hostHeaders := make(map[string]http.Header, len(authPerHost))
+	for k, v := range authPerHost {
+		hostHeaders[k] = v.Header()
+	}
+	return hostHeaders
+}
+
 func addParser(kind, version string, parser configParser) {
 	if len(kind) == 0 {
 		panic("empty kind string when registering a config parser")

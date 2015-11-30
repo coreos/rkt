@@ -21,10 +21,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/coreos/rkt/tests/testutils"
 )
 
 const (
-	manifestExportTemplate = `{"acKind":"ImageManifest","acVersion":"0.7.0","name":"IMG_NAME","labels":[{"name":"version","value":"1.0.0"},{"name":"arch","value":"amd64"},{"name":"os","value":"linux"}],"app":{"exec":["/inspect"],"user":"0","group":"0","workingDirectory":"/","environment":[{"name":"VAR_FROM_MANIFEST","value":"manifest"}]}}`
+	manifestExportTemplate = `{"acKind":"ImageManifest","acVersion":"0.7.3","name":"IMG_NAME","labels":[{"name":"version","value":"1.0.0"},{"name":"arch","value":"amd64"},{"name":"os","value":"linux"}],"app":{"exec":["/inspect"],"user":"0","group":"0","workingDirectory":"/","environment":[{"name":"VAR_FROM_MANIFEST","value":"manifest"}]}}`
 )
 
 // TestImageExport tests 'rkt image export', it will import some existing
@@ -50,8 +52,8 @@ func TestImageExport(t *testing.T) {
 
 	testImage := patchTestACI("rkt-inspect-image-export.aci", "--manifest", tmpManifestName)
 	defer os.Remove(testImage)
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	testImageId := importImageAndFetchHash(t, ctx, testImage)
 
@@ -89,7 +91,7 @@ func TestImageExport(t *testing.T) {
 
 	for i, tt := range tests {
 		outputAciPath := filepath.Join(tmpDir, fmt.Sprintf("exported-%d.aci", i))
-		runCmd := fmt.Sprintf("%s image export %s %s", ctx.cmd(), tt.image, outputAciPath)
+		runCmd := fmt.Sprintf("%s image export %s %s", ctx.Cmd(), tt.image, outputAciPath)
 		t.Logf("Running 'image export' test #%v: %v", i, runCmd)
 		spawnAndWaitOrFail(t, runCmd, tt.shouldFind)
 

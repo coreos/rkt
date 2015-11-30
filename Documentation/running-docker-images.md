@@ -6,14 +6,14 @@ rkt features native support for fetching and running Docker container images.
 
 To reference a Docker image, use the `docker://` prefix when fetching or running images.
 
-Note that Docker images do not support signature verification, and hence it's necessary to use the `--insecure-skip-verify` flag.
+Note that Docker images do not support signature verification, and hence it's necessary to use the `--insecure-options=image` flag.
 
 As a simple example, let's run the latest `redis` container image from the default Docker registry:
 
 ```
-# rkt --insecure-skip-verify run docker://redis
+# rkt --insecure-options=image run docker://redis
 rkt: fetching image from docker://redis
-rkt: warning: TLS verification and signature verification has been disabled
+rkt: warning: image signature verification has been disabled
 Downloading layer: 511136ea3c5a64f264b78b5433614aec563103b4d4702f3ba7d4d2698e22c158
 ...
 Downloading layer: f2fb89b0a711a7178528c7785d247ba3572924353b0d5e23e9b28f0518253b22
@@ -51,9 +51,9 @@ As with Docker, alternative registries can be used by specifying the registry as
 For example, the following command will fetch an nginx Docker image hosted on quay.io:
 
 ```
-# rkt --insecure-skip-verify fetch docker://quay.io/zanui/nginx
+# rkt --insecure-options=image fetch docker://quay.io/zanui/nginx
 rkt: fetching image from docker://quay.io/zanui/nginx
-rkt: warning: TLS verification and signature verification has been disabled
+rkt: warning: image signature verification has been disabled
 Downloading layer: 511136ea3c5a64f264b78b5433614aec563103b4d4702f3ba7d4d2698e22c158
 ...
 Downloading layer: 340951f1240f3dc1189ae32cfa5af35df2dc640e0c92f2397b7a72e174c1a158
@@ -65,7 +65,7 @@ The hash printed in the final line represents the image ID of the converted ACI.
 After the image has been retrieved, it can be run by referencing this hash:
 
 ```
-# rkt --insecure-skip-verify run sha512-c6d6efd98f506380ff128e473ca239ed
+# rkt --insecure-options=image run sha512-c6d6efd98f506380ff128e473ca239ed
 ```
 
 ## How does it work?

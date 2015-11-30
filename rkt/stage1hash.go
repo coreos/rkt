@@ -80,7 +80,8 @@ func stage1ImageFlagHelp() string {
 func getStage1Hash(s *store.Store, cmd *cobra.Command) (*types.Hash, error) {
 	fn := &finder{
 		imageActionData: imageActionData{
-			s: s,
+			s:             s,
+			insecureFlags: globalFlags.InsecureFlags,
 		},
 		storeOnly: false,
 		noStore:   false,

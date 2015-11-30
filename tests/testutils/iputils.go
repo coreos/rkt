@@ -173,3 +173,11 @@ func GetNextFreePort4() (int, error) {
 	}
 	return 0, fmt.Errorf("No available ports")
 }
+
+func GetIfaceCount() (int, error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return 0, err
+	}
+	return len(ifaces), nil
+}

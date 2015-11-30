@@ -1,25 +1,5 @@
-LOCAL_ACI_ETC_RKTDIR := $(ACIROOTFSDIR)/etc/rkt
-LOCAL_ACI_CONFDIR := $(LOCAL_ACI_ETC_RKTDIR)/net.d
-LOCAL_CONFFILES := $(wildcard $(MK_SRCDIR)/conf/*.conf)
+# Installs configuration files in the ACI rootfs for each flavor
 
-$(call setup-stamp-file,LOCAL_STAMP)
-
-define LOCAL_SRC_TO_ACI_CONFFILE
-$(LOCAL_ACI_CONFDIR)/$(notdir $1)
-endef
-
-LOCAL_ACI_CONFFILES :=
-LOCAL_INSTALL_TRIPLETS :=
-$(foreach c,$(LOCAL_CONFFILES), \
-        $(eval _NET_MK_ACI_CONFFILE_ := $(call LOCAL_SRC_TO_ACI_CONFFILE,$c)) \
-        $(eval LOCAL_ACI_CONFFILES += $(_NET_MK_ACI_CONFFILE_)) \
-        $(eval LOCAL_INSTALL_TRIPLETS += $c:$(_NET_MK_ACI_CONFFILE_):-))
-
-$(LOCAL_STAMP): $(LOCAL_ACI_CONFFILES)
-	touch "$@"
-
-STAGE1_INSTALL_FILES += $(LOCAL_INSTALL_TRIPLETS)
-STAGE1_INSTALL_DIRS += $(LOCAL_ACI_CONFDIR):0755 $(LOCAL_ACI_ETC_RKTDIR):0755
-STAGE1_STAMPS += $(LOCAL_STAMP)
-
-$(call undefine-namespaces,LOCAL _NET_MK)
+$(foreach flavor,$(STAGE1_FLAVORS), \
+	$(eval NMI_FLAVOR := $(flavor)) \
+	$(call inc-one,net-install.mk))

@@ -2,7 +2,7 @@
 
 Throughout this document `$var` is used to refer to the directory `/var/lib/rkt/pods`, and `$uuid` refers to a pod's UUID e.g. "076292e6-54c4-4cc8-9fa7-679c5f7dcfd3".
 
-Due to rkt's [architecture](https://github.com/coreos/rkt/blob/master/Documentation/architecture.md) - and specifically its lack of any management daemon process - a combination of advisory file locking and atomic directory renames (via rename(2)) is used to represent and transition the basic pod states.
+Due to rkt's [architecture](https://github.com/coreos/rkt/blob/master/Documentation/devel/architecture.md) - and specifically its lack of any management daemon process - a combination of advisory file locking and atomic directory renames (via rename(2)) is used to represent and transition the basic pod states.
 
 At times where a state must be reliably coupled to an executing process, that process is executed with an open file descriptor possessing an exclusive advisory lock on the respective pod's directory.  Should that process exit for any reason, its open file descriptors will automatically be closed by the kernel, implicitly unlocking the pod's directory in the process.  By attempting to acquire a shared non-blocking advisory lock on a pod directory we're able to poll for these process-bound states, additionally by employing a blocking acquisition mode we may reliably synchronize indirectly with the exit of such processes, effectively providing us with a wake-up event the moment such a state transitions.  For more information on advisory locks see the flock(2) man page.
 

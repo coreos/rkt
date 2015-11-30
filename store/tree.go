@@ -50,7 +50,7 @@ type TreeStore struct {
 // the destination directory doesn't exist (usually Remove should be called
 // before Write)
 func (ts *TreeStore) Write(id string, key string, s *Store) error {
-	treepath := filepath.Join(ts.path, id)
+	treepath := ts.GetPath(id)
 	fi, _ := os.Stat(treepath)
 	if fi != nil {
 		return fmt.Errorf("treestore: path %s already exists", treepath)
@@ -98,7 +98,7 @@ func (ts *TreeStore) Write(id string, key string, s *Store) error {
 
 // Remove cleans the directory for the provided id
 func (ts *TreeStore) Remove(id string) error {
-	treepath := filepath.Join(ts.path, id)
+	treepath := ts.GetPath(id)
 	// If tree path doesn't exist we're done
 	_, err := os.Stat(treepath)
 	if err != nil && os.IsNotExist(err) {
@@ -137,7 +137,7 @@ func (ts *TreeStore) Remove(id string) error {
 func (ts *TreeStore) IsRendered(id string) (bool, error) {
 	// if the "rendered" flag file exists, assume that the store is already
 	// fully rendered.
-	treepath := filepath.Join(ts.path, id)
+	treepath := ts.GetPath(id)
 	_, err := os.Stat(filepath.Join(treepath, renderedfilename))
 	if os.IsNotExist(err) {
 		return false, nil
@@ -166,7 +166,7 @@ func (ts *TreeStore) GetRootFS(id string) string {
 // used to create a tar but instead of writing the full archive is just
 // computes the sha512 sum of the file infos and contents.
 func (ts *TreeStore) Hash(id string) (string, error) {
-	treepath := filepath.Join(ts.path, id)
+	treepath := ts.GetPath(id)
 
 	hash := sha512.New()
 	iw := NewHashWriter(hash)
@@ -183,7 +183,7 @@ func (ts *TreeStore) Hash(id string) (string, error) {
 // Check calculates the actual rendered ACI's hash and verifies that it matches
 // the saved value.
 func (ts *TreeStore) Check(id string) error {
-	treepath := filepath.Join(ts.path, id)
+	treepath := ts.GetPath(id)
 	hash, err := ioutil.ReadFile(filepath.Join(treepath, hashfilename))
 	if err != nil {
 		return fmt.Errorf("treestore: cannot read hash file: %v", err)

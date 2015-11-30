@@ -18,16 +18,15 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/lastditch"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
 	common "github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/networking/netinfo"
-	"github.com/coreos/rkt/store"
 )
 
 var (
@@ -47,13 +46,7 @@ func init() {
 }
 
 func runList(cmd *cobra.Command, args []string) int {
-	s, err := store.NewStore(globalFlags.Dir)
-	if err != nil {
-		stderr("list: cannot open store: %v", err)
-		return 1
-	}
-
-	errors := []error{}
+	var errors []error
 	tabBuffer := new(bytes.Buffer)
 	tabOut := getTabOutWithWriter(tabBuffer)
 
@@ -96,7 +89,7 @@ func runList(cmd *cobra.Command, args []string) int {
 			nets    string
 		}
 
-		appsToPrint := []printedApp{}
+		var appsToPrint []printedApp
 		uuid := p.uuid.String()
 		state := p.getState()
 		nets := fmtNets(p.nets)
@@ -104,21 +97,10 @@ func runList(cmd *cobra.Command, args []string) int {
 			uuid = uuid[:8]
 		}
 		for _, app := range pm.Apps {
-			// Retrieve the image from the store.
-			imj, err := s.GetImageManifestJSON(app.Image.ID.String())
+			imageName, err := getImageName(p, app.Name)
 			if err != nil {
-				errors = append(errors, newPodListImageStoreFailure(p, err, &pm, app))
-				return
-			}
-			var im *schema.ImageManifest
-			if err = json.Unmarshal(imj, &im); err != nil {
-				errors = append(errors, newPodListImageLoadFailure(p, err, &pm, imj, app))
-				return
-			}
-
-			imageName := im.Name.String()
-			if version, ok := im.Labels.Get("version"); ok {
-				imageName = fmt.Sprintf("%s:%s", imageName, version)
+				errors = append(errors, newPodListLoadImageManifestError(p, err))
+				imageName = "--"
 			}
 
 			var imageID string
@@ -211,54 +193,8 @@ func newPodListZeroAppsError(p *pod) error {
 	return fmt.Errorf("Pod %s contains zero apps", p.uuid.String())
 }
 
-func newPodListImageStoreFailure(p *pod, err error, pm *schema.PodManifest, app schema.RuntimeApp) error {
-	lines := []string{
-		fmt.Sprintf("Unable to get image %s manifest from store:", app.Image.ID.String()),
-		fmt.Sprintf("  %v", err),
-		"Objects related to this error:",
-		fmt.Sprintf("  App: %q from failing image %q (%s)",
-			app.Name, app.Image.Name, app.Image.ID),
-		fmt.Sprintf("  Pod %s (spec version %s) with following apps:", p.uuid.String(), pm.ACVersion.String()),
-	}
-	for _, pApp := range pm.Apps {
-		lines = append(lines, fmt.Sprintf("    %s", appLine(degradeRuntimeApp(pApp))))
-	}
-	return fmt.Errorf("%s", strings.Join(lines, "\n"))
-}
-
-func newPodListImageLoadFailure(p *pod, err error, pm *schema.PodManifest, imj []byte, app schema.RuntimeApp) error {
-	im := lastditch.ImageManifest{}
-	imErr := im.UnmarshalJSON(imj)
-	acVersion := "unknown"
-	if imErr == nil {
-		acVersion = im.ACVersion
-	}
-	lines := []string{
-		fmt.Sprintf("Unable to load image %s manifest (spec version %s) because it is invalid:", app.Image.ID.String(), acVersion),
-		fmt.Sprintf("  %v", err),
-	}
-	if imErr != nil {
-		lines = append(lines, "  Also, failed to get any information about invalid image manifest:")
-		lines = append(lines, fmt.Sprintf("    %v", imErr))
-	}
-	lines = append(lines, "Objects related to this error:")
-	lines = append(lines, fmt.Sprintf("  App: %q from failing image %q (%s)",
-		app.Name, app.Image.Name, app.Image.ID))
-	lines = append(lines, fmt.Sprintf("  Pod %s (spec version %s) with following apps:", p.uuid.String(), pm.ACVersion.String()))
-	for _, pApp := range pm.Apps {
-		lines = append(lines, fmt.Sprintf("    %s", appLine(degradeRuntimeApp(pApp))))
-	}
-	return fmt.Errorf("%s", strings.Join(lines, "\n"))
-}
-
-func degradeRuntimeApp(app schema.RuntimeApp) lastditch.RuntimeApp {
-	return lastditch.RuntimeApp{
-		Name: app.Name.String(),
-		Image: lastditch.RuntimeImage{
-			Name: app.Image.Name.String(),
-			ID:   app.Image.ID.String(),
-		},
-	}
+func newPodListLoadImageManifestError(p *pod, err error) error {
+	return fmt.Errorf("pod %s ImageManifest could not be loaded: %v", p.uuid.String(), err)
 }
 
 func appLine(app lastditch.RuntimeApp) string {
@@ -267,10 +203,29 @@ func appLine(app lastditch.RuntimeApp) string {
 }
 
 func fmtNets(nis []netinfo.NetInfo) string {
-	parts := []string{}
+	var parts []string
 	for _, ni := range nis {
 		// there will be IPv6 support soon so distinguish between v4 and v6
 		parts = append(parts, fmt.Sprintf("%v:ip4=%v", ni.NetName, ni.IP))
 	}
 	return strings.Join(parts, ", ")
+}
+
+func getImageName(p *pod, appName types.ACName) (string, error) {
+	aim, err := p.getAppsImageManifests()
+	if err != nil {
+		return "", fmt.Errorf("problem retrieving ImageManifests from pod: %v", err)
+	}
+
+	im, ok := aim[appName]
+	if !ok {
+		return "", fmt.Errorf("could not find appName in pod: %v", err)
+	}
+
+	imageName := im.Name.String()
+	if version, ok := im.Labels.Get("version"); ok {
+		imageName = fmt.Sprintf("%s:%s", imageName, version)
+	}
+
+	return imageName, nil
 }

@@ -1,27 +1,7 @@
 # @configure_input@
 
-# package specific substitution names
-package := @PACKAGE_NAME@
-plain_version := @PACKAGE_VERSION@
-version := @RKT_VERSION@
-tarname := @PACKAGE_TARNAME@
-distdir := $(tarname)-$(plain_version)
-
-# prefix-specific substitution names
-prefix := @prefix@
-exec_prefix := @exec_prefix@
-bindir := @bindir@
-
-# Setup install scripts for portability
+# install scripts
 INSTALL = @INSTALL@
-INSTALL_DATA = @INSTALL_DATA@
-INSTALL_PROGRAM = @INSTALL_PROGRAM@
-INSTALL_SCRIPT = @INSTALL_SCRIPT@
-
-# build related variables
-GOARCH_FOR_BUILD := @GOARCH_FOR_BUILD@
-
-# these are rkt-build specific variables
 
 # binaries we need to build things
 GO := @GOBINARY@
@@ -40,28 +20,37 @@ REPO_PATH := $(ORG_PATH)/rkt
 # selinux tags for rkt and functional tests
 RKT_TAGS := -tags selinux
 # stage1 build mode
-RKT_STAGE1_USR_FROM := @RKT_STAGE1_USR_FROM@
-# git path to systemd
+
+RKT_VERSION := @RKT_VERSION@
+
+RKT_STAGE1_DEFAULT_NAME := @RKT_STAGE1_DEFAULT_NAME@
+RKT_STAGE1_DEFAULT_VERSION := @RKT_STAGE1_DEFAULT_VERSION@
+
+RKT_STAGE1_ALL_FLAVORS := @RKT_STAGE1_ALL_FLAVORS@
+RKT_STAGE1_FLAVORS := @RKT_STAGE1_FLAVORS@
+RKT_STAGE1_DEFAULT_FLAVOR := @RKT_STAGE1_DEFAULT_FLAVOR@
+
+RKT_STAGE1_DEFAULT_LOCATION := @RKT_STAGE1_DEFAULT_LOCATION@
+
 RKT_STAGE1_SYSTEMD_SRC := @RKT_STAGE1_SYSTEMD_SRC@
-# systemd build version
 RKT_STAGE1_SYSTEMD_VER := @RKT_STAGE1_SYSTEMD_VER@
-# stage1 image flags (the optional custom path linked into binary set by user)
-RKT_STAGE1_IMAGE_LDFLAGS := @RKT_STAGE1_IMAGE_LDFLAGS@
-# whether to run functional tests
-RKT_RUN_FUNCTIONAL_TESTS := @RKT_RUN_FUNCTIONAL_TESTS@
-# ld flags for default stage1 name and version
-RKT_STAGE1_DEFAULT_ACI_LDFLAGS := @RKT_STAGE1_DEFAULT_ACI_LDFLAGS@
-# ld flags for version
-RKT_VERSION_LDFLAGS := @RKT_VERSION_LDFLAGS@
-# path to local pxe image (if any)
+
 RKT_LOCAL_COREOS_PXE_IMAGE_PATH := @RKT_LOCAL_COREOS_PXE_IMAGE_PATH@
-# version of systemd in local pxe image
 RKT_LOCAL_COREOS_PXE_IMAGE_SYSTEMD_VER := @RKT_LOCAL_COREOS_PXE_IMAGE_SYSTEMD_VER@
 # defines for enter
 RKT_DEFINES_FOR_ENTER := @RKT_DEFINES_FOR_ENTER@
 
+RKT_RUN_FUNCTIONAL_TESTS := @RKT_RUN_FUNCTIONAL_TESTS@
+
+GOARCH_FOR_BUILD := @GOARCH_FOR_BUILD@
+
+RKT_STAGE1_DEFAULT_NAME_LDFLAGS := @RKT_STAGE1_DEFAULT_NAME_LDFLAGS@
+RKT_STAGE1_DEFAULT_VERSION_LDFLAGS := @RKT_STAGE1_DEFAULT_VERSION_LDFLAGS@
+RKT_STAGE1_DEFAULT_LOCATION_LDFLAGS := @RKT_STAGE1_DEFAULT_LOCATION_LDFLAGS@
+RKT_VERSION_LDFLAGS := @RKT_VERSION_LDFLAGS@
+
 # build-related directories and binaries
-BUILDDIR ?= $(MK_TOPLEVEL_ABS_SRCDIR)/build-$(distdir)
+BUILDDIR ?= $(MK_TOPLEVEL_ABS_SRCDIR)/build-@PACKAGE_TARNAME@-@PACKAGE_VERSION@
 override BUILDDIR := $(abspath $(BUILDDIR))
 
 MAKETOOLSDIR := $(MK_TOPLEVEL_SRCDIR)/tools
@@ -70,9 +59,6 @@ TOOLSDIR := $(BUILDDIR)/tools
 BINDIR := $(BUILDDIR)/bin
 GOPATH := $(BUILDDIR)/gopath
 DEPSDIR := $(BUILDDIR)/deps
-REVSDIR := $(BUILDDIR)/revs
-ACIDIR := $(BUILDDIR)/aci-for-$(RKT_STAGE1_USR_FROM)-flavor
-ACIROOTFSDIR := $(ACIDIR)/rootfs
 FILELISTDIR := $(BUILDDIR)/filelists
 MAINTEMPDIR := $(BUILDDIR)/tmp
 CLEANDIR := $(BUILDDIR)/clean
@@ -89,9 +75,6 @@ GO_TEST_FUNC_ARGS ?=
 
 GO_ENV := $(strip GOPATH="$(GOPATH)" $(if $(strip $(GOROOT)),GOROOT=$(strip $(GOROOT))))
 
-INSTALL_DIRS += \
-	$(ACIROOTFSDIR):0750
-
 CREATE_DIRS += \
 	$(BUILDDIR) \
 	$(STAMPSDIR) \
@@ -99,8 +82,6 @@ CREATE_DIRS += \
 	$(BINDIR) \
 	$(GOPATH) \
 	$(DEPSDIR) \
-	$(REVSDIR) \
-	$(ACIDIR) \
 	$(FILELISTDIR) \
 	$(MAINTEMPDIR) \
 	$(CLEANDIR)

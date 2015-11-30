@@ -223,10 +223,17 @@ $(strip \
 		$(eval $1: $v := $($v))))
 endef
 
+# Returns a colon (:) if passed value is empty. Useful for avoiding
+# shell errors about an empty body.
+# 1 - bash code
+define colon-if-empty
+$(if $(strip $1),$1,:)
+endef
+
 # Used by generate-simple-rule, see its docs.
 define simple-rule-template
 $1: $2 $(if $(strip $3),| $3)
-	$(if $(strip $4),$4,:)
+	$(call colon-if-empty,$4)
 endef
 
 # Generates a simple rule - without variable forwarding and with only
@@ -245,7 +252,7 @@ endef
 # 3 - order-only reqs
 # 4 - recipe placed after 'set -e'
 define generate-strict-rule
-$(call generate-simple-rule,$1,$2,$3,set -e; $(if $(strip $4),$4,:))
+$(call generate-simple-rule,$1,$2,$3,$(VQ)set -e; $(call colon-if-empty,$4))
 endef
 
 # Generates a rule for creating a stamp with additional actions to be
@@ -255,7 +262,7 @@ endef
 # 3 - order-only reqs
 # 4 - recipe placed between 'set -e' and 'touch "$@"'
 define generate-stamp-rule
-$(call generate-strict-rule,$1,$2,$3,$4; touch "$$@")
+$(call generate-strict-rule,$1,$2,$3,$(call colon-if-empty,$4); $$(call vb,v2,STAMP,$$(call vsp,$$@))touch "$$@")
 endef
 
 # 1 - from
@@ -286,7 +293,7 @@ $(strip \
 		$(eval _MISC_GGD_DEP_ := $(DEPSGENTOOL)), \
 		$(eval _MISC_GGD_DEP_ := $(DEPSGENTOOL_STAMP))) \
 	$(eval -include $3) \
-	$(eval $(call generate-stamp-rule,$1,$(_MISC_GGD_DEP_),$(DEPSDIR),$(GO_ENV) "$(DEPSGENTOOL)" go --repo "$(REPO_PATH)" --module "$4" --target '$2 $1' >"$3.tmp"; $(call bash-cond-rename,$3.tmp,$3))) \
+	$(eval $(call generate-stamp-rule,$1,$(_MISC_GGD_DEP_),$(DEPSDIR),$(call vb,v2,DEPS GO,$(call vsg,$(REPO_PATH)/$4) => $(call vsp,$3))$(GO_ENV) "$(DEPSGENTOOL)" go --repo "$(REPO_PATH)" --module "$4" --target '$2 $1' >"$3.tmp"; $(call bash-cond-rename,$3.tmp,$3))) \
 	$(call undefine-namespaces,_MISC_GGD))
 endef
 
@@ -305,7 +312,7 @@ $(strip \
 	$(foreach v,$4, \
 		$(eval _MISC_GKD_KV_ += $v $(call escape-and-wrap,$($v)))) \
 	$(eval -include $3) \
-	$(eval $(call generate-stamp-rule,$1,$(_MISC_GKD_DEP_),$(DEPSDIR),"$(DEPSGENTOOL)" kv --target '$2 $1' $(_MISC_GKD_KV_) >"$3.tmp"; $(call bash-cond-rename,$3.tmp,$3))) \
+	$(eval $(call generate-stamp-rule,$1,$(_MISC_GKD_DEP_),$(DEPSDIR),$(call vb,v2,DEPS KV,$4 => $(call vsp,$3))"$(DEPSGENTOOL)" kv --target '$2 $1' $(_MISC_GKD_KV_) >"$3.tmp"; $(call bash-cond-rename,$3.tmp,$3))) \
 	$(call undefine-namespaces,_MISC_GKD))
 endef
 
@@ -325,20 +332,33 @@ endef
 
 # 1 - filelist
 define generate-empty-filelist
-$(eval $(call generate-strict-rule,$1,$(FILELISTGENTOOL_STAMP),$(FILELISTDIR),"$(FILELISTGENTOOL)" --empty >"$1.tmp"; $(call bash-cond-rename,$1.tmp,$1)))
+$(eval $(call generate-strict-rule,$1,$(FILELISTGENTOOL_STAMP),$(FILELISTDIR),$(call vb,v2,FILELIST,<nothing> => $(call vsp,$1))"$(FILELISTGENTOOL)" --empty >"$1.tmp"; $(call bash-cond-rename,$1.tmp,$1)))
 endef
 
 # 1 - filelist
 # 2 - directory
 define generate-deep-filelist
-$(eval $(call generate-strict-rule,$1,$(FILELISTGENTOOL_STAMP),$(FILELISTDIR),"$(FILELISTGENTOOL)" --directory="$2" >"$1.tmp"; $(call bash-cond-rename,$1.tmp,$1)))
+$(eval $(call generate-strict-rule,$1,$(FILELISTGENTOOL_STAMP),$(FILELISTDIR),$(call vb,v2,FILELIST,$(call vsp,$2) => $(call vsp,$1))"$(FILELISTGENTOOL)" --directory="$2" >"$1.tmp"; $(call bash-cond-rename,$1.tmp,$1)))
 endef
 
 # 1 - filelist
 # 2 - a directory
 # 3 - a suffix
 define generate-shallow-filelist
-$(eval $(call generate-strict-rule,$1,$(FILELISTGENTOOL_STAMP),$(FILELISTDIR),"$(FILELISTGENTOOL)" --directory="$2" --suffix="$3" >"$1.tmp"; $(call bash-cond-rename,$1.tmp,$1)))
+$(eval $(call generate-strict-rule,$1,$(FILELISTGENTOOL_STAMP),$(FILELISTDIR),$(call vb,v2,FILELIST,$(call vsp,$2/*$3) => $(call vsp,$1))"$(FILELISTGENTOOL)" --directory="$2" --suffix="$3" >"$1.tmp"; $(call bash-cond-rename,$1.tmp,$1)))
+endef
+
+# This is used for the truncated output - it takes a list of
+# directories, shortens them and puts them in a comma-separated list
+# between parens: (dir1,dir2,...,dirN)
+define nice-dirs-output
+$(strip \
+	$(eval _MISC_NDO_COMMA_ := ,) \
+	$(eval _MISC_NDO_SPACE_ := ) \
+	$(eval _MISC_NDO_SPACE_ += ) \
+	$(eval _MISC_NDO_DIRS_ := ($(subst $(_MISC_NDO_SPACE_),$(_MISC_NDO_COMMA_),$(call vsp,$1)))) \
+	$(_MISC_NDO_DIRS_) \
+	$(call undefine-namespaces,_MISC_NDO))
 endef
 
 # Generates a rule for generating a glob depmk for a given target
@@ -359,7 +379,8 @@ $(strip \
 	$(if $(strip $7), \
 		$(eval _MISC_GLDF_GLOB_ := --glob-mode="$(strip $7)")) \
 	$(eval -include $3) \
-	$(eval $(call generate-stamp-rule,$1,$(_MISC_GLDF_DEP_) $5,$(DEPSDIR),shopt -s nullglob; "$(DEPSGENTOOL)" glob --target "$2 $1" --suffix="$4" --filelist="$5" $(foreach m,$6,--map-to="$m") $(_MISC_GLDF_GLOB_)>"$3.tmp"; $(call bash-cond-rename,$3.tmp,$3))) \
+	$(eval _MISC_GLDF_DIRS_ := $(call nice-dirs-output,$6)) \
+	$(eval $(call generate-stamp-rule,$1,$(_MISC_GLDF_DEP_) $5,$(DEPSDIR),$(call vb,v2,DEPS GLOB,$(_MISC_GLDF_DIRS_) $(call vsp,$5) => $(call vsp,$3))"$(DEPSGENTOOL)" glob --target "$2 $1" --suffix="$4" --filelist="$5" $(foreach m,$6,--map-to="$m") $(_MISC_GLDF_GLOB_)>"$3.tmp"; $(call bash-cond-rename,$3.tmp,$3))) \
 	$(call undefine-namespaces,_MISC_GLDF))
 endef
 
@@ -419,5 +440,76 @@ endef
 define generate-clean-mk
 $(strip \
 	$(eval -include $2) \
-	$(eval $(call generate-stamp-rule,$1,$(CLEANGENTOOL_STAMP) $3,$(CLEANDIR),"$(CLEANGENTOOL)" --filelist="$3" $(foreach m,$4,--map-to="$m") >"$2.tmp"; $(call bash-cond-rename,$2.tmp,$2))))
+	$(eval _MISC_GCM_DIRS_ := $(call nice-dirs-output,$4)) \
+	$(eval $(call generate-stamp-rule,$1,$(CLEANGENTOOL_STAMP) $3,$(CLEANDIR),$(call vb,v2,CLEANFILE,$(_MISC_GCM_DIRS_) $(call vsp,$3) => $(call vsp,$2))"$(CLEANGENTOOL)" --filelist="$3" $(foreach m,$4,--map-to="$m") >"$2.tmp"; $(call bash-cond-rename,$2.tmp,$2))) \
+	$(call undefine-namespaces,_MISC_GCM))
+endef
+
+define sed-replacement-escape
+$(strip $(shell echo $1 | sed -e 's/[\/&]/\\&/g'))
+endef
+
+define add-dependency-template
+$1: $2
+endef
+
+# 1 - a target
+# 2 - a dependency (or a prerequisite in makese)
+define add-dependency
+$(eval $(call add-dependency-template,$1,$2))
+endef
+
+# Formats given lists of source and destination files for the
+# INSTALL_FILES variable.
+#
+# 1 - list of src files
+# 2 - list of target files
+# 3 - mode
+define install-file-triplets
+$(strip $(join $(addsuffix :,$1),$(addsuffix :$3,$2)))
+endef
+
+define commas-to-spaces
+$(strip \
+	$(eval _MISC_CTS_COMMA_ := ,) \
+	$(eval _MISC_CTS_SPACE_ := ) \
+	$(eval _MISC_CTS_SPACE_ += ) \
+	$(subst $(_MISC_CTS_COMMA_),$(_MISC_CTS_SPACE_),$1) \
+	$(call undefine-namespaces,_MISC_CTS))
+endef
+
+# Generates a rule for given stamp which removes given directory and
+# adds a dependency to the directory on a given stamp. That way, the
+# directory will be removed before it is created if the stamp does not
+# exist or is invalidated. Additional dependencies for the stamp can
+# be specified by using usual make syntax ($(stamp): $(dep)).
+#
+# 1 - stamp
+# 2 - directory to remove
+define generate-rm-dir-rule
+$(strip \
+	$(call add-dependency,$2,$1) \
+	$(call generate-stamp-rule,$1,,, \
+		$(call vb,v2,RM RF,$(call vsp,$2))rm -rf $2))
+endef
+
+define go-pkg-from-dir
+$(subst $(MK_TOPLEVEL_SRCDIR)/,,$(MK_SRCDIR))
+endef
+
+# Generate a filelist for patches. Usually, when generating filelists,
+# we require the directory to exist. In this case, the patches
+# directory may not exist and it is fine. We generate an empty
+# filelist.
+#
+# 1 - patches filelist
+# 2 - patches dir
+define generate-patches-filelist
+$(strip \
+	$(eval _MISC_GPF_FILELIST := $(strip $1)) \
+	$(eval _MISC_GPF_DIR := $(strip $2)) \
+	$(eval $(if $(shell test -d "$(_MISC_GPF_DIR)" && echo yes), \
+		$(call generate-shallow-filelist,$(_MISC_GPF_FILELIST),$(_MISC_GPF_DIR),.patch), \
+		$(call generate-empty-filelist,$(_MISC_GPF_FILELIST)))) \
+	$(call undefine-namespaces,_MISC_GPF))
 endef

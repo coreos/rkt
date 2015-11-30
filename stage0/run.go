@@ -66,14 +66,14 @@ var debugEnabled bool
 // configuration parameters required by Prepare
 type PrepareConfig struct {
 	CommonConfig
-	Apps         *apps.Apps          // apps to prepare
-	InheritEnv   bool                // inherit parent environment into apps
-	ExplicitEnv  []string            // always set these environment variables for all the apps
-	Volumes      []types.Volume      // list of volumes that rkt can provide to applications
-	Ports        []types.ExposedPort // list of ports that rkt will expose on the host
-	UseOverlay   bool                // prepare pod with overlay fs
-	PodManifest  string              // use the pod manifest specified by the user, this will ignore flags such as '--volume', '--port', etc.
-	PrivateUsers *uid.UidRange       // User namespaces
+	Apps               *apps.Apps          // apps to prepare
+	InheritEnv         bool                // inherit parent environment into apps
+	ExplicitEnv        []string            // always set these environment variables for all the apps
+	Ports              []types.ExposedPort // list of ports that rkt will expose on the host
+	UseOverlay         bool                // prepare pod with overlay fs
+	SkipTreeStoreCheck bool                // skip checking the treestore before rendering
+	PodManifest        string              // use the pod manifest specified by the user, this will ignore flags such as '--volume', '--port', etc.
+	PrivateUsers       *uid.UidRange       // User namespaces
 }
 
 // configuration parameters needed by Run
@@ -145,6 +145,26 @@ func imageNameToAppName(name types.ACIdentifier) (*types.ACName, error) {
 	return types.MustACName(sn), nil
 }
 
+// deduplicateMPs removes Mounts with duplicated paths. If there's more than
+// one Mount with the same path, it keeps the first one encountered.
+func deduplicateMPs(mounts []schema.Mount) []schema.Mount {
+	var res []schema.Mount
+	seen := make(map[string]struct{})
+	for _, m := range mounts {
+		if _, ok := seen[m.Path]; !ok {
+			res = append(res, m)
+			seen[m.Path] = struct{}{}
+		}
+	}
+	return res
+}
+
+// MergeMounts combines the global and per-app mount slices
+func MergeMounts(mounts []schema.Mount, appMounts []schema.Mount) []schema.Mount {
+	ml := append(appMounts, mounts...)
+	return deduplicateMPs(ml)
+}
+
 // generatePodManifest creates the pod manifest from the command line input.
 // It returns the pod manifest as []byte on success.
 // This is invoked if no pod manifest is specified at the command line.
@@ -185,10 +205,12 @@ func generatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 			Name: *appName,
 			App:  am.App,
 			Image: schema.RuntimeImage{
-				Name: &am.Name,
-				ID:   img,
+				Name:   &am.Name,
+				ID:     img,
+				Labels: am.Labels,
 			},
 			Annotations: am.Annotations,
+			Mounts:      MergeMounts(cfg.Apps.Mounts, app.Mounts),
 		}
 
 		if execOverride := app.Exec; execOverride != "" {
@@ -217,7 +239,7 @@ func generatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 
 	// TODO(jonboulle): check that app mountpoint expectations are
 	// satisfied here, rather than waiting for stage1
-	pm.Volumes = cfg.Volumes
+	pm.Volumes = cfg.Apps.Volumes
 	pm.Ports = cfg.Ports
 
 	pmb, err := json.Marshal(pm)
@@ -383,7 +405,7 @@ func Run(cfg RunConfig, dir string, dataDir string) {
 		log.Fatalf("setting lock fd environment: %v", err)
 	}
 
-	if err := os.Setenv(common.SELinuxContext, fmt.Sprintf("%v", cfg.ProcessLabel)); err != nil {
+	if err := os.Setenv(common.EnvSELinuxContext, fmt.Sprintf("%v", cfg.ProcessLabel)); err != nil {
 		log.Fatalf("setting SELinux context environment: %v", err)
 	}
 
@@ -394,7 +416,7 @@ func Run(cfg RunConfig, dir string, dataDir string) {
 
 	ep, err := getStage1Entrypoint(dir, runEntrypoint)
 	if err != nil {
-		log.Fatalf("error determining init entrypoint: %v", err)
+		log.Fatalf("error determining 'run' entrypoint: %v", err)
 	}
 	args := []string{filepath.Join(destRootfs, ep)}
 	debug("Execing %s", ep)
@@ -471,11 +493,13 @@ func prepareAppImage(cfg PrepareConfig, appName types.ACName, img types.Hash, cd
 		if err != nil {
 			return fmt.Errorf("error rendering tree image: %v", err)
 		}
-		if err := cfg.Store.CheckTreeStore(treeStoreID); err != nil {
-			log.Printf("Warning: tree cache is in a bad state: %v. Rebuilding...", err)
-			var err error
-			if treeStoreID, err = cfg.Store.RenderTreeStore(img.String(), true); err != nil {
-				return fmt.Errorf("error rendering tree image: %v", err)
+		if !cfg.SkipTreeStoreCheck {
+			if err := cfg.Store.CheckTreeStore(treeStoreID); err != nil {
+				log.Printf("Warning: tree cache is in a bad state: %v. Rebuilding...", err)
+				var err error
+				if treeStoreID, err = cfg.Store.RenderTreeStore(img.String(), true); err != nil {
+					return fmt.Errorf("error rendering tree image: %v", err)
+				}
 			}
 		}
 
@@ -546,11 +570,14 @@ func prepareStage1Image(cfg PrepareConfig, img types.Hash, cdir string, useOverl
 	if err != nil {
 		return fmt.Errorf("error rendering tree image: %v", err)
 	}
-	if err := cfg.Store.CheckTreeStore(treeStoreID); err != nil {
-		log.Printf("Warning: tree cache is in a bad state: %v. Rebuilding...", err)
-		var err error
-		if treeStoreID, err = cfg.Store.RenderTreeStore(img.String(), true); err != nil {
-			return fmt.Errorf("error rendering tree image: %v", err)
+
+	if !cfg.SkipTreeStoreCheck {
+		if err := cfg.Store.CheckTreeStore(treeStoreID); err != nil {
+			log.Printf("Warning: tree cache is in a bad state: %v. Rebuilding...", err)
+			var err error
+			if treeStoreID, err = cfg.Store.RenderTreeStore(img.String(), true); err != nil {
+				return fmt.Errorf("error rendering tree image: %v", err)
+			}
 		}
 	}
 
@@ -597,41 +624,14 @@ func setupStage1Image(cfg RunConfig, cdir string, useOverlay bool) error {
 		}
 	}
 
-	// Chown the 'rootfs' directory, so that rkt list/rkt status can access it.
-	if err := os.Chown(filepath.Join(s1, "rootfs"), -1, cfg.RktGid); err != nil {
-		return err
-	}
-
-	// Chown the 'rootfs/rkt' and its sub-directory, so that rkt list/rkt status can
-	// access it.
-	// Also set 'S_ISGID' bit on the mode so that when the app writes exit status to
-	// 'rootfs/rkt/status/$app', the file has the group ID set to 'rkt'.
-	chownWalker := func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if err := os.Chown(path, -1, cfg.RktGid); err != nil {
-			return err
-		}
-		if err := os.Chmod(path, info.Mode()|os.ModeSetgid); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	return filepath.Walk(filepath.Join(s1, "rootfs", "rkt"), chownWalker)
+	return nil
 }
 
 // writeManifest takes an img ID and writes the corresponding manifest in dest
 func writeManifest(cfg CommonConfig, img types.Hash, dest string) error {
-	manifest, err := cfg.Store.GetImageManifest(img.String())
+	mb, err := cfg.Store.GetImageManifestJSON(img.String())
 	if err != nil {
 		return err
-	}
-
-	mb, err := json.Marshal(manifest)
-	if err != nil {
-		return fmt.Errorf("error marshalling image manifest: %v", err)
 	}
 
 	debug("Writing image manifest")

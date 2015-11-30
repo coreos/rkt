@@ -14,7 +14,7 @@ KERNEL_PATCHESDIR := $(KERNEL_STUFFDIR)/patches
 KERNEL_PATCHES := $(abspath $(KERNEL_PATCHESDIR)/*.patch)
 KERNEL_BUILD_CONFIG := $(KERNEL_BUILDDIR)/.config
 KERNEL_BZIMAGE := $(KERNEL_BUILDDIR)/arch/x86/boot/bzImage
-KERNEL_ACI_BZIMAGE := $(ACIROOTFSDIR)/bzImage
+KERNEL_ACI_BZIMAGE := $(S1_RF_ACIROOTFSDIR)/bzImage
 
 $(call setup-stamp-file,KERNEL_STAMP,/build_kernel)
 $(call setup-stamp-file,KERNEL_BZIMAGE_STAMP,/bzimage)
@@ -32,24 +32,20 @@ $(call setup-stamp-file,KERNEL_BUILD_CLEAN_STAMP,/build-clean)
 CREATE_DIRS += $(KERNEL_TMPDIR) $(KERNEL_BUILDDIR)
 CLEAN_DIRS += $(KERNEL_SRCDIR)
 INSTALL_FILES += $(KERNEL_SRC_CONFIG):$(KERNEL_BUILD_CONFIG):-
-STAGE1_INSTALL_FILES += $(KERNEL_BZIMAGE):$(KERNEL_ACI_BZIMAGE):-
-UFK_STAMPS += $(KERNEL_STAMP)
+S1_RF_INSTALL_FILES += $(KERNEL_BZIMAGE):$(KERNEL_ACI_BZIMAGE):-
+S1_RF_SECONDARY_STAMPS += $(KERNEL_STAMP)
 CLEAN_FILES += $(KERNEL_TARGET_FILE)
 
-$(KERNEL_STAMP): $(KERNEL_ACI_BZIMAGE) $(KERNEL_DEPS_STAMP) $(KERNEL_BUILD_CLEAN_STAMP) $(KERNEL_SRC_CLEAN_STAMP)
-	touch "$@"
+$(call generate-stamp-rule,$(KERNEL_STAMP),$(KERNEL_ACI_BZIMAGE) $(KERNEL_DEPS_STAMP) $(KERNEL_BUILD_CLEAN_STAMP) $(KERNEL_SRC_CLEAN_STAMP))
 
 # $(KERNEL_ACI_BZIMAGE) has a dependency on $(KERNEL_BZIMAGE), which
 # is actually provided by $(KERNEL_BZIMAGE_STAMP)
 $(KERNEL_BZIMAGE): $(KERNEL_BZIMAGE_STAMP)
 
 # This stamp is to make sure that building linux kernel has finished.
-$(call forward-vars,$(KERNEL_BZIMAGE), \
-	MAKE KERNEL_SRCDIR KERNEL_BUILDDIR)
-$(KERNEL_BZIMAGE_STAMP): $(KERNEL_BUILD_CONFIG) $(KERNEL_PATCH_STAMP)
-	set -e; \
-	$(MAKE) -C "$(KERNEL_SRCDIR)" O="$(KERNEL_BUILDDIR)" bzImage; \
-	touch "$@"
+$(call generate-stamp-rule,$(KERNEL_BZIMAGE_STAMP),$(KERNEL_BUILD_CONFIG) $(KERNEL_PATCH_STAMP),, \
+	$(call vb,vt,BUILD EXT,bzImage) \
+	$$(MAKE) $(call vl2,--silent) -C "$(KERNEL_SRCDIR)" O="$(KERNEL_BUILDDIR)" V=0 bzImage $(call vl2,>/dev/null))
 
 # Generate filelist of a builddir. Can happen only after the building
 # finished.
@@ -59,15 +55,12 @@ $(call generate-deep-filelist,$(KERNEL_BUILD_FILELIST),$(KERNEL_BUILDDIR))
 # Generate clean.mk cleaning builddir.
 $(call generate-clean-mk,$(KERNEL_BUILD_CLEAN_STAMP),$(KERNEL_BUILD_CLEANMK),$(KERNEL_BUILD_FILELIST),$(KERNEL_BUILDDIR))
 
-$(call forward-vars,$(KERNEL_PATCH_STAMP), \
-	KERNEL_PATCHES KERNEL_SRCDIR)
-$(KERNEL_PATCH_STAMP): $(KERNEL_MAKEFILE)
-	set -e; \
+$(call generate-stamp-rule,$(KERNEL_PATCH_STAMP),$(KERNEL_MAKEFILE),, \
 	shopt -s nullglob; \
 	for p in $(KERNEL_PATCHES); do \
-		patch --directory="$(KERNEL_SRCDIR)" --strip=1 --forward <"$${p}"; \
-	done; \
-	touch "$@"
+		$(call vb,v2,PATCH,$$$${p#$(MK_TOPLEVEL_ABS_SRCDIR)/}) \
+		patch $(call vl3,--silent )--directory="$(KERNEL_SRCDIR)" --strip=1 --forward <"$$$${p}"; \
+	done)
 
 # Generate a filelist of srcdir. Can happen after the sources were
 # patched.
@@ -77,22 +70,8 @@ $(call generate-deep-filelist,$(KERNEL_SRC_FILELIST),$(KERNEL_SRCDIR))
 # Generate clean.mk cleaning the sources.
 $(call generate-clean-mk,$(KERNEL_SRC_CLEAN_STAMP),$(KERNEL_SRC_CLEANMK),$(KERNEL_SRC_FILELIST),$(KERNEL_SRCDIR))
 
-# This is a special case - normally, when generating filelists, we
-# require the directory to exist. In this case, the patches directory
-# may not exist and it is fine. We generate an empty filelist.
-KERNEL_GOT_PATCHES := $(shell test -d "$(KERNEL_PATCHESDIR)" && echo yes)
-
-ifeq ($(KERNEL_GOT_PATCHES),yes)
-
 # Generate a filelist of patches. Can happen anytime.
-$(call generate-shallow-filelist,$(KERNEL_PATCHES_FILELIST),$(KERNEL_PATCHESDIR),.patch)
-
-else
-
-# Generate empty filelist of patches. This can happen anytime.
-$(call generate-empty-filelist,$(KERNEL_PATCHES_FILELIST))
-
-endif
+$(call generate-patches-filelist,$(KERNEL_PATCHES_FILELIST),$(KERNEL_PATCHESDIR))
 
 # Generate a dep.mk on those patches, so if patches change, sources
 # are removed, extracted again and repatched.
@@ -101,13 +80,17 @@ $(call generate-glob-deps,$(KERNEL_DEPS_STAMP),$(KERNEL_MAKEFILE),$(KERNEL_PATCH
 $(call forward-vars,$(KERNEL_MAKEFILE), \
 	KERNEL_SRCDIR KERNEL_TMPDIR)
 $(KERNEL_MAKEFILE): $(KERNEL_TARGET_FILE)
+	$(VQ) \
 	set -e; \
 	rm -rf "$(KERNEL_SRCDIR)"; \
+	$(call vb,vt,UNTAR,$(call vsp,$<) => $(call vsp,$(KERNEL_TMPDIR))) \
 	tar --extract --xz --touch --file="$<" --directory="$(KERNEL_TMPDIR)"
 
 $(call forward-vars,$(KERNEL_TARGET_FILE), \
 	KERNEL_URL)
 $(KERNEL_TARGET_FILE): | $(KERNEL_TMPDIR)
-	wget --tries=20 --output-document="$@" "$(KERNEL_URL)"
+	$(VQ) \
+	$(call vb,vt,WGET,$(KERNEL_URL) => $(call vsp,$@)) \
+	wget $(call vl3,--quiet) --tries=20 --output-document="$@" "$(KERNEL_URL)"
 
 $(call undefine-namespaces,KERNEL)

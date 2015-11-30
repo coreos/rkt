@@ -15,6 +15,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
 	"github.com/coreos/rkt/store"
@@ -32,22 +34,11 @@ func init() {
 	cmdImage.AddCommand(cmdImageRm)
 }
 
-func runRmImage(cmd *cobra.Command, args []string) (exit int) {
-	if len(args) < 1 {
-		stderr("rkt: Must provide at least one image ID")
-		return 1
-	}
-
-	s, err := store.NewStore(globalFlags.Dir)
-	if err != nil {
-		stderr("rkt: cannot open store: %v", err)
-		return 1
-	}
-
+func rmImages(s *store.Store, images []string) error {
 	done := 0
 	errors := 0
 	staleErrors := 0
-	for _, pkey := range args {
+	for _, pkey := range images {
 		errors++
 		h, err := types.NewHash(pkey)
 		if err != nil {
@@ -90,6 +81,26 @@ func runRmImage(cmd *cobra.Command, args []string) (exit int) {
 		if errors > 0 {
 			stderr("rkt: %d image(s) cannot be removed", errors)
 		}
+		return fmt.Errorf("error(s) found while removing images")
+	}
+
+	return nil
+}
+
+func runRmImage(cmd *cobra.Command, args []string) (exit int) {
+	if len(args) < 1 {
+		stderr("rkt: Must provide at least one image ID")
+		return 1
+	}
+
+	s, err := store.NewStore(globalFlags.Dir)
+	if err != nil {
+		stderr("rkt: cannot open store: %v", err)
+		return 1
+	}
+
+	if err := rmImages(s, args); err != nil {
+		stderr("rKt: %v", err)
 		return 1
 	}
 

@@ -18,6 +18,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/coreos/rkt/tests/testutils"
 )
 
 var envTests = []struct {
@@ -27,39 +29,39 @@ var envTests = []struct {
 	enterCmd  string
 }{
 	{
-		`^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false ^PRINT_VAR_FROM_MANIFEST^`,
+		`^RKT_BIN^ --debug --insecure-options=image run --mds-register=false ^PRINT_VAR_FROM_MANIFEST^`,
 		"VAR_FROM_MANIFEST=manifest",
-		`^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --interactive ^SLEEP^`,
+		`^RKT_BIN^ --debug --insecure-options=image run --mds-register=false --interactive ^SLEEP^`,
 		`/bin/sh -c "^RKT_BIN^ --debug enter $(^RKT_BIN^ list --full|grep running|awk '{print $1}') /inspect --print-env=VAR_FROM_MANIFEST"`,
 	},
 	{
-		`^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --set-env=VAR_OTHER=setenv ^PRINT_VAR_OTHER^`,
+		`^RKT_BIN^ --debug --insecure-options=image run --mds-register=false --set-env=VAR_OTHER=setenv ^PRINT_VAR_OTHER^`,
 		"VAR_OTHER=setenv",
-		`^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --interactive --set-env=VAR_OTHER=setenv ^SLEEP^`,
+		`^RKT_BIN^ --debug --insecure-options=image run --mds-register=false --interactive --set-env=VAR_OTHER=setenv ^SLEEP^`,
 		`/bin/sh -c "^RKT_BIN^ --debug enter $(^RKT_BIN^ list --full|grep running|awk '{print $1}') /inspect --print-env=VAR_OTHER"`,
 	},
 	{
-		`^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --set-env=VAR_FROM_MANIFEST=setenv ^PRINT_VAR_FROM_MANIFEST^`,
+		`^RKT_BIN^ --debug --insecure-options=image run --mds-register=false --set-env=VAR_FROM_MANIFEST=setenv ^PRINT_VAR_FROM_MANIFEST^`,
 		"VAR_FROM_MANIFEST=setenv",
-		`^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --interactive --set-env=VAR_FROM_MANIFEST=setenv ^SLEEP^`,
+		`^RKT_BIN^ --debug --insecure-options=image run --mds-register=false --interactive --set-env=VAR_FROM_MANIFEST=setenv ^SLEEP^`,
 		`/bin/sh -c "^RKT_BIN^ --debug enter $(^RKT_BIN^ list --full|grep running|awk '{print $1}') /inspect --print-env=VAR_FROM_MANIFEST"`,
 	},
 	{
-		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --inherit-env=true ^PRINT_VAR_OTHER^"`,
+		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-options=image run --mds-register=false --inherit-env=true ^PRINT_VAR_OTHER^"`,
 		"VAR_OTHER=host",
-		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --interactive --inherit-env=true ^SLEEP^"`,
+		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-options=image run --mds-register=false --interactive --inherit-env=true ^SLEEP^"`,
 		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug enter $(^RKT_BIN^ list --full|grep running|awk '{print $1}') /inspect --print-env=VAR_OTHER"`,
 	},
 	{
-		`/bin/sh -c "export VAR_FROM_MANIFEST=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --inherit-env=true ^PRINT_VAR_FROM_MANIFEST^"`,
+		`/bin/sh -c "export VAR_FROM_MANIFEST=host ; ^RKT_BIN^ --debug --insecure-options=image run --mds-register=false --inherit-env=true ^PRINT_VAR_FROM_MANIFEST^"`,
 		"VAR_FROM_MANIFEST=manifest",
-		`/bin/sh -c "export VAR_FROM_MANIFEST=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --interactive --inherit-env=true ^SLEEP^"`,
+		`/bin/sh -c "export VAR_FROM_MANIFEST=host ; ^RKT_BIN^ --debug --insecure-options=image run --mds-register=false --interactive --inherit-env=true ^SLEEP^"`,
 		`/bin/sh -c "export VAR_FROM_MANIFEST=host ; ^RKT_BIN^ --debug enter $(^RKT_BIN^ list --full|grep running|awk '{print $1}') /inspect --print-env=VAR_FROM_MANIFEST"`,
 	},
 	{
-		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --inherit-env=true --set-env=VAR_OTHER=setenv ^PRINT_VAR_OTHER^"`,
+		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-options=image run --mds-register=false --inherit-env=true --set-env=VAR_OTHER=setenv ^PRINT_VAR_OTHER^"`,
 		"VAR_OTHER=setenv",
-		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-skip-verify run --mds-register=false --interactive --inherit-env=true --set-env=VAR_OTHER=setenv ^SLEEP^"`,
+		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-options=image run --mds-register=false --interactive --inherit-env=true --set-env=VAR_OTHER=setenv ^SLEEP^"`,
 		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug enter $(^RKT_BIN^ list --full|grep running|awk '{print $1}') /inspect --print-env=VAR_OTHER"`,
 	},
 }
@@ -71,12 +73,12 @@ func TestEnv(t *testing.T) {
 	defer os.Remove(printVarOtherImage)
 	sleepImage := patchTestACI("rkt-inspect-sleep.aci", "--exec=/inspect --read-stdin")
 	defer os.Remove(sleepImage)
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	replacePlaceholders := func(cmd string) string {
 		fixed := cmd
-		fixed = strings.Replace(fixed, "^RKT_BIN^", ctx.cmd(), -1)
+		fixed = strings.Replace(fixed, "^RKT_BIN^", ctx.Cmd(), -1)
 		fixed = strings.Replace(fixed, "^PRINT_VAR_FROM_MANIFEST^", printVarFromManifestImage, -1)
 		fixed = strings.Replace(fixed, "^PRINT_VAR_OTHER^", printVarOtherImage, -1)
 		fixed = strings.Replace(fixed, "^SLEEP^", sleepImage, -1)
@@ -115,6 +117,6 @@ func TestEnv(t *testing.T) {
 		}
 
 		waitOrFail(t, child, true)
-		ctx.reset()
+		ctx.Reset()
 	}
 }

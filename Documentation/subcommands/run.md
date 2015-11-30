@@ -22,7 +22,7 @@ rkt will automatically [fetch](fetch.md) them if they're not present in the loca
 
 ```
 # Run by Docker registry
-# rkt --insecure-skip-verify run docker://quay.io/coreos/etcd:v2.0.0
+# rkt --insecure-options=image run docker://quay.io/coreos/etcd:v2.0.0
 ```
 
 ## Overriding Executable to launch
@@ -31,7 +31,7 @@ Application images include an `exec` field that specifies the executable to laun
 This executable can be overridden by rkt using the `--exec` flag:
 
 ```
-# rkt --insecure-skip-verify run docker://busybox --exec /bin/date
+# rkt --insecure-options=image run docker://busybox --exec /bin/date
 ```
 
 ## Passing Arguments
@@ -72,10 +72,10 @@ EXAMPLE_OVERRIDE=over
 
 ## Disable Signature Verification
 
-If desired, `--insecure-skip-verify` can be used to disable this security check:
+If desired, `--insecure-options=image` can be used to disable this security check:
 
 ```
-# rkt --insecure-skip-verify run coreos.com/etcd:v2.0.0
+# rkt --insecure-options=image run coreos.com/etcd:v2.0.0
 rkt: searching for app image coreos.com/etcd:v2.0.0
 rkt: fetching image from https://github.com/coreos/etcd/releases/download/v2.0.0/etcd-v2.0.0-linux-amd64.aci
 rkt: warning: signature verification has been disabled
@@ -84,16 +84,77 @@ rkt: warning: signature verification has been disabled
 
 ## Mount Volumes into a Pod
 
-Volumes are defined in each ACI and are referenced by name. Volumes can be exposed from the host into the pod (`host`) or initialized as empty storage to be accessed locally within the pod (`empty` pending [rkt #378][rkt #378]). Each volume can be selectively mounted into each application at differing mount points or not mounted into specific apps at all.
+Each ACI can define a [list of mount points](https://github.com/appc/spec/blob/master/spec/aci.md#image-manifest-schema) that the app is expecting external data to be mounted into:
 
-[rkt #378]: https://github.com/coreos/rkt/issues/378
+```json
+{
+    "acKind": "ImageManifest",
+    "name": "example.com/app1",
+    ...
+    "app": {
+        ...
+        "mountPoints": [
+            {
+                "name": "data",
+                "path": "/var/data",
+                "readOnly": false
+            }
+        ]
+    }
+    ...
+}
+```
 
+To fulfill these mount points, volumes are used. A volume is assigned to a mount point if they both have the same name.
+There are today two kinds of volumes:
+- `host` volumes that can expose a directory or a file from the host to the pod
+- `empty` volumes that initialize an empty storage to be accessed locally within the pod. When the pod is garbage collected, it will be removed.
 
-### Mounting Host Volumes
+Each volume can be selectively mounted into each application at differing mount points. Note that any volumes that are specified but do not have a matching mount point (or [`--mount` flag](#mounting-volumes-without-mount-points)) will be silently ignored.
 
-For `host` volumes, the `--volume` flag allows you to specify each mount, its type and the location on the host. The volume is then mounted into each app running to the pod based on information defined in the ACI manifest.
+If a mount point is specified in the image manifest but no matching volume is found, an implicit `empty` volume will be created automatically.
 
-For example, let's say we want to read data from the host directory `/opt/tenant1/work` to power a MapReduce-style worker. We'll call this app `example.com/reduce-worker`.
+### Mounting Volumes
+
+For `host` volumes, the `--volume` flag allows you to specify each mount, its type, the location on the host, and whether the volume is read-only or not. In the following example, we make the host's `/srv/data` accessible to app1 on `/var/data`:
+
+```
+# rkt run --volume data,kind=host,source=/srv/data,readOnly=false example.com/app1
+```
+
+If you don't intend to persist the data and you just want to have a volume shared between all the apps in the pod, you can use an `empty` volume:
+
+```
+# rkt run --volume data,kind=empty,readOnly=false example.com/app1
+```
+
+The volume is then mounted into each app running to the pod based on information defined in the ACI manifest.
+
+### Mounting Volumes without Mount Points
+
+If the ACI doesn't have any mount points defined in its manifest, you can still mount volumes using the `--mount` flag.
+
+With `--mount` you define a mapping between volumes and a path in the app. This will supplement and override any mount points in the image manifest.
+In the following example, the `--mount` option is positioned after the app name; it defines the mount only in that app:
+
+```
+# rkt run --volume logs,kind=host,source=/srv/logs \
+        example.com/app1 --mount volume=logs,target=/var/log \
+        example.com/app2 --mount volume=logs,target=/opt/log
+```
+
+In the following example, the `--mount` option is positioned before the app names.
+It defines mounts on all apps: both app1 and app2 will have `/srv/logs` accessible on `/var/log`.
+
+```
+# rkt run --volume logs,kind=host,source=/srv/logs \
+       --mount volume=data,target=/var/log \
+        example.com/app1 example.com/app2
+```
+
+### MapReduce Example
+
+Let's say we want to read data from the host directory `/opt/tenant1/work` to power a MapReduce-style worker. We'll call this app `example.com/reduce-worker`.
 
 We also want this data to be available to a backup application that runs alongside the worker (in the same pod). We'll call this app 'example.com/worker-backup`. The backup application only needs read-only access to the data.
 
@@ -113,6 +174,8 @@ Below we show the abbreviated manifests for the respective applications (recall 
                 "readOnly": false
             }
         ],
+        ...
+    }
     ...
 }
 ```
@@ -131,11 +194,13 @@ Below we show the abbreviated manifests for the respective applications (recall 
                 "readOnly": true
             }
         ],
+        ...
+    }
     ...
 }
 ```
 
-In this case, both apps reference a volume they call "work", and expect it to be made available at `/var/lib/work` and `/backup` within their respective root filesystems. 
+In this case, both apps reference a volume they call "work", and expect it to be made available at `/var/lib/work` and `/backup` within their respective root filesystems.
 
 Since they reference the volume using an abstract name rather than a specific source path, the same image can be used on a variety of different hosts without being coupled to the host's filesystem layout.
 
@@ -147,12 +212,20 @@ To tie it all together, we use the `rkt run` command-line to provide them with a
   example.com/worker-backup
 ```
 
+If the image didn't have any mount points, you can achieve a similar effect with the `--mount` flag (note that both would be read-write though):
+
+```
+# rkt run --volume=work,kind=host,source=/opt/tenant1/work \
+  example.com/reduce-worker --mount volume=work,target=/var/lib/work \
+  example.com/worker-backup --mount volume=work,target=/backup
+```
+
 Now when the pod is running, the two apps will see the host's `/opt/tenant1/work` directory made available at their expected locations.
 
-## Disabling metadata service registration
+## Enabling metadata service registration
 
-By default, `rkt run` will register the pod with the [metadata service](https://github.com/coreos/rkt/blob/master/Documentation/subcommands/metadata-service.md).
-If the metadata service is not running, it is possible to disable this behavior with `--register-mds=false` command line option.
+By default, `rkt run` will not register the pod with the [metadata service](https://github.com/coreos/rkt/blob/master/Documentation/subcommands/metadata-service.md).
+You can enable registration with the `--mds-register` command line option.
 
 ## Pod Networking
 
@@ -176,3 +249,12 @@ Strictly seen, this is only true when `rkt run` is invoked on the host directly,
 ### Other Networking Examples
 
 More details about rkt's networking options and examples can be found in the [networking documentation](https://github.com/coreos/rkt/blob/master/Documentation/networking.md)
+
+## Run rkt as a Daemon
+
+rkt doesn't include any built-in support for running as a daemon.
+However, since it is a regular process, you can use your init system to achieve the same effect.
+
+For example, if you use systemd, you can [run rkt using `systemd-run`](https://github.com/coreos/rkt/blob/master/Documentation/using-rkt-with-systemd.md#systemd-run).
+
+If you don't use systemd, you can use [daemon](http://www.libslack.org/daemon/) as an alternative.

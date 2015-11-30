@@ -16,15 +16,15 @@ vagrant up --provider virtualbox
 vagrant ssh
 sudo -s
 
-wget https://github.com/coreos/rkt/releases/download/v0.9.0/rkt-v0.9.0.tar.gz
-tar xzvf rkt-v0.9.0.tar.gz
-cd rkt-v0.9.0
+wget https://github.com/coreos/rkt/releases/download/v0.12.0/rkt-v0.12.0.tar.gz
+tar xzvf rkt-v0.12.0.tar.gz
+cd rkt-v0.12.0
 ./rkt help
 ```
 
 ## Trust the CoreOS signing key
 
-This shows how to trust the CoreOS signing key using the [`rkt trust` command](https://github.com/coreos/rkt/blob/master/Documentation/commands.md#rkt-trust). 
+This shows how to trust the CoreOS signing key using the [`rkt trust` command](https://github.com/coreos/rkt/blob/master/Documentation/commands.md#rkt-trust).
 
 ```
 ./rkt trust --prefix=coreos.com/etcd
@@ -45,28 +45,17 @@ For more details on how signature verification works in rkt, see the [Signing an
 The simplest way to retrieve the etcd ACI is to use image discovery:
 
 ```
-./rkt fetch coreos.com/etcd:v2.0.9 
+./rkt fetch coreos.com/etcd:v2.0.9
 rkt: searching for app image coreos.com/etcd:v2.0.9
 rkt: fetching image from https://github.com/coreos/etcd/releases/download/v2.0.9/etcd-v2.0.9-linux-amd64.aci
 Downloading signature from https://github.com/coreos/etcd/releases/download/v2.0.9/etcd-v2.0.9-linux-amd64.aci.asc
 Downloading ACI: [================================             ] 2.71 MB/3.79 MB
-rkt: signature verified: 
+rkt: signature verified:
   CoreOS ACI Builder <release@coreos.com>
   sha512-91e98d7f1679a097c878203c9659f2a2
 ```
 
 For more on this and other ways to retrieve ACIs, check out the `rkt fetch` section of the [commands guide](https://github.com/coreos/rkt/blob/master/Documentation/commands.md#rkt-fetch).
-
-## Start the metadata service
-
-Before running the ACI we need to start the [metadata service](https://github.com/coreos/rkt/blob/master/Documentation/subcommands/metadata-service.md), which helps running apps introspect their execution environment and assert their pod identity.
-
-For simplicity, we'll start it as a background process and ignore its output but for real setups you should start it as a system service.
-
-```
-./rkt metadata-service >/dev/null 2>&1 &
-[1] 1692
-```
 
 ## Run the ACI
 

@@ -65,6 +65,30 @@ The next stage is a binary that the user trusts to set up cgroups, execute proce
 
 This process is slightly different for the qemu-kvm stage1 but a similar workflow starting at `exec()`'ing kvm instead of an nspawn.
 
+### Stage 1 systemd Architecture
+
+rkt's Stage 1 includes a very minimal systemd that takes care of launching the apps in each pod, apply per-app resource isolators and make sure the apps finish in an orderly manner.
+
+We will now detail how the starting, shutdown, and exist status collection of the apps in a pod are implemented internally.
+
+![rkt-systemd](rkt-systemd.png)
+
+There's a systemd rkt apps target (`default.target`) which has a [*Wants*](http://www.freedesktop.org/software/systemd/man/systemd.unit.html#Wants=) and [*After*](http://www.freedesktop.org/software/systemd/man/systemd.unit.html#Before=) dependency on each app's service file, making sure they all start.
+
+Each app's service has a *Wants* dependency on an associated reaper service that deals with writing the app's status exit.
+Each reaper service has a *Wants* and *After* dependency with a shutdown service that simply shuts down the pod.
+
+The reaper services and the shutdown service all start at the beginning but do nothing and remain after exit (with the [*RemainAfterExit*](http://www.freedesktop.org/software/systemd/man/systemd.service.html#RemainAfterExit=) flag).
+By using the [*StopWhenUnneeded*](http://www.freedesktop.org/software/systemd/man/systemd.unit.html#StopWhenUnneeded=) flag, whenever they stop being referenced, they'll do the actual work via the *ExecStop* command.
+
+This means that when an app service is stopped, its associated reaper will run and will write its exit status to `/rkt/status/${app}` and the other apps will continue running.
+When all apps' services stop, their associated reaper services will also stop and will cease referencing the shutdown service causing the pod to exit.
+Every app service has an [*OnFailure*](http://www.freedesktop.org/software/systemd/man/systemd.unit.html#OnFailure=) flag that starts the `halt.target`.
+This means that if any app in the pod exits with a failed status, the systemd shutdown process will start, the other apps' services will automatically stop and the pod will exit.
+
+A [*Conflicts*](http://www.freedesktop.org/software/systemd/man/systemd.unit.html#Conflicts=) dependency was also added between each reaper service and the halt and poweroff targets (they are triggered when the pod is stopped from the outside when rkt receives `SIGINT`).
+This will activate all the reaper services when one of the targets is activated, causing the exit statuses to be saved and the pod to finish like it was described in the previous paragraph.
+
 ### Stage 2
 
 The final stage, stage2, is the actual environment in which the applications run, as launched by stage1.

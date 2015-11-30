@@ -16,11 +16,16 @@
 package networking
 
 import (
+	"bufio"
 	"crypto/sha512"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net"
+	"os"
+	"strconv"
+	"strings"
+	"syscall"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/cni/pkg/ip"
 	cnitypes "github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/cni/pkg/types"
@@ -28,10 +33,23 @@ import (
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/vishvananda/netlink"
 
 	"github.com/coreos/rkt/common"
+	"github.com/coreos/rkt/networking/netinfo"
 	"github.com/coreos/rkt/networking/tuntap"
 )
 
-// setupTapDevice creates persistent tap devices
+const (
+	defaultBrName     = "kvm-cni0"
+	defaultSubnetFile = "/run/flannel/subnet.env"
+	defaultMTU        = 1500
+)
+
+type BridgeNetConf struct {
+	NetConf
+	BrName string `json:"bridge"`
+	IsGw   bool   `json:"isGateway"`
+}
+
+// setupTapDevice creates persistent tap device
 // and returns a newly created netlink.Link structure
 func setupTapDevice(podID types.UUID) (netlink.Link, error) {
 	// network device names are limited to 16 characters
@@ -41,20 +59,71 @@ func setupTapDevice(podID types.UUID) (netlink.Link, error) {
 	if err != nil {
 		return nil, fmt.Errorf("tuntap persist %v", err)
 	}
+
 	link, err := netlink.LinkByName(ifName)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find link %q: %v", ifName, err)
 	}
-	err = netlink.LinkSetUp(link)
-	if err != nil {
+
+	if err := netlink.LinkSetUp(link); err != nil {
 		return nil, fmt.Errorf("cannot set link up %q: %v", ifName, err)
+	}
+	return link, nil
+}
+
+type MacVTapNetConf struct {
+	NetConf
+	Master string `json:"master"`
+	Mode   string `json:"mode"`
+}
+
+// setupTapDevice creates persistent macvtap device
+// and returns a newly created netlink.Link structure
+func setupMacVTapDevice(podID types.UUID, config MacVTapNetConf) (netlink.Link, error) {
+	master, err := netlink.LinkByName(config.Master)
+	if err != nil {
+		return nil, fmt.Errorf("Cannot find master device '%v': %v", config.Master, err)
+	}
+	var mode netlink.MacvlanMode
+	switch config.Mode {
+	// if not set - defaults to bridge mode as in:
+	// https://github.com/coreos/rkt/blob/master/Documentation/networking.md#macvlan
+	case "", "bridge":
+		mode = netlink.MACVLAN_MODE_BRIDGE
+	case "private":
+		mode = netlink.MACVLAN_MODE_PRIVATE
+	case "vepa":
+		mode = netlink.MACVLAN_MODE_VEPA
+	case "passthru":
+		mode = netlink.MACVLAN_MODE_PASSTHRU
+	default:
+		return nil, fmt.Errorf("Unsupported macvtap mode: %v", config.Mode)
+	}
+	mtu := master.Attrs().MTU
+	if config.MTU != 0 {
+		mtu = config.MTU
+	}
+	nameTemplate := fmt.Sprintf("rkt-%s-vtap%%d", podID.String()[0:4])
+	link := &netlink.Macvtap{
+		Macvlan: netlink.Macvlan{
+			LinkAttrs: netlink.LinkAttrs{
+				Name:        nameTemplate,
+				MTU:         mtu,
+				ParentIndex: master.Attrs().Index,
+			},
+			Mode: mode,
+		},
+	}
+
+	if err := netlink.LinkAdd(link); err != nil {
+		return nil, fmt.Errorf("Cannot create macvtap interface: %v", err)
 	}
 	return link, nil
 }
 
 // kvmSetupNetAddressing calls IPAM plugin (with a hack) to reserve an IP to be
 // used by newly create tuntap pair
-// in result it updates activeNet.runtime configuration with IP, Mask and HostIP
+// in result it updates activeNet.runtime configuration
 func kvmSetupNetAddressing(network *Networking, n activeNet, ifName string) error {
 	// TODO: very ugly hack, that go through upper plugin, down to ipam plugin
 	if err := ip.EnableIP4Forward(); err != nil {
@@ -75,13 +144,264 @@ func kvmSetupNetAddressing(network *Networking, n activeNet, ifName string) erro
 		return fmt.Errorf("net-plugin returned no IPv4 configuration")
 	}
 
-	n.runtime.IP, n.runtime.Mask, n.runtime.HostIP = result.IP4.IP.IP, net.IP(result.IP4.IP.Mask), result.IP4.Gateway
+	n.runtime.IP, n.runtime.Mask, n.runtime.HostIP, n.runtime.IP4 = result.IP4.IP.IP, net.IP(result.IP4.IP.Mask), result.IP4.Gateway, result.IP4
+
+	return nil
+}
+
+func ensureHasAddr(link netlink.Link, ipn *net.IPNet) error {
+	addrs, err := netlink.AddrList(link, syscall.AF_INET)
+	if err != nil && err != syscall.ENOENT {
+		return fmt.Errorf("could not get list of IP addresses: %v", err)
+	}
+
+	// if there're no addresses on the interface, it's ok -- we'll add one
+	if len(addrs) > 0 {
+		ipnStr := ipn.String()
+		for _, a := range addrs {
+			// string comp is actually easiest for doing IPNet comps
+			if a.IPNet.String() == ipnStr {
+				return nil
+			}
+		}
+		return fmt.Errorf("%q already has an IP address different from %v", link.Attrs().Name, ipn.String())
+	}
+
+	addr := &netlink.Addr{IPNet: ipn, Label: link.Attrs().Name}
+	if err := netlink.AddrAdd(link, addr); err != nil {
+		return fmt.Errorf("could not add IP address to %q: %v", link.Attrs().Name, err)
+	}
+	return nil
+}
+
+func bridgeByName(name string) (*netlink.Bridge, error) {
+	l, err := netlink.LinkByName(name)
+	if err != nil {
+		return nil, fmt.Errorf("could not lookup %q: %v", name, err)
+	}
+	br, ok := l.(*netlink.Bridge)
+	if !ok {
+		return nil, fmt.Errorf("%q already exists but is not a bridge", name)
+	}
+	return br, nil
+}
+
+func ensureBridgeIsUp(brName string, mtu int) (*netlink.Bridge, error) {
+	br := &netlink.Bridge{
+		LinkAttrs: netlink.LinkAttrs{
+			Name: brName,
+			MTU:  mtu,
+		},
+	}
+
+	if err := netlink.LinkAdd(br); err != nil {
+		if err != syscall.EEXIST {
+			return nil, fmt.Errorf("could not add %q: %v", brName, err)
+		}
+
+		// it's ok if the device already exists as long as config is similar
+		br, err = bridgeByName(brName)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if err := netlink.LinkSetUp(br); err != nil {
+		return nil, err
+	}
+
+	return br, nil
+}
+
+func addRoute(link netlink.Link, podIP net.IP) error {
+	route := netlink.Route{
+		LinkIndex: link.Attrs().Index,
+		Scope:     netlink.SCOPE_LINK,
+		Dst: &net.IPNet{
+			IP:   podIP,
+			Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0xff),
+		},
+	}
+	return netlink.RouteAdd(&route)
+}
+
+func removeAllRoutesOnLink(link netlink.Link) error {
+	routes, err := netlink.RouteList(link, netlink.FAMILY_V4)
+	if err != nil {
+		return fmt.Errorf("cannot list routes on link %q: %v", link.Attrs().Name, err)
+	}
+
+	for _, route := range routes {
+		if err := netlink.RouteDel(&route); err != nil {
+			return fmt.Errorf("error in time of route removal for route %q: %v", route, err)
+		}
+	}
+
+	return nil
+}
+
+func getChainName(podUUIDString, confName string) string {
+	h := sha512.Sum512([]byte(podUUIDString))
+	return fmt.Sprintf("CNI-%s-%x", confName, h[:8])
+}
+
+type FlannelNetConf struct {
+	NetConf
+
+	SubnetFile string                 `json:"subnetFile"`
+	Delegate   map[string]interface{} `json:"delegate"`
+}
+
+func loadFlannelNetConf(bytes []byte) (*FlannelNetConf, error) {
+	n := &FlannelNetConf{
+		SubnetFile: defaultSubnetFile,
+	}
+	if err := json.Unmarshal(bytes, n); err != nil {
+		return nil, fmt.Errorf("failed to load netconf: %v", err)
+	}
+	return n, nil
+}
+
+type subnetEnv struct {
+	nw     *net.IPNet
+	sn     *net.IPNet
+	mtu    int
+	ipmasq bool
+}
+
+func loadFlannelSubnetEnv(fn string) (*subnetEnv, error) {
+	f, err := os.Open(fn)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	se := &subnetEnv{}
+
+	s := bufio.NewScanner(f)
+	for s.Scan() {
+		parts := strings.SplitN(s.Text(), "=", 2)
+		switch parts[0] {
+		case "FLANNEL_NETWORK":
+			_, se.nw, err = net.ParseCIDR(parts[1])
+			if err != nil {
+				return nil, err
+			}
+
+		case "FLANNEL_SUBNET":
+			_, se.sn, err = net.ParseCIDR(parts[1])
+			if err != nil {
+				return nil, err
+			}
+
+		case "FLANNEL_MTU":
+			mtu, err := strconv.ParseUint(parts[1], 10, 32)
+			if err != nil {
+				return nil, err
+			}
+			se.mtu = int(mtu)
+
+		case "FLANNEL_IPMASQ":
+			se.ipmasq = parts[1] == "true"
+		}
+	}
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
+
+	return se, nil
+}
+
+func hasKey(m map[string]interface{}, k string) bool {
+	_, ok := m[k]
+	return ok
+}
+
+func isString(i interface{}) bool {
+	_, ok := i.(string)
+	return ok
+}
+
+func kvmTransformFlannelNetwork(net *activeNet) error {
+	n, err := loadFlannelNetConf(net.confBytes)
+	if err != nil {
+		return err
+	}
+
+	fenv, err := loadFlannelSubnetEnv(n.SubnetFile)
+	if err != nil {
+		return err
+	}
+
+	if n.Delegate == nil {
+		n.Delegate = make(map[string]interface{})
+	} else {
+		if hasKey(n.Delegate, "type") && !isString(n.Delegate["type"]) {
+			return fmt.Errorf("'delegate' dictionary, if present, must have (string) 'type' field")
+		}
+		if hasKey(n.Delegate, "name") {
+			return fmt.Errorf("'delegate' dictionary must not have 'name' field, it'll be set by flannel")
+		}
+		if hasKey(n.Delegate, "ipam") {
+			return fmt.Errorf("'delegate' dictionary must not have 'ipam' field, it'll be set by flannel")
+		}
+	}
+
+	n.Delegate["name"] = n.Name
+
+	if !hasKey(n.Delegate, "type") {
+		n.Delegate["type"] = "bridge"
+	}
+
+	if !hasKey(n.Delegate, "ipMasq") {
+		// if flannel is not doing ipmasq, we should
+		ipmasq := !fenv.ipmasq
+		n.Delegate["ipMasq"] = ipmasq
+	}
+
+	if !hasKey(n.Delegate, "mtu") {
+		mtu := fenv.mtu
+		n.Delegate["mtu"] = mtu
+	}
+
+	if n.Delegate["type"].(string) == "bridge" {
+		if !hasKey(n.Delegate, "isGateway") {
+			n.Delegate["isGateway"] = true
+		}
+	}
+
+	n.Delegate["ipam"] = map[string]interface{}{
+		"type":   "host-local",
+		"subnet": fenv.sn.String(),
+		"routes": []cnitypes.Route{
+			cnitypes.Route{
+				Dst: *fenv.nw,
+			},
+		},
+	}
+
+	bytes, err := json.Marshal(n.Delegate)
+	if err != nil {
+		return fmt.Errorf("error in marshaling generated network settings: %v", err)
+	}
+
+	*net = activeNet{
+		confBytes: bytes,
+		conf:      &NetConf{},
+		runtime: &netinfo.NetInfo{
+			IP4: &cnitypes.IPConfig{},
+		},
+	}
+	net.conf.Name = n.Name
+	net.conf.Type = n.Delegate["type"].(string)
+	net.conf.IPMasq = n.Delegate["ipMasq"].(bool)
+	net.conf.MTU = n.Delegate["mtu"].(int)
+	net.conf.IPAM.Type = "host-local"
 	return nil
 }
 
 // kvmSetup prepare new Networking to be used in kvm environment based on tuntap pair interfaces
 // to allow communication with virtual machine created by lkvm tool
-// right now it only supports default "ptp" network type (other types ends with error)
 func kvmSetup(podRoot string, podID types.UUID, fps []ForwardedPort, netList common.NetList, localConfig string) (*Networking, error) {
 	network := Networking{
 		podEnv: podEnv{
@@ -97,7 +417,12 @@ func kvmSetup(podRoot string, podID types.UUID, fps []ForwardedPort, netList com
 		return nil, fmt.Errorf("error loading network definitions: %v", e)
 	}
 
-	for _, n := range network.nets {
+	for i, n := range network.nets {
+		if n.conf.Type == "flannel" {
+			if err := kvmTransformFlannelNetwork(&n); err != nil {
+				return nil, fmt.Errorf("cannot transform flannel network into basic network: %v", err)
+			}
+		}
 		switch n.conf.Type {
 		case "ptp":
 			link, err := setupTapDevice(podID)
@@ -113,32 +438,103 @@ func kvmSetup(podRoot string, podID types.UUID, fps []ForwardedPort, netList com
 			}
 
 			// add address to host tap device
-			err = netlink.AddrAdd(
+			err = ensureHasAddr(
 				link,
-				&netlink.Addr{
-					IPNet: &net.IPNet{
-						IP:   n.runtime.HostIP,
-						Mask: net.IPMask(n.runtime.Mask),
-					},
-					Label: ifName,
-				})
+				&net.IPNet{
+					IP:   n.runtime.IP4.Gateway,
+					Mask: net.IPMask(n.runtime.Mask),
+				},
+			)
 			if err != nil {
 				return nil, fmt.Errorf("cannot add address to host tap device %q: %v", ifName, err)
 			}
 
-			if n.conf.IPMasq {
-				h := sha512.Sum512([]byte(podID.String()))
-				chain := fmt.Sprintf("CNI-%s-%x", n.conf.Name, h[:8])
-				if err = ip.SetupIPMasq(&net.IPNet{
-					IP:   n.runtime.IP,
-					Mask: net.IPMask(n.runtime.Mask),
-				}, chain); err != nil {
-					return nil, err
+			if err := removeAllRoutesOnLink(link); err != nil {
+				return nil, fmt.Errorf("cannot remove route on host tap device %q: %v", ifName, err)
+			}
+
+			if err := addRoute(link, n.runtime.IP); err != nil {
+				return nil, fmt.Errorf("cannot add on host direct route to pod: %v", err)
+			}
+
+		case "bridge":
+			config := BridgeNetConf{
+				NetConf: NetConf{
+					MTU: defaultMTU,
+				},
+				BrName: defaultBrName,
+			}
+			if err := json.Unmarshal(n.confBytes, &config); err != nil {
+				return nil, fmt.Errorf("error parsing %q result: %v", n.conf.Name, err)
+			}
+
+			br, err := ensureBridgeIsUp(config.BrName, config.MTU)
+			if err != nil {
+				return nil, fmt.Errorf("error in time of bridge setup: %v", err)
+			}
+			link, err := setupTapDevice(podID)
+			if err != nil {
+				return nil, fmt.Errorf("can not setup tap device: %v", err)
+			}
+			err = netlink.LinkSetMaster(link, br)
+			if err != nil {
+				// TODO: cleanup tap interface
+				return nil, fmt.Errorf("can not add tap interface to bridge: %v", err)
+			}
+
+			ifName := link.Attrs().Name
+			n.runtime.IfName = ifName
+
+			err = kvmSetupNetAddressing(&network, n, ifName)
+			if err != nil {
+				return nil, err
+			}
+
+			if config.IsGw {
+				err = ensureHasAddr(
+					br,
+					&net.IPNet{
+						IP:   n.runtime.IP4.Gateway,
+						Mask: net.IPMask(n.runtime.Mask),
+					},
+				)
+
+				if err != nil {
+					return nil, fmt.Errorf("cannot add address to host bridge device %q: %v", br.Name, err)
 				}
 			}
+
+		case "macvlan":
+			config := MacVTapNetConf{}
+			if err := json.Unmarshal(n.confBytes, &config); err != nil {
+				return nil, fmt.Errorf("error parsing %q result: %v", n.conf.Name, err)
+			}
+			link, err := setupMacVTapDevice(podID, config)
+			if err != nil {
+				return nil, err
+			}
+			ifName := link.Attrs().Name
+			n.runtime.IfName = ifName
+
+			err = kvmSetupNetAddressing(&network, n, ifName)
+			if err != nil {
+				return nil, err
+			}
+
 		default:
 			return nil, fmt.Errorf("network %q have unsupported type: %q", n.conf.Name, n.conf.Type)
 		}
+
+		if n.conf.IPMasq {
+			chain := getChainName(podID.String(), n.conf.Name)
+			if err := ip.SetupIPMasq(&net.IPNet{
+				IP:   n.runtime.IP,
+				Mask: net.IPMask(n.runtime.Mask),
+			}, chain); err != nil {
+				return nil, err
+			}
+		}
+		network.nets[i] = n
 	}
 	err := network.forwardPorts(fps, network.GetDefaultIP())
 	if err != nil {
@@ -157,30 +553,44 @@ extend Networking struct with methods to clean up kvm specific network configura
 func (n *Networking) teardownKvmNets() {
 	for _, an := range n.nets {
 		switch an.conf.Type {
-		case "ptp":
+		case "ptp", "bridge":
 			// remove tuntap interface
 			tuntap.RemovePersistentIface(an.runtime.IfName, tuntap.Tap)
-			// remove masquerading if it was prepared
-			if an.conf.IPMasq {
-				h := sha512.Sum512([]byte(n.podID.String()))
-				chain := fmt.Sprintf("CNI-%s-%x", an.conf.Name, h[:8])
-				err := ip.TeardownIPMasq(&net.IPNet{
-					IP:   an.runtime.IP,
-					Mask: net.IPMask(an.runtime.Mask),
-				}, chain)
+
+		case "macvlan":
+			link, err := netlink.LinkByName(an.runtime.IfName)
+			if err != nil {
+				log.Printf("Cannot find link `%v`: %v", an.runtime.IfName, err)
+				continue
+			} else {
+				err := netlink.LinkDel(link)
 				if err != nil {
-					log.Printf("Error on removing masquerading: %q", err)
+					log.Printf("Cannot remove link `%v`: %v", an.runtime.IfName, err)
+					continue
 				}
 			}
-			// ugly hack again to directly call IPAM plugin to release IP
-			an.conf.Type = an.conf.IPAM.Type
 
-			_, err := n.execNetPlugin("DEL", &an, an.runtime.IfName)
-			if err != nil {
-				log.Printf("Error executing network plugin: %q", err)
-			}
 		default:
 			log.Printf("Unsupported network type: %q", an.conf.Type)
+			continue
+		}
+		// ugly hack again to directly call IPAM plugin to release IP
+		an.conf.Type = an.conf.IPAM.Type
+
+		_, err := n.execNetPlugin("DEL", &an, an.runtime.IfName)
+		if err != nil {
+			log.Printf("Error executing network plugin: %q", err)
+		}
+		// remove masquerading if it was prepared
+		if an.conf.IPMasq {
+			chain := getChainName(n.podID.String(), an.conf.Name)
+			err := ip.TeardownIPMasq(&net.IPNet{
+				IP:   an.runtime.IP,
+				Mask: net.IPMask(an.runtime.Mask),
+			}, chain)
+			if err != nil {
+				log.Printf("Error on removing masquerading: %q", err)
+			}
 		}
 	}
 }
@@ -193,7 +603,6 @@ func (n *Networking) kvmTeardown() {
 		log.Printf("Error removing forwarded ports (kvm): %v", err)
 	}
 	n.teardownKvmNets()
-
 }
 
 // Following methods implements behavior of netDescriber by activeNet
@@ -206,6 +615,16 @@ func (an activeNet) GuestIP() net.IP {
 	return an.runtime.IP
 }
 func (an activeNet) IfName() string {
+	if an.conf.Type == "macvlan" {
+		// macvtap device passed as parameter to lkvm binary have different
+		// kind of name, path to /dev/tapN made with N as link index
+		link, err := netlink.LinkByName(an.runtime.IfName)
+		if err != nil {
+			log.Printf("Cannot get interface '%v': %v", an.runtime.IfName, err)
+			return ""
+		}
+		return fmt.Sprintf("/dev/tap%d", link.Attrs().Index)
+	}
 	return an.runtime.IfName
 }
 func (an activeNet) Mask() net.IP {
@@ -216,6 +635,12 @@ func (an activeNet) Name() string {
 }
 func (an activeNet) IPMasq() bool {
 	return an.conf.IPMasq
+}
+func (an activeNet) Gateway() net.IP {
+	return an.runtime.IP4.Gateway
+}
+func (an activeNet) Routes() []cnitypes.Route {
+	return an.runtime.IP4.Routes
 }
 
 // GetActiveNetworks returns activeNets to be used as NetDescriptors

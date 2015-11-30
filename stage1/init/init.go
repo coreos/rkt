@@ -20,6 +20,7 @@ package main
 // #include <stdlib.h>
 // #include <dlfcn.h>
 // #include <sys/types.h>
+// #include <unistd.h>
 //
 // int
 // my_sd_pid_get_owner_uid(void *f, pid_t pid, uid_t *uid)
@@ -48,6 +49,11 @@ package main
 //   return sd_pid_get_slice(pid, slice);
 // }
 //
+// int
+// am_session_leader()
+// {
+//   return (getsid(0) == getpid());
+// }
 import "C"
 
 // this implements /init of stage1/nspawn+systemd
@@ -250,7 +256,7 @@ func installAssets() error {
 
 // getArgsEnv returns the nspawn or lkvm args and env according to the flavor used
 func getArgsEnv(p *Pod, flavor string, debug bool, n *networking.Networking) ([]string, []string, error) {
-	args := []string{}
+	var args []string
 	env := os.Environ()
 
 	// We store the pod's flavor so we can later garbage collect it correctly
@@ -269,7 +275,7 @@ func getArgsEnv(p *Pod, flavor string, debug bool, n *networking.Networking) ([]
 		kernelPath := filepath.Join(common.Stage1RootfsPath(p.Root), "bzImage")
 		lkvmPath := filepath.Join(common.Stage1RootfsPath(p.Root), "lkvm")
 		netDescriptions := kvm.GetNetworkDescriptions(n)
-		lkvmNetArgs, kernelNetParams, err := kvm.GetKVMNetArgs(netDescriptions)
+		lkvmNetArgs, err := kvm.GetKVMNetArgs(netDescriptions)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -285,7 +291,6 @@ func getArgsEnv(p *Pod, flavor string, debug bool, n *networking.Networking) ([]
 			"noreplace-smp",
 			"systemd.default_standard_error=journal+console",
 			"systemd.default_standard_output=journal+console",
-			strings.Join(kernelNetParams, " "),
 			// "systemd.default_standard_output=tty",
 			"tsc=reliable",
 			"MACHINEID=" + p.UUID.String(),
@@ -339,7 +344,7 @@ func getArgsEnv(p *Pod, flavor string, debug bool, n *networking.Networking) ([]
 		args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), nspawnBin))
 		args = append(args, "--boot") // Launch systemd in the pod
 
-		if context := os.Getenv(common.SELinuxContext); context != "" {
+		if context := os.Getenv(common.EnvSELinuxContext); context != "" {
 			args = append(args, fmt.Sprintf("-Z%s", context))
 		}
 
@@ -356,7 +361,7 @@ func getArgsEnv(p *Pod, flavor string, debug bool, n *networking.Networking) ([]
 		args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), nspawnBin))
 		args = append(args, "--boot") // Launch systemd in the pod
 
-		if context := os.Getenv(common.SELinuxContext); context != "" {
+		if context := os.Getenv(common.EnvSELinuxContext); context != "" {
 			args = append(args, fmt.Sprintf("-Z%s", context))
 		}
 
@@ -397,7 +402,7 @@ func getArgsEnv(p *Pod, flavor string, debug bool, n *networking.Networking) ([]
 		args = append(args, "--boot") // Launch systemd in the pod
 		args = append(args, fmt.Sprintf("--register=true"))
 
-		if context := os.Getenv(common.SELinuxContext); context != "" {
+		if context := os.Getenv(common.EnvSELinuxContext); context != "" {
 			args = append(args, fmt.Sprintf("-Z%s", context))
 		}
 
@@ -423,6 +428,8 @@ func getArgsEnv(p *Pod, flavor string, debug bool, n *networking.Networking) ([]
 		args = append(args, "--quiet")             // silence most nspawn output (log_warning is currently not covered by this)
 		env = append(env, "SYSTEMD_LOG_LEVEL=err") // silence log_warning too
 	}
+
+	env = append(env, "SYSTEMD_NSPAWN_CONTAINER_SERVICE=rkt")
 
 	if len(privateUsers) > 0 {
 		args = append(args, "--private-users="+privateUsers)
@@ -467,7 +474,7 @@ func withClearedCloExec(lfd int, f func() error) error {
 }
 
 func forwardedPorts(pod *Pod) ([]networking.ForwardedPort, error) {
-	fps := []networking.ForwardedPort{}
+	var fps []networking.ForwardedPort
 
 	for _, ep := range pod.Manifest.Ports {
 		n := ""
@@ -552,7 +559,7 @@ func stage1() int {
 	}
 
 	var n *networking.Networking
-	if netList.Any() {
+	if netList.Contained() {
 		fps, err := forwardedPorts(p)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err.Error())
@@ -598,6 +605,13 @@ func stage1() int {
 	if err = p.WritePrepareAppTemplate(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to write prepare-app service template: %v\n", err)
 		return 2
+	}
+
+	if flavor == "kvm" {
+		if err := p.KvmPodToSystemd(n); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to configure systemd for kvm: %v\n", err)
+			return 2
+		}
 	}
 
 	if err = p.PodToSystemd(interactive, flavor, privateUsers); err != nil {
@@ -853,7 +867,6 @@ func isRunningFromUnitFile() (ret bool, err error) {
 	if handle == nil {
 		// we can't open libsystemd.so so we assume systemd is not
 		// installed and we're not running from a unit file
-		ret = false
 		return
 	}
 	defer func() {
@@ -874,15 +887,14 @@ func isRunningFromUnitFile() (ret bool, err error) {
 	// ENOENT (systemd <220) or ENXIO (systemd >=220)
 	switch {
 	case errno >= 0:
-		ret = false
-		return
 	case syscall.Errno(-errno) == syscall.ENOENT || syscall.Errno(-errno) == syscall.ENXIO:
-		ret = true
-		return
+		if C.am_session_leader() == 1 {
+			ret = true
+		}
 	default:
 		err = fmt.Errorf("error calling sd_pid_get_owner_uid: %v", syscall.Errno(-errno))
-		return
 	}
+	return
 }
 
 func main() {

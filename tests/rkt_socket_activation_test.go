@@ -29,6 +29,7 @@ import (
 
 	sd_dbus "github.com/coreos/rkt/Godeps/_workspace/src/github.com/coreos/go-systemd/dbus"
 	sd_util "github.com/coreos/rkt/Godeps/_workspace/src/github.com/coreos/go-systemd/util"
+	"github.com/coreos/rkt/tests/testutils"
 )
 
 func randomFreePort(t *testing.T) (int, error) {
@@ -66,8 +67,8 @@ func TestSocketActivation(t *testing.T) {
 		fmt.Sprintf("--ports=%d-tcp,protocol=tcp,port=%d,socketActivated=true", port, port))
 	defer os.Remove(echoImage)
 
-	ctx := newRktRunCtx()
-	defer ctx.cleanup()
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
 
 	conn, err := sd_dbus.New()
 	if err != nil {
@@ -85,9 +86,15 @@ func TestSocketActivation(t *testing.T) {
 
 	rnd := r.Int()
 
-	cmd := fmt.Sprintf("%s --insecure-skip-verify run --mds-register=false %s", ctx.cmd(), echoImage)
+	// Write unit files directly to runtime system units directory
+	// (/run/systemd/system) to avoid calling LinkUnitFiles - it is buggy in
+	// systemd v219 as it does not work with absolute paths.
+	unitsDir := "/run/systemd/system"
+
+	cmd := fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s", ctx.Cmd(), echoImage)
 	serviceContent := fmt.Sprintf(rktTestingEchoService, cmd)
-	serviceTarget := fmt.Sprintf("rkt-testing-socket-activation-%d.service", rnd)
+	serviceTargetBase := fmt.Sprintf("rkt-testing-socket-activation-%d.service", rnd)
+	serviceTarget := filepath.Join(unitsDir, serviceTargetBase)
 
 	if err := ioutil.WriteFile(serviceTarget, []byte(serviceContent), 0666); err != nil {
 		t.Fatal(err)
@@ -102,31 +109,13 @@ func TestSocketActivation(t *testing.T) {
 	ListenStream=%d
 	`
 	socketContent := fmt.Sprintf(rktTestingEchoSocket, port)
-	socketTarget := fmt.Sprintf("rkt-testing-socket-activation-%d.socket", rnd)
+	socketTargetBase := fmt.Sprintf("rkt-testing-socket-activation-%d.socket", rnd)
+	socketTarget := filepath.Join(unitsDir, socketTargetBase)
 
 	if err := ioutil.WriteFile(socketTarget, []byte(socketContent), 0666); err != nil {
 		t.Fatal(err)
 	}
 	defer os.Remove(socketTarget)
-
-	serviceTargetAbs, err := filepath.Abs(serviceTarget)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = conn.LinkUnitFiles([]string{serviceTargetAbs}, true, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	socketTargetAbs, err := filepath.Abs(socketTarget)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if _, err := conn.LinkUnitFiles([]string{socketTargetAbs}, true, false); err != nil {
-		t.Fatal(err)
-	}
 
 	reschan := make(chan string)
 	doJob := func() {
@@ -136,18 +125,18 @@ func TestSocketActivation(t *testing.T) {
 		}
 	}
 
-	if _, err := conn.StartUnit(socketTarget, "replace", reschan); err != nil {
+	if _, err := conn.StartUnit(socketTargetBase, "replace", reschan); err != nil {
 		t.Fatal(err)
 	}
 	doJob()
 
 	defer func() {
-		if _, err := conn.StopUnit(socketTarget, "replace", reschan); err != nil {
+		if _, err := conn.StopUnit(socketTargetBase, "replace", reschan); err != nil {
 			t.Fatal(err)
 		}
 		doJob()
 
-		if _, err := conn.StopUnit(serviceTarget, "replace", reschan); err != nil {
+		if _, err := conn.StopUnit(serviceTargetBase, "replace", reschan); err != nil {
 			t.Fatal(err)
 		}
 		doJob()

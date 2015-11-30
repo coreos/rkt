@@ -20,18 +20,21 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/cni/pkg/types"
 )
 
 const filename = "net-info.json"
 
 type NetInfo struct {
-	NetName  string `json:"netName"`
-	ConfPath string `json:"netConf"`
-	IfName   string `json:"ifName"`
-	IP       net.IP `json:"ip"`
-	Args     string `json:"args"`
-	Mask     net.IP `json:"mask"` // we used IP instead of IPMask because support for json serialization (we don't need specifc functionalities
-	HostIP   net.IP `json:"-"`
+	NetName  string          `json:"netName"`
+	ConfPath string          `json:"netConf"`
+	IfName   string          `json:"ifName"`
+	IP       net.IP          `json:"ip"`
+	Args     string          `json:"args"`
+	Mask     net.IP          `json:"mask"` // we used IP instead of IPMask because support for json serialization (we don't need specifc functionalities
+	HostIP   net.IP          `json:"-"`
+	IP4      *types.IPConfig `json:"-"`
 }
 
 func LoadAt(cdirfd int) ([]NetInfo, error) {
@@ -42,7 +45,7 @@ func LoadAt(cdirfd int) ([]NetInfo, error) {
 
 	f := os.NewFile(uintptr(fd), filename)
 
-	info := []NetInfo{}
+	var info []NetInfo
 	err = json.NewDecoder(f).Decode(&info)
 	return info, err
 }

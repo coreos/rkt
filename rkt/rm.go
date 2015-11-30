@@ -116,13 +116,15 @@ func removePod(p *pod) bool {
 			return false
 		}
 
+	// p.isExitedGarbage and p.isExited can be true at the same time. Test
+	// the most specific case first.
+	case p.isExitedGarbage, p.isGarbage:
+
 	case p.isExited:
 		if err := p.xToExitedGarbage(); err != nil && err != os.ErrNotExist {
 			stderr("Rename error: %v", err)
 			return false
 		}
-
-	case p.isExitedGarbage, p.isGarbage:
 	}
 
 	if err := p.ExclusiveLock(); err != nil {

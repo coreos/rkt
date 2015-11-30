@@ -15,6 +15,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"runtime"
 	"strings"
@@ -23,11 +24,12 @@ import (
 )
 
 var (
+	outputJson  bool
 	cmdDiscover = &Command{
 		Name:        "discover",
 		Description: "Discover the download URLs for an app",
 		Summary:     "Discover the download URLs for one or more app container images",
-		Usage:       "APP...",
+		Usage:       "[--json] APP...",
 		Run:         runDiscover,
 	}
 )
@@ -35,6 +37,8 @@ var (
 func init() {
 	cmdDiscover.Flags.BoolVar(&transportFlags.Insecure, "insecure", false,
 		"Allow insecure non-TLS downloads over http")
+	cmdDiscover.Flags.BoolVar(&outputJson, "json", false,
+		"Output result as JSON")
 }
 
 func runDiscover(args []string) (exit int) {
@@ -54,7 +58,7 @@ func runDiscover(args []string) (exit int) {
 			stderr("%s: %s", name, err)
 			return 1
 		}
-		eps, attempts, err := discovery.DiscoverEndpoints(*app, transportFlags.Insecure)
+		eps, attempts, err := discovery.DiscoverEndpoints(*app, nil, transportFlags.Insecure)
 		if err != nil {
 			stderr("error fetching %s: %s", name, err)
 			return 1
@@ -62,11 +66,20 @@ func runDiscover(args []string) (exit int) {
 		for _, a := range attempts {
 			fmt.Printf("discover walk: prefix: %s error: %v\n", a.Prefix, a.Error)
 		}
-		for _, aciEndpoint := range eps.ACIEndpoints {
-			fmt.Printf("ACI: %s, ASC: %s\n", aciEndpoint.ACI, aciEndpoint.ASC)
-		}
-		if len(eps.Keys) > 0 {
-			fmt.Println("Keys: " + strings.Join(eps.Keys, ","))
+		if outputJson {
+			jsonBytes, err := json.MarshalIndent(&eps, "", "    ")
+			if err != nil {
+				stderr("error generating JSON: %s", err)
+				return 1
+			}
+			fmt.Println(string(jsonBytes))
+		} else {
+			for _, aciEndpoint := range eps.ACIEndpoints {
+				fmt.Printf("ACI: %s, ASC: %s\n", aciEndpoint.ACI, aciEndpoint.ASC)
+			}
+			if len(eps.Keys) > 0 {
+				fmt.Println("Keys: " + strings.Join(eps.Keys, ","))
+			}
 		}
 	}
 

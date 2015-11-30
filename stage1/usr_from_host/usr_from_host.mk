@@ -1,13 +1,11 @@
 $(call setup-stamp-file,UFH_STAMP)
 
-STAGE1_USR_STAMPS += $(UFH_STAMP)
+S1_RF_USR_STAMPS += $(UFH_STAMP)
 
-$(call forward-vars,$(UFH_STAMP), \
-	ACIROOTFSDIR)
-$(UFH_STAMP): | $(ACIROOTFSDIR)
-	ln -sf 'host' "$(ACIROOTFSDIR)/flavor"
-	touch "$@"
+$(call generate-stamp-rule,$(UFH_STAMP),,$(S1_RF_ACIROOTFSDIR), \
+	$(call vb,v2,LN SF,host $(S1_RF_ACIROOTFSDIR)/flavor) \
+	ln -sf 'host' "$(S1_RF_ACIROOTFSDIR)/flavor")
 
-CLEAN_SYMLINKS += $(ACIROOTFSDIR)/flavor
+CLEAN_SYMLINKS += $(S1_RF_ACIROOTFSDIR)/flavor
 
 $(call undefine-namespaces,UFH)

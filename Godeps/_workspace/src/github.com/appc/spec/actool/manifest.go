@@ -197,19 +197,11 @@ func patchManifest(im *schema.ImageManifest) error {
 
 		// Instantiate a Isolator with the content specified by the --capability
 		// parameter.
-
-		// TODO: Instead of creating a JSON and then unmarshalling it, the isolator
-		// should be instantiated directory. But it requires a constructor, see:
-		// https://github.com/appc/spec/issues/268
-		capsList := strings.Split(patchCaps, ",")
-		caps := fmt.Sprintf(`"set": ["%s"]`, strings.Join(capsList, `", "`))
-		isolatorStr := getIsolatorStr(types.LinuxCapabilitiesRetainSetName, caps)
-		isolator = &types.Isolator{}
-		err := isolator.UnmarshalJSON([]byte(isolatorStr))
+		caps, err := types.NewLinuxCapabilitiesRetainSet(strings.Split(patchCaps, ",")...)
 		if err != nil {
 			return fmt.Errorf("cannot parse capability %q: %v", patchCaps, err)
 		}
-		app.Isolators = append(app.Isolators, *isolator)
+		app.Isolators = append(app.Isolators, caps.AsIsolator())
 	}
 
 	if patchMounts != "" {

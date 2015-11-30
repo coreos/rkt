@@ -29,8 +29,7 @@ _BGB_RKT_SYMLINK_NAME_ := $(GOPATH)/$(_BGB_RKT_BASE_SYMLINK_)
 
 $(call setup-custom-stamp-file,_BGB_RKT_SYMLINK_STAMP_,$(_BGB_PATH_)/rkt-symlink)
 
-$(_BGB_RKT_SYMLINK_STAMP_): | $(_BGB_RKT_SYMLINK_NAME_)
-	touch "$@"
+$(call generate-stamp-rule,$(_BGB_RKT_SYMLINK_STAMP_),,$(_BGB_RKT_SYMLINK_NAME_))
 
 INSTALL_SYMLINKS += $(MK_TOPLEVEL_ABS_SRCDIR):$(_BGB_RKT_SYMLINK_NAME_)
 CREATE_DIRS += $(call dir-chain,$(GOPATH),$(call to-dir,$(_BGB_RKT_BASE_SYMLINK_)))
@@ -45,6 +44,8 @@ $(call setup-dep-file,_BGB_KV_DEPMK,$(_BGB_PKG_NAME_)/kv)
 $(call forward-vars,$(BGB_BINARY), \
 	BGB_ADDITIONAL_GO_ENV GO_ENV GO BGB_GO_FLAGS _BGB_PKG_NAME_)
 $(BGB_BINARY): $(_BGB_PATH_) $(_BGB_RKT_SYMLINK_STAMP_)
+	$(VQ) \
+	$(call vb,vt,GO,$(call vsg,$(_BGB_PKG_NAME_))) \
 	$(BGB_ADDITIONAL_GO_ENV) $(GO_ENV) "$(GO)" build -o "$@" $(BGB_GO_FLAGS) "$(_BGB_PKG_NAME_)"
 
 $(call generate-go-deps,$(_BGB_GO_DEPMK_STAMP_),$(BGB_BINARY),$(_BGB_GO_DEPMK),$(BGB_PKG_IN_REPO))

@@ -41,7 +41,7 @@ func main() {
 
 func getValidArgs() (string, []string) {
 	filename := ""
-	mapTo := []string{}
+	var mapTo []string
 	mapToWrapper := common.StringSliceWrapper{
 		Slice: &mapTo,
 	}

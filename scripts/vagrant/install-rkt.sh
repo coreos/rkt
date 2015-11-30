@@ -16,7 +16,7 @@ if ! [ -d app-spec ]; then
   popd
 fi
 
-which unsquash || sudo apt-get install -y squashfs-tools autoconf
+which unsquashfs || sudo apt-get install -y squashfs-tools autoconf
 
 pushd /vagrant
 ./autogen.sh && ./configure && make BUILDDIR=build-rkt
