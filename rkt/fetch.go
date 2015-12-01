@@ -35,7 +35,7 @@ import (
 )
 
 const (
-	defaultOS   = runtime.GOOS
+defaultOS   = runtime.GOOS
 	defaultArch = runtime.GOARCH
 )
 
