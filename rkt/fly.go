@@ -88,11 +88,11 @@ func runFlyPrepareApp(apps *apps.Apps) (string, *types.App, error) {
 
 	fn := &finder{
 		imageActionData: imageActionData{
-			s:                  s,
-			headers:            config.AuthPerHost,
-			dockerAuth:         config.DockerCredentialsPerRegistry,
-			insecureSkipVerify: globalFlags.InsecureSkipVerify,
-			debug:              globalFlags.Debug,
+			s:             s,
+			headers:       config.AuthPerHost,
+			dockerAuth:    config.DockerCredentialsPerRegistry,
+			insecureFlags: globalFlags.InsecureFlags,
+			debug:         globalFlags.Debug,
 		},
 		storeOnly: flagStoreOnly,
 		noStore:   flagNoStore,
