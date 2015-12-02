@@ -288,6 +288,7 @@ func runFly(cmd *cobra.Command, args []string) (exit int) {
 			{"", "", "/", "none", syscall.MS_REC | syscall.MS_SLAVE},
 			{"", "", "/", "none", syscall.MS_REC | syscall.MS_SHARED},
 
+			{rfs, rfs, "/", "none", syscall.MS_BIND | syscall.MS_REC},
 			{"/dev", rfs, "/dev", "none", syscall.MS_BIND | syscall.MS_REC},
 			{"/proc", rfs, "/proc", "none", syscall.MS_BIND | syscall.MS_REC},
 			{"/sys", rfs, "/sys", "none", syscall.MS_BIND | syscall.MS_REC},
