@@ -22,6 +22,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"syscall"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema"
@@ -69,6 +70,11 @@ func init() {
 	// argument. All the subsequent parsing will be done by parseApps.
 	// This is needed to correctly handle image args
 	cmdFly.Flags().SetInterspersed(false)
+
+	// this ensures that main runs only on main thread (thread group leader).
+	// since namespace ops (unshare, setns) are done for a single thread, we
+	// must ensure that the goroutine does not jump from OS thread to thread
+	runtime.LockOSThread()
 }
 
 func runFlyPrepareApp(apps *apps.Apps) (string, *types.App, error) {
