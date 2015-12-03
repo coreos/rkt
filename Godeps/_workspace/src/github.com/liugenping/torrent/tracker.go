@@ -197,7 +197,7 @@ func (tracker *Tracker) sendHTTPRequest(data *TrackerRequestData) error {
 			httpResponse.StatusCode, httpResponse.Status)
 	}
 
-	resp, err := bencode.Decode(httpResponse.Body)
+	resp, err := Decode(httpResponse.Body)
 	if err != nil {
 		return err
 	}

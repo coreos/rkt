@@ -15,17 +15,18 @@
 package main
 
 import (
-	"runtime"
-	"os/exec"
-    "os/signal"
-	"syscall"
 	"net/rpc"
 	"os"
+	"os/exec"
+	"os/signal"
 	"path"
+	"runtime"
 	"strconv"
+	"syscall"
 
-	"time"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/common/apps"
@@ -35,7 +36,7 @@ import (
 )
 
 const (
-defaultOS   = runtime.GOOS
+	defaultOS   = runtime.GOOS
 	defaultArch = runtime.GOARCH
 )
 
@@ -63,102 +64,97 @@ func init() {
 
 func p2pFetch(args []string) int {
 	if len(args) < 1 {
-		stderr("fetch: must provide tottent file.")
+		fmt.Printf("rkt fetch must provide a tottent file.")
 		return 1
 	}
-	
-	d:=strconv.Itoa(flagP2pDuration)
-	//start p2p client		
+
+	duration := strconv.Itoa(flagP2pDuration)
+	//start p2p client
 	var cmd *exec.Cmd
-	cmd = exec.Command("./torrent", args[0],d)
-	err := cmd.Start()
-	if err != nil {
-		fmt.Printf("start p2p process err,%s\n",err)
+	cmd = exec.Command("./torrent", args[0], duration)
+	if err := cmd.Start(); err != nil {
+		fmt.Printf("start p2p process err:%s\n", err)
 		return 1
 	}
-	
-	pid:=cmd.Process.Pid
+
+	pid := cmd.Process.Pid
 
 	//handle Ctrl+C signal
-	go func(){	
-		c := make(chan os.Signal, 1)
-	    signal.Notify(c, os.Interrupt, os.Kill)
-	
-	    <-c
-		if err = syscall.Kill(pid, 9); err != nil {
-			fmt.Printf("kill p2p client process err,%s\n",err)
+	go func() {
+		signalChan := make(chan os.Signal, 1)
+		signal.Notify(signalChan, os.Interrupt, os.Kill)
+
+		<-signalChan
+		if err := syscall.Kill(pid, 9); err != nil {
+			fmt.Printf("kill p2p client process err:%s\n", err)
 		}
-   }()
+	}()
 
 	//wait for p2p client start
 	time.Sleep(time.Second * time.Duration(7))
-	
+
+	var (
+		client  *rpc.Client
+		err     error
+		s       *store.Store
+		aciFile *os.File
+		key     string
+	)
 	//connet to p2p client process and get download rate
-	client, err := rpc.DialHTTP("tcp", "127.0.0.1:1234")
-	if err != nil {
-		fmt.Printf("connet to p2p client err,%s\n", err)
+	if client, err = rpc.DialHTTP("tcp", "127.0.0.1:1234"); err != nil {
+		fmt.Printf("connet to p2p client err:%s\n", err)
 		return 1
 	}
 	reply := make([]string, 1)
-	err = client.Call("Download.GetDownloadTotalSize", struct{}{}, &reply)
-	if err != nil {
-		fmt.Printf("get download total size err,%s\n", err)
+	if err = client.Call("Download.GetDownloadTotalSize", struct{}{}, &reply); err != nil {
+		fmt.Printf("get download total size err:%s\n", err)
 		return 1
 	}
-	totalSize:=reply[0]	
-	
-	err = client.Call("Download.GetDownloadFile", struct{}{}, &reply)
-	if err != nil {
-		fmt.Printf("get download file err,%s\n", err)
+	totalSize := reply[0]
+
+	if err = client.Call("Download.GetDownloadFile", struct{}{}, &reply); err != nil {
+		fmt.Printf("get download file err:%s\n", err)
 		return 1
 	}
-	aciImage := reply[0]	
+	aciImage := reply[0]
 
 	//get rate for download
 	for {
-		err = client.Call("Download.GetDownloadRate", struct{}{}, &reply)
-		if err != nil {
-			fmt.Printf("get download rate err,%s\n", err)
+		if err = client.Call("Download.GetDownloadRate", struct{}{}, &reply); err != nil {
+			fmt.Printf("get download rate err:%s\n", err)
 			return 1
 		}
-		fmt.Printf("\rtotal Size:%sKB, downloaded:%s",totalSize,reply) 
-		if reply[0]=="100.00%"{
+		fmt.Printf("\rtotal size:%sKB, downloaded:%s", totalSize, reply)
+		if reply[0] == "100.00%" {
 			break
 		}
 		time.Sleep(time.Second * time.Duration(5))
 	}
-	
+
 	//save aci to rkt store
-	s, err := store.NewStore(globalFlags.Dir)
-	if err != nil {
-		fmt.Printf("cannot open store: %v", err)
+	if s, err = store.NewStore(globalFlags.Dir); err != nil {
+		fmt.Printf("open rkt store err:%s\n", err)
 		return 1
 	}
-	aciFile, err := os.Open(aciImage)
-	if err != nil {
-		fmt.Printf("opening ACI file %s failed: %v", aciImage, err)
+	if aciFile, err = os.Open(aciImage); err != nil {
+		fmt.Printf("opening ACI file %s err:%s\n", aciImage, err)
 		return 1
 	}
-	key, err := s.WriteACI(aciFile, true)
-	if err != nil {
-		fmt.Printf("write ACI file failed: %v", err)
+	if key, err = s.WriteACI(aciFile, true); err != nil {
+		fmt.Printf("write ACI file err:%s\n", err)
 		return 1
 	}
 	fmt.Println(key)
-		
+
 	return 0
 }
 
 func runFetch(cmd *cobra.Command, args []string) (exit int) {
-	
-	//check if use p2p download
-	b:=func(fileName string) bool{
-    	_, err := os.Stat(fileName)
-    	return err == nil || os.IsExist(err)
-	}(args[0])
-	if b{
-		fileSuffix := path.Ext(args[0])
-		if fileSuffix ==".torrent"{
+	//start p2p download if args[0] is a torrent file
+	file := strings.TrimSpace(args[0])
+	if _, err := os.Stat(file); err == nil || os.IsExist(err) {
+		if fileSuffix := path.Ext(file); fileSuffix == ".torrent" {
+			//use p2p download
 			return p2pFetch(args)
 		}
 	}

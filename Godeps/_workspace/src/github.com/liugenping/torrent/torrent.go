@@ -138,7 +138,7 @@ func (torrent *Torrent) Open(filename string) error {
 	}
 	defer file.Close()
 
-	data, err := bencode.Decode(file)
+	data, err := Decode(file)
 	if err != nil {
 		return err
 	}
@@ -161,7 +161,7 @@ func (torrent *Torrent) Open(filename string) error {
 	torrent.Name = info["name"].(string)
 	torrent.PieceLength = info["piece length"].(int64)
 
-	infoHash := sha1.Sum(bencode.Encode(info))
+	infoHash := sha1.Sum(Encode(info))
 
 	// Set handshake
 	var buffer bytes.Buffer
@@ -412,7 +412,7 @@ func (torrent *Torrent) tim() {
 	}
 }
 
-func (torrent *Torrent) Download() error{
+func (torrent *Torrent) Download() error {
 	if torrent.CompletedPieces == len(torrent.Pieces) {
 		return fmt.Errorf("Download finished.")
 	}
@@ -421,7 +421,7 @@ func (torrent *Torrent) Download() error{
 	torrent.tcpserver = NewTCPServer("0.0.0.0", 6881, torrent)
 	err := torrent.tcpserver.start()
 	if err != nil {
-		return  fmt.Errorf("start tcp server fail.")
+		return fmt.Errorf("start tcp server fail.")
 	}
 
 	torrent.activeTrackerChannel = make(chan int)
