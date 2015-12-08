@@ -169,7 +169,7 @@ func extractFile(tr *tar.Reader, target string, hdr *tar.Header, overwrite bool,
 		}
 		dir.Close()
 	case typ == tar.TypeLink:
-		dest := filepath.Join("/", hdr.Linkname)
+		dest := filepath.Join(target, hdr.Linkname)
 		if err := os.Link(dest, p); err != nil {
 			return err
 		}

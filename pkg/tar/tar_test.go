@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"syscall"
 	"testing"
 	"time"
 
@@ -170,7 +171,12 @@ func TestExtractTarFolders(t *testing.T) {
 	if !sys.HasChrootCapability() {
 		t.Skipf("chroot capability not available. Disabling test.")
 	}
-
+	testExtractTarFolders(t, extractTarHelper)
+}
+func TestExtractTarFoldersInsecure(t *testing.T) {
+	testExtractTarFolders(t, extractTarInsecureHelper)
+}
+func testExtractTarFolders(t *testing.T, extractTar func(io.Reader, string) error) {
 	entries := []*testTarEntry{
 		{
 			contents: "foo",
@@ -250,7 +256,7 @@ func TestExtractTarFolders(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 	defer os.RemoveAll(tmpdir)
-	err = ExtractTar(containerTar, tmpdir, false, uid.NewBlankUidRange(), nil)
+	err = extractTar(containerTar, tmpdir)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -350,6 +356,12 @@ func TestExtractTarPWL(t *testing.T) {
 	if !sys.HasChrootCapability() {
 		t.Skipf("chroot capability not available. Disabling test.")
 	}
+	testExtractTarPWL(t, extractTarHelperPWL)
+}
+func TestExtractTarPWLInsecure(t *testing.T) {
+	testExtractTarPWL(t, extractTarInsecureHelperPWL)
+}
+func testExtractTarPWL(t *testing.T, extractTar func(rdr io.Reader, target string, pwl PathWhitelistMap) error) {
 	entries := []*testTarEntry{
 		{
 			header: &tar.Header{
@@ -398,7 +410,7 @@ func TestExtractTarPWL(t *testing.T) {
 
 	pwl := make(PathWhitelistMap)
 	pwl["folder/foo.txt"] = struct{}{}
-	err = ExtractTar(containerTar, tmpdir, false, uid.NewBlankUidRange(), pwl)
+	err = extractTar(containerTar, tmpdir, pwl)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -415,7 +427,12 @@ func TestExtractTarOverwrite(t *testing.T) {
 	if !sys.HasChrootCapability() {
 		t.Skipf("chroot capability not available. Disabling test.")
 	}
-
+	testExtractTarOverwrite(t, extractTarHelper)
+}
+func TestExtractTarOverwriteInsecure(t *testing.T) {
+	testExtractTarOverwrite(t, extractTarInsecureHelper)
+}
+func testExtractTarOverwrite(t *testing.T, extractTar func(io.Reader, string) error) {
 	tmpdir, err := ioutil.TempDir("", "rkt-temp-dir")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -503,7 +520,7 @@ func TestExtractTarOverwrite(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	defer containerTar1.Close()
-	err = ExtractTar(containerTar1, tmpdir, false, uid.NewBlankUidRange(), nil)
+	err = extractTar(containerTar1, tmpdir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -583,7 +600,7 @@ func TestExtractTarOverwrite(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 	defer containerTar2.Close()
-	err = ExtractTar(containerTar2, tmpdir, true, uid.NewBlankUidRange(), nil)
+	err = extractTar(containerTar2, tmpdir)
 
 	expectedFiles := []*fileInfo{
 		&fileInfo{path: "hello.txt", typeflag: tar.TypeReg, size: 8, contents: "newhello"},
@@ -608,7 +625,12 @@ func TestExtractTarTimes(t *testing.T) {
 	if !sys.HasChrootCapability() {
 		t.Skipf("chroot capability not available. Disabling test.")
 	}
-
+	testExtractTarTimes(t, extractTarHelper)
+}
+func TestExtractTarTimesInsecure(t *testing.T) {
+	testExtractTarTimes(t, extractTarInsecureHelper)
+}
+func testExtractTarTimes(t *testing.T, extractTar func(io.Reader, string) error) {
 	// Do not set ns as tar has second precision
 	time1 := time.Unix(100000, 0)
 	time2 := time.Unix(200000, 0)
@@ -659,7 +681,7 @@ func TestExtractTarTimes(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
-	err = ExtractTar(containerTar, tmpdir, false, uid.NewBlankUidRange(), nil)
+	err = extractTar(containerTar, tmpdir)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -691,4 +713,96 @@ func checkTime(path string, time time.Time) error {
 		return fmt.Errorf("%s: info.ModTime: %s, different from expected time: %s", path, info.ModTime(), time)
 	}
 	return nil
+}
+
+func TestExtractTarHardLink(t *testing.T) {
+	if !sys.HasChrootCapability() {
+		t.Skipf("chroot capability not available. Disabling test.")
+	}
+	testExtractTarHardLink(t, extractTarHelper)
+}
+func TestExtractTarHardLinkInsecure(t *testing.T) {
+	testExtractTarHardLink(t, extractTarInsecureHelper)
+}
+func testExtractTarHardLink(t *testing.T, extractTar func(io.Reader, string) error) {
+	entries := []*testTarEntry{
+		{
+			contents: "foo",
+			header: &tar.Header{
+				Name: "/foo.txt",
+				Size: 3,
+			},
+		},
+		{
+			header: &tar.Header{
+				Name:     "foolink",
+				Typeflag: tar.TypeLink,
+				Linkname: "/foo.txt",
+			},
+		},
+	}
+
+	testTarPath, err := newTestTar(entries)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	defer os.Remove(testTarPath)
+	containerTar, err := os.Open(testTarPath)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	defer containerTar.Close()
+	tmpdir, err := ioutil.TempDir("", "rkt-temp-dir")
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	os.RemoveAll(tmpdir)
+	err = os.MkdirAll(tmpdir, 0755)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	defer os.RemoveAll(tmpdir)
+	err = extractTar(containerTar, tmpdir)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	var origFile syscall.Stat_t
+	err = syscall.Stat(filepath.Join(tmpdir, "/foo.txt"), &origFile)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	var linkedFile syscall.Stat_t
+	err = syscall.Stat(filepath.Join(tmpdir, "/foolink"), &linkedFile)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if origFile.Nlink != 2 {
+		t.Errorf("wrong number of nlinks on original file, expecting: 2, actual: %d", origFile.Nlink)
+	}
+	if linkedFile.Nlink != 2 {
+		t.Errorf("wrong number of nlinks on linked file, expecting: 2, actual: %d", origFile.Nlink)
+	}
+	if origFile.Ino != linkedFile.Ino {
+		t.Errorf("original file and linked file have different inodes")
+	}
+}
+
+func extractTarHelper(rdr io.Reader, target string) error {
+	return extractTarHelperPWL(rdr, target, nil)
+}
+
+func extractTarHelperPWL(rdr io.Reader, target string, pwl PathWhitelistMap) error {
+	return ExtractTar(rdr, target, false, uid.NewBlankUidRange(), pwl)
+}
+
+func extractTarInsecureHelper(rdr io.Reader, target string) error {
+	return extractTarInsecureHelperPWL(rdr, target, nil)
+}
+
+func extractTarInsecureHelperPWL(rdr io.Reader, target string, pwl PathWhitelistMap) error {
+	editor, err := NewUidShiftingFilePermEditor(uid.NewBlankUidRange())
+	if err != nil {
+		return err
+	}
+	return ExtractTarInsecure(tar.NewReader(rdr), target, true, pwl, editor)
 }
