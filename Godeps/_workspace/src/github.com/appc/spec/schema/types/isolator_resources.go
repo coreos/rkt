@@ -128,6 +128,21 @@ func (r ResourceCPU) AssertValid() error {
 	return nil
 }
 
+func (r ResourceCPU) AsIsolator() Isolator {
+	isol := isolatorMap[ResourceCPUName]()
+
+	b, err := json.Marshal(r.val)
+	if err != nil {
+		panic(err)
+	}
+	valRaw := json.RawMessage(b)
+	return Isolator{
+		Name:     ResourceCPUName,
+		ValueRaw: &valRaw,
+		value:    isol,
+	}
+}
+
 func NewResourceCPUIsolator(request, limit string) (*ResourceCPU, error) {
 	req, err := resource.ParseQuantity(request)
 	if err != nil {
@@ -165,6 +180,21 @@ func (r ResourceMemory) AssertValid() error {
 		return ErrDefaultTrue
 	}
 	return nil
+}
+
+func (r ResourceMemory) AsIsolator() Isolator {
+	isol := isolatorMap[ResourceMemoryName]()
+
+	b, err := json.Marshal(r.val)
+	if err != nil {
+		panic(err)
+	}
+	valRaw := json.RawMessage(b)
+	return Isolator{
+		Name:     ResourceMemoryName,
+		ValueRaw: &valRaw,
+		value:    isol,
+	}
 }
 
 func NewResourceMemoryIsolator(request, limit string) (*ResourceMemory, error) {

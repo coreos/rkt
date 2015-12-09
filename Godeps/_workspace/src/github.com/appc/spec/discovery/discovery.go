@@ -124,7 +124,7 @@ func createTemplateVars(app App) []string {
 	return tplVars
 }
 
-func doDiscover(pre string, hostHeaders map[string]http.Header, app App, insecure bool) (*Endpoints, error) {
+func doDiscover(pre string, hostHeaders map[string]http.Header, app App, insecure InsecureOption) (*Endpoints, error) {
 	app = *app.Copy()
 	if app.Labels["version"] == "" {
 		app.Labels["version"] = defaultVersion
@@ -173,7 +173,7 @@ func doDiscover(pre string, hostHeaders map[string]http.Header, app App, insecur
 // optionally will use HTTP if insecure is set. hostHeaders specifies the
 // header to apply depending on the host (e.g. authentication). Based on the
 // response of the discoverFn it will continue to recurse up the tree.
-func DiscoverWalk(app App, hostHeaders map[string]http.Header, insecure bool, discoverFn DiscoverWalkFunc) (err error) {
+func DiscoverWalk(app App, hostHeaders map[string]http.Header, insecure InsecureOption, discoverFn DiscoverWalkFunc) (err error) {
 	var (
 		eps *Endpoints
 	)
@@ -221,7 +221,7 @@ func walker(out *Endpoints, attempts *[]FailedAttempt, testFn DiscoverWalkFunc) 
 // specifies the header to apply depending on the host (e.g. authentication).
 // It will not give up until it has exhausted the path or found an image
 // discovery.
-func DiscoverEndpoints(app App, hostHeaders map[string]http.Header, insecure bool) (out *Endpoints, attempts []FailedAttempt, err error) {
+func DiscoverEndpoints(app App, hostHeaders map[string]http.Header, insecure InsecureOption) (out *Endpoints, attempts []FailedAttempt, err error) {
 	out = &Endpoints{}
 	testFn := func(pre string, eps *Endpoints, err error) error {
 		if len(out.ACIEndpoints) != 0 {
@@ -242,7 +242,7 @@ func DiscoverEndpoints(app App, hostHeaders map[string]http.Header, insecure boo
 // tags and optionally will use HTTP if insecure is set. hostHeaders
 // specifies the header to apply depending on the host (e.g. authentication).
 // It will not give up until it has exhausted the path or found an public key.
-func DiscoverPublicKeys(app App, hostHeaders map[string]http.Header, insecure bool) (out *Endpoints, attempts []FailedAttempt, err error) {
+func DiscoverPublicKeys(app App, hostHeaders map[string]http.Header, insecure InsecureOption) (out *Endpoints, attempts []FailedAttempt, err error) {
 	out = &Endpoints{}
 	testFn := func(pre string, eps *Endpoints, err error) error {
 		if len(out.Keys) != 0 {

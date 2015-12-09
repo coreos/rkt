@@ -36,7 +36,7 @@ var (
 
 func init() {
 	cmdDiscover.Flags.BoolVar(&transportFlags.Insecure, "insecure", false,
-		"Allow insecure non-TLS downloads over http")
+		"Don't check TLS certificates and allow insecure non-TLS downloads over http")
 	cmdDiscover.Flags.BoolVar(&outputJson, "json", false,
 		"Output result as JSON")
 }
@@ -58,7 +58,11 @@ func runDiscover(args []string) (exit int) {
 			stderr("%s: %s", name, err)
 			return 1
 		}
-		eps, attempts, err := discovery.DiscoverEndpoints(*app, nil, transportFlags.Insecure)
+		insecure := discovery.InsecureNone
+		if transportFlags.Insecure {
+			insecure = discovery.InsecureTls | discovery.InsecureHttp
+		}
+		eps, attempts, err := discovery.DiscoverEndpoints(*app, nil, insecure)
 		if err != nil {
 			stderr("error fetching %s: %s", name, err)
 			return 1
