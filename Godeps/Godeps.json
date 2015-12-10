@@ -84,43 +84,43 @@
 		},
 		{
 			"ImportPath": "github.com/appc/spec/ace",
-			"Comment": "v0.7.3",
-			"Rev": "bd945b97e7b02aabbea5b772d3375aa44a100dcd"
+			"Comment": "v0.7.4",
+			"Rev": "0875c991a496fe2b65ed296551c667b199a6bfb8"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/aci",
-			"Comment": "v0.7.3",
-			"Rev": "bd945b97e7b02aabbea5b772d3375aa44a100dcd"
+			"Comment": "v0.7.4",
+			"Rev": "0875c991a496fe2b65ed296551c667b199a6bfb8"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/actool",
-			"Comment": "v0.7.3",
-			"Rev": "bd945b97e7b02aabbea5b772d3375aa44a100dcd"
+			"Comment": "v0.7.4",
+			"Rev": "0875c991a496fe2b65ed296551c667b199a6bfb8"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/discovery",
-			"Comment": "v0.7.3",
-			"Rev": "bd945b97e7b02aabbea5b772d3375aa44a100dcd"
+			"Comment": "v0.7.4",
+			"Rev": "0875c991a496fe2b65ed296551c667b199a6bfb8"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/pkg/acirenderer",
-			"Comment": "v0.7.3",
-			"Rev": "bd945b97e7b02aabbea5b772d3375aa44a100dcd"
+			"Comment": "v0.7.4",
+			"Rev": "0875c991a496fe2b65ed296551c667b199a6bfb8"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/pkg/device",
-			"Comment": "v0.7.3",
-			"Rev": "bd945b97e7b02aabbea5b772d3375aa44a100dcd"
+			"Comment": "v0.7.4",
+			"Rev": "0875c991a496fe2b65ed296551c667b199a6bfb8"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/pkg/tarheader",
-			"Comment": "v0.7.3",
-			"Rev": "bd945b97e7b02aabbea5b772d3375aa44a100dcd"
+			"Comment": "v0.7.4",
+			"Rev": "0875c991a496fe2b65ed296551c667b199a6bfb8"
 		},
 		{
 			"ImportPath": "github.com/appc/spec/schema",
-			"Comment": "v0.7.3",
-			"Rev": "bd945b97e7b02aabbea5b772d3375aa44a100dcd"
+			"Comment": "v0.7.4",
+			"Rev": "0875c991a496fe2b65ed296551c667b199a6bfb8"
 		},
 		{
 			"ImportPath": "github.com/bradfitz/http2",
