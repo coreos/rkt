@@ -784,19 +784,28 @@ func getContainerSubCgroup(machineID string) (string, error) {
 	return subcgroup, nil
 }
 
-func getUnitFileName() (unit string, err error) {
-	libname := C.CString("libsystemd.so.0")
+func getSoHandle(name string) (handle unsafe.Pointer, err error, cleanupFunc func()) {
+	libname := C.CString(name)
 	defer C.free(unsafe.Pointer(libname))
-	handle := C.dlopen(libname, C.RTLD_LAZY)
+	handle = C.dlopen(libname, C.RTLD_LAZY)
 	if handle == nil {
-		err = fmt.Errorf("error opening libsystemd.so.0")
+		err = fmt.Errorf("error opening %s. LD_LIBRARY_PATH=%q", C.GoString(C.dlerror()), os.Getenv("LD_LIBRARY_PATH"))
 		return
 	}
-	defer func() {
+	cleanupFunc = func() {
 		if r := C.dlclose(handle); r != 0 {
-			err = fmt.Errorf("error closing libsystemd.so.0")
+			err = fmt.Errorf("error closing %s", name)
 		}
-	}()
+	}
+	return
+}
+
+func getUnitFileName() (unit string, err error) {
+	handle, err, cleanupFunc := getSoHandle("libsystemd.so.0")
+	if err != nil {
+		return
+	}
+	defer cleanupFunc()
 
 	sym := C.CString("sd_pid_get_unit")
 	defer C.free(unsafe.Pointer(sym))
@@ -821,18 +830,11 @@ func getUnitFileName() (unit string, err error) {
 }
 
 func getSlice() (slice string, err error) {
-	libname := C.CString("libsystemd.so.0")
-	defer C.free(unsafe.Pointer(libname))
-	handle := C.dlopen(libname, C.RTLD_LAZY)
-	if handle == nil {
-		err = fmt.Errorf("error opening libsystemd.so.0")
+	handle, err, cleanupFunc := getSoHandle("libsystemd.so.0")
+	if err != nil {
 		return
 	}
-	defer func() {
-		if r := C.dlclose(handle); r != 0 {
-			err = fmt.Errorf("error closing libsystemd.so.0")
-		}
-	}()
+	defer cleanupFunc()
 
 	sym := C.CString("sd_pid_get_slice")
 	defer C.free(unsafe.Pointer(sym))
@@ -860,18 +862,11 @@ func isRunningFromUnitFile() (ret bool, err error) {
 	if !util.IsRunningSystemd() {
 		return
 	}
-	libname := C.CString("libsystemd.so.0")
-	defer C.free(unsafe.Pointer(libname))
-	handle := C.dlopen(libname, C.RTLD_LAZY)
-	if handle == nil {
-		err = fmt.Errorf("error opening libsystemd.so.0")
+	handle, err, cleanupFunc := getSoHandle("libsystemd.so.0")
+	if err != nil {
 		return
 	}
-	defer func() {
-		if r := C.dlclose(handle); r != 0 {
-			err = fmt.Errorf("error closing libsystemd.so")
-		}
-	}()
+	defer cleanupFunc()
 
 	sd_pid_get_owner_uid := C.dlsym(handle, C.CString("sd_pid_get_owner_uid"))
 	if sd_pid_get_owner_uid == nil {
