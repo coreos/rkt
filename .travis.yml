@@ -2,17 +2,18 @@
 
 language: go
 
-go:
- - 1.4
+matrix:
+  include:
+    - go: 1.4.2
+      install:
+        - go get golang.org/x/tools/cmd/cover
+        - go get golang.org/x/tools/cmd/vet
+    - go: 1.5.1
 
 before_install:
  - sudo apt-get update -qq
  - sudo apt-get install -y cpio realpath squashfs-tools
  - sudo apt-get install -y build-essential
-
-install:
- - go get golang.org/x/tools/cmd/cover
- - go get golang.org/x/tools/cmd/vet
 
 script:
  - ./autogen.sh
