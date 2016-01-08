@@ -84,6 +84,11 @@ func (e *podEnv) pluginPaths() []string {
 }
 
 func (e *podEnv) findNetPlugin(plugin string) string {
+	// try to find the plugin directly first
+	if fi, err := os.Stat(plugin); err == nil && fi.Mode().IsRegular() {
+		return plugin
+	}
+
 	for _, p := range e.pluginPaths() {
 		fullname := filepath.Join(p, plugin)
 		if fi, err := os.Stat(fullname); err == nil && fi.Mode().IsRegular() {
