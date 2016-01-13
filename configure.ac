@@ -463,9 +463,6 @@ AC_SUBST(RKT_DEFINES_FOR_ENTER)
 # Check whether we can build TPM support code
 AC_CHECK_HEADER(trousers/tss.h, [TPM_TAGS=tpm], [], [AC_INCLUDES_DEFAULT])
 
-# Check whether we have libacl
-AC_CHECK_HEADER(acl/libacl.h, [], [AC_MSG_ERROR([*** No development headers for libacl found. Try to install libacl-devel or libacl1-dev])], [AC_INCLUDES_DEFAULT])
-
 AC_SUBST(TPM_TAGS)
 
 AC_LANG_POP([C])

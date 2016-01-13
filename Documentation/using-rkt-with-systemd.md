@@ -293,7 +293,6 @@ To actually see all the cgroups, use `--all` flag. This will show two cgroups fo
 ## journalctl -M
 
 To see the logs from your service, use `journalctl -M <machine-id>`. You can get machine id from `machinectl list`.
-For journalctl to work for non-root users, you need to have the proper permissions in rkt's data directory (you can achieve that by running `rkt install`) and belong to the `rkt` group.
 
 ```
 -- Logs begin at Fri 2015-07-17 12:38:27 CEST, end at Fri 2015-07-17 12:38:29 CEST. --

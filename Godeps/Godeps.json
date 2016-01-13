@@ -279,10 +279,6 @@
 			"Rev": "f7ee69f31298ecbe5d2b349c711e2547a617d398"
 		},
 		{
-			"ImportPath": "github.com/naegelejd/go-acl",
-			"Rev": "c78b6dad599cb929480c906df0069a90b3fbc597"
-		},
-		{
 			"ImportPath": "github.com/pborman/uuid",
 			"Rev": "cccd189d45f7ac3368a0d127efb7f4d08ae0b655"
 		},

@@ -33,8 +33,6 @@ import (
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/coreos/go-systemd/unit"
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/naegelejd/go-acl"
-
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/common/cgroup"
 	"github.com/coreos/rkt/pkg/uid"
@@ -175,34 +173,6 @@ func writeAppReaper(p *stage1commontypes.Pod, appName string) error {
 
 	if _, err = io.Copy(file, unit.Serialize(opts)); err != nil {
 		return fmt.Errorf("failed to write service unit file: %v", err)
-	}
-
-	return nil
-}
-
-// SetJournalPermissions sets ACLs and permissions so the rkt group can access
-// the pod's logs
-func SetJournalPermissions(p *stage1commontypes.Pod) error {
-	s1 := common.Stage1ImagePath(p.Root)
-
-	rktgid, err := common.LookupGid(common.RktGroup)
-	if err != nil {
-		return fmt.Errorf("group %q not found", common.RktGroup)
-	}
-
-	journalPath := filepath.Join(s1, "rootfs", "var", "log", "journal")
-	if err := os.MkdirAll(journalPath, os.FileMode(0755)); err != nil {
-		return fmt.Errorf("error creating journal dir: %v", err)
-	}
-
-	a, err := acl.Parse(fmt.Sprintf("g:%d:r-x,m:r-x", rktgid))
-	if err != nil {
-		panic(fmt.Sprintf("error parsing ACL string: %v", err))
-	}
-	defer a.Free()
-
-	if err := a.SetFileDefault(journalPath); err != nil {
-		return err
 	}
 
 	return nil

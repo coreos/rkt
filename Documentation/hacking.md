@@ -20,7 +20,6 @@ For the most part the codebase is self-contained (e.g. all dependencies are vend
   * gcc
   * glibc development and static pieces (on Fedora/RHEL/Centos: glibc-devel and glibc-static packages, on Debian/Ubuntu libc6-dev package)
   * gpg
-  * libacl development files (on Fedora/RHEL/Centos: libacl-devel, on Debian/Ubuntu libacl1-dev)
   * make
   * openssl
   * patch

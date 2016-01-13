@@ -546,10 +546,6 @@ func stage1() int {
 		return 2
 	}
 
-	if err := stage1initcommon.SetJournalPermissions(p); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: error setting journal ACLs, you'll need root to read the pod journal: %v", err)
-	}
-
 	if flavor == "kvm" {
 		if err := KvmPodToSystemd(p, n); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to configure systemd for kvm: %v\n", err)
