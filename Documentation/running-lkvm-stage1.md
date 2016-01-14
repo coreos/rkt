@@ -12,7 +12,7 @@ $ ./autogen.sh && ./configure --with-stage1-flavors=kvm && make
 ```
 
 For more details about configure parameters, see [configure script parameters documentation](build-configure.md).
-This will build the rkt binary and the LKVM stage1-kvm.aci in `build-rkt-0.15.0+git/bin/`.
+This will build the rkt binary and the LKVM stage1-kvm.aci in `build-rkt-0.15.1+git/bin/`.
 
 Provided you have hardware virtualization support and the [kernel KVM module](http://www.linux-kvm.org/page/Getting_the_kvm_kernel_modules) loaded (refer to your distribution for instructions), you can then run an image like you would normally do with rkt:
 

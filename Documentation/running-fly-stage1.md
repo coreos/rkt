@@ -60,7 +60,7 @@ $ ./autogen.sh && ./configure --with-stage1-flavors=fly && make
 ```
 
 For more details about configure parameters, see the [configure script parameters documentation](build-configure.md).
-This will build the rkt binary and the stage1-fly.aci in `build-rkt-0.15.0+git/bin/`.
+This will build the rkt binary and the stage1-fly.aci in `build-rkt-0.15.1+git/bin/`.
 
 ### Selecting stage1 at runtime
 

@@ -1,8 +1,33 @@
-## vUNRELEASED
+## v0.15.1
+
+The primary motivation for this release is to remove the dependency on libacl because that library is not in CoreOS ([revert of #1877](https://github.com/coreos/rkt/pull/1877)).
+This release also ensure that TODO.
 
 #### New features and UX changes
 
-- Explicitly allow http connections via a new 'http' option to `--insecure-options`. Any data and credentials will be sent in the clear.
+- Explicitly allow http connections via a new 'http' option to `--insecure-options` ([#1945](https://github.com/coreos/rkt/pull/1945)). Any data and credentials will be sent in the clear.
+- When using `bash`, `rkt` commands can be auto-completed ([#1955](https://github.com/coreos/rkt/pull/1955)).
+- The executable given on the command line via the `--exec` parameters don't need to be absolute paths anymore ([#1953](https://github.com/coreos/rkt/pull/1953)). This change reflects an update in the appc spec since [v0.7.2](https://github.com/appc/spec/releases/tag/v0.7.2). See rkt's [rkt run --exec](https://github.com/coreos/rkt/blob/master/Documentation/subcommands/run.md#overriding-executable-to-launch) documentation.
+
+#### Build improvements
+
+- Fix vagrant rkt build ([#1960](https://github.com/coreos/rkt/pull/1960)).
+
+#### Test improvements
+
+- A new script to run test on AWS makes it easier to test under several distributions: CentOS, Debian, Fedora, Ubuntu ([#1925](https://github.com/coreos/rkt/pull/1925)).
+- tests: skip userns tests when userns does not work #1947
+
+#### Other changes
+
+- Cleanups in the kvm stage1 ([#1895](https://github.com/coreos/rkt/pull/1895))
+- Document stage1 filesystem layout for developers ([#1832](https://github.com/coreos/rkt/pull/1832))
+
+#### Note for packagers
+
+With this release, `rkt` RPM/dpkg packages should have the following updates:
+
+- Install the new file `dist/bash_completion/rkt.bash` in `/etc/bash_completion.d/`.
 
 ## v0.15.0
 
