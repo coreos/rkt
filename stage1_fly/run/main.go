@@ -218,8 +218,16 @@ func stage1() int {
 		return 1
 	}
 
-	// TODO: insert environment from manifest
-	env := []string{"PATH=/bin:/sbin:/usr/bin:/usr/local/bin"}
+	envList := p.Manifest.Apps[0].App.Environment
+	defaultEnv := []string{"PATH=/bin:/sbin:/usr/bin:/usr/local/bin"}
+	env := make([]string, len(envList))
+	for _, e := range envList {
+		if _, exists := envList.Get(defaultEnv[0]); !exists {
+			env = append(env, defaultEnv[0])
+		}
+		env = append(env, e.Name+"="+e.Value)
+	}
+	
 	args := p.Manifest.Apps[0].App.Exec
 	rfs := filepath.Join(common.AppPath(p.Root, p.Manifest.Apps[0].Name), "rootfs")
 
