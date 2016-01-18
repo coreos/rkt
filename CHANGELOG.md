@@ -1,8 +1,21 @@
-## vUNREASED
+## vUNRELEASED
 
 #### New features and UX changes
 
 - Add pod creation and start times to `rkt list` and `rkt status` ([#2030](https://github.com/coreos/rkt/pull/2030)). See [`rkt list`](https://github.com/coreos/rkt/blob/master/Documentation/subcommands/list.md) and [`rkt status`](https://github.com/coreos/rkt/blob/master/Documentation/subcommands/status.md) documentation.
+- Added configuration for stage1 image. User can drop a configuration file to `/etc/rkt/stage1.d` (or to `stage1.d` in user configuration directory) to tell rkt to use different name, version and location of stage1 image instead of build-time defaults ([#1977](https://github.com/coreos/rkt/pull/1977)).
+- Replaced `--stage1-image` flag with a new set of flags. `--stage1-url`, `--stage-path`, `--stage1-name` do the usual fetching from remote if image does not exist in store. `--stage1-hash` takes stage1 image directly from store. `--stage1-from-dir` works together with the default stage1 images directory and is described in the next point ([#1977](https://github.com/coreos/rkt/pull/1977)).
+- Added default stage1 images directory. User can use the newly added `--stage1-from-dir` parameter to avoid typing the full path. `--stage1-from-dir` behaves like `--stage1-path` ([#1977](https://github.com/coreos/rkt/pull/1977)).
+
+#### Migration
+
+- The `--stage1-image` flag was removed. Scripts using it should be updated to use one of `--stage1-url`, `--stage1-path`, `--stage1-name`, `--stage1-hash` or `--stage1-from-dir`
+
+#### Note for packagers
+
+With this release, `rkt` RPM/dpkg packages should have the following updates:
+
+- Use the `--with-default-stage1-images-directory` configure flag, if the default is not satisfiable and install the built stage1 images there.
 
 ## v0.16.0
 
