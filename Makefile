@@ -16,6 +16,7 @@ TOPLEVEL_FUNCTIONAL_CHECK_STAMPS :=
 TOPLEVEL_SUBDIRS := rkt tests stage1 stage1_fly
 
 $(call inc-one,tools/tools.mk)
+$(call inc-one,torrent/torrent.mk)
 $(call inc-many,$(foreach sd,$(TOPLEVEL_SUBDIRS),$(sd)/$(sd).mk))
 
 all: $(TOPLEVEL_STAMPS)
