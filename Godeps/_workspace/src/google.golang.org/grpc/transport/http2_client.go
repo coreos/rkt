@@ -43,13 +43,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/bradfitz/http2"
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/bradfitz/http2/hpack"
 	"github.com/coreos/rkt/Godeps/_workspace/src/golang.org/x/net/context"
+	"github.com/coreos/rkt/Godeps/_workspace/src/golang.org/x/net/http2"
+	"github.com/coreos/rkt/Godeps/_workspace/src/golang.org/x/net/http2/hpack"
 	"github.com/coreos/rkt/Godeps/_workspace/src/google.golang.org/grpc/codes"
 	"github.com/coreos/rkt/Godeps/_workspace/src/google.golang.org/grpc/credentials"
 	"github.com/coreos/rkt/Godeps/_workspace/src/google.golang.org/grpc/grpclog"
 	"github.com/coreos/rkt/Godeps/_workspace/src/google.golang.org/grpc/metadata"
+	"github.com/coreos/rkt/Godeps/_workspace/src/google.golang.org/grpc/peer"
 )
 
 // http2Client implements the ClientTransport interface with HTTP2.
@@ -238,10 +239,14 @@ func (t *http2Client) NewStream(ctx context.Context, callHdr *CallHdr) (_ *Strea
 			return nil, ContextErr(context.DeadlineExceeded)
 		}
 	}
+	pr := &peer.Peer{
+		Addr: t.conn.RemoteAddr(),
+	}
 	// Attach Auth info if there is any.
 	if t.authInfo != nil {
-		ctx = credentials.NewContext(ctx, t.authInfo)
+		pr.AuthInfo = t.authInfo
 	}
+	ctx = peer.NewContext(ctx, pr)
 	authData := make(map[string]string)
 	for _, c := range t.authCreds {
 		// Construct URI required to get auth request metadata.
@@ -293,7 +298,18 @@ func (t *http2Client) NewStream(ctx context.Context, callHdr *CallHdr) (_ *Strea
 	}
 	s := t.newStream(ctx, callHdr)
 	t.activeStreams[s.id] = s
+
+	// This stream is not counted when applySetings(...) initialize t.streamsQuota.
+	// Reset t.streamsQuota to the right value.
+	var reset bool
+	if !checkStreamsQuota && t.streamsQuota != nil {
+		reset = true
+	}
 	t.mu.Unlock()
+	if reset {
+		t.streamsQuota.reset(-1)
+	}
+
 	// HPACK encodes various headers. Note that once WriteField(...) is
 	// called, the corresponding headers/continuation frame has to be sent
 	// because hpack.Encoder is stateful.
@@ -372,6 +388,11 @@ func (t *http2Client) CloseStream(s *Stream, err error) {
 	if updateStreams {
 		t.streamsQuota.add(1)
 	}
+	// In case stream sending and receiving are invoked in separate
+	// goroutines (e.g., bi-directional streaming), the caller needs
+	// to call cancel on the stream to interrupt the blocking on
+	// other goroutines.
+	s.cancel()
 	s.mu.Lock()
 	if q := s.fc.restoreConn(); q > 0 {
 		t.controlBuf.put(&windowUpdate{0, q})
@@ -386,11 +407,6 @@ func (t *http2Client) CloseStream(s *Stream, err error) {
 	}
 	s.state = streamDone
 	s.mu.Unlock()
-	// In case stream sending and receiving are invoked in separate
-	// goroutines (e.g., bi-directional streaming), the caller needs
-	// to call cancel on the stream to interrupt the blocking on
-	// other goroutines.
-	s.cancel()
 	if _, ok := err.(StreamError); ok {
 		t.controlBuf.put(&resetStream{s.id, http2.ErrCodeCancel})
 	}
@@ -635,7 +651,9 @@ func (t *http2Client) handleSettings(f *http2.SettingsFrame) {
 }
 
 func (t *http2Client) handlePing(f *http2.PingFrame) {
-	t.controlBuf.put(&ping{true})
+	pingAck := &ping{ack: true}
+	copy(pingAck.data[:], f.Data[:])
+	t.controlBuf.put(pingAck)
 }
 
 func (t *http2Client) handleGoAway(f *http2.GoAwayFrame) {
@@ -740,7 +758,7 @@ func (t *http2Client) reader() {
 			endStream := frame.Header().Flags.Has(http2.FlagHeadersEndStream)
 			curStream = t.operateHeaders(hDec, curStream, frame, endStream)
 		case *http2.ContinuationFrame:
-			curStream = t.operateHeaders(hDec, curStream, frame, false)
+			curStream = t.operateHeaders(hDec, curStream, frame, frame.HeadersEnded())
 		case *http2.DataFrame:
 			t.handleData(frame)
 		case *http2.RSTStreamFrame:
@@ -816,9 +834,7 @@ func (t *http2Client) controller() {
 				case *flushIO:
 					t.framer.flushWrite()
 				case *ping:
-					// TODO(zhaoq): Ack with all-0 data now. will change to some
-					// meaningful content when this is actually in use.
-					t.framer.writePing(true, i.ack, [8]byte{})
+					t.framer.writePing(true, i.ack, i.data)
 				default:
 					grpclog.Printf("transport: http2Client.controller got unexpected item type %v\n", i)
 				}

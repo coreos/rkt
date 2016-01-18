@@ -132,10 +132,6 @@
 			"Rev": "0875c991a496fe2b65ed296551c667b199a6bfb8"
 		},
 		{
-			"ImportPath": "github.com/bradfitz/http2",
-			"Rev": "f8202bc903bda493ebba4aa54922d78430c2c42f"
-		},
-		{
 			"ImportPath": "github.com/camlistore/camlistore/pkg/errorutil",
 			"Rev": "9868aa0f8d8a93ff0b30ff0de46cc351b6b88b30"
 		},
@@ -251,7 +247,7 @@
 		},
 		{
 			"ImportPath": "github.com/golang/protobuf/proto",
-			"Rev": "6dfb160b2754e3b3fa583fbd0c207dfab2e836e5"
+			"Rev": "2402d76f3d41f928c7902a765dfc872356dd3aad"
 		},
 		{
 			"ImportPath": "github.com/gorilla/context",
@@ -340,6 +336,10 @@
 			"Rev": "c2528b2dd8352441850638a8bb678c2ad056fd3e"
 		},
 		{
+			"ImportPath": "golang.org/x/net/http2",
+			"Rev": "c2528b2dd8352441850638a8bb678c2ad056fd3e"
+		},
+		{
 			"ImportPath": "golang.org/x/net/internal/timeseries",
 			"Rev": "c2528b2dd8352441850638a8bb678c2ad056fd3e"
 		},
@@ -357,7 +357,7 @@
 		},
 		{
 			"ImportPath": "google.golang.org/grpc",
-			"Rev": "4bd040ce23a624ff9a1d07b0e729ee189bddd51c"
+			"Rev": "5da22b92e9485c15a6b284d52cc54d6580864c99"
 		},
 		{
 			"ImportPath": "k8s.io/kubernetes/pkg/api/resource",

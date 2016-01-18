@@ -40,7 +40,6 @@ import (
 	"github.com/coreos/rkt/Godeps/_workspace/src/golang.org/x/net/context"
 	"github.com/coreos/rkt/Godeps/_workspace/src/golang.org/x/net/trace"
 	"github.com/coreos/rkt/Godeps/_workspace/src/google.golang.org/grpc/codes"
-	"github.com/coreos/rkt/Godeps/_workspace/src/google.golang.org/grpc/metadata"
 	"github.com/coreos/rkt/Godeps/_workspace/src/google.golang.org/grpc/transport"
 )
 
@@ -94,14 +93,6 @@ func sendRequest(ctx context.Context, codec Codec, callHdr *transport.CallHdr, t
 	return stream, nil
 }
 
-// callInfo contains all related configuration and information about an RPC.
-type callInfo struct {
-	failFast  bool
-	headerMD  metadata.MD
-	trailerMD metadata.MD
-	traceInfo traceInfo // in trace.go
-}
-
 // Invoke is called by the generated code. It sends the RPC request on the
 // wire and returns after response is received.
 func Invoke(ctx context.Context, method string, args, reply interface{}, cc *ClientConn, opts ...CallOption) (err error) {
@@ -116,7 +107,6 @@ func Invoke(ctx context.Context, method string, args, reply interface{}, cc *Cli
 			o.after(&c)
 		}
 	}()
-
 	if EnableTracing {
 		c.traceInfo.tr = trace.New("grpc.Sent."+methodFamily(method), method)
 		defer c.traceInfo.tr.Finish()
@@ -133,16 +123,11 @@ func Invoke(ctx context.Context, method string, args, reply interface{}, cc *Cli
 			}
 		}()
 	}
-	callHdr := &transport.CallHdr{
-		Host:   cc.authority,
-		Method: method,
-	}
 	topts := &transport.Options{
 		Last:  true,
 		Delay: false,
 	}
 	var (
-		ts      int   // track the transport sequence number
 		lastErr error // record the error that happened
 	)
 	for {
@@ -155,7 +140,11 @@ func Invoke(ctx context.Context, method string, args, reply interface{}, cc *Cli
 		if lastErr != nil && c.failFast {
 			return toRPCErr(lastErr)
 		}
-		t, ts, err = cc.wait(ctx, ts)
+		callHdr := &transport.CallHdr{
+			Host:   cc.authority,
+			Method: method,
+		}
+		t, err = cc.dopts.picker.Pick(ctx)
 		if err != nil {
 			if lastErr != nil {
 				// This was a retry; return the error from the last attempt.
