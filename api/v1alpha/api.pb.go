@@ -37,13 +37,13 @@ It has these top-level messages:
 */
 package v1alpha
 
-import proto "github.com/coreos/rkt/Godeps/_workspace/src/github.com/golang/protobuf/proto"
+import proto "github.com/golang/protobuf/proto"
 import fmt "fmt"
 import math "math"
 
 import (
-	context "github.com/coreos/rkt/Godeps/_workspace/src/golang.org/x/net/context"
-	grpc "github.com/coreos/rkt/Godeps/_workspace/src/google.golang.org/grpc"
+	context "golang.org/x/net/context"
+	grpc "google.golang.org/grpc"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -354,7 +354,7 @@ func (m *Pod) GetAnnotations() []*KeyValue {
 
 type KeyValue struct {
 	// Key part of the key-value pair.
-	Key string `protobuf:"bytes,1,opt" json:"Key,omitempty"`
+	Key string `protobuf:"bytes,1,opt,name=Key" json:"Key,omitempty"`
 	// Value part of the key-value pair.
 	Value string `protobuf:"bytes,2,opt,name=value" json:"value,omitempty"`
 }

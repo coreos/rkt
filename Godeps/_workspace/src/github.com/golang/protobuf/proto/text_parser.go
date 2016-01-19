@@ -532,34 +532,12 @@ func (p *textParser) readStruct(sv reflect.Value, terminator string) error {
 		fi, props, ok := structFieldByName(sprops, name)
 		if ok {
 			dst = sv.Field(fi)
-		} else {
-			// Maybe it is a oneof.
-			// TODO: If this shows in profiles, cache the mapping.
-			for _, oot := range sprops.oneofTypes {
-				sp := reflect.ValueOf(oot).Type() // *T
-				var p Properties
-				p.Parse(sp.Elem().Field(0).Tag.Get("protobuf"))
-				if p.OrigName != name {
-					continue
-				}
-				nv := reflect.New(sp.Elem())
-				dst = nv.Elem().Field(0)
-				props = &p
-				// There will be exactly one interface field that
-				// this new value is assignable to.
-				for i := 0; i < st.NumField(); i++ {
-					f := st.Field(i)
-					if f.Type.Kind() != reflect.Interface {
-						continue
-					}
-					if !nv.Type().AssignableTo(f.Type) {
-						continue
-					}
-					sv.Field(i).Set(nv)
-					break
-				}
-				break
-			}
+		} else if oop, ok := sprops.OneofTypes[name]; ok {
+			// It is a oneof.
+			props = oop.Prop
+			nv := reflect.New(oop.Type.Elem())
+			dst = nv.Elem().Field(0)
+			sv.Field(oop.Field).Set(nv)
 		}
 		if !dst.IsValid() {
 			return p.errorf("unknown field name %q in %v", name, st)
@@ -694,18 +672,32 @@ func (p *textParser) readAny(v reflect.Value, props *Properties) error {
 			fv.Set(reflect.ValueOf(bytes))
 			return nil
 		}
-		// Repeated field. May already exist.
-		flen := fv.Len()
-		if flen == fv.Cap() {
-			nav := reflect.MakeSlice(at, flen, 2*flen+1)
-			reflect.Copy(nav, fv)
-			fv.Set(nav)
+		// Repeated field.
+		if tok.value == "[" {
+			// Repeated field with list notation, like [1,2,3].
+			for {
+				fv.Set(reflect.Append(fv, reflect.New(at.Elem()).Elem()))
+				err := p.readAny(fv.Index(fv.Len()-1), props)
+				if err != nil {
+					return err
+				}
+				tok := p.next()
+				if tok.err != nil {
+					return tok.err
+				}
+				if tok.value == "]" {
+					break
+				}
+				if tok.value != "," {
+					return p.errorf("Expected ']' or ',' found %q", tok.value)
+				}
+			}
+			return nil
 		}
-		fv.SetLen(flen + 1)
-
-		// Read one.
+		// One value of the repeated field.
 		p.back()
-		return p.readAny(fv.Index(flen), props)
+		fv.Set(reflect.Append(fv, reflect.New(at.Elem()).Elem()))
+		return p.readAny(fv.Index(fv.Len()-1), props)
 	case reflect.Bool:
 		// Either "true", "false", 1 or 0.
 		switch tok.value {

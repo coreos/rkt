@@ -47,6 +47,7 @@ import (
 	"time"
 
 	"github.com/coreos/rkt/Godeps/_workspace/src/golang.org/x/net/context"
+	"github.com/coreos/rkt/Godeps/_workspace/src/golang.org/x/net/trace"
 	"github.com/coreos/rkt/Godeps/_workspace/src/google.golang.org/grpc/codes"
 	"github.com/coreos/rkt/Godeps/_workspace/src/google.golang.org/grpc/credentials"
 	"github.com/coreos/rkt/Godeps/_workspace/src/google.golang.org/grpc/metadata"
@@ -232,6 +233,11 @@ func (s *Stream) Context() context.Context {
 	return s.ctx
 }
 
+// TraceContext recreates the context of s with a trace.Trace.
+func (s *Stream) TraceContext(tr trace.Trace) {
+	s.ctx = trace.NewContext(s.ctx, tr)
+}
+
 // Method returns the method for the stream.
 func (s *Stream) Method() string {
 	return s.method
@@ -390,6 +396,8 @@ type ServerTransport interface {
 	// should not be accessed any more. All the pending streams and their
 	// handlers will be terminated asynchronously.
 	Close() error
+	// RemoteAddr returns the remote network address.
+	RemoteAddr() net.Addr
 }
 
 // StreamErrorf creates an StreamError with the specified error code and description.

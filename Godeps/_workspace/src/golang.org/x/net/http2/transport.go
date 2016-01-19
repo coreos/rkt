@@ -19,7 +19,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/bradfitz/http2/hpack"
+	"github.com/coreos/rkt/Godeps/_workspace/src/golang.org/x/net/http2/hpack"
 )
 
 type Transport struct {
@@ -186,7 +186,7 @@ func (t *Transport) newClientConn(host, port, key string) (*clientConn, error) {
 		NextProtos:         []string{NextProtoTLS},
 		InsecureSkipVerify: t.InsecureTLSDial,
 	}
-	tconn, err := tls.Dial("tcp", host+":"+port, cfg)
+	tconn, err := tls.Dial("tcp", net.JoinHostPort(host, port), cfg)
 	if err != nil {
 		return nil, err
 	}

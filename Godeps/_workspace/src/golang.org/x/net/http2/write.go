@@ -13,7 +13,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/bradfitz/http2/hpack"
+	"github.com/coreos/rkt/Godeps/_workspace/src/golang.org/x/net/http2/hpack"
 )
 
 // writeFramer is implemented by any type that is used to write frames.
