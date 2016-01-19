@@ -27,10 +27,9 @@ import (
 	cnitypes "github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/cni/pkg/types"
 
 	"github.com/coreos/rkt/common"
+	"github.com/coreos/rkt/rkt"
 )
 
-// TODO(eyakubovich): make this configurable in rkt.conf
-const UserNetPluginsPath = "/usr/lib/rkt/plugins/net"
 const BuiltinNetPluginsPath = "usr/lib/rkt/plugins/net"
 
 func pluginErr(err error, output []byte) error {
@@ -78,7 +77,7 @@ func (e *podEnv) netPluginDel(n *activeNet, netns string) error {
 func (e *podEnv) pluginPaths() []string {
 	// try 3rd-party path first
 	return []string{
-		UserNetPluginsPath,
+		main.GetNetPluginDir(),
 		filepath.Join(common.Stage1RootfsPath(e.podRoot), BuiltinNetPluginsPath),
 	}
 }

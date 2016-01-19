@@ -21,6 +21,7 @@ import (
 
 type configurablePathsV1 struct {
 	Data string `json:"data"`
+	NetPlugin string `json:"netPlugin"`
 }
 
 func init() {
@@ -41,6 +42,15 @@ func (p *configurablePathsV1) parse(config *Config, raw []byte) error {
 			return fmt.Errorf("data directory is already specified")
 		}
 		config.Paths.DataDir = dirs.Data
+	}
+
+	if dirs.NetPlugin != "" {
+		if config.Paths.NetPluginDir != "" {
+			// A clash has occurred. NetPlugin dir has been defined more than once in
+			// the same directory
+			return fmt.Errorf("netPlugin directory is already specified")
+		}
+		config.Paths.NetPluginDir = dirs.NetPlugin
 	}
 
 	return nil
