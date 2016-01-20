@@ -35,6 +35,7 @@ const (
 	cliDescription = "rkt, the application container runner"
 
 	defaultDataDir = "/var/lib/rkt"
+	defaultNetPluginDir  = "/usr/lib/rkt/plugins/net"
 
 	bash_completion_func = `__rkt_parse_image()
 {
@@ -122,6 +123,7 @@ var (
 		Dir                string
 		SystemConfigDir    string
 		LocalConfigDir     string
+		NetPluginDir       string
 		Debug              bool
 		Help               bool
 		InsecureFlags      *rktflag.SecFlags
@@ -130,10 +132,12 @@ var (
 		Dir:             defaultDataDir,
 		SystemConfigDir: common.DefaultSystemConfigDir,
 		LocalConfigDir:  common.DefaultLocalConfigDir,
+		NetPluginDir:    defaultNetPluginDir,
 	}
 
 	cachedConfig  *config.Config
 	cachedDataDir string
+	cachedNetPluginDir string
 	cmdExitCode   int
 )
 
@@ -156,6 +160,7 @@ func init() {
 	cmdRkt.PersistentFlags().Var((*absDir)(&globalFlags.Dir), "dir", "rkt data directory")
 	cmdRkt.PersistentFlags().Var((*absDir)(&globalFlags.SystemConfigDir), "system-config", "system configuration directory")
 	cmdRkt.PersistentFlags().Var((*absDir)(&globalFlags.LocalConfigDir), "local-config", "local configuration directory")
+	cmdRkt.PersistentFlags().Var((*absDir)(&globalFlags.NetPluginDir), "netplugindir", "rkt network plugin directory")
 	cmdRkt.PersistentFlags().Var(globalFlags.InsecureFlags, "insecure-options",
 		fmt.Sprintf("comma-separated list of security features to disable. Allowed values: %s",
 			globalFlags.InsecureFlags.PermissibleString()))
@@ -279,6 +284,38 @@ func calculateDataDir() string {
 
 	// If above fails, then use the default.
 	return defaultDataDir
+}
+
+func GetNetPluginDir() string {
+	if cachedNetPluginDir == "" {
+		cachedNetPluginDir = calculateNetPluginDir()
+	}
+	return cachedNetPluginDir
+}
+
+func calculateNetPluginDir() string {
+	// If --netplugindir parameter is passed, then use this value.
+	if netPluginFlag := cmdRkt.PersistentFlags().Lookup("netplugindir"); netPluginFlag != nil {
+		if netPluginFlag.Changed {
+			return globalFlags.NetPluginDir
+		}
+	} else {
+		// should not happen
+		panic(`"--netplugindir" flag not found`)
+	}
+
+	// If above fails, then try to get the value from configuration.
+	if config, err := getConfig(); err != nil {
+		stderr("rkt: cannot get configuration: %v", err)
+		os.Exit(1)
+	} else {
+		if config.Paths.NetPluginDir != "" {
+			return config.Paths.NetPluginDir
+		}
+	}
+
+	// If above fails, then use the default.
+	return defaultNetPluginDir
 }
 
 func getConfig() (*config.Config, error) {

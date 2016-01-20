@@ -257,7 +257,9 @@ The configuration files should be placed inside a `paths.d` subdirectory (e.g. i
 
 ##### Description and examples
 
-This version of `paths` configuration specifies one additional field: `data`.
+This version of `paths` configuration specifies two additional fields: 
+- `data`
+- `netPlugins`
 
 The `data` field is a string that defines where image data and running pods are stored.
 If its value is not overridden, it is `/var/lib/rkt` by default.
@@ -271,6 +273,7 @@ For example, to store images in your home partition instead of the root partitio
 	"rktKind": "paths",
 	"rktVersion": "v1",
 	"data": "/home/me/rkt"
+	"TODO": "/home/me/rkt"
 }
 ```
 

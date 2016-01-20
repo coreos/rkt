@@ -40,6 +40,7 @@ type BasicCredentials struct {
 
 type ConfigurablePaths struct {
 	DataDir string
+	NetPluginDir string
 }
 
 // Config is a single place where configuration for rkt frontend needs
@@ -162,6 +163,7 @@ func newConfig() *Config {
 		DockerCredentialsPerRegistry: make(map[string]BasicCredentials),
 		Paths: ConfigurablePaths{
 			DataDir: "",
+			NetPluginDir: "",
 		},
 	}
 }
@@ -299,5 +301,9 @@ func mergeConfigs(config *Config, subconfig *Config) {
 	}
 	if subconfig.Paths.DataDir != "" {
 		config.Paths.DataDir = subconfig.Paths.DataDir
+	}
+
+	if subconfig.Paths.NetPluginDir != "" {
+		config.Paths.NetPluginDir = subconfig.Paths.NetPluginDir
 	}
 }
