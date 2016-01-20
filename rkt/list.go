@@ -24,6 +24,7 @@ import (
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/lastditch"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema/types"
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/dustin/go-humanize"
 	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
 	common "github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/networking/netinfo"
@@ -52,9 +53,9 @@ func runList(cmd *cobra.Command, args []string) int {
 
 	if !flagNoLegend {
 		if flagFullOutput {
-			fmt.Fprintf(tabOut, "UUID\tAPP\tIMAGE NAME\tIMAGE ID\tSTATE\tNETWORKS\n")
+			fmt.Fprintf(tabOut, "UUID\tAPP\tIMAGE NAME\tIMAGE ID\tSTATE\tSINCE\tNETWORKS\n")
 		} else {
-			fmt.Fprintf(tabOut, "UUID\tAPP\tIMAGE NAME\tSTATE\tNETWORKS\n")
+			fmt.Fprintf(tabOut, "UUID\tAPP\tIMAGE NAME\tSTATE\tSINCE\tNETWORKS\n")
 		}
 	}
 
@@ -87,12 +88,41 @@ func runList(cmd *cobra.Command, args []string) int {
 			imgID   string
 			state   string
 			nets    string
+			whenStr string
 		}
 
 		var appsToPrint []printedApp
 		uuid := p.uuid.String()
 		state := p.getState()
 		nets := fmtNets(p.nets)
+
+		created, err := p.getRootModTime()
+		if err != nil {
+			errors = append(errors, fmt.Errorf("unable to get modification time for pod %q root: %v", uuid, err))
+		}
+		exited, err := p.getExitTime()
+		if err != nil {
+			errors = append(errors, fmt.Errorf("unable to get exit time for pod %q: %v", uuid, err))
+		}
+		var whenStr string
+		if flagFullOutput {
+			if p.isExited || p.isExitedGarbage {
+				if !exited.IsZero() {
+					whenStr = exited.Format(defaultTimeLayout)
+				}
+			} else if !created.IsZero() {
+				whenStr = created.Format(defaultTimeLayout)
+			}
+		} else {
+			if p.isExited || p.isExitedGarbage {
+				if !exited.IsZero() {
+					whenStr = humanize.Time(exited)
+				}
+			} else if !created.IsZero() {
+				whenStr = humanize.Time(created)
+			}
+		}
+
 		if !flagFullOutput {
 			uuid = uuid[:8]
 		}
@@ -115,6 +145,7 @@ func runList(cmd *cobra.Command, args []string) int {
 				imgID:   imageID,
 				state:   state,
 				nets:    nets,
+				whenStr: whenStr,
 			})
 			// clear those variables so they won't be
 			// printed for another apps in the pod as they
@@ -122,15 +153,16 @@ func runList(cmd *cobra.Command, args []string) int {
 			uuid = ""
 			state = ""
 			nets = ""
+			whenStr = ""
 		}
 		// if we reached that point, then it means that the
 		// pod and all its apps are valid, so they can be
 		// printed
 		for _, app := range appsToPrint {
 			if flagFullOutput {
-				fmt.Fprintf(tabOut, "%s\t%s\t%s\t%s\t%s\t%s\n", app.uuid, app.appName, app.imgName, app.imgID, app.state, app.nets)
+				fmt.Fprintf(tabOut, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", app.uuid, app.appName, app.imgName, app.imgID, app.state, app.whenStr, app.nets)
 			} else {
-				fmt.Fprintf(tabOut, "%s\t%s\t%s\t%s\t%s\n", app.uuid, app.appName, app.imgName, app.state, app.nets)
+				fmt.Fprintf(tabOut, "%s\t%s\t%s\t%s\t%s\t%s\n", app.uuid, app.appName, app.imgName, app.state, app.whenStr, app.nets)
 			}
 		}
 

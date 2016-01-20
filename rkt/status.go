@@ -16,7 +16,11 @@
 
 package main
 
-import "github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
+import (
+	"fmt"
+
+	"github.com/coreos/rkt/Godeps/_workspace/src/github.com/spf13/cobra"
+)
 
 var (
 	cmdStatus = &cobra.Command{
@@ -69,6 +73,26 @@ func runStatus(cmd *cobra.Command, args []string) (exit int) {
 // printStatus prints the pod's pid and per-app status codes
 func printStatus(p *pod) error {
 	stdout("state=%s", p.getState())
+
+	created, err := p.getRootModTime()
+	if err != nil {
+		return fmt.Errorf("error getting pod root modification time: %v", err)
+	}
+	exited, err := p.getExitTime()
+	if err != nil {
+		return fmt.Errorf("error getting pod exit time: %v", err)
+	}
+
+	var since string
+	if p.isExited || p.isExitedGarbage {
+		if !exited.IsZero() {
+			since = exited.Format(defaultTimeLayout)
+		}
+	} else if !created.IsZero() {
+		since = created.Format(defaultTimeLayout)
+	}
+
+	stdout("since=%s", since)
 
 	if p.isRunning() {
 		stdout("networks=%s", fmtNets(p.nets))

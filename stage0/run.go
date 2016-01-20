@@ -29,6 +29,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -464,9 +465,46 @@ func Run(cfg RunConfig, dir string, dataDir string) {
 	// that enforces TPM behaviour, but we don't have any infrastructure
 	// around that yet.
 	_ = tpm.Extend(tpmEvent)
-	if err := syscall.Exec(args[0], args, os.Environ()); err != nil {
-		log.Fatalf("error execing init: %v", err)
+
+	cmd := exec.Cmd{
+		Path:   args[0],
+		Args:   args,
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+		Env:    os.Environ(),
 	}
+
+	err = cmd.Start()
+	if err != nil {
+		log.Fatalf("error starting /init: %v", err)
+	}
+
+	exitStatus := 0
+	if err = cmd.Wait(); err != nil {
+		if exiterr, ok := err.(*exec.ExitError); ok {
+			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+				exitStatus = status.ExitStatus()
+			}
+		} else {
+			log.Fatalf("error waiting for init: %v", err)
+		}
+	}
+
+	if err := writeExitFile(dir); err != nil {
+		log.Fatalf("error writing exit file: %v", err)
+	}
+
+	os.Exit(exitStatus)
+}
+
+func writeExitFile(cdir string) error {
+	exitFilePath := filepath.Join(cdir, "exited")
+	f, err := os.Create(exitFilePath)
+	if err != nil {
+		return err
+	}
+	return f.Close()
 }
 
 // prepareAppImage renders and verifies the tree cache of the app image that

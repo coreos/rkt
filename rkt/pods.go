@@ -506,6 +506,11 @@ func (p *pod) isRunning() bool {
 		!p.isExited && !p.isExitedGarbage && !p.isExitedDeleting && !p.isGarbage && !p.isDeleting && !p.isGone
 }
 
+// afterRun tests if a pod is in a post-running state
+func (p *pod) afterRun() bool {
+	return p.isExitedDeleting || p.isDeleting || p.isExited || p.isGarbage
+}
+
 // listPods returns a list of pod uuids in string form.
 func listPods(include includeMask) ([]string, error) {
 	// uniqued due to the possibility of a pod being renamed from across directories during the list operation
@@ -747,6 +752,39 @@ func (p *pod) getState() string {
 	}
 
 	return state
+}
+
+func (p *pod) getModTime(path string) (time.Time, error) {
+	f, err := p.openFile(path, syscall.O_RDONLY)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	fi, err := f.Stat()
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return fi.ModTime(), nil
+}
+
+// getRootModTime returns the time where the pod rootfs was modified.
+// This happens when it gets prepared and when it's run.
+func (p *pod) getRootModTime() (time.Time, error) {
+	if p.isPrepared || p.isRunning() || p.afterRun() {
+		return p.getModTime(".")
+	}
+	return time.Time{}, nil
+}
+
+// getExitTime returns the exit time of the pod
+func (p *pod) getExitTime() (time.Time, error) {
+	if p.afterRun() {
+		if et, err := p.getModTime("exited"); err == nil {
+			return et, nil
+		}
+	}
+	return time.Time{}, nil
 }
 
 type ErrChildNotReady struct {
