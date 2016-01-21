@@ -547,7 +547,7 @@ func stage1() int {
 	}
 
 	if err := stage1initcommon.SetJournalPermissions(p); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: error setting journal ACLs, you'll need root to read the pod journal: %v", err)
+		fmt.Fprintf(os.Stderr, "Warning: error setting journal ACLs, you'll need root to read the pod journal: %v\n", err)
 	}
 
 	if flavor == "kvm" {
