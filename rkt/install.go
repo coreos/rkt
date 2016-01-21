@@ -95,7 +95,7 @@ func setPermissions(path string, uid int, gid int, perm os.FileMode) error {
 func createDirStructure(gid int) error {
 	for dir, perm := range dirs {
 		path := filepath.Join(getDataDir(), dir)
-
+		stderr("creating %q", path)
 		if err := os.MkdirAll(path, perm); err != nil {
 			return fmt.Errorf("error creating %q directory: %v", path, err)
 		}
@@ -114,6 +114,7 @@ func setCasDbFilesPermissions(casDbPath string, gid int, perm os.FileMode) error
 			return err
 		}
 		if info.Mode().IsRegular() {
+			stderr("setting permission on %q", path)
 			if err := setPermissions(path, 0, gid, perm); err != nil {
 				return err
 			}
@@ -131,6 +132,7 @@ func setCasDbFilesPermissions(casDbPath string, gid int, perm os.FileMode) error
 
 func createDbFiles(casDbPath string, gid int, perm os.FileMode) error {
 	dbPath := filepath.Join(casDbPath, store.DbFilename)
+	stderr("creating file %q", dbPath)
 	if err := createFileWithPermissions(dbPath, 0, gid, perm); err != nil {
 		return fmt.Errorf("error creating %s: %v", dbPath, err)
 	}
