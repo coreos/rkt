@@ -170,7 +170,7 @@ func runInstall(cmd *cobra.Command, args []string) (exit int) {
 		stderr("install: error creating db files: %v", err)
 		return 1
 	}
-	stderr("rkt directory structure successfully created.")
+	stdout("rkt directory structure successfully created.")
 
 	return 0
 }
