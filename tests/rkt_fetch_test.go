@@ -428,12 +428,16 @@ func TestDeferredSignatureDownload(t *testing.T) {
 	defer os.Remove(asc)
 	ascBase := filepath.Base(asc)
 
-	server := runDiscoveryServer(t, taas.ServerQuay, taas.AuthNone)
+	setup := taas.GetDefaultServerSetup()
+	setup.Server = taas.ServerQuay
+	server := runServer(t, setup)
 	defer server.Close()
 	fileSet := make(map[string]string, 2)
 	fileSet[imageFileName] = image
 	fileSet[ascBase] = asc
-	server.UpdateFileSet(fileSet)
+	if err := server.UpdateFileSet(fileSet); err != nil {
+		t.Fatalf("Failed to populate a file list in test aci server: %v", err)
+	}
 
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()

@@ -15,14 +15,30 @@
 package aci
 
 import (
+	"crypto/sha512"
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+)
+
+type PortType int
+
+const (
+	PortFixed PortType = iota
+	PortRandom
+)
+
+type ProtocolType int
+
+const (
+	ProtocolHttps ProtocolType = iota
+	ProtocolHttp
 )
 
 type AuthType int
@@ -49,12 +65,32 @@ func (e *httpError) Error() string {
 	return fmt.Sprintf("%d: %s", e.code, e.message)
 }
 
+type servedFile struct {
+	path string
+	etag string
+}
+
+func newServedFile(path string) (*servedFile, error) {
+	contents, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	checksum := sha512.Sum512(contents)
+	sf := &servedFile{
+		path: path,
+		etag: fmt.Sprintf("%x", checksum),
+	}
+	return sf, nil
+}
+
 type serverHandler struct {
-	serverType   ServerType
+	server       ServerType
 	auth         AuthType
+	protocol     ProtocolType
 	msg          chan<- string
-	fileSet      map[string]string
+	fileSet      map[string]*servedFile
 	servedImages map[string]struct{}
+	serverURL    string
 }
 
 func (h *serverHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -159,37 +195,42 @@ func (h *serverHandler) handleRequest(w http.ResponseWriter, r *http.Request) {
 	switch path {
 	case "/":
 		h.sendAcDiscovery(w)
-		h.sendMsg("  done.")
 	default:
-		if found := h.handleFile(w, path); found {
-			h.sendMsg("  done.")
-		}
+		h.handleFile(w, path, r.Header)
 	}
 }
 
 func (h *serverHandler) sendAcDiscovery(w http.ResponseWriter) {
 	// TODO(krnowak): When appc spec gets the discovery over
 	// custom port feature, possibly take it into account here
-	indexHTML := `<meta name="ac-discovery" content="localhost https://localhost/{name}.{ext}">`
+	indexHTML := fmt.Sprintf(`<meta name="ac-discovery" content="localhost %s/{name}.{ext}">`, h.serverURL)
 	w.Write([]byte(indexHTML))
+	h.sendMsg("  done.")
 }
 
-func (h *serverHandler) handleFile(w http.ResponseWriter, reqPath string) bool {
-	path, ok := h.fileSet[reqPath]
+func (h *serverHandler) handleFile(w http.ResponseWriter, reqPath string, headers http.Header) {
+	sf, ok := h.fileSet[reqPath]
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		h.sendMsg("  not found.")
-		return false
+		return
 	}
 	if !h.canServe(reqPath, w) {
-		return false
+		return
 	}
-	contents, err := ioutil.ReadFile(path)
+	if headers.Get("If-None-Match") == sf.etag {
+		addCacheHeaders(w, sf)
+		w.WriteHeader(http.StatusNotModified)
+		h.sendMsg("  not modified, done.")
+		return
+	}
+	contents, err := ioutil.ReadFile(sf.path)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		h.sendMsg("  not found, but specified in fileset; bug?")
-		return false
+		return
 	}
+	addCacheHeaders(w, sf)
 	w.Write(contents)
 	reqImagePath, isAsc := isPathAnImageKey(reqPath)
 	if isAsc {
@@ -197,11 +238,11 @@ func (h *serverHandler) handleFile(w http.ResponseWriter, reqPath string) bool {
 	} else {
 		h.servedImages[reqPath] = struct{}{}
 	}
-	return true
+	h.sendMsg("  done.")
 }
 
 func (h *serverHandler) canServe(reqPath string, w http.ResponseWriter) bool {
-	if h.serverType != ServerQuay {
+	if h.server != ServerQuay {
 		return true
 	}
 	reqImagePath, isAsc := isPathAnImageKey(reqPath)
@@ -214,6 +255,11 @@ func (h *serverHandler) canServe(reqPath string, w http.ResponseWriter) bool {
 	w.WriteHeader(http.StatusAccepted)
 	h.sendMsg("  asking to defer the download")
 	return false
+}
+
+func addCacheHeaders(w http.ResponseWriter, sf *servedFile) {
+	w.Header().Set("ETag", sf.etag)
+	w.Header().Set("Cache-Control", fmt.Sprintf("max-age=%d", 60*60*24)) // one day
 }
 
 func (h *serverHandler) sendMsg(msg string) {
@@ -239,33 +285,75 @@ type Server struct {
 	http    *httptest.Server
 }
 
+type ServerSetup struct {
+	Port        PortType
+	Protocol    ProtocolType
+	Server      ServerType
+	Auth        AuthType
+	MsgCapacity int
+}
+
+func GetDefaultServerSetup() *ServerSetup {
+	return &ServerSetup{
+		Port:        PortFixed,
+		Protocol:    ProtocolHttps,
+		Server:      ServerOrdinary,
+		Auth:        AuthNone,
+		MsgCapacity: 20,
+	}
+}
+
 func (s *Server) Close() {
 	s.http.Close()
 	close(s.handler.msg)
 }
 
-func (s *Server) UpdateFileSet(fileSet map[string]string) {
-	s.handler.fileSet = fileSet
+func (s *Server) UpdateFileSet(fileSet map[string]string) error {
+	s.handler.fileSet = make(map[string]*servedFile, len(fileSet))
+	for base, path := range fileSet {
+		sf, err := newServedFile(path)
+		if err != nil {
+			return err
+		}
+		s.handler.fileSet[base] = sf
+	}
+	return nil
 }
 
-func NewServer(serverType ServerType, auth AuthType, msgCapacity int) *Server {
-	msg := make(chan string, msgCapacity)
+func NewServer(setup *ServerSetup) *Server {
+	msg := make(chan string, setup.MsgCapacity)
 	server := &Server{
 		Msg: msg,
 		handler: &serverHandler{
-			auth:         auth,
+			auth:         setup.Auth,
 			msg:          msg,
-			serverType:   serverType,
-			fileSet:      make(map[string]string),
+			server:       setup.Server,
+			protocol:     setup.Protocol,
+			fileSet:      make(map[string]*servedFile),
 			servedImages: make(map[string]struct{}),
 		},
 	}
 	server.http = httptest.NewUnstartedServer(server.handler)
-	server.http.TLS = &tls.Config{InsecureSkipVerify: true}
-	server.http.StartTLS()
+	// We use our own listener, so we can override a port number
+	// without using a "httptest.serve" flag. Using the
+	// "httptest.serve" flag together with an HTTP protocol
+	// results in blocking for debugging purposes as described in
+	// https://golang.org/src/net/http/httptest/server.go#L74.
+	// Here, we lose the ability, but we don't need it.
+	server.http.Listener = newLocalListener(setup.Port, setup.Protocol)
+	switch setup.Protocol {
+	case ProtocolHttp:
+		server.http.Start()
+	case ProtocolHttps:
+		server.http.TLS = &tls.Config{InsecureSkipVerify: true}
+		server.http.StartTLS()
+	default:
+		panic("Woe is me!")
+	}
 	server.URL = server.http.URL
+	server.handler.serverURL = server.http.URL
 	host := server.http.Listener.Addr().String()
-	switch auth {
+	switch setup.Auth {
 	case AuthNone:
 		// nothing to do
 	case AuthBasic:
@@ -279,6 +367,26 @@ func NewServer(serverType ServerType, auth AuthType, msgCapacity int) *Server {
 		panic("Woe is me!")
 	}
 	return server
+}
+
+// based on code from net/http/httptest
+func newLocalListener(port PortType, protocol ProtocolType) net.Listener {
+	portNumber := 0
+	if port == PortFixed {
+		switch protocol {
+		case ProtocolHttp:
+			portNumber = 80
+		case ProtocolHttps:
+			portNumber = 443
+		}
+	}
+	l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", portNumber))
+	if err != nil {
+		if l, err = net.Listen("tcp6", fmt.Sprintf("[::1]:%d", portNumber)); err != nil {
+			panic(fmt.Sprintf("aci test server: failed to listen on a port: %v", err))
+		}
+	}
+	return l
 }
 
 func sprintCreds(host, auth, creds string) string {

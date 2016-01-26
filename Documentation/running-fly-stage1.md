@@ -48,7 +48,7 @@ Hence, changes to the mounts inside the container will be propagated back to the
 
 The bind mounts for `/dev`, `/proc`, and `/sys` are done automatically and are recursive, because their hierarchy contains mounts which also need to be available for the container to function properly.
 User-provided volumes are not mounted recursively.
-This is a safety measure to prevent system crashes when multiple containers are started that mount `/` into the container. 
+This is a safety measure to prevent system crashes when multiple containers are started that mount `/` into the container.
 
 
 ## Getting started
@@ -68,7 +68,7 @@ The [commands documentation](https://github.com/coreos/rkt/blob/master/Documenta
 
 Here is a quick example of how to use a container stage1 named `stage1-fly.aci` in `/usr/local/rkt/`:
 ```
-# rkt run --stage1-image=/usr/local/rkt/stage1-fly.aci coreos.com/etcd:v2.0.9
+# rkt run --stage1-path=/usr/local/rkt/stage1-fly.aci coreos.com/etcd:v2.0.9
 ```
 
 
@@ -86,7 +86,6 @@ Specifically, the following constraints are not available when using the *fly* s
 ### Providing additional isolation with systemd
 
 When using systemd on the host it is possible to [wrap rkt with a systemd unit file](using-rkt-with-systemd.md#advanced-unit-file) to provide additional isolation.
-For more information please consult the systemd manual. 
-* [systemd.resource-control](http://www.freedesktop.org/software/systemd/man/systemd.resource-control.html) 
+For more information please consult the systemd manual.
+* [systemd.resource-control](http://www.freedesktop.org/software/systemd/man/systemd.resource-control.html)
 * [systemd.directives](http://www.freedesktop.org/software/systemd/man/systemd.directives.html)
-

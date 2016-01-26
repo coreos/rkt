@@ -73,11 +73,16 @@ This parameter tells what is the version of the default stage1 image.
 
 This parameter tells rkt where to find the default stage1 image if it is not found in the store.
 For the detailed setup, the default value of this parameter is empty, so if it is not provided, you may be forced to inform rkt about the location of the stage1 image at runtime.
-For the flavor setup, the default value is a special relative path, telling rkt to look for the image in the directory it is located.
-Normally, this parameter should be some URL, with or without a scheme.
-Relative paths will be partially ignored - only the directory where rkt binary is will be searched.
-In general, you will be best off by specifying an absolute path to the image file.
-This parameter is currently very shabby and will be reworked in the near future.
+For the flavor setup, the default value is also empty, which tells rkt to look for the image in the directory the rkt binary is located, unless it is overridden at runtime.
+Normally, this parameter should be some URL, with a scheme or an absolute path.
+
+#### `--with-stage1-default-images-directory`
+
+This parameter tells rkt where is the directory which contains all the stage1 images.
+The value should be an absolute path.
+In this directory, all the built flavors of stage1 images should be installed.
+The `--stage1-from-dir` rkt flag will look for images in this directory.
+The default value of this parameter is `<libdir>/rkt/stage1-images`, where `<libdir>` is a distribution-specific place for storing arch-dependent files.
 
 ## Flavor-specific parameters
 

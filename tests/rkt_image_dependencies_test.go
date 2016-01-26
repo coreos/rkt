@@ -74,7 +74,7 @@ func TestImageDependencies(t *testing.T) {
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
 
-	server := runDiscoveryServer(t, taas.ServerOrdinary, taas.AuthNone)
+	server := runServer(t, taas.GetDefaultServerSetup())
 	defer server.Close()
 
 	baseImage := getInspectImagePath()
@@ -165,7 +165,9 @@ func TestImageDependencies(t *testing.T) {
 		fileSet[baseName] = img.fileName
 	}
 
-	server.UpdateFileSet(fileSet)
+	if err := server.UpdateFileSet(fileSet); err != nil {
+		t.Fatalf("Failed to populate a file list in test aci server: %v", err)
+	}
 
 	for i := len(imageList) - 1; i >= 0; i-- {
 		img := imageList[i]
@@ -180,10 +182,10 @@ func TestImageDependencies(t *testing.T) {
 	child := spawnOrFail(t, runCmd)
 
 	expectedList := []string{
-		"rkt: fetching image from https://localhost/localhost/image-a.aci",
+		fmt.Sprintf("rkt: fetching image from %s/localhost/image-a.aci", server.URL),
 		"rkt: using image from local store for image name localhost/image-b",
-		"rkt: fetching image from https://localhost/localhost/image-c.aci",
-		"rkt: fetching image from https://localhost/localhost/image-d.aci",
+		fmt.Sprintf("rkt: fetching image from %s/localhost/image-c.aci", server.URL),
+		fmt.Sprintf("rkt: fetching image from %s/localhost/image-d.aci", server.URL),
 		"rkt: using image from local store for image name coreos.com/rkt-inspect",
 		"HelloDependencies",
 	}

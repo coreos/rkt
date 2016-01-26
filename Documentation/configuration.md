@@ -2,7 +2,7 @@
 
 `rkt` reads configuration from two or three directories - a **system directory**, a **local directory** and, if provided, a **user directory**.
 The system directory defaults to `/usr/lib/rkt`, the local directory to `/etc/rkt`, and the user directory to an empty string.
-These locations can be changed with command line flags.
+These locations can be changed with command line flags described below.
 
 The system directory should contain a configuration created by a vendor (e.g. distribution).
 The contents of this directory should not be modified - it is meant to be read only.
@@ -35,6 +35,12 @@ The same relationship exists between the local directory and the user directory 
 The semantics of overriding configuration in this manner are specific to the `kind` and `version` of the configuration, and are described below.
 File names are not examined in determining local overrides.
 Only the fields inside configuration files need to match.
+
+## Command line flags
+
+To change the system configuration directory, use `--system-config` flag.
+To change the local configuration directory, use `--local-config` flag.
+To change the user configuration directory, use `--user-config` flag.
 
 ## Configuration kinds
 
@@ -159,6 +165,10 @@ For `tectonic.com`, it will send `Authorization: Bearer tectonic-token`.
 
 Note that _within_ a particular configuration directory (either system or local), it is a syntax error for the same domain to be defined in multiple files.
 
+##### Command line flags
+
+There are no command line flags for specifying or overriding the auth configuration.
+
 ### rktKind: `dockerAuth`
 
 The `dockerAuth` configuration kind is used to set up necessary credentials when downloading data from Docker registries.
@@ -208,7 +218,7 @@ Overriding is done for each registry.
 That means that the user can override credentials used for each registry.
 For example, given this system configuration:
 
-In `/usr/lib/rkt/auth.d/docker.json`:
+`/usr/lib/rkt/auth.d/docker.json`:
 
 ```json
 {
@@ -259,21 +269,28 @@ The result is that when downloading images from `index.docker.io`, `rkt` still s
 
 Note that _within_ a particular configuration directory (either system or local), it is a syntax error for the same Docker registry to be defined in multiple files.
 
+##### Command line flags
+
+There are no command line flags for specifying or overriding the docker auth configuration.
+
 ### rktKind: `paths`
 
-This kind of configuration is used to customize the various paths that rkt uses.
-The configuration files should be placed inside a `paths.d` subdirectory (e.g. in `/usr/lib/rkt/paths.d` or `/etc/rkt/paths.d`).
+The `paths` configuration kind is used to customize the various paths that rkt uses.
+The configuration files should be placed inside the `paths.d` subdirectory (e.g., in the case of the default system/local directories, in `/usr/lib/rkt/paths.d` and/or `/etc/rkt/paths.d`).
 
 #### rktVersion: `v1`
 
 ##### Description and examples
 
-This version of `paths` configuration specifies one additional field: `data`.
+This version of the `paths` configuration specifies two additional fields: `data` and `stage1-images`.
 
 The `data` field is a string that defines where image data and running pods are stored.
-If its value is not overridden, it is `/var/lib/rkt` by default.
+This field is optional.
 
-For example, to store images in your home partition instead of the root partition:
+The `stage1-images` field is a string that defines where are the stage1 images are stored, so rkt can search for them when using the `--stage1-from-dir` flag.
+This field is optional.
+
+Example `paths` configuration:
 
 `/etc/rkt/paths.d/paths.json`:
 
@@ -281,18 +298,166 @@ For example, to store images in your home partition instead of the root partitio
 {
 	"rktKind": "paths",
 	"rktVersion": "v1",
-	"data": "/home/me/rkt"
+	"data": "/home/me/rkt/data",
+	"stage1-images": "/home/me/rkt/stage1-images"
 }
 ```
 
 ##### Override semantics
 
-Overriding is done for each directory.
-Not specifying a directory leaves it as its default path.
+Overriding is done for each path.
+For example, given this system configuration:
 
-The `data` directory can be specified via the `--dir` command line argument.
-If this is provided, this takes precedence over any configuration files.
+`/usr/lib/rkt/paths.d/data.json`:
 
-Configuration files can be added to the system configuration (`/usr/lib/rkt/paths.d`) and the local configuration (`/etc/rkt/paths.d`).
-If there are configurations in both, the local configuration takes precedence.
-If there are multiple configurations in the same directory, an error occurs.
+```json
+{
+	"rktKind": "paths",
+	"rktVersion": "v1",
+	"data": "/opt/rkt-stuff/data"
+}
+```
+
+If only this configuration file is provided, then rkt will store images and pods in the `/opt/rkt-stuff/data` directory.
+Also, when user passes `--stage1-from-dir=stage1.aci` to rkt, rkt will search for this file in the directory specified at build time (usually `/usr/lib/rkt/stage1-images`).
+
+But with additional configuration provided in the local configuration directory, this can be overridden.
+For example, given the above system configuration and the following local configuration:
+
+`/etc/rkt/paths.d/paths.json`:
+
+```json
+{
+	"rktKind": "paths",
+	"rktVersion": "v1",
+	"data": "/home/me/rkt",
+}
+```
+
+Now rkt will store the images and pods in the `/home/me/rkt` directory.
+It will not know about any other data directory.
+Also, rkt will still search for the stage1 images in the directory specified at build time for the `--stage1-from-dir` flag.
+
+To override the stage1 images directory:
+
+`/etc/rkt/paths.d/stage1.json`:
+
+```json
+{
+	"rktKind": "paths",
+	"rktVersion": "v1",
+	"stage1-images": "/home/me/stage1-images",
+}
+```
+
+Now rkt will search in the `/home/me/stage1/images` directory, not in the directory specified at build time.
+
+##### Command line flags
+
+The `data` field can be overridden with the `--dir` flag.
+The `stage1-images` cannot be overridden with the command line flag.
+
+### rktKind: `stage1`
+
+The `stage1` configuration kind is used to set up a default stage1 image.
+The configuration files should be placed inside the `stage1.d` subdirectory (e.g., in the case of the default system/local directories, in `/usr/lib/rkt/stage1.d` and/or `/etc/rkt/stage1.d`).
+
+#### rktVersion: `v1`
+
+##### Description and examples
+
+This version of the `stage1` configuration specifies three additional fields: `name`, `version` and `location`.
+
+The `name` field is a string specifying a name of a default stage1 image.
+This field is optional.
+If specified, `version` field must be specified too.
+
+The `version` field is a string specifying a version of a default stage1 image.
+This field is optional.
+If specified, `name` field must be specified too.
+
+The `location` field is a string describing the location of a stage1 image file.
+This field is optional.
+
+`name` and `version` fields are used by `rkt` (unless overridden with a run-time flag or left empty) to search for the stage1 image in the image store.
+If it is not found there then `rkt` will use a value from the `location` field (again, unless overridden or empty) to fetch the stage1 image.
+
+It is expected that if all three fields are specified then the stage1 image file under `location` actually has a name and a version like in respectively `name` and `version` fields.
+Note that this is not enforced in any way.
+
+The `location` field can be:
+
+- a `file://` URL
+- a `http://` URL
+- a `https://` URL
+- a `docker://` URL
+- an absolute path (basically the same as a `file://` URL)
+
+An example:
+
+```json
+{
+	"rktKind": "stage1",
+	"rktVersion": "v1",
+	"name": "example.com/rkt/stage1",
+	"version": "1.2.3",
+	"location": "https://example.com/download/stage1-1.2.3.aci"
+}
+```
+
+##### Override semantics
+
+Overriding is done separately for the name-and-version pairs and for the locations.
+That means that the user can override either both a name and a version or a location.
+As an example, consider this system configuration:
+
+`/usr/lib/rkt/stage1.d/coreos.json`:
+
+```json
+{
+	"rktKind": "stage1",
+	"rktVersion": "v1",
+	"name": "coreos.com/rkt/stage1-coreos",
+	"version": "0.15.0+git",
+	"location": "/usr/libexec/rkt/stage1-coreos.aci"
+}
+```
+
+If only this configuration file is provided then `rkt` will check if `coreos.com/rkt/stage1-coreos` with version `0.15.0+git` is in image store.
+If it is absent then it would fetch it from `/usr/libexec/rkt/stage1-coreos.aci`.
+
+But with additional configuration provided in the local configuration directory, this can be overridden.
+For example, given the above system configuration and the following local configurations:
+
+`/etc/rkt/stage1.d/specific-coreos.json`:
+
+```json
+{
+	"rktKind": "stage1",
+	"rktVersion": "v1",
+	"location": "https://example.com/coreos-stage1.aci"
+}
+```
+
+The result is that `rkt` will still look for `coreos.com/rkt/stage1-coreos` with version `0.15.0+git` in the image store, but if it is not found, it will fetch it from `https://example.com/coreos-stage1.aci`.
+
+To continue the example, we can also override name and version with an additional configuration file like this:
+
+`/etc/rkt/stage1.d/other-name-and-version.json`:
+
+```json
+{
+	"rktKind": "stage1",
+	"rktVersion": "v1",
+	"name": "example.com/rkt/stage1",
+	"version": "1.2.3",
+}
+```
+
+Now `rkt` will search for `example.com/rkt/stage1` with version `1.2.3` in the image store before trying to fetch the image from `https://example.com/coreos-stage1.aci`.
+
+Note that _within_ a particular configuration directory (either system or local), it is a syntax error for the name, version or location to be defined in multiple files.
+
+##### Command line flags
+
+The `name`, `version` and `location` fields are ignored in favor of a value coming from `--stage1-url`, `--stage1-path`, `--stage1-name`, `--stage1-hash`, or `--stage1-from-dir` flags.

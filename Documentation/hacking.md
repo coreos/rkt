@@ -117,12 +117,14 @@ If building with docker, these must be added to the `apt-get install` command.
 
 rkt is designed and intended to be modular, using a [staged architecture](devel/architecture.md).
 
-`rkt run` determines the stage1 image it should use via its `-stage1-image` flag.
-If this flag is not given to rkt, the stage1 image will default to the settings configured when rkt was built from source.
+`rkt run` determines the stage1 image it should use via its `--stage1-{url,path,name,hash,from-dir}` flags.
+If this flag is not given to rkt, the stage1 image will default to the settings taken from the configuration.
+If those are unset, `rkt` will fall back to the settings configured when rkt was built from source.
 It usually means that rkt will look for a file called `stage1-<default flavor>.aci` that is in the same directory as the rkt binary itself.
 
 However, a default value can be set for this parameter at build time by setting the option `--with-stage1-default-location` when invoking `./configure`.
-For more details, see [configure script parameters documentation](build-configure.md).
+It can be set with the `paths` kind of configuration.
+For more details, see [configure script parameters documentation](build-configure.md) and [configuration documentation](configuration.md).
 
 ## Managing Dependencies
 

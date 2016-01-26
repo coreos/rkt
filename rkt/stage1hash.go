@@ -12,75 +12,282 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//+build linux
-
 package main
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/common/apps"
+	"github.com/coreos/rkt/rkt/config"
 	"github.com/coreos/rkt/rkt/image"
 	"github.com/coreos/rkt/store"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
+// stage1ImageLocationKind describes the stage1 image location
+type stage1ImageLocationKind int
+
 const (
-	stage1ImageFlagName string = "stage1-image"
+	// location unset, it is not a valid kind to be used
+	stage1ImageLocationUnset stage1ImageLocationKind = iota
+	// a URL with a scheme
+	stage1ImageLocationURL
+	// an absolute or a relative path
+	stage1ImageLocationPath
+	// an image name
+	stage1ImageLocationName
+	// an image hash
+	stage1ImageLocationHash
+	// an image in the default dir
+	stage1ImageLocationFromDir
 )
+
+// stage1FlagData is used for creating the flags for each valid location kind
+type stage1FlagData struct {
+	kind stage1ImageLocationKind
+	flag string
+	name string
+	help string
+}
+
+// stage1ImageLocation is used to store the user's choice of stage1 image via flags
+type stage1ImageLocation struct {
+	kind     stage1ImageLocationKind
+	location string
+}
+
+// stage1ImageLocationFlag is an implementation of a pflag.Value
+// interface, which handles all the valid location kinds
+type stage1ImageLocationFlag struct {
+	loc  *stage1ImageLocation
+	kind stage1ImageLocationKind
+}
+
+func (f *stage1ImageLocationFlag) Set(location string) error {
+	if f.loc.kind != stage1ImageLocationUnset {
+		wanted := stage1FlagsData[f.kind]
+		current := stage1FlagsData[f.loc.kind]
+		if f.loc.kind == f.kind {
+			return fmt.Errorf("--%s already used", current.flag)
+		}
+		return fmt.Errorf("flags --%s and --%s are mutually exclusive",
+			wanted.flag, current.flag)
+	}
+	f.loc.kind = f.kind
+	f.loc.location = location
+	return nil
+}
+
+func (f *stage1ImageLocationFlag) String() string {
+	return f.loc.location
+}
+
+func (f *stage1ImageLocationFlag) Type() string {
+	return stage1FlagsData[f.kind].name
+}
 
 var (
-	defaultStage1Image   string // set by linker
-	defaultStage1Name    string // set by linker
-	defaultStage1Version string // set by linker
+	// defaults defined by configure, set by linker
+	// default stage1 image name
+	// (e.g. coreos.com/rkt/stage1-coreos)
+	buildDefaultStage1Name string
+	// default stage1 image version (e.g. 0.15.0)
+	buildDefaultStage1Version string
+	// an absolute path or a URL to the default stage1 image file
+	buildDefaultStage1ImageLoc string
+	// filename of the default stage1 image file in the default
+	// stage1 images directory
+	buildDefaultStage1ImageInRktDir string
+	// an absolute path to the stage1 images directory
+	buildDefaultStage1ImagesDir string
+
+	// this holds necessary data to generate the --stage1-* flags
+	// for each location kind
+	stage1FlagsData = map[stage1ImageLocationKind]*stage1FlagData{
+		stage1ImageLocationURL: &stage1FlagData{
+			kind: stage1ImageLocationURL,
+			flag: "stage1-url",
+			name: "stage1URL",
+			help: "a URL to an image to use as stage1",
+		},
+
+		stage1ImageLocationPath: &stage1FlagData{
+			kind: stage1ImageLocationPath,
+			flag: "stage1-path",
+			name: "stage1Path",
+			help: "an absolute or a relative path to an image to use as stage1",
+		},
+
+		stage1ImageLocationName: &stage1FlagData{
+			kind: stage1ImageLocationName,
+			flag: "stage1-name",
+			name: "stage1Name",
+			help: "a name of an image to use as stage1",
+		},
+
+		stage1ImageLocationHash: &stage1FlagData{
+			kind: stage1ImageLocationHash,
+			flag: "stage1-hash",
+			name: "stage1Hash",
+			help: "a hash of an image to use as stage1",
+		},
+
+		stage1ImageLocationFromDir: &stage1FlagData{
+			kind: stage1ImageLocationFromDir,
+			flag: "stage1-from-dir",
+			name: "stage1FromDir",
+			help: "a filename of an image in stage1 images directory to use as stage1",
+		},
+	}
+	// location to stage1 image overridden by one of --stage1-*
+	// flags
+	overriddenStage1Location = stage1ImageLocation{
+		kind:     stage1ImageLocationUnset,
+		location: "",
+	}
 )
 
-// addStage1ImageFlag adds a flag for specifying custom stage1 image
-// path
-func addStage1ImageFlag(flags *pflag.FlagSet) {
-	flags.String(stage1ImageFlagName, defaultStage1Image, stage1ImageFlagHelp())
+// addStage1ImageFlags adds flags for specifying custom stage1 image
+func addStage1ImageFlags(flags *pflag.FlagSet) {
+	for _, data := range stage1FlagsData {
+		wrapper := &stage1ImageLocationFlag{
+			loc:  &overriddenStage1Location,
+			kind: data.kind,
+		}
+		flags.Var(wrapper, data.flag, data.help)
+	}
 }
 
-func stage1ImageFlagHelp() string {
-	u, err := url.Parse(defaultStage1Image)
-	if err != nil {
-		panic(fmt.Sprintf("defaultStage1Image %q is not a valid URL: %v", defaultStage1Image, err))
+// getStage1Hash will try to get the hash of stage1 to use.
+//
+// Before getting inside this rats nest, let's try to write up the
+// expected behaviour.
+//
+// If user passed --stage1-url, --stage1-path, --stage1-name,
+// --stage1-hash, or --stage1-from-dir then we take what was passed
+// and try to load it. If it failed, we bail out. No second chances
+// and whatnot. The details about how each location type should be
+// handled are below.
+//
+// If user passed none of the above flags, we try to get the name, the
+// version and the location from the configuration. The name and the
+// version must be defined in pair, that is - either both of them are
+// defined in configuration or none. Values from the configuration
+// override the values taken from the configure script. We search for
+// an image with the default name and version in the store. If it is
+// there, then woo, we are done. Otherwise we get the location and try
+// to load it. Depending on location type, we bail out immediately or
+// get a second chance.
+//
+// Details about the handling of different location types follow.
+//
+// If location is a URL, we do no discovery, just try to fetch it
+// directly into the store instead.
+//
+// If location is a path, we do no discovery, just try to fetch it
+// directly into the store instead. If the file is not found and we
+// have a second chance, we try to fetch the file in the same
+// directory as the rkt binary itself into the store.
+//
+// If location is a name, we do the discovery, fetch the discovered
+// image into the store.
+//
+// If location is an image hash then we make sure that it exists in
+// the store.
+func getStage1Hash(s *store.Store, c *config.Config) (*types.Hash, error) {
+	imgDir := getStage1ImagesDirectory(c)
+	if overriddenStage1Location.kind != stage1ImageLocationUnset {
+		// we passed a --stage-{url,path,name,hash,from-dir} flag
+		return getStage1HashFromFlag(s, overriddenStage1Location, imgDir)
 	}
-	imgDir := filepath.Dir(defaultStage1Image)
-	imgBase := filepath.Base(defaultStage1Image)
-	firstPart := "image to use as stage1. Local paths and http/https URLs are supported"
 
-	if len(defaultStage1Image) < 1 {
-		return fmt.Sprintf(`%s. There is no default stage1 image to use`, firstPart)
-	}
-	if u.Scheme != "" {
-		return fmt.Sprintf(`%s. By default, rkt will look for a file %q`, firstPart, defaultStage1Image)
-	}
-	if filepath.IsAbs(imgDir) {
-		return fmt.Sprintf(`%s. By default, rkt will look for a file called %q first in %q directory, then in the same directory as rkt itself`, firstPart, imgBase, imgDir)
-	}
-	return fmt.Sprintf(`%s. By default, rkt will look for a file called %q in the same directory as rkt itself`, firstPart, imgBase)
+	imgRef, imgLoc, imgFileName := getStage1DataFromConfig(c)
+	return getConfiguredStage1Hash(s, imgRef, imgLoc, imgFileName)
 }
 
-// getStage1Hash will try to fetch stage1 from store if it is a
-// default one. If that fails it will try to get via usual fetching
-// from disk or network.
-//
-// As a special case, if stage1 image path is a default and not
-// overriden by --stage1-image flag and it is has no scheme, it will
-// try to fetch it from two places on disk - from the path directly if
-// it is absolute and then from the same directory where rkt binary
-// resides.
-//
-// The passed command must have "stage1-image" string flag registered.
-func getStage1Hash(s *store.Store, cmd *cobra.Command) (*types.Hash, error) {
-	fn := &image.Finder{
+func getStage1ImagesDirectory(c *config.Config) string {
+	if c.Paths.Stage1ImagesDir != "" {
+		return c.Paths.Stage1ImagesDir
+	}
+	return buildDefaultStage1ImagesDir
+}
+
+func getStage1HashFromFlag(s *store.Store, loc stage1ImageLocation, dir string) (*types.Hash, error) {
+	imgType := apps.AppImageGuess
+	switch loc.kind {
+	case stage1ImageLocationURL:
+		imgType = apps.AppImageURL
+	case stage1ImageLocationPath:
+		imgType = apps.AppImagePath
+	case stage1ImageLocationName:
+		imgType = apps.AppImageName
+	case stage1ImageLocationHash:
+		imgType = apps.AppImageHash
+	case stage1ImageLocationFromDir:
+		loc.location = filepath.Join(dir, loc.location)
+		imgType = apps.AppImagePath
+	}
+
+	fn := getStage1Finder(s)
+	return fn.FindImage(loc.location, "", imgType)
+}
+
+func getStage1DataFromConfig(c *config.Config) (string, string, string) {
+	imgName := c.Stage1.Name
+	imgVersion := c.Stage1.Version
+	// if the name in the configuration is empty, then the version
+	// is empty too, but let's better be safe now then sorry later
+	// - if either one is empty we take build defaults for both
+	if imgName == "" || imgVersion == "" {
+		imgName = buildDefaultStage1Name
+		imgVersion = buildDefaultStage1Version
+	}
+	imgRef := fmt.Sprintf("%s:%s", imgName, imgVersion)
+
+	imgLoc := c.Stage1.Location
+	imgFileName := getFileNameFromLocation(imgLoc)
+	if imgLoc == "" {
+		imgLoc = buildDefaultStage1ImageLoc
+		imgFileName = buildDefaultStage1ImageInRktDir
+	}
+
+	return imgRef, imgLoc, imgFileName
+}
+
+func getFileNameFromLocation(imgLoc string) string {
+	if !filepath.IsAbs(imgLoc) {
+		return ""
+	}
+	return filepath.Base(imgLoc)
+}
+
+func getConfiguredStage1Hash(s *store.Store, imgRef, imgLoc, imgFileName string) (*types.Hash, error) {
+	fn := getStage1Finder(s)
+	if !strings.HasSuffix(imgRef, "-dirty") {
+		fn.StoreOnly = true
+		if hash, err := fn.FindImage(imgRef, "", apps.AppImageName); err == nil {
+			return hash, nil
+		}
+		fn.StoreOnly = false
+	}
+	if imgLoc == "" && imgFileName == "" {
+		return nil, fmt.Errorf("neither the location of the default stage1 image nor its filename are set, use --stage1-{path,url,name,hash,from-dir} flag")
+	}
+	// If imgLoc is not an absolute path, then it is a URL
+	imgLocIsURL := imgLoc != "" && !filepath.IsAbs(imgLoc)
+	if imgLocIsURL {
+		return fn.FindImage(imgLoc, "", apps.AppImageURL)
+	}
+	return getStage1HashFromPath(fn, imgLoc, imgFileName)
+}
+
+func getStage1Finder(s *store.Store) *image.Finder {
+	return &image.Finder{
 		S:                  s,
 		InsecureFlags:      globalFlags.InsecureFlags,
 		TrustKeysFromHTTPS: globalFlags.TrustKeysFromHTTPS,
@@ -89,108 +296,39 @@ func getStage1Hash(s *store.Store, cmd *cobra.Command) (*types.Hash, error) {
 		NoStore:   false,
 		WithDeps:  false,
 	}
-
-	imageFlag := cmd.Flags().Lookup(stage1ImageFlagName)
-	if imageFlag == nil {
-		panic(fmt.Sprintf("Expected flag --%s to be registered in command %s", stage1ImageFlagName, cmd.Name()))
-	}
-	path := imageFlag.Value.String()
-	if path == defaultStage1Image {
-		return getDefaultStage1Hash(fn, imageFlag.Changed)
-	}
-	return getCustomStage1Hash(fn, path)
 }
 
-func getDefaultStage1Hash(fn *image.Finder, overridden bool) (*types.Hash, error) {
-	// just fail if default stage1 image path is empty - might
-	// happen for none flavor
-	if defaultStage1Image == "" {
-		return nil, fmt.Errorf("no default stage1 image is set, use --%s flag", stage1ImageFlagName)
-	}
-
-	if s1img := getDefaultStage1HashFromStore(fn); s1img != nil {
-		return s1img, nil
-	}
-	// we couldn't find a proper stage1 image in the store, fall
-	// back to using a stage1 ACI file (slow)
-	return getDefaultStage1HashFromURL(fn, overridden)
-}
-
-func getDefaultStage1HashFromStore(fn *image.Finder) *types.Hash {
-	// we make sure we've built rkt with a clean git tree,
-	// otherwise we don't know if something changed
-	if !strings.HasSuffix(defaultStage1Version, "-dirty") {
-		stage1AppName := fmt.Sprintf("%s:%s", defaultStage1Name, defaultStage1Version)
-		fn.StoreOnly = true
-		s1img, _ := fn.FindImage(stage1AppName, "", apps.AppImageName)
-		fn.StoreOnly = false
-		return s1img
-	}
-	return nil
-}
-
-func getDefaultStage1HashFromURL(fn *image.Finder, overridden bool) (*types.Hash, error) {
-	if overridden {
-		// we specified --stage1-image parameter explicitly,
-		// so just try to get it without further or more ado
-		return getCustomStage1Hash(fn, defaultStage1Image)
-	}
-	if url, err := url.Parse(defaultStage1Image); err != nil {
-		return nil, fmt.Errorf("failed to parse %q as URL: %v", defaultStage1Image, err)
-	} else if url.Scheme != "" {
-		// default stage1 image path is some schemed path,
-		// just try to get it
-		getCustomStage1Hash(fn, defaultStage1Image)
-	}
-	// default scheme path is a relative or absolute path to a
-	// file
-	return getLocalDefaultStage1Hash(fn)
-}
-
-func getLocalDefaultStage1Hash(fn *image.Finder) (*types.Hash, error) {
-	var firstErr error = nil
-	// Guard against relative path to default stage1 image. It
-	// could be fine for some custom stage1 path passed via
-	// --stage1-image parameter, but not for default, not
-	// overridden ones. Usually, if the path is relative, then it
-	// means we simply didn't pass --with-stage1-image-path
-	// parameter to configure script, so it defaulted to desired
-	// filename like "stuff/yadda/stage1-lkvm.aci" (or something).
-	if filepath.IsAbs(defaultStage1Image) {
-		s1img, err := fn.FindImage(defaultStage1Image, "", apps.AppImagePath)
-		if s1img != nil {
-			return s1img, nil
+func getStage1HashFromPath(fn *image.Finder, imgLoc, imgFileName string) (*types.Hash, error) {
+	var fetchErr error
+	var fallbackErr error
+	if imgLoc != "" {
+		hash, err := fn.FindImage(imgLoc, "", apps.AppImagePath)
+		if err == nil {
+			return hash, nil
 		}
-		firstErr = err
+		fetchErr = err
 	}
-	// could not find default stage1 image in a given path
-	// (or we ignored it), lets try to load one in the
-	// same directory as rkt itself
-	imgBase := filepath.Base(defaultStage1Image)
-	exePath, err := os.Readlink("/proc/self/exe")
-	if err != nil {
-		if firstErr != nil {
-			return nil, fmt.Errorf("error finding stage1 images %q and %q in rkt binary directory: %v and %v", defaultStage1Image, imgBase, firstErr, err)
-		} else {
-			return nil, fmt.Errorf("error finding stage1 image %q in rkt binary directory: %v", imgBase, err)
+	if imgFileName != "" {
+		rktDir := getRktBinaryDir()
+		imgPath := filepath.Join(rktDir, imgFileName)
+		hash, err := fn.FindImage(imgPath, "", apps.AppImagePath)
+		if err == nil {
+			return hash, nil
 		}
+		fallbackErr = err
 	}
-	fallbackPath := filepath.Join(filepath.Dir(exePath), imgBase)
-	s1img, err := fn.FindImage(fallbackPath, "", apps.AppImagePath)
-	if err != nil {
-		if firstErr != nil {
-			return nil, fmt.Errorf("error finding stage1 images %q and %q: %v and %v", defaultStage1Image, fallbackPath, firstErr, err)
-		} else {
-			return nil, fmt.Errorf("error finding stage1 image %q: %v", fallbackPath, err)
-		}
-	}
-	return s1img, nil
+	return nil, mergeStage1Errors(fetchErr, fallbackErr)
 }
 
-func getCustomStage1Hash(fn *image.Finder, path string) (*types.Hash, error) {
-	s1img, err := fn.FindImage(path, "", apps.AppImageGuess)
-	if err != nil {
-		return nil, fmt.Errorf("error finding stage1 image %q: %v", path, err)
+func mergeStage1Errors(fetchErr, fallbackErr error) error {
+	if fetchErr != nil && fallbackErr != nil {
+		return fmt.Errorf("%v, also failed to fall back to stage1 image in rkt directory: %v", fetchErr, fallbackErr)
+	} else if fetchErr != nil {
+		return fetchErr
 	}
-	return s1img, nil
+	return fmt.Errorf("failed to fall back to stage1 image in rkt directory (default stage1 image location is not specified): %v", fallbackErr)
+}
+
+func getRktBinaryDir() string {
+	return filepath.Dir(os.Args[0])
 }

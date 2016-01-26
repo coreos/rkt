@@ -47,7 +47,7 @@ End the image arguments with a lone "---" to resume argument parsing.`,
 func init() {
 	cmdRkt.AddCommand(cmdPrepare)
 
-	addStage1ImageFlag(cmdPrepare.Flags())
+	addStage1ImageFlags(cmdPrepare.Flags())
 	cmdPrepare.Flags().Var(&flagPorts, "port", "ports to expose on the host (needs contained networking with NAT)")
 	cmdPrepare.Flags().BoolVar(&flagQuiet, "quiet", false, "suppress superfluous output on stdout, print only the UUID on success")
 	cmdPrepare.Flags().BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
@@ -120,7 +120,7 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	s1img, err := getStage1Hash(s, cmd)
+	s1img, err := getStage1Hash(s, config)
 	if err != nil {
 		stderr("prepare: %v", err)
 		return 1

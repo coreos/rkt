@@ -33,13 +33,25 @@ type Headerer interface {
 	Header() http.Header
 }
 
+// BasicCredentials holds typical credentials used for authentication
+// (user and password). Used for fetching docker images.
 type BasicCredentials struct {
 	User     string
 	Password string
 }
 
+// ConfigurablePaths holds various paths defined in the configuration.
 type ConfigurablePaths struct {
-	DataDir string
+	DataDir         string
+	Stage1ImagesDir string
+}
+
+// Stage1 holds name, version and location of a default stage1 image
+// if it was specified in configuration.
+type Stage1Data struct {
+	Name     string
+	Version  string
+	Location string
 }
 
 // Config is a single place where configuration for rkt frontend needs
@@ -48,6 +60,7 @@ type Config struct {
 	AuthPerHost                  map[string]Headerer
 	DockerCredentialsPerRegistry map[string]BasicCredentials
 	Paths                        ConfigurablePaths
+	Stage1                       Stage1Data
 }
 
 type configParser interface {
@@ -111,7 +124,7 @@ func toSet(a []string) map[string]struct{} {
 }
 
 func toArray(s map[string]struct{}) []string {
-	a := make([]string, len(s))
+	a := make([]string, 0, len(s))
 	for k := range s {
 		a = append(a, k)
 	}
@@ -299,5 +312,15 @@ func mergeConfigs(config *Config, subconfig *Config) {
 	}
 	if subconfig.Paths.DataDir != "" {
 		config.Paths.DataDir = subconfig.Paths.DataDir
+	}
+	if subconfig.Paths.Stage1ImagesDir != "" {
+		config.Paths.Stage1ImagesDir = subconfig.Paths.Stage1ImagesDir
+	}
+	if subconfig.Stage1.Name != "" {
+		config.Stage1.Name = subconfig.Stage1.Name
+		config.Stage1.Version = subconfig.Stage1.Version
+	}
+	if subconfig.Stage1.Location != "" {
+		config.Stage1.Location = subconfig.Stage1.Location
 	}
 }

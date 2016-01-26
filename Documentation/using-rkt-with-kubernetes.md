@@ -20,7 +20,7 @@ The [getting started with rkt guide][] in the Kubernetes repository provides mor
 
 ### Current Status
 
-Integration of rkt as a container runtime for Kubernetes is under active development. 
+Integration of rkt as a container runtime for Kubernetes is under active development.
 For the latest information on the progress of the integration, check out [this Google doc][rkt-k8s-checklist] which tracks the detailed status of implemented functionality.
 
-[rkt-k8s-checklist]: https://docs.google.com/document/d/1dYxInIUDTm4HEArQ9Hom_1NhYw22WrXWdglnaLjtQsI/edit 
+[rkt-k8s-checklist]: https://docs.google.com/document/d/1dYxInIUDTm4HEArQ9Hom_1NhYw22WrXWdglnaLjtQsI/edit

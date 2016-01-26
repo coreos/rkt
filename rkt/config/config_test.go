@@ -122,17 +122,18 @@ func TestDockerAuthConfigFormat(t *testing.T) {
 }
 
 func TestPathsConfigFormat(t *testing.T) {
-	tmpPath := os.TempDir()
 	tests := []struct {
 		contents string
 		expected ConfigurablePaths
 		fail     bool
 	}{
-		{"bogus contents", ConfigurablePaths{DataDir: ""}, true},
-		{`{"bogus": {"foo": "bar"}}`, ConfigurablePaths{DataDir: ""}, true},
-		{`{"rktKind": "foo"}`, ConfigurablePaths{DataDir: ""}, true},
-		{`{"rktKind": "paths", "rktVersion": "foo"}`, ConfigurablePaths{DataDir: ""}, true},
-		{`{"rktKind": "paths", "rktVersion": "v1", "data": "` + tmpPath + `"}`, ConfigurablePaths{DataDir: tmpPath}, false},
+		{"bogus contents", ConfigurablePaths{}, true},
+		{`{"bogus": {"foo": "bar"}}`, ConfigurablePaths{}, true},
+		{`{"rktKind": "foo"}`, ConfigurablePaths{}, true},
+		{`{"rktKind": "paths", "rktVersion": "foo"}`, ConfigurablePaths{}, true},
+		{`{"rktKind": "paths", "rktVersion": "v1"}`, ConfigurablePaths{}, false},
+		{`{"rktKind": "paths", "rktVersion": "v1", "data": "/dir1"}`, ConfigurablePaths{DataDir: "/dir1"}, false},
+		{`{"rktKind": "paths", "rktVersion": "v1", "data": "/dir1", "stage1-images": "/dir2"}`, ConfigurablePaths{DataDir: "/dir1", Stage1ImagesDir: "/dir2"}, false},
 	}
 	for _, tt := range tests {
 		cfg, err := getConfigFromContents(tt.contents, "paths")
@@ -140,6 +141,38 @@ func TestPathsConfigFormat(t *testing.T) {
 			t.Errorf("%v", vErr)
 		} else if !tt.fail {
 			result := cfg.Paths
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Errorf("Got unexpected results\nResult:\n%#v\n\nExpected:\n%#v", result, tt.expected)
+			}
+		}
+	}
+}
+
+func TestStage1ConfigFormat(t *testing.T) {
+	tests := []struct {
+		contents string
+		expected Stage1Data
+		fail     bool
+	}{
+		{"bogus contents", Stage1Data{}, true},
+		{`{"bogus": {"foo": "bar"}}`, Stage1Data{}, true},
+		{`{"rktKind": "foo"}`, Stage1Data{}, true},
+		{`{"rktKind": "stage1", "rktVersion": "foo"}`, Stage1Data{}, true},
+		{`{"rktKind": "stage1", "rktVersion": "v1"}`, Stage1Data{}, false},
+		{`{"rktKind": "stage1", "rktVersion": "v1", "name": "example.com/stage1"}`, Stage1Data{}, true},
+		{`{"rktKind": "stage1", "rktVersion": "v1", "version": "1.2.3"}`, Stage1Data{}, true},
+		{`{"rktKind": "stage1", "rktVersion": "v1", "name": "example.com/stage1", "version": "1.2.3"}`, Stage1Data{Name: "example.com/stage1", Version: "1.2.3"}, false},
+		{`{"rktKind": "stage1", "rktVersion": "v1", "location": "/image.aci"}`, Stage1Data{Location: "/image.aci"}, false},
+		{`{"rktKind": "stage1", "rktVersion": "v1", "name": "example.com/stage1", "location": "/image.aci"}`, Stage1Data{}, true},
+		{`{"rktKind": "stage1", "rktVersion": "v1", "version": "1.2.3", "location": "/image.aci"}`, Stage1Data{}, true},
+		{`{"rktKind": "stage1", "rktVersion": "v1", "name": "example.com/stage1", "version": "1.2.3", "location": "/image.aci"}`, Stage1Data{Name: "example.com/stage1", Version: "1.2.3", Location: "/image.aci"}, false},
+	}
+	for _, tt := range tests {
+		cfg, err := getConfigFromContents(tt.contents, "stage1")
+		if vErr := verifyFailure(tt.fail, tt.contents, err); vErr != nil {
+			t.Errorf("%v", vErr)
+		} else if !tt.fail {
+			result := cfg.Stage1
 			if !reflect.DeepEqual(result, tt.expected) {
 				t.Errorf("Got unexpected results\nResult:\n%#v\n\nExpected:\n%#v", result, tt.expected)
 			}

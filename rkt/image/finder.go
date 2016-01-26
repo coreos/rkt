@@ -78,5 +78,6 @@ func (f *Finder) getHashFromStore(img string) (*types.Hash, error) {
 		// should never happen
 		panic(fmt.Errorf("got an invalid hash from the store, looks like it is corrupted: %v", err))
 	}
+	stderr("using image from the store with hash %s", h.String())
 	return h, nil
 }

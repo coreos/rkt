@@ -21,7 +21,7 @@ Until https://github.com/coreos/rkt/issues/572 is resolved, this should be consi
 The first stage is the actual `rkt` binary itself.
 When running a pod, this binary is responsible for performing a number of initial preparatory tasks:
 
-- Fetching the specified ACIs, including the stage 1 ACI of --stage1-image if specified.
+- Fetching the specified ACIs, including the stage 1 ACI of --stage1-{url,path,name,hash,from-dir} if specified.
 - Generating a Pod UUID
 - Generating a Pod Manifest
 - Creating a filesystem for the pod
