@@ -49,22 +49,22 @@ func pluginErr(err error, output []byte) error {
 	return err
 }
 
-func (e *podEnv) netPluginAdd(n *activeNet, netns string) (ip, hostIP net.IP, err error) {
+func (e *podEnv) netPluginAdd(n *activeNet, netns string) (ip, hostIP net.IP, dns []string, err error) {
 	output, err := e.execNetPlugin("ADD", n, netns)
 	if err != nil {
-		return nil, nil, pluginErr(err, output)
+		return nil, nil, nil, pluginErr(err, output)
 	}
 
 	pr := cnitypes.Result{}
 	if err = json.Unmarshal(output, &pr); err != nil {
-		return nil, nil, fmt.Errorf("error parsing %q result: %v", n.conf.Name, err)
+		return nil, nil, nil, fmt.Errorf("error parsing %q result: %v", n.conf.Name, err)
 	}
 
 	if pr.IP4 == nil {
-		return nil, nil, fmt.Errorf("net-plugin returned no IPv4 configuration")
+		return nil, nil, nil, fmt.Errorf("net-plugin returned no IPv4 configuration")
 	}
 
-	return pr.IP4.IP.IP, pr.IP4.Gateway, nil
+	return pr.IP4.IP.IP, pr.IP4.Gateway, pr.DNS, nil
 }
 
 func (e *podEnv) netPluginDel(n *activeNet, netns string) error {

@@ -147,11 +147,14 @@ int main(int argc, char *argv[])
 		"/dev/console",
 		NULL
 	};
-	static const mount_point mount_table[] = {
+	static const mount_point dirs_mount_table[] = {
 		{ "/proc", "/proc", "bind", NULL, MS_BIND|MS_REC },
 		{ "/sys", "/sys", "bind", NULL, MS_BIND|MS_REC },
 		{ "/dev/shm", "/dev/shm", "bind", NULL, MS_BIND },
 		{ "/dev/pts", "/dev/pts", "bind", NULL, MS_BIND },
+	};
+	static const mount_point files_mount_table[] = {
+		{ "/etc/rkt-resolv.conf", "/etc/resolv.conf", "bind", NULL, MS_BIND },
 	};
 	const char *root;
 	int rootfd;
@@ -243,11 +246,29 @@ int main(int argc, char *argv[])
 	}
 
 	/* Bind mount directories */
-	for (i = 0; i < nelems(mount_table); i++) {
-		const mount_point *mnt = &mount_table[i];
+	for (i = 0; i < nelems(dirs_mount_table); i++) {
+		const mount_point *mnt = &dirs_mount_table[i];
 
 		exit_if(snprintf(to, sizeof(to), "%s/%s", root, mnt->target) >= sizeof(to),
 			"Path too long: \"%s\"", to);
+		pexit_if(mount(mnt->source, to, mnt->type,
+			       mnt->flags, mnt->options) == -1,
+				"Mounting \"%s\" on \"%s\" failed", mnt->source, to);
+	}
+
+	/* Bind mount files */
+	for (i = 0; i < nelems(files_mount_table); i++) {
+		const mount_point *mnt = &files_mount_table[i];
+		int fd;
+
+		exit_if(snprintf(to, sizeof(to), "%s/%s", root, mnt->target) >= sizeof(to),
+			"Path too long: \"%s\"", to);
+		if (access(mnt->source, F_OK) != 0)
+			continue;
+		if (access(to, F_OK) == 0)
+			continue;
+		fd = creat(to, 0644);
+		close(fd);
 		pexit_if(mount(mnt->source, to, mnt->type,
 			       mnt->flags, mnt->options) == -1,
 				"Mounting \"%s\" on \"%s\" failed", mnt->source, to);

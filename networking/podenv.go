@@ -123,7 +123,7 @@ func (e *podEnv) setupNets(nets []activeNet) error {
 			return fmt.Errorf("error copying %q to %q: %v", n.runtime.ConfPath, e.netDir(), err)
 		}
 
-		n.runtime.IP, n.runtime.HostIP, err = e.netPluginAdd(&n, nspath)
+		n.runtime.IP, n.runtime.HostIP, n.runtime.DNS, err = e.netPluginAdd(&n, nspath)
 		if err != nil {
 			return fmt.Errorf("error adding network %q: %v", n.conf.Name, err)
 		}

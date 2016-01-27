@@ -56,6 +56,7 @@ End the image arguments with a lone "---" to resume argument parsing.`,
 	flagInheritEnv   bool
 	flagExplicitEnv  envMap
 	flagInteractive  bool
+	flagDNS          string
 	flagNoOverlay    bool
 	flagStoreOnly    bool
 	flagNoStore      bool
@@ -76,6 +77,7 @@ func init() {
 	cmdRun.Flags().BoolVar(&flagPrivateUsers, "private-users", false, "Run within user namespaces (experimental).")
 	cmdRun.Flags().Var(&flagExplicitEnv, "set-env", "an environment variable to set for apps in the form name=value")
 	cmdRun.Flags().BoolVar(&flagInteractive, "interactive", false, "run pod interactively. If true, only one image may be supplied.")
+	cmdRun.Flags().StringVar(&flagDNS, "dns", "", "comma separated list of name servers")
 	cmdRun.Flags().BoolVar(&flagStoreOnly, "store-only", false, "use only available images in the store (do not discover or download from remote URLs)")
 	cmdRun.Flags().BoolVar(&flagNoStore, "no-store", false, "fetch images ignoring the local store")
 	cmdRun.Flags().StringVar(&flagPodManifest, "pod-manifest", "", "the path to the pod manifest. If it's non-empty, then only '--net', '--no-overlay' and '--interactive' will have effects")
@@ -271,6 +273,7 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		Net:          flagNet,
 		LockFd:       lfd,
 		Interactive:  flagInteractive,
+		DNS:          strings.Split(flagDNS, ","),
 		MDSRegister:  flagMDSRegister,
 		LocalConfig:  globalFlags.LocalConfigDir,
 		RktGid:       rktgid,

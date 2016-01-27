@@ -526,6 +526,29 @@ func stage1() int {
 
 			p.MetadataServiceURL = common.MetadataServicePublicURL(hostIP, mdsToken)
 		}
+
+		// Append CNI name servers to /etc/rkt-resolv.conf
+		resolvConfContent := "# Name servers from CNI\n"
+		for _, dns := range n.GetDNS() {
+			resolvConfContent += fmt.Sprintf("nameserver %s\n", dns)
+		}
+		f, err := os.OpenFile("./stage1/rootfs/etc/rkt-resolv.conf", os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to write to /etc/rkt-resolv.conf: %v\n", err)
+			return 1
+		}
+		n, err := f.Write([]byte(resolvConfContent))
+		if err == nil && n < len(resolvConfContent) {
+			fmt.Fprintf(os.Stderr, "Failed to write to /etc/rkt-resolv.conf: %v\n", err)
+			return 1
+		}
+		if err1 := f.Close(); err == nil {
+			err = err1
+		}
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to write to /etc/rkt-resolv.conf: %v\n", err)
+			return 1
+		}
 	} else {
 		if flavor == "kvm" {
 			fmt.Fprintf(os.Stderr, "Flavor kvm requires private network configuration (try --net).\n")

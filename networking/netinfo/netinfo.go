@@ -35,6 +35,7 @@ type NetInfo struct {
 	Mask     net.IP          `json:"mask"` // we used IP instead of IPMask because support for json serialization (we don't need specifc functionalities
 	HostIP   net.IP          `json:"-"`
 	IP4      *types.IPConfig `json:"-"`
+	DNS      []string        `json:"dns"`
 }
 
 func LoadAt(cdirfd int) ([]NetInfo, error) {

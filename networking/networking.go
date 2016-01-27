@@ -176,6 +176,14 @@ func (n *Networking) GetDefaultHostIP() (net.IP, error) {
 	return n.nets[len(n.nets)-1].runtime.HostIP, nil
 }
 
+func (n *Networking) GetDNS() []string {
+	dns := []string{}
+	for _, anet := range n.nets {
+		dns = append(dns, anet.runtime.DNS...)
+	}
+	return dns
+}
+
 // Teardown cleans up a produced Networking object.
 func (n *Networking) Teardown(flavor string) {
 	// Teardown everything in reverse order of setup.

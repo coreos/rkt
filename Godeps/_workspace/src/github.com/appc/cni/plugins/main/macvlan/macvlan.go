@@ -31,9 +31,10 @@ import (
 
 type NetConf struct {
 	types.NetConf
-	Master string `json:"master"`
-	Mode   string `json:"mode"`
-	MTU    int    `json:"mtu"`
+	Master string   `json:"master"`
+	Mode   string   `json:"mode"`
+	MTU    int      `json:"mtu"`
+	DNS    []string `json:"dns"`
 }
 
 func init() {
@@ -142,6 +143,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
+	result.DNS = n.DNS
 	return result.Print()
 }
 
