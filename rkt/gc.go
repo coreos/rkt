@@ -25,6 +25,8 @@ import (
 	"github.com/coreos/rkt/stage0"
 	"github.com/coreos/rkt/store"
 	"github.com/spf13/cobra"
+
+	rktflag "github.com/coreos/rkt/rkt/flag"
 )
 
 const (
@@ -40,12 +42,23 @@ var (
 	}
 	flagGracePeriod        time.Duration
 	flagPreparedExpiration time.Duration
+	flagSelectGc           *rktflag.GcFlags
 )
 
 func init() {
+	fsgc, err := rktflag.NewGcFlags("all")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "rkt: problem initializing: %v", err)
+		os.Exit(1)
+	}
+	flagSelectGc = fsgc
+
 	cmdRkt.AddCommand(cmdGC)
 	cmdGC.Flags().DurationVar(&flagGracePeriod, "grace-period", defaultGracePeriod, "duration to wait before discarding inactive pods from garbage")
 	cmdGC.Flags().DurationVar(&flagPreparedExpiration, "expire-prepared", defaultPreparedExpiration, "duration to wait before expiring prepared pods")
+	cmdGC.PersistentFlags().Var(flagSelectGc, "select-gc",
+		fmt.Sprintf("comma-separated list of objects to garbage-collect. Allowed values: %s",
+			flagSelectGc.PermissibleString()))
 }
 
 func runGC(cmd *cobra.Command, args []string) (exit int) {
