@@ -14,5 +14,5 @@ before_install:
 
 script:
  - ./autogen.sh
- - ./configure --with-stage1-default-name="example.com/some-stage1-for-rkt" --with-stage1-default-version="0.0.1"
+ - ./configure
  - make unit-check
