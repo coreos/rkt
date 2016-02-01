@@ -483,22 +483,29 @@ dnl Digits regexp class. Square brackets are used by m4 for quoting,
 dnl so to get literal square brackets, m4 provides ugly @<:@ and @:>@
 dnl for [ and ].
 m4_define([DIGITS],[@<:@0-9@:>@])
+m4_define([ALNUM],[@<:@a-zA-Z0-9@:>@])
 
 dnl Detect go version. Go 1.4 support only "-X variable 'value'"
 dnl format of assigning values to variables via linker flags. Go 1.5
 dnl deprecates this format in favor of "-X 'variable=value'"
 dnl format. Drop this ugliness when we drop support for Go 1.4.
-GO_VERSION=`"${ABS_GO}" version | sed -e 's/^go version go\(DIGITS*\.DIGITS*\.DIGITS*\).*/\1/'`
+GO_VERSION=`"${ABS_GO}" version | sed -e 's/^go version \(go\|\)\(devel +ALNUM\+\|\(DIGITS*\.DIGITS*\(\.DIGITS*\)\?\)\).*/\2/'`
 GO_MAJOR=`echo "${GO_VERSION}" | grep -o '^DIGITS\+'`
 GO_MINOR=`echo "${GO_VERSION}" | grep -o '^DIGITS\+\.DIGITS\+' | grep -o 'DIGITS\+$'`
 GO_MAJOR_MINOR=`echo "${GO_MAJOR}.${GO_MINOR}"`
-GO_MICRO=`echo "${GO_VERSION}" | grep -o 'DIGITS\+$'`
+GO_MICRO=`echo "${GO_VERSION}" | grep -o '^DIGITS\+\.DIGITS\+\.DIGITS\+' | grep -o 'DIGITS\+$'`
+GO_MICRO=`echo "${GO_VERSION}" | grep -o 'DIGITS\+$' || echo "0"`
 
 GO_BEST_MAJOR=1
 GO_BEST_MINOR=5
 GO_BEST_VERSION="${GO_BEST_MAJOR}.${GO_BEST_MINOR}"
 AC_MSG_CHECKING([whether we have go ${GO_BEST_VERSION} or newer])
-AS_IF([test "${GO_MAJOR}" -gt "${GO_BEST_MAJOR}" || test "${GO_MAJOR}" -eq "${GO_BEST_MAJOR}" -a "${GO_MINOR}" -ge "${GO_BEST_MINOR}"],
+AS_IF([test "${GO_VERSION%% *}" = "devel" ],
+      [AC_MSG_WARN([assuming development version is newer than ${GO_BEST_VERSION}])
+       RKT_XF() {
+           echo "-X '$1=$2'"
+       }],
+      [test "${GO_MAJOR}" -gt "${GO_BEST_MAJOR}" || test "${GO_MAJOR}" -eq "${GO_BEST_MAJOR}" -a "${GO_MINOR}" -ge "${GO_BEST_MINOR}"],
       [AC_MSG_RESULT([yes])
        RKT_XF() {
            echo "-X '$1=$2'"
@@ -513,7 +520,7 @@ AS_IF([test "${GO_MAJOR}" -gt "${GO_BEST_MAJOR}" || test "${GO_MAJOR}" -eq "${GO
                  [AC_MSG_ERROR([*** go is too old (${GO_VERSION})])])])
 
 AC_MSG_CHECKING([whether we have a go version without CVE-2015-8618])
-AS_IF([test "${GO_MAJOR}" -eq "1" -a "${GO_MINOR}" -eq "5" -a "${GO_MICRO}" -lt "3"],
+AS_IF([test "${GO_VERSION%% *}" != "devel" && test "${GO_MAJOR}" -eq "1" -a "${GO_MINOR}" -eq "5" -a "${GO_MICRO}" -lt "3" ],
       [AC_MSG_RESULT([no])
        AC_MSG_ERROR([*** go version is vulnerable to CVE-2015-8618 (${GO_VERSION})])],
       [AC_MSG_RESULT([yes])])
