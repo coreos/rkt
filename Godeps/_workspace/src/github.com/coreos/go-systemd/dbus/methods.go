@@ -221,6 +221,19 @@ func (c *Conn) GetUnitTypeProperty(unit string, unitType string, propertyName st
 	return c.getProperty(unit, "org.freedesktop.systemd1."+unitType, propertyName)
 }
 
+type UnitStatus struct {
+	Name        string          // The primary unit name as string
+	Description string          // The human readable description string
+	LoadState   string          // The load state (i.e. whether the unit file has been loaded successfully)
+	ActiveState string          // The active state (i.e. whether the unit is currently started or not)
+	SubState    string          // The sub state (a more fine-grained version of the active state that is specific to the unit type, which the active state is not)
+	Followed    string          // A unit that is being followed in its state by this unit, if there is any, otherwise the empty string.
+	Path        dbus.ObjectPath // The unit object path
+	JobId       uint32          // If there is a job queued for the job unit the numeric job id, 0 otherwise
+	JobType     string          // The job type as string
+	JobPath     dbus.ObjectPath // The job object path
+}
+
 // ListUnits returns an array with all currently loaded units. Note that
 // units may be known by multiple names at the same time, and hence there might
 // be more unit names loaded than actual units behind them.
@@ -250,17 +263,36 @@ func (c *Conn) ListUnits() ([]UnitStatus, error) {
 	return status, nil
 }
 
-type UnitStatus struct {
-	Name        string          // The primary unit name as string
-	Description string          // The human readable description string
-	LoadState   string          // The load state (i.e. whether the unit file has been loaded successfully)
-	ActiveState string          // The active state (i.e. whether the unit is currently started or not)
-	SubState    string          // The sub state (a more fine-grained version of the active state that is specific to the unit type, which the active state is not)
-	Followed    string          // A unit that is being followed in its state by this unit, if there is any, otherwise the empty string.
-	Path        dbus.ObjectPath // The unit object path
-	JobId       uint32          // If there is a job queued for the job unit the numeric job id, 0 otherwise
-	JobType     string          // The job type as string
-	JobPath     dbus.ObjectPath // The job object path
+type UnitFile struct {
+	Path string
+	Type string
+}
+
+// ListUnitFiles returns an array of all available units on disk.
+func (c *Conn) ListUnitFiles() ([]UnitFile, error) {
+	result := make([][]interface{}, 0)
+	err := c.sysobj.Call("org.freedesktop.systemd1.Manager.ListUnitFiles", 0).Store(&result)
+	if err != nil {
+		return nil, err
+	}
+
+	resultInterface := make([]interface{}, len(result))
+	for i := range result {
+		resultInterface[i] = result[i]
+	}
+
+	files := make([]UnitFile, len(result))
+	fileInterface := make([]interface{}, len(files))
+	for i := range files {
+		fileInterface[i] = &files[i]
+	}
+
+	err = dbus.Store(resultInterface, fileInterface...)
+	if err != nil {
+		return nil, err
+	}
+
+	return files, nil
 }
 
 type LinkUnitFileChange EnableUnitFileChange

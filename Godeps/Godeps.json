@@ -153,23 +153,28 @@
 		},
 		{
 			"ImportPath": "github.com/coreos/go-systemd/activation",
-			"Comment": "v4-15-ga831f36",
-			"Rev": "a831f36d09de8f095c28eeee839df52e9de5031f"
+			"Comment": "v4-40-g2ed5b50",
+			"Rev": "2ed5b5012ccde5f057c197890a2c801295941149"
 		},
 		{
 			"ImportPath": "github.com/coreos/go-systemd/dbus",
-			"Comment": "v4-15-ga831f36",
-			"Rev": "a831f36d09de8f095c28eeee839df52e9de5031f"
+			"Comment": "v4-40-g2ed5b50",
+			"Rev": "2ed5b5012ccde5f057c197890a2c801295941149"
+		},
+		{
+			"ImportPath": "github.com/coreos/go-systemd/sdjournal",
+			"Comment": "v4-40-g2ed5b50",
+			"Rev": "2ed5b5012ccde5f057c197890a2c801295941149"
 		},
 		{
 			"ImportPath": "github.com/coreos/go-systemd/unit",
-			"Comment": "v4-15-ga831f36",
-			"Rev": "a831f36d09de8f095c28eeee839df52e9de5031f"
+			"Comment": "v4-40-g2ed5b50",
+			"Rev": "2ed5b5012ccde5f057c197890a2c801295941149"
 		},
 		{
 			"ImportPath": "github.com/coreos/go-systemd/util",
-			"Comment": "v4-15-ga831f36",
-			"Rev": "a831f36d09de8f095c28eeee839df52e9de5031f"
+			"Comment": "v4-40-g2ed5b50",
+			"Rev": "2ed5b5012ccde5f057c197890a2c801295941149"
 		},
 		{
 			"ImportPath": "github.com/coreos/go-tspi/attestation",
