@@ -17,6 +17,8 @@
 package main
 
 import (
+	"os"
+
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/stage0"
 	"github.com/coreos/rkt/store"
@@ -49,6 +51,11 @@ func init() {
 }
 
 func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
+	if os.Geteuid() != 0 {
+		stderr.Print("cannot run as unprivileged user")
+		return 1
+	}
+
 	if len(args) != 1 {
 		cmd.Usage()
 		return 1

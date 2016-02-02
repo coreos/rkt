@@ -42,6 +42,11 @@ func runRm(cmd *cobra.Command, args []string) (exit int) {
 	var podUUIDs []*types.UUID
 	var err error
 
+	if os.Geteuid() != 0 {
+		stderr.Print("cannot run as unprivileged user")
+		return 1
+	}
+
 	switch {
 	case len(args) == 0 && flagUUIDFile != "":
 		podUUID, err = readUUIDFromFile(flagUUIDFile)

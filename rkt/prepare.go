@@ -70,6 +70,11 @@ func init() {
 }
 
 func runPrepare(cmd *cobra.Command, args []string) (exit int) {
+	if os.Geteuid() != 0 {
+		stderr.Print("cannot run as unprivileged user")
+		return 1
+	}
+
 	var err error
 	origStdout := os.Stdout
 	privateUsers := uid.NewBlankUidRange()

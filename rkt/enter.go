@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
@@ -54,6 +55,11 @@ func init() {
 }
 
 func runEnter(cmd *cobra.Command, args []string) (exit int) {
+	if os.Geteuid() != 0 {
+		stderr.Print("cannot run as unprivileged user")
+		return 1
+	}
+
 	if len(args) < 1 {
 		cmd.Usage()
 		return 1

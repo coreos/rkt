@@ -18,6 +18,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -109,6 +110,11 @@ func init() {
 }
 
 func runRun(cmd *cobra.Command, args []string) (exit int) {
+	if os.Geteuid() != 0 {
+		stderr.Print("cannot run as unprivileged user")
+		return 1
+	}
+
 	privateUsers := uid.NewBlankUidRange()
 	err := parseApps(&rktApps, args, cmd.Flags(), true)
 	if err != nil {

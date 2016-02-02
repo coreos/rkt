@@ -49,6 +49,11 @@ func init() {
 }
 
 func runGC(cmd *cobra.Command, args []string) (exit int) {
+	if os.Geteuid() != 0 {
+		stderr.Print("cannot run as unprivileged user")
+		return 1
+	}
+
 	if err := renameExited(); err != nil {
 		stderr.PrintE("failed to rename exited pods", err)
 		return 1
