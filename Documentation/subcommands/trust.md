@@ -26,7 +26,7 @@ To trust a key for an entire root domain, you must use the `--root` flag, with a
 
 The easiest way to trust a key is through meta discovery.
 rkt will find and download a public key that the creator has published on their website.
-This process is detailed in the [Application Container specification][appc-discovery].
+This process is detailed in the [Application Container specification](https://github.com/appc/spec/blob/master/spec/discovery.md) appc-discovery.
 The TL;DR is rkt will find a meta tag that looks like:
 
 ```html
