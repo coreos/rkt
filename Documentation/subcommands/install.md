@@ -13,3 +13,11 @@ This command sets up the rkt data directory (`/var/lib/rkt` by default) with the
 | `--system-config` |  `/usr/lib/rkt` | A directory path | Path to the system configuration directory |
 | `--trust-keys-from-https` |  `false` | `true` or `false` | Automatically trust gpg keys fetched from https |
 | `--user-config` |  `` | A directory path | Path to the user configuration directory |
+
+## rkt install stage1
+
+This installs given stage1 image in the store and generates a configuration file in a system configuration directory.
+
+```
+# rkt --insecure-options=image install stage1 /usr/lib/rkt/stage1-images/stage1-coreos.aci
+```

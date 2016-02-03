@@ -44,7 +44,7 @@ $(call forward-vars,$(FTST_SS1_IMAGE), \
 $(FTST_SS1_IMAGE): $(FTST_SS1_MANIFEST) $(FTST_SS1_RUN_BINARY) $(FTST_SS1_ENTER_BINARY) $(FTST_SS1_GC_BINARY) $(ACTOOL_STAMP) | $(FTST_SS1_ACIDIR) $(FTST_SS1_RESERVED_DIRS_IN_ROOTFS)
 	$(VQ) \
 	$(call vb,vt,ACTOOL,$(call vsp,$@)) \
-	"$(ACTOOL)" build --overwrite "$(FTST_SS1_ACIDIR)" "$@"
+	"$(ACTOOL)" build --no-compression --overwrite "$(FTST_SS1_ACIDIR)" "$@"
 
 $(FTST_SS1_RUN_BINARY) $(FTST_SS1_ENTER_BINARY) $(FTST_SS1_GC_BINARY): | $(FTST_SS1_ACIROOTFSDIR)
 
