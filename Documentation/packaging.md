@@ -17,6 +17,20 @@ It covers dependencies, file ownership and permissions, and tips to observe pack
 - git
 - gpg
 
+**Fedora 23**
+
+```
+dnf install squashfs-tools glibc-static trousers-devel  @development-tools
+```
+Note: This assumes a working Go 1.5+ environment. And to test the dev version of `rkt` SELinux must be disabled.
+
+**Ubuntu 15.10**
+
+```
+apt-get install build-essential git libc6-dev autoconf squashfs-tools libtspi-dev
+```
+Note: This assumes a working Go 1.5+ environment.
+
 #### Additional build-time dependencies for the coreos flavor
 
 wget, gpg, mktemp, md5sum, cpio, gzip, unsquashfs, sort
