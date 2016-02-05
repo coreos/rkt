@@ -11,6 +11,10 @@
 
 - Don't link to libacl, but dlopen it ([#1963](https://github.com/coreos/rkt/pull/1963)). This means that rkt will not crash if libacl is not present on the host, but it will just print a warning.
 
+#### Note for packagers
+
+- New vendored dependency added: github.com/coreos/go-systemd/sdjournal
+
 ## v0.16.0
 
 #### New features and UX changes
