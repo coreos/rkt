@@ -17,4 +17,4 @@ script:
  # Build host and fly to ensure we build stage1 init. We don't build everything
  # to avoid downloading large images.
  - ./configure --with-stage1-flavors=host,fly --enable-tpm=auto
- - make unit-check
+ - make -j2 unit-check
