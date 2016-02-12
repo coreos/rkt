@@ -36,7 +36,7 @@ import (
 // GC enters the pod by fork/exec()ing the stage1's /gc similar to /init.
 // /gc can expect to have its CWD set to the pod root.
 // stage1Path is the path of the stage1 rootfs
-func GC(pdir string, uuid *types.UUID, stage1Path string) error {
+func GC(pdir string, uuid *types.UUID, stage1Path string, localConfig string) error {
 	err := unregisterPod(pdir, uuid)
 	if err != nil {
 		// Probably not worth abandoning the rest
@@ -51,6 +51,9 @@ func GC(pdir string, uuid *types.UUID, stage1Path string) error {
 	args := []string{filepath.Join(stage1Path, ep)}
 	if debugEnabled {
 		args = append(args, "--debug")
+	}
+	if localConfig != "" {
+		args = append(args, "--local-config="+localConfig)
 	}
 	args = append(args, uuid.String())
 

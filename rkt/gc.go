@@ -211,7 +211,7 @@ func deletePod(p *pod) {
 				stage0.InitDebug()
 			}
 			stage1RootFS := s.GetTreeStoreRootFS(stage1TreeStoreID)
-			if err = stage0.GC(p.path(), p.uuid, stage1RootFS); err != nil {
+			if err = stage0.GC(p.path(), p.uuid, stage1RootFS, globalFlags.LocalConfigDir); err != nil {
 				stderr.PrintE(fmt.Sprintf("problem performing stage1 GC on %q", p.uuid), err)
 			}
 		}

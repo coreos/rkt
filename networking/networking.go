@@ -185,7 +185,7 @@ func (n *Networking) enableDefaultLocalnetRouting() error {
 
 // Load creates the Networking object from saved state.
 // Assumes the current netns is that of the host.
-func Load(podRoot string, podID *types.UUID) (*Networking, error) {
+func Load(podRoot string, podID *types.UUID, localConfig string) (*Networking, error) {
 	// the current directory is pod root
 	pdirfd, err := syscall.Open(podRoot, syscall.O_RDONLY|syscall.O_DIRECTORY, 0)
 	if err != nil {
@@ -221,8 +221,9 @@ func Load(podRoot string, podID *types.UUID) (*Networking, error) {
 
 	return &Networking{
 		podEnv: podEnv{
-			podRoot: podRoot,
-			podID:   *podID,
+			podRoot:     podRoot,
+			podID:       *podID,
+			localConfig: localConfig,
 		},
 		hostNS: hostNS,
 		nets:   nets,

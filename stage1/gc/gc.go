@@ -32,11 +32,13 @@ import (
 )
 
 var (
-	debug bool
+	debug       bool
+	localConfig string
 )
 
 func init() {
 	flag.BoolVar(&debug, "debug", false, "Run in debug mode")
+	flag.StringVar(&localConfig, "local-config", common.DefaultLocalConfigDir, "Local config path")
 
 	// this ensures that main runs only on main thread (thread group leader).
 	// since namespace ops (unshare, setns) are done for a single thread, we
@@ -73,7 +75,7 @@ func gcNetworking(podID *types.UUID) error {
 		}
 	}
 
-	n, err := networking.Load(".", podID)
+	n, err := networking.Load(".", podID, localConfig)
 	switch {
 	case err == nil:
 		n.Teardown(flavor, debug)

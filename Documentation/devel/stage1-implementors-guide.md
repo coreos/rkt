@@ -94,6 +94,7 @@ For example, it removes the network namespace of a pod.
 #### Arguments
 
 * `--debug` to activate debugging
+* `--local-config=$PATH` to override the local configuration directory
 * UUID of the pod
 
 Examples
