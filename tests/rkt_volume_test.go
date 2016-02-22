@@ -122,7 +122,7 @@ func TestVolumes(t *testing.T) {
 
 		t.Logf("Running test #%v", i)
 		child := spawnOrFail(t, cmd)
-		defer waitOrFail(t, child, true)
+		defer waitOrFail(t, child, 0)
 
 		if err := expectTimeoutWithOutput(child, tt.expect, time.Minute); err != nil {
 			fmt.Printf("Command: %s\n", cmd)

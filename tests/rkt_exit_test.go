@@ -35,7 +35,7 @@ func TestExitCodeSimple(t *testing.T) {
 		cmd := fmt.Sprintf(`%s --debug --insecure-options=image run --mds-register=false %s`,
 			ctx.Cmd(), imageFile)
 		t.Logf("%s\n", cmd)
-		spawnAndWaitOrFail(t, cmd, true)
+		spawnAndWaitOrFail(t, cmd, 0)
 		checkAppStatus(t, ctx, false, "rkt-inspect", fmt.Sprintf("status=%d", i))
 	}
 }
@@ -48,11 +48,11 @@ func TestExitCodeWithSeveralApps(t *testing.T) {
 	defer os.Remove(image0File)
 
 	image1File := patchTestACI("rkt-inspect-exit-1.aci", "--name=hello1",
-		"--exec=/inspect --print-msg=HelloWorld --exit-code=1")
+		"--exec=/inspect --print-msg=HelloWorld --exit-code=5")
 	defer os.Remove(image1File)
 
 	image2File := patchTestACI("rkt-inspect-exit-2.aci", "--name=hello2",
-		"--exec=/inspect --print-msg=HelloWorld --exit-code=2 --sleep=1")
+		"--exec=/inspect --print-msg=HelloWorld --exit-code=6 --sleep=1")
 	defer os.Remove(image2File)
 
 	ctx := testutils.NewRktRunCtx()
@@ -71,13 +71,16 @@ func TestExitCodeWithSeveralApps(t *testing.T) {
 	}
 
 	t.Logf("Waiting pod termination\n")
-	waitOrFail(t, child, true)
+	// Currently we have systemd v222 in the coreos flavor which doesn't
+	// include the exit status propagation code.
+	// TODO(iaguis): we should expect 5 as the exit status when we update to v229
+	waitOrFail(t, child, 0)
 
 	t.Logf("Check final status\n")
 
 	checkAppStatus(t, ctx, true, "hello0", "status=0")
-	checkAppStatus(t, ctx, true, "hello1", "status=1")
-	// Currently, hello2 should be stop correctly (exit code 0) when hello1
+	checkAppStatus(t, ctx, true, "hello1", "status=5")
+	// Currently, hello2 should be stopped correctly (exit code 0) when hello1
 	// failed, so it cannot return its exit code 2. This might change with
 	// https://github.com/coreos/rkt/issues/1461
 	checkAppStatus(t, ctx, true, "hello2", "status=0")

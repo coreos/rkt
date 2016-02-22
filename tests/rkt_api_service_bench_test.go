@@ -53,7 +53,7 @@ func launchPods(ctx *testutils.RktRunCtx, numOfPods int, imagePath string) {
 	wg.Add(numOfPods)
 	for i := 0; i < numOfPods; i++ {
 		go func() {
-			spawnAndWaitOrFail(t, cmd, true)
+			spawnAndWaitOrFail(t, cmd, 0)
 			wg.Done()
 		}()
 	}

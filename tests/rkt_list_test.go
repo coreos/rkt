@@ -170,7 +170,7 @@ func TestRktListCreatedStarted(t *testing.T) {
 	// t1: run
 	expectRun := time.Now()
 
-	waitOrFail(t, rktChild, true)
+	waitOrFail(t, rktChild, 0)
 
 	creation, start := getCreationStartTime(t, ctx, imageID)
 	if !compareTime(expectPrepare, creation) {

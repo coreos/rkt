@@ -73,7 +73,7 @@ func TestImageSize(t *testing.T) {
 	imageSize := fi.Size()
 
 	fetchCmd := fmt.Sprintf("%s --insecure-options=image fetch %s", ctx.Cmd(), image)
-	spawnAndWaitOrFail(t, fetchCmd, true)
+	spawnAndWaitOrFail(t, fetchCmd, 0)
 
 	imageListCmd := fmt.Sprintf("%s image list --no-legend --full", ctx.Cmd())
 
@@ -84,12 +84,12 @@ func TestImageSize(t *testing.T) {
 
 	// run the image, so rkt renders it in the tree store
 	runCmd := fmt.Sprintf("%s --insecure-options=image run %s", ctx.Cmd(), image)
-	spawnAndWaitOrFail(t, runCmd, true)
+	spawnAndWaitOrFail(t, runCmd, 0)
 
 	tmpDir := createTempDirOrPanic("rkt_image_list_test")
 	defer os.RemoveAll(tmpDir)
 	imageRenderCmd := fmt.Sprintf("%s image render --overwrite %s %s", ctx.Cmd(), imageHash, tmpDir)
-	spawnAndWaitOrFail(t, imageRenderCmd, true)
+	spawnAndWaitOrFail(t, imageRenderCmd, 0)
 	/*
 		recreate the tree store directory contents to get an accurate size:
 		- hash file
@@ -118,11 +118,11 @@ func TestImageSize(t *testing.T) {
 
 	// gc the pod
 	gcCmd := fmt.Sprintf("%s gc --grace-period=0s", ctx.Cmd())
-	spawnAndWaitOrFail(t, gcCmd, true)
+	spawnAndWaitOrFail(t, gcCmd, 0)
 
 	// image gc to remove the tree store
 	imageGCCmd := fmt.Sprintf("%s image gc", ctx.Cmd())
-	spawnAndWaitOrFail(t, imageGCCmd, true)
+	spawnAndWaitOrFail(t, imageGCCmd, 0)
 
 	// check that the size goes back to the original (only the image size)
 	expectedStr = fmt.Sprintf("(?s)%s.*%d.*", imageHash, imageSize)
@@ -161,7 +161,7 @@ func TestShortHash(t *testing.T) {
 	for _, imageID := range imageIDs {
 		cmd := fmt.Sprintf("%s --insecure-options=image fetch %s", ctx.Cmd(), imageID.path)
 		t.Logf("Fetching %s: %v", imageID.path, cmd)
-		spawnAndWaitOrFail(t, cmd, true)
+		spawnAndWaitOrFail(t, cmd, 0)
 	}
 
 	// Get hash from 'rkt image list'

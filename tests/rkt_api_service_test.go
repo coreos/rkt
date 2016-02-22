@@ -57,7 +57,7 @@ func stopAPIService(t *testing.T, svc *gexpect.ExpectSubprocess) {
 	if err := svc.Cmd.Process.Signal(syscall.SIGINT); err != nil {
 		t.Fatalf("Failed to stop the api service: %v", err)
 	}
-	waitOrFail(t, svc, true)
+	waitOrFail(t, svc, 0)
 }
 
 func checkPodState(t *testing.T, rawState string, apiState v1alpha.PodState) {
@@ -296,7 +296,7 @@ func TestAPIServiceListInspectPods(t *testing.T) {
 
 	runCmd := fmt.Sprintf("%s run --pod-manifest=%s", ctx.Cmd(), manifestFile)
 	esp := spawnOrFail(t, runCmd)
-	waitOrFail(t, esp, true)
+	waitOrFail(t, esp, 0)
 
 	// ListPods(detail=false).
 	resp, err = c.ListPods(context.Background(), &v1alpha.ListPodsRequest{})

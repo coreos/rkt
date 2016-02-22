@@ -3,6 +3,7 @@
 #### New features and UX changes
 
 - Add support for non-numerical UID/GID as specified in the appc spec ([#2159](https://github.com/coreos/rkt/pull/2159)).
+- Propagate app exit status to rkt's exit status ([#2198](https://github.com/coreos/rkt/pull/2198).
 
 #### Bug fixes
 - Socket activation was not working if the port on the host is different from the app port as set in the image manifest ([#2137](https://github.com/coreos/rkt/pull/2137)).

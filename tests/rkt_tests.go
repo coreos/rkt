@@ -118,21 +118,36 @@ func spawnOrFail(t *testing.T, cmd string) *gexpect.ExpectSubprocess {
 	return child
 }
 
-func waitOrFail(t *testing.T, child *gexpect.ExpectSubprocess, shouldSucceed bool) {
+func getExitStatus(err error) int {
+	if err == nil {
+		return 0
+	}
+	if exiterr, ok := err.(*exec.ExitError); ok {
+		// the program has exited with an exit code != 0
+		if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+			return status.ExitStatus()
+		}
+	}
+	return -1
+}
+
+func waitOrFail(t *testing.T, child *gexpect.ExpectSubprocess, expectedStatus int) {
 	err := child.Wait()
+	status := getExitStatus(err)
+	if status != expectedStatus {
+		t.Fatalf("rkt terminated with unexpected status %d, expected %d\nOutput:\n%s", status, expectedStatus, child.Collect())
+	}
 	switch {
-	case !shouldSucceed && err == nil:
+	case expectedStatus != 0 && err == nil:
 		t.Fatalf("Expected test to fail but it didn't\nOutput:\n%s", child.Collect())
-	case shouldSucceed && err != nil:
+	case expectedStatus == 0 && err != nil:
 		t.Fatalf("rkt didn't terminate correctly: %v\nOutput:\n%s", err, child.Collect())
-	case err != nil && err.Error() != "exit status 1":
-		t.Fatalf("rkt terminated with unexpected error: %v\nOutput:\n%s", err, child.Collect())
 	}
 }
 
-func spawnAndWaitOrFail(t *testing.T, cmd string, shouldSucceed bool) {
+func spawnAndWaitOrFail(t *testing.T, cmd string, expectedStatus int) {
 	child := spawnOrFail(t, cmd)
-	waitOrFail(t, child, shouldSucceed)
+	waitOrFail(t, child, expectedStatus)
 }
 
 func getEmptyImagePath() string {
@@ -205,7 +220,7 @@ func importImageAndFetchHashAsGid(t *testing.T, ctx *testutils.RktRunCtx, img st
 		t.Fatalf("Error: %v\nOutput: %v", err, out)
 	}
 
-	waitOrFail(t, child, true)
+	waitOrFail(t, child, 0)
 
 	return result[0]
 }
@@ -226,27 +241,27 @@ func patchImportAndRun(image string, patches []string, t *testing.T, ctx *testut
 	defer os.Remove(imagePath)
 
 	cmd := fmt.Sprintf("%s --insecure-options=image run %s", ctx.Cmd(), imagePath)
-	spawnAndWaitOrFail(t, cmd, true)
+	spawnAndWaitOrFail(t, cmd, 0)
 }
 
 func runGC(t *testing.T, ctx *testutils.RktRunCtx) {
 	cmd := fmt.Sprintf("%s gc --grace-period=0s", ctx.Cmd())
-	spawnAndWaitOrFail(t, cmd, true)
+	spawnAndWaitOrFail(t, cmd, 0)
 }
 
 func runImageGC(t *testing.T, ctx *testutils.RktRunCtx) {
 	cmd := fmt.Sprintf("%s image gc", ctx.Cmd())
-	spawnAndWaitOrFail(t, cmd, true)
+	spawnAndWaitOrFail(t, cmd, 0)
 }
 
 func removeFromCas(t *testing.T, ctx *testutils.RktRunCtx, hash string) {
 	cmd := fmt.Sprintf("%s image rm %s", ctx.Cmd(), hash)
-	spawnAndWaitOrFail(t, cmd, true)
+	spawnAndWaitOrFail(t, cmd, 0)
 }
 
 func runRktAndGetUUID(t *testing.T, rktCmd string) string {
 	child := spawnOrFail(t, rktCmd)
-	defer waitOrFail(t, child, true)
+	defer waitOrFail(t, child, 0)
 
 	result, out, err := expectRegexWithOutput(child, "\n[0-9a-f-]{36}")
 	if err != nil || len(result) != 1 {
@@ -280,7 +295,11 @@ func runRktAsUidGidAndCheckOutput(t *testing.T, rktCmd, expectedLine string, exp
 	if err != nil {
 		t.Fatalf("cannot start rkt: %v", err)
 	}
-	defer waitOrFail(t, child, !expectError)
+	expectedStatus := 0
+	if expectError {
+		expectedStatus = 1
+	}
+	defer waitOrFail(t, child, expectedStatus)
 
 	if expectedLine != "" {
 		if err := expectWithOutput(child, expectedLine); err != nil {
@@ -346,7 +365,7 @@ func checkAppStatus(t *testing.T, ctx *testutils.RktRunCtx, multiApps bool, appN
 
 	t.Logf("Get status for app %s\n", appName)
 	child := spawnOrFail(t, cmd)
-	defer waitOrFail(t, child, true)
+	defer waitOrFail(t, child, 0)
 
 	if err := expectWithOutput(child, expected); err != nil {
 		// For debugging purposes, print the full output of
@@ -604,7 +623,7 @@ func runSignImage(t *testing.T, imageFile string, keyIndex int) string {
 
 	cmd := fmt.Sprintf("gpg --no-default-keyring --secret-keyring ./secring.gpg --keyring ./pubring.gpg --default-key %s --output %s --detach-sig %s",
 		keyFingerprint, ascFile, imageFile)
-	spawnAndWaitOrFail(t, cmd, true)
+	spawnAndWaitOrFail(t, cmd, 0)
 	return ascFile
 }
 
@@ -618,7 +637,7 @@ func runRktTrust(t *testing.T, ctx *testutils.RktRunCtx, prefix string, keyIndex
 	}
 
 	child := spawnOrFail(t, cmd)
-	defer waitOrFail(t, child, true)
+	defer waitOrFail(t, child, 0)
 
 	expected := "Are you sure you want to trust this key"
 	if err := expectWithOutput(child, expected); err != nil {

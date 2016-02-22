@@ -107,7 +107,7 @@ func TestEnv(t *testing.T) {
 			t.Fatalf("Expected %q but not found: %v", tt.runExpect, err)
 		}
 
-		waitOrFail(t, enterChild, true)
+		waitOrFail(t, enterChild, 0)
 
 		if err := child.SendLine("Bye"); err != nil {
 			t.Fatalf("rkt couldn't write to the container: %v", err)
@@ -116,7 +116,7 @@ func TestEnv(t *testing.T) {
 			t.Fatalf("Expected Bye but not found #%v: %v", i, err)
 		}
 
-		waitOrFail(t, child, true)
+		waitOrFail(t, child, 0)
 		ctx.Reset()
 	}
 }

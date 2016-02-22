@@ -259,7 +259,7 @@ func TestResumedFetch(t *testing.T) {
 	if _, _, err := expectRegexWithOutput(child, ".*"+hash); err != nil {
 		t.Fatalf("hash didn't match: %v", err)
 	}
-	waitOrFail(t, child, true)
+	waitOrFail(t, child, 0)
 }
 
 func TestResumedFetchInvalidCache(t *testing.T) {
@@ -298,7 +298,7 @@ func TestResumedFetchInvalidCache(t *testing.T) {
 	if _, s, err := expectRegexWithOutput(child, ".*"+hash); err != nil {
 		t.Fatalf("hash didn't match: %v\nin: %s", err, s)
 	}
-	waitOrFail(t, child, true)
+	waitOrFail(t, child, 0)
 }
 
 func testServerHandler(t *testing.T, shouldInterrupt *synchronizedBool, imagePath string, kill, waitforkill chan struct{}) http.HandlerFunc {
@@ -446,7 +446,7 @@ func TestDeferredSignatureDownload(t *testing.T) {
 
 	runCmd := fmt.Sprintf("%s --debug --insecure-options=tls run %s", ctx.Cmd(), imageName)
 	child := spawnOrFail(t, runCmd)
-	defer waitOrFail(t, child, true)
+	defer waitOrFail(t, child, 0)
 
 	expectedMessages := []string{
 		"server requested deferring the signature download",

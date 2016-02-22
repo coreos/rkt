@@ -109,7 +109,7 @@ func TestCaps(t *testing.T) {
 			if err := expectWithOutput(child, "User: uid=0 euid=0 gid=0 egid=0"); err != nil {
 				t.Fatalf("Expected user 0 but not found: %v", err)
 			}
-			waitOrFail(t, child, true)
+			waitOrFail(t, child, 0)
 		}
 		ctx.Reset()
 	}
@@ -146,7 +146,7 @@ func TestCapsNonRoot(t *testing.T) {
 			t.Fatalf("Expected user 9000 but not found: %v", err)
 		}
 
-		waitOrFail(t, child, true)
+		waitOrFail(t, child, 0)
 		ctx.Reset()
 	}
 }

@@ -230,7 +230,7 @@ func TestStage1LoadingFromConfigRelativePathFail(t *testing.T) {
 	setup.generateStage1Config(cfg)
 	cmd := fmt.Sprintf("%s --insecure-options=image,tls --debug run %s", setup.ctx.Cmd(), getInspectImagePath())
 	child := spawnOrFail(setup.t, cmd)
-	defer waitOrFail(setup.t, child, false)
+	defer waitOrFail(setup.t, child, 1)
 	expectedLine := "default stage1 image location is either a relative path or a URL without scheme"
 	setup.getExpectedOrFail(child, expectedLine)
 }
@@ -256,7 +256,7 @@ func TestStage1LoadingFromConfigFallback(t *testing.T) {
 	setup.generateStage1Config(cfg)
 	cmd := fmt.Sprintf("%s --insecure-options=image,tls --debug run %s", setup.ctx.Cmd(), getInspectImagePath())
 	child := spawnOrFail(setup.t, cmd)
-	defer waitOrFail(setup.t, child, true)
+	defer waitOrFail(setup.t, child, 0)
 	setup.getExpectedOrFail(child, fmt.Sprintf("image: using image from file %s", fakePath))
 	setup.getExpectedOrFail(child, fmt.Sprintf("image: using image from file %s", setup.getLocation(stubStage1PathAbs)))
 	setup.getExpectedOrFail(child, stubStage1Output)
@@ -276,7 +276,7 @@ func TestStage1LoadingFromConfigNoDiscovery(t *testing.T) {
 	setup.generateStage1Config(cfg)
 	cmd := fmt.Sprintf("%s --insecure-options=image,tls --debug run %s", setup.ctx.Cmd(), getInspectImagePath())
 	child := spawnOrFail(setup.t, cmd)
-	defer waitOrFail(setup.t, child, true)
+	defer waitOrFail(setup.t, child, 0)
 	discoveringStr := fmt.Sprintf("searching for app image %s", setup.name)
 	for {
 		matches, output, err := expectRegexWithOutput(child, `(?m)^image:.+$`)
@@ -401,7 +401,7 @@ func TestStage1LoadingFromFlagsHash(t *testing.T) {
 	stubHash := importImageAndFetchHash(setup.t, setup.ctx, "", setup.getLocation(stubStage1PathAbs))
 	cmd := fmt.Sprintf("%s --insecure-options=image,tls --debug run --stage1-hash=%s %s", setup.ctx.Cmd(), stubHash, getInspectImagePath())
 	child := spawnOrFail(setup.t, cmd)
-	defer waitOrFail(setup.t, child, true)
+	defer waitOrFail(setup.t, child, 0)
 	setup.getExpectedOrFail(child, fmt.Sprintf("using image from the store with hash %s", stubHash))
 	setup.getExpectedOrFail(child, stubStage1Output)
 }
@@ -433,7 +433,7 @@ func TestStage1LoadingFromFlagsFromDir(t *testing.T) {
 	setup.generateStage1ImagesDirectoryConfig(tmp)
 	cmd := fmt.Sprintf("%s --insecure-options=image,tls --debug run --stage1-from-dir=%s %s", setup.ctx.Cmd(), setup.getLocation(stubStage1Base), getInspectImagePath())
 	child := spawnOrFail(setup.t, cmd)
-	defer waitOrFail(setup.t, child, true)
+	defer waitOrFail(setup.t, child, 0)
 	setup.getExpectedOrFail(child, fmt.Sprintf("image: using image from file %s", stubCopyPath))
 	setup.getExpectedOrFail(child, stubStage1Output)
 }
@@ -592,7 +592,7 @@ func (s *stubStage1Setup) generateConfigContents(subdir, tmpl string, replacemen
 func (s *stubStage1Setup) check(flag, expectedLine string) {
 	cmd := fmt.Sprintf("%s --insecure-options=image,tls --debug run %s %s", s.ctx.Cmd(), flag, getInspectImagePath())
 	child := spawnOrFail(s.t, cmd)
-	defer waitOrFail(s.t, child, true)
+	defer waitOrFail(s.t, child, 0)
 	s.getExpectedOrFail(child, expectedLine)
 	s.getExpectedOrFail(child, stubStage1Output)
 }

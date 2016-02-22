@@ -115,7 +115,7 @@ func TestPidFileAbortedStart(t *testing.T) {
 	if err := runChild.SendLine("\035\035\035"); err != nil {
 		t.Fatalf("Failed to terminate the pod: %v", err)
 	}
-	waitOrFail(t, runChild, false)
+	waitOrFail(t, runChild, 1)
 
 	// Now the "enter" command terminates quickly
 	before := time.Now()

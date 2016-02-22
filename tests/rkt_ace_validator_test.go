@@ -52,7 +52,7 @@ func TestAceValidator(t *testing.T) {
 	rktCmd := fmt.Sprintf("%s %s", ctx.Cmd(), rktArgs)
 
 	child := spawnOrFail(t, rktCmd)
-	defer waitOrFail(t, child, true)
+	defer waitOrFail(t, child, 0)
 
 	for _, set := range expected {
 		for len(set) > 0 {

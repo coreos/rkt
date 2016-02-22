@@ -196,5 +196,5 @@ func TestImageDependencies(t *testing.T) {
 		}
 	}
 
-	waitOrFail(t, child, true)
+	waitOrFail(t, child, 0)
 }

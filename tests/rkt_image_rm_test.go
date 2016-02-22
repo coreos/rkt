@@ -44,12 +44,12 @@ func TestImageRunRmName(t *testing.T) {
 	defer ctx.Cleanup()
 
 	cmd := fmt.Sprintf("%s --insecure-options=image fetch %s", ctx.Cmd(), imageFile)
-	spawnAndWaitOrFail(t, cmd, true)
+	spawnAndWaitOrFail(t, cmd, 0)
 
 	// at this point we know that RKT_INSPECT_IMAGE env var is not empty
 	referencedACI := os.Getenv("RKT_INSPECT_IMAGE")
 	cmd = fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s", ctx.Cmd(), referencedACI)
-	spawnAndWaitOrFail(t, cmd, true)
+	spawnAndWaitOrFail(t, cmd, 0)
 
 	t.Logf("Retrieving stage1 image name")
 	stage1ImageName := getImageName(t, ctx, stage1App)
@@ -72,13 +72,13 @@ func TestImageRunRmID(t *testing.T) {
 
 	cmd := fmt.Sprintf("%s --insecure-options=image fetch %s", ctx.Cmd(), imageFile)
 	t.Logf("Fetching %s", imageFile)
-	spawnAndWaitOrFail(t, cmd, true)
+	spawnAndWaitOrFail(t, cmd, 0)
 
 	// at this point we know that RKT_INSPECT_IMAGE env var is not empty
 	referencedACI := os.Getenv("RKT_INSPECT_IMAGE")
 	cmd = fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s", ctx.Cmd(), referencedACI)
 	t.Logf("Running %s", referencedACI)
-	spawnAndWaitOrFail(t, cmd, true)
+	spawnAndWaitOrFail(t, cmd, 0)
 
 	t.Logf("Retrieving stage1 image ID")
 	stage1ImageID, err := getImageID(ctx, stage1App)
@@ -116,13 +116,13 @@ func TestImageRunRmDuplicate(t *testing.T) {
 
 	cmd := fmt.Sprintf("%s --insecure-options=image fetch %s", ctx.Cmd(), imageFile)
 	t.Logf("Fetching %s", imageFile)
-	spawnAndWaitOrFail(t, cmd, true)
+	spawnAndWaitOrFail(t, cmd, 0)
 
 	// at this point we know that RKT_INSPECT_IMAGE env var is not empty
 	referencedACI := os.Getenv("RKT_INSPECT_IMAGE")
 	cmd = fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s", ctx.Cmd(), referencedACI)
 	t.Logf("Running %s", referencedACI)
-	spawnAndWaitOrFail(t, cmd, true)
+	spawnAndWaitOrFail(t, cmd, 0)
 
 	t.Logf("Retrieving %s image ID", referencedApp)
 	referencedImageID, err := getImageID(ctx, referencedApp)
@@ -151,7 +151,7 @@ func TestImagePrepareRmNameRun(t *testing.T) {
 
 	cmd := fmt.Sprintf("%s --insecure-options=image fetch %s", ctx.Cmd(), imageFile)
 	t.Logf("Fetching %s", imageFile)
-	spawnAndWaitOrFail(t, cmd, true)
+	spawnAndWaitOrFail(t, cmd, 0)
 
 	// at this point we know that RKT_INSPECT_IMAGE env var is not empty
 	referencedACI := os.Getenv("RKT_INSPECT_IMAGE")
@@ -183,7 +183,7 @@ func TestImagePrepareRmNameRun(t *testing.T) {
 
 	cmd = fmt.Sprintf("%s run-prepared --mds-register=false %s", ctx.Cmd(), podID.String())
 	t.Logf("Running %s", referencedACI)
-	spawnAndWaitOrFail(t, cmd, true)
+	spawnAndWaitOrFail(t, cmd, 0)
 }
 
 func TestImagePrepareRmIDRun(t *testing.T) {
@@ -194,7 +194,7 @@ func TestImagePrepareRmIDRun(t *testing.T) {
 
 	cmd := fmt.Sprintf("%s --insecure-options=image fetch %s", ctx.Cmd(), imageFile)
 	t.Logf("Fetching %s", imageFile)
-	spawnAndWaitOrFail(t, cmd, true)
+	spawnAndWaitOrFail(t, cmd, 0)
 
 	// at this point we know that RKT_INSPECT_IMAGE env var is not empty
 	referencedACI := os.Getenv("RKT_INSPECT_IMAGE")
@@ -241,7 +241,7 @@ func TestImagePrepareRmIDRun(t *testing.T) {
 
 	cmd = fmt.Sprintf("%s run-prepared --mds-register=false %s", ctx.Cmd(), podID.String())
 	t.Logf("Running %s", referencedACI)
-	spawnAndWaitOrFail(t, cmd, true)
+	spawnAndWaitOrFail(t, cmd, 0)
 }
 
 func TestImagePrepareRmDuplicate(t *testing.T) {
@@ -252,7 +252,7 @@ func TestImagePrepareRmDuplicate(t *testing.T) {
 
 	cmd := fmt.Sprintf("%s --insecure-options=image fetch %s", ctx.Cmd(), imageFile)
 	t.Logf("Fetching %s", imageFile)
-	spawnAndWaitOrFail(t, cmd, true)
+	spawnAndWaitOrFail(t, cmd, 0)
 
 	// at this point we know that RKT_INSPECT_IMAGE env var is not empty
 	referencedACI := os.Getenv("RKT_INSPECT_IMAGE")
@@ -290,7 +290,7 @@ func TestImagePrepareRmDuplicate(t *testing.T) {
 
 	cmd = fmt.Sprintf("%s run-prepared --mds-register=false %s", ctx.Cmd(), podID.String())
 	t.Logf("Running %s", referencedACI)
-	spawnAndWaitOrFail(t, cmd, true)
+	spawnAndWaitOrFail(t, cmd, 0)
 }
 
 func getImageName(t *testing.T, ctx *testutils.RktRunCtx, name string) string {
@@ -302,7 +302,7 @@ func getImageName(t *testing.T, ctx *testutils.RktRunCtx, name string) string {
 	if err != nil {
 		t.Fatalf("Cannot exec: %v", err)
 	}
-	waitOrFail(t, child, true)
+	waitOrFail(t, child, 0)
 	return imageName
 }
 
