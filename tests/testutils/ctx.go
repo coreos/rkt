@@ -105,7 +105,7 @@ func (ctx *RktRunCtx) SetupDataDir() error {
 }
 
 func (ctx *RktRunCtx) LaunchMDS() error {
-	ctx.mds = exec.Command(ctx.rktBin(), "metadata-service")
+	ctx.mds = exec.Command(ctx.RktBin(), "metadata-service")
 	return ctx.mds.Start()
 }
 
@@ -174,14 +174,14 @@ func (ctx *RktRunCtx) RunGC() {
 		"gc",
 		"--grace-period=0s",
 	)
-	if err := exec.Command(ctx.rktBin(), rktArgs...).Run(); err != nil {
+	if err := exec.Command(ctx.RktBin(), rktArgs...).Run(); err != nil {
 		panic(fmt.Sprintf("Failed to run gc: %v", err))
 	}
 }
 
 func (ctx *RktRunCtx) Cmd() string {
 	return fmt.Sprintf("%s %s",
-		ctx.rktBin(),
+		ctx.RktBin(),
 		strings.Join(ctx.rktOptions(), " "),
 	)
 }
@@ -189,12 +189,12 @@ func (ctx *RktRunCtx) Cmd() string {
 // TODO(jonboulle): clean this up
 func (ctx *RktRunCtx) CmdNoConfig() string {
 	return fmt.Sprintf("%s %s",
-		ctx.rktBin(),
+		ctx.RktBin(),
 		ctx.directories[0].rktOption(),
 	)
 }
 
-func (ctx *RktRunCtx) rktBin() string {
+func (ctx *RktRunCtx) RktBin() string {
 	rkt := GetValueFromEnvOrPanic("RKT")
 	abs, err := filepath.Abs(rkt)
 	if err != nil {
