@@ -68,7 +68,7 @@ var stderr *log.Logger
 
 // Setup creates a new networking namespace and executes network plugins to
 // set up networking. It returns in the new pod namespace
-func Setup(podRoot string, podID types.UUID, fps []ForwardedPort, netList common.NetList, localConfig, flavor string, debug bool) (*Networking, error) {
+func Setup(podRoot string, podID types.UUID, fps []ForwardedPort, netList common.NetList, localConfig, flavor string, netConfig string, netPlugin string, debug bool) (*Networking, error) {
 
 	stderr = log.New(os.Stderr, "networking", debug)
 
@@ -84,6 +84,8 @@ func Setup(podRoot string, podID types.UUID, fps []ForwardedPort, netList common
 			podID:        podID,
 			netsLoadList: netList,
 			localConfig:  localConfig,
+			netConfig:    netConfig,
+			netPlugin:    netPlugin,
 		},
 	}
 

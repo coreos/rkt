@@ -82,16 +82,13 @@ type PrepareConfig struct {
 // configuration parameters needed by Run
 type RunConfig struct {
 	*CommonConfig
-	Net         common.NetList // pod should have its own network stack
+	*NetConfig
 	LockFd      int            // lock file descriptor
 	Interactive bool           // whether the pod is interactive or not
 	MDSRegister bool           // whether to register with metadata service or not
 	Apps        schema.AppList // applications (prepare gets them via Apps)
 	LocalConfig string         // Path to local configuration
 	RktGid      int            // group id of the 'rkt' group, -1 if there's no rkt group.
-	DNS         []string       // DNS name servers to write in /etc/resolv.conf
-	DNSSearch   []string       // DNS search domains to write in /etc/resolv.conf
-	DNSOpt      []string       // DNS options to write in /etc/resolv.conf
 }
 
 // configuration shared by both Run and Prepare
@@ -104,6 +101,16 @@ type CommonConfig struct {
 	Debug        bool
 	MountLabel   string // selinux label to use for fs
 	ProcessLabel string // selinux label to use for process
+}
+
+// configuration for networking
+type NetConfig struct {
+	ConfigDir string         // directory to find the network configuration.
+	PluginDir string         // directory to find the network plugin binaries.
+	Net       common.NetList // pod should have its own network stack
+	DNS       []string       // DNS name servers to write in /etc/resolv.conf
+	DNSSearch []string       // DNS search domains to write in /etc/resolv.conf
+	DNSOpt    []string       // DNS options to write in /etc/resolv.conf
 }
 
 func init() {
@@ -471,6 +478,14 @@ func Run(cfg RunConfig, dir string, dataDir string) {
 	}
 
 	args = append(args, "--net="+cfg.Net.String())
+
+	if cfg.ConfigDir != "" {
+		args = append(args, "--net-config="+cfg.ConfigDir)
+	}
+
+	if cfg.PluginDir != "" {
+		args = append(args, "--net-plugin="+cfg.PluginDir)
+	}
 
 	if cfg.Interactive {
 		args = append(args, "--interactive")

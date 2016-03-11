@@ -49,6 +49,8 @@ type podEnv struct {
 	podID        types.UUID
 	netsLoadList common.NetList
 	localConfig  string
+	netConfig    string
+	netPlugin    string
 }
 
 type activeNet struct {
@@ -59,7 +61,7 @@ type activeNet struct {
 
 // Loads nets specified by user and default one from stage1
 func (e *podEnv) loadNets() ([]activeNet, error) {
-	nets, err := loadUserNets(e.localConfig, e.netsLoadList)
+	nets, err := loadUserNets(e.localConfig, e.netConfig, e.netsLoadList)
 	if err != nil {
 		return nil, err
 	}
@@ -221,13 +223,16 @@ func copyFileToDir(src, dstdir string) (string, error) {
 	return dst, err
 }
 
-func loadUserNets(localConfig string, netsLoadList common.NetList) ([]activeNet, error) {
+func loadUserNets(localConfig string, netConfig string, netsLoadList common.NetList) ([]activeNet, error) {
 	if netsLoadList.None() {
 		stderr.Printf("networking namespace with loopback only")
 		return nil, nil
 	}
 
 	userNetPath := filepath.Join(localConfig, UserNetPathSuffix)
+	if netConfig != "" {
+		userNetPath = netConfig
+	}
 	stderr.Printf("loading networks from %v", userNetPath)
 
 	files, err := listFiles(userNetPath)

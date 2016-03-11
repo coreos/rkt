@@ -67,6 +67,8 @@ image arguments with a lone "---" to resume argument parsing.`,
 	flagPodManifest  string
 	flagMDSRegister  bool
 	flagUUIDFileSave string
+	flagNetConfig    string
+	flagNetPlugin    string
 )
 
 func init() {
@@ -76,6 +78,8 @@ func init() {
 	cmdRun.Flags().Var(&flagPorts, "port", "ports to expose on the host (requires contained network). Syntax: --port=NAME:HOSTPORT")
 	cmdRun.Flags().Var(&flagNet, "net", "configure the pod's networking. Optionally, pass a list of user-configured networks to load and set arguments to pass to each network, respectively. Syntax: --net[=n[:args], ...]")
 	cmdRun.Flags().Lookup("net").NoOptDefVal = "default"
+	cmdRun.Flags().StringVar(&flagNetConfig, "net-config", "", "the directory to find the network configuration")
+	cmdRun.Flags().StringVar(&flagNetPlugin, "net-plugin", "/usr/lib/rkt/plugins/net", "the directory to find the network plugin binaries")
 	cmdRun.Flags().BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
 	cmdRun.Flags().BoolVar(&flagNoOverlay, "no-overlay", false, "disable overlay filesystem")
 	cmdRun.Flags().BoolVar(&flagPrivateUsers, "private-users", false, "run within user namespaces (experimental).")
@@ -279,15 +283,21 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 
 	rcfg := stage0.RunConfig{
 		CommonConfig: &cfg,
-		Net:          flagNet,
-		LockFd:       lfd,
-		Interactive:  flagInteractive,
-		DNS:          flagDNS,
-		DNSSearch:    flagDNSSearch,
-		DNSOpt:       flagDNSOpt,
-		MDSRegister:  flagMDSRegister,
-		LocalConfig:  globalFlags.LocalConfigDir,
-		RktGid:       rktgid,
+
+		NetConfig: &stage0.NetConfig{
+			ConfigDir: flagNetConfig,
+			PluginDir: flagNetPlugin,
+			Net:       flagNet,
+			DNS:       flagDNS,
+			DNSSearch: flagDNSSearch,
+			DNSOpt:    flagDNSOpt,
+		},
+
+		LockFd:      lfd,
+		Interactive: flagInteractive,
+		MDSRegister: flagMDSRegister,
+		LocalConfig: globalFlags.LocalConfigDir,
+		RktGid:      rktgid,
 	}
 
 	apps, err := p.getApps()
