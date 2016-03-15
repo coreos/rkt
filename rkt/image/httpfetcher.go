@@ -35,6 +35,7 @@ type httpFetcher struct {
 	Rem           *store.Remote
 	Debug         bool
 	Headers       map[string]config.Headerer
+	SimpleOutput  bool
 }
 
 // GetHash fetches the URL, optionally verifies it against passed asc,
@@ -151,9 +152,10 @@ func (f *httpFetcher) fetchVerifiedURL(u *url.URL, a *asc, etag string) (readSee
 func (f *httpFetcher) getHTTPOps() *httpOps {
 	return &httpOps{
 		InsecureSkipTLSVerify: f.InsecureFlags.SkipTLSCheck(),
-		S:       f.S,
-		Headers: f.Headers,
-		Debug:   f.Debug,
+		S:            f.S,
+		Headers:      f.Headers,
+		Debug:        f.Debug,
+		SimpleOutput: f.SimpleOutput,
 	}
 }
 

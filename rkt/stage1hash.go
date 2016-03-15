@@ -296,6 +296,8 @@ func getStage1Finder(s *store.Store) *image.Finder {
 		StoreOnly: false,
 		NoStore:   false,
 		WithDeps:  false,
+
+		SimpleOutput: flagSimpleOutput,
 	}
 }
 

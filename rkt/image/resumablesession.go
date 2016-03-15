@@ -70,6 +70,9 @@ type resumableSession struct {
 	// Label is used for printing the type of the downloaded data
 	// when printing a pretty progress bar.
 	Label string
+	// SimpleOutput tells the downloader to print a simple message
+	// when downloading data, instead of a progress bar.
+	SimpleOutput bool
 
 	// Cd is a cache data returned by HTTP server. It is an output
 	// value.
@@ -117,7 +120,12 @@ func (s *resumableSession) HandleStatus(res *http.Response) (bool, error) {
 }
 
 func (s *resumableSession) GetBodyReader(res *http.Response) (io.Reader, error) {
-	reader := getIoProgressReader(s.Label, res)
+	var reader io.Reader
+	if s.SimpleOutput {
+		reader = getSimpleReader(s.Label, res)
+	} else {
+		reader = getIoProgressReader(s.Label, res)
+	}
 	return reader, nil
 }
 

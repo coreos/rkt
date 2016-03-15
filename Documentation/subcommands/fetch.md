@@ -88,6 +88,7 @@ Note that the configuration kind for images downloaded via https:// and images d
 | `--full` |  `false` | `true` or `false` | Print the full image hash after fetching |
 | `--no-store` |  `false` | `true` or `false` | Fetch images ignoring the local store. See [image fetching behavior](../image-fetching-behavior.md) |
 | `--signature` |  `` | A file path | Local signature file to use in validating the preceding image |
+| `--simple-output` |  `false` | `true` or `false` | Print simple messages when downloading data (images or signatures) instead of progress bars |
 | `--store-only` |  `false` | `true` or `false` | Use only available images in the store (do not discover or download from remote URLs). See [image fetching behavior](../image-fetching-behavior.md) |
 
 ## Global options

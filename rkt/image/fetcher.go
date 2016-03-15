@@ -231,6 +231,7 @@ func (f *Fetcher) maybeFetchHTTPURLFromRemote(rem *store.Remote, u *url.URL, a *
 			Rem:           rem,
 			Debug:         f.Debug,
 			Headers:       f.Headers,
+			SimpleOutput:  f.SimpleOutput,
 		}
 		return hf.GetHash(u, a)
 	}
@@ -345,6 +346,7 @@ func (f *Fetcher) maybeFetchImageFromRemote(app *appBundle, a *asc) (string, err
 			Debug:              f.Debug,
 			Headers:            f.Headers,
 			TrustKeysFromHTTPS: f.TrustKeysFromHTTPS,
+			SimpleOutput:       f.SimpleOutput,
 		}
 		return nf.GetHash(app.App, a)
 	}

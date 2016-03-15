@@ -70,6 +70,10 @@ type action struct {
 	// WithDeps tells whether image dependencies should be
 	// downloaded too.
 	WithDeps bool
+
+	// SimpleOutput tells fetcher to print simple messages instead
+	// of progress bars.
+	SimpleOutput bool
 }
 
 var (

@@ -54,6 +54,8 @@ func init() {
 	cmdFetch.Flags().BoolVar(&flagStoreOnly, "store-only", false, "use only available images in the store (do not discover or download from remote URLs)")
 	cmdFetch.Flags().BoolVar(&flagNoStore, "no-store", false, "fetch images ignoring the local store")
 	cmdFetch.Flags().BoolVar(&flagFullHash, "full", false, "print the full image hash after fetching")
+
+	addSimpleOutputFlag(cmdFetch.Flags())
 }
 
 func runFetch(cmd *cobra.Command, args []string) (exit int) {
@@ -95,6 +97,8 @@ func runFetch(cmd *cobra.Command, args []string) (exit int) {
 		StoreOnly: flagStoreOnly,
 		NoStore:   flagNoStore,
 		WithDeps:  true,
+
+		SimpleOutput: flagSimpleOutput,
 	}
 
 	err = rktApps.Walk(func(app *apps.App) error {

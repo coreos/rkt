@@ -31,6 +31,7 @@ import (
 	"github.com/coreos/rkt/store"
 	"github.com/hashicorp/errwrap"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 var (
@@ -67,7 +68,12 @@ image arguments with a lone "---" to resume argument parsing.`,
 	flagPodManifest  string
 	flagMDSRegister  bool
 	flagUUIDFileSave string
+	flagSimpleOutput bool
 )
+
+func addSimpleOutputFlag(flags *pflag.FlagSet) {
+	flags.BoolVar(&flagSimpleOutput, "simple-output", false, "print simple messages when downloading data instead of a progressbar")
+}
 
 func init() {
 	cmdRkt.AddCommand(cmdRun)
@@ -97,6 +103,8 @@ func init() {
 	cmdRun.Flags().Var((*appMount)(&rktApps), "mount", "mount point binding a volume to a path within an app")
 	cmdRun.Flags().Var((*appMemoryLimit)(&rktApps), "memory", "memory limit for the preceding image (example: '--memory=16Mi', '--memory=50M', '--memory=1G')")
 	cmdRun.Flags().Var((*appCPULimit)(&rktApps), "cpu", "cpu limit for the preceding image (example: '--cpu=500m')")
+
+	addSimpleOutputFlag(cmdRun.Flags())
 
 	flagPorts = portList{}
 	flagDNS = flagStringList{}
@@ -189,6 +197,8 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		StoreOnly: flagStoreOnly,
 		NoStore:   flagNoStore,
 		WithDeps:  true,
+
+		SimpleOutput: flagSimpleOutput,
 	}
 	if err := fn.FindImages(&rktApps); err != nil {
 		stderr.Error(err)

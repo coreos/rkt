@@ -35,6 +35,7 @@ type httpOps struct {
 	S                     *store.Store
 	Headers               map[string]config.Headerer
 	Debug                 bool
+	SimpleOutput          bool
 }
 
 // DownloadSignature takes an asc instance and tries to get the
@@ -140,6 +141,7 @@ func (o *httpOps) getSession(u *url.URL, file *os.File, label, etag string) *res
 		File:                  file,
 		ETagFilePath:          eTagFilePath,
 		Label:                 label,
+		SimpleOutput:          o.SimpleOutput,
 	}
 }
 

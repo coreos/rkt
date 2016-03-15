@@ -23,11 +23,11 @@ import (
 	"os"
 	"time"
 
+	"github.com/coreos/ioprogress"
 	"github.com/coreos/rkt/pkg/lock"
 	"github.com/coreos/rkt/store"
+	"github.com/dustin/go-humanize"
 	"github.com/hashicorp/errwrap"
-
-	"github.com/coreos/ioprogress"
 )
 
 // writeSyncer is an interface that wraps io.Writer and a Sync method.
@@ -41,6 +41,42 @@ type writeSyncer interface {
 type readSeekCloser interface {
 	io.ReadSeeker
 	io.Closer
+}
+
+type simpleReader struct {
+	Label string
+	Body  io.Reader
+	Size  int64
+
+	started  bool
+	finished bool
+}
+
+func (r *simpleReader) Read(p []byte) (int, error) {
+	if !r.started {
+		r.started = true
+		sizeStr := "unknown size"
+		if r.Size > 0 {
+			sizeStr = humanize.Bytes((uint64)(r.Size))
+		}
+		log.Printf("begin downloading %s (%s)", r.Label, sizeStr)
+	}
+	n, err := r.Body.Read(p)
+	if !r.finished && err == io.EOF {
+		r.finished = true
+		log.Printf("finished downloading %s", r.Label)
+	}
+	return n, err
+}
+
+// getSimpleReader returns a reader that wraps the HTTP response body,
+// so it prints a simple message about downloading data.
+func getSimpleReader(label string, res *http.Response) io.Reader {
+	return &simpleReader{
+		Label: label,
+		Body:  res.Body,
+		Size:  res.ContentLength,
+	}
 }
 
 // getIoProgressReader returns a reader that wraps the HTTP response

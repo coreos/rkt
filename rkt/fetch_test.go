@@ -275,6 +275,8 @@ func TestDownloading(t *testing.T) {
 			S:             s,
 			Headers:       headers,
 			InsecureFlags: insecureFlags,
+
+			SimpleOutput: true,
 		}
 		_, err = ft.FetchImage(tt.ACIURL, "", apps.AppImageURL)
 		if err != nil && !tt.authFail {
@@ -348,6 +350,8 @@ func TestFetchImage(t *testing.T) {
 		S:             s,
 		Ks:            ks,
 		InsecureFlags: secureFlags,
+
+		SimpleOutput: true,
 	}
 	_, err = ft.FetchImage(fmt.Sprintf("%s/app.aci", ts.URL), "", apps.AppImageURL)
 	if err != nil {
@@ -537,6 +541,8 @@ func TestFetchImageCache(t *testing.T) {
 			InsecureFlags: secureFlags,
 			// Skip local store
 			NoStore: true,
+
+			SimpleOutput: true,
 		}
 		_, err = ft.FetchImage(aciURL, "", apps.AppImageURL)
 		if err != nil {

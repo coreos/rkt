@@ -41,6 +41,7 @@ type nameFetcher struct {
 	Debug              bool
 	Headers            map[string]config.Headerer
 	TrustKeysFromHTTPS bool
+	SimpleOutput       bool
 }
 
 // GetHash runs the discovery, fetches the image, optionally verifies
@@ -277,8 +278,9 @@ func (f *nameFetcher) maybeOverrideAscFetcherWithRemote(ascURL string, a *asc) {
 func (f *nameFetcher) getHTTPOps() *httpOps {
 	return &httpOps{
 		InsecureSkipTLSVerify: f.InsecureFlags.SkipTLSCheck(),
-		S:       f.S,
-		Headers: f.Headers,
-		Debug:   f.Debug,
+		S:            f.S,
+		Headers:      f.Headers,
+		Debug:        f.Debug,
+		SimpleOutput: f.SimpleOutput,
 	}
 }

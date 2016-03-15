@@ -44,6 +44,7 @@ c9fad0e6-8236-4fc2-ad17-55d0a4c7d742
 | `--private-users` |  `false` | `true` or `false` | Run within user namespaces (experimental) |
 | `--quiet` |  `false` | `true` or `false` | Suppress superfluous output on stdout, print only the UUID on success |
 | `--set-env` |  `` | An environment variable. Syntax `NAME=VALUE` | An environment variable to set for apps |
+| `--simple-output` |  `false` | `true` or `false` | Print simple messages when downloading data (images or signatures) instead of progress bars |
 | `--stage1-url` |  `` | A URL to a stage1 image. HTTP/HTTPS/File/Docker URLs are supported | Image to use as stage1 |
 | `--stage1-path` |  `` | A path to a stage1 image. Absolute and relative paths are supported | Image to use as stage1 |
 | `--stage1-name` |  `` | A name of a stage1 image. Will perform a discovery if the image is not in the store | Image to use as stage1 |

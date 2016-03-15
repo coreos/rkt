@@ -69,6 +69,8 @@ func init() {
 	cmdPrepare.Flags().Var((*appExec)(&rktApps), "exec", "override the exec command for the preceding image")
 	cmdPrepare.Flags().Var((*appMount)(&rktApps), "mount", "mount point binding a volume to a path within an app")
 
+	addSimpleOutputFlag(cmdPrepare.Flags())
+
 	// Disable interspersed flags to stop parsing after the first non flag
 	// argument. This is need to permit to correctly handle
 	// multiple "IMAGE -- imageargs ---"  options
@@ -144,6 +146,8 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 		StoreOnly: flagStoreOnly,
 		NoStore:   flagNoStore,
 		WithDeps:  true,
+
+		SimpleOutput: flagSimpleOutput,
 	}
 	if err := fn.FindImages(&rktApps); err != nil {
 		stderr.PrintE("error finding images", err)
