@@ -72,9 +72,9 @@ Some portions of the codebase are derived from other projects under different li
 
 ## Security disclosure
 
-If you suspect you have found a security vulnerability in rkt, please _do not_ file a GitHub issue, but instead email <security@coreos.com> with the full details, including steps to reproduce the issue.
+If you suspect you have found a security vulnerability in rkt, please *do not* file a GitHub issue, but instead email <security@coreos.com> with the full details, including steps to reproduce the issue.
 CoreOS is currently the primary sponsor of rkt development, and all reports are thoroughly investigated by CoreOS engineers.
-For more information, see the [CoreOS Security Disclosure](https://coreos.com/security/disclosure/) page
+For more information, see the [CoreOS security disclosure form](https://coreos.com/security/disclosure/).
 
 ## Known issues
 
