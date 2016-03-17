@@ -17,7 +17,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -742,4 +744,62 @@ func TestNetOverride(t *testing.T) {
 	if expectedIP != containerIP {
 		t.Fatalf("overriding IP did not work: Got %q but expected %q", containerIP, expectedIP)
 	}
+}
+
+func TestNetConfigDir(t *testing.T) {
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
+
+	iface, _, err := testutils.GetNonLoIfaceWithAddrs(netlink.FAMILY_V4)
+	if err != nil {
+		t.Fatalf("Error while getting non-lo host interface: %v\n", err)
+	}
+	if iface.Name == "" {
+		t.Skipf("Cannot run test without non-lo host interface")
+	}
+
+	netConfigDir, err := ioutil.TempDir("", "net-config")
+	if err != nil {
+		t.Fatalf("error creating tempdir: %v", err)
+	}
+	defer os.RemoveAll(netConfigDir)
+
+	netPluginDir, err := ioutil.TempDir("", "net-plugin")
+	if err != nil {
+		t.Fatalf("error creating tempdir: %v", err)
+	}
+	defer os.RemoveAll(netPluginDir)
+
+	confTemplate := `{
+ "cniVersion": "0.1.0",
+  "name": "test-foo",
+  "type": "test-bridge",
+  "isGateway": true,
+  "ipMasq": true,
+  "master": "%s",
+  "ipam": {
+    "type": "host-local",
+    "subnet": "11.11.3.0/24",
+    "routes": [
+      { "dst": "0.0.0.0/0" }
+    ]
+  }
+}`
+	conf := fmt.Sprintf(confTemplate, iface.Name)
+	ioutil.WriteFile(path.Join(netConfigDir, "test-foo.conf"), []byte(conf), 0666)
+
+	// Copy and rename the bridge plugin.
+	// Note that this assumes the 'bridge' plugin locates in build-rkt-${tag}/tools.
+	if err := os.Link(path.Join(ctx.RktBin(), "..", "..", "..", "tools", "bridge"), path.Join(netPluginDir, "test-bridge")); err != nil {
+		t.Fatalf("error copying bridge plugin: %v", err)
+	}
+
+	testImage := patchTestACI("rkt-inspect-networking-config.aci")
+	defer os.Remove(testImage)
+
+	cmd := fmt.Sprintf("%s --debug --insecure-options=image run --net-config=%s --net-plugin=%s --net=test-foo %s", ctx.Cmd(), netConfigDir, netPluginDir, testImage)
+
+	// Command should succeed.
+	child := spawnOrFail(t, cmd)
+	defer waitOrFail(t, child, 0)
 }

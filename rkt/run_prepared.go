@@ -41,6 +41,8 @@ func init() {
 
 	cmdRunPrepared.Flags().Var(&flagNet, "net", "configure the pod's networking. Optionally, pass a list of user-configured networks to load and set arguments to pass to each network, respectively. Syntax: --net[=n[:args]][,]")
 	cmdRunPrepared.Flags().Lookup("net").NoOptDefVal = "default"
+	cmdRunPrepared.Flags().StringVar(&flagNetConfig, "net-config", "", "the directory to find the network configuration")
+	cmdRunPrepared.Flags().StringVar(&flagNetPlugin, "net-plugin", "/usr/lib/rkt/plugins/net", "the directory to find the network plugin binaries")
 	cmdRunPrepared.Flags().Var(&flagDNS, "dns", "name servers to write in /etc/resolv.conf")
 	cmdRunPrepared.Flags().Var(&flagDNSSearch, "dns-search", "DNS search domains to write in /etc/resolv.conf")
 	cmdRunPrepared.Flags().Var(&flagDNSOpt, "dns-opt", "DNS options to write in /etc/resolv.conf")
@@ -123,12 +125,18 @@ func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 			UUID:  p.uuid,
 			Debug: globalFlags.Debug,
 		},
-		Net:         flagNet,
+
+		NetConfig: &stage0.NetConfig{
+			ConfigDir: flagNetConfig,
+			PluginDir: flagNetPlugin,
+			Net:       flagNet,
+			DNS:       flagDNS,
+			DNSSearch: flagDNSSearch,
+			DNSOpt:    flagDNSOpt,
+		},
+
 		LockFd:      lfd,
 		Interactive: flagInteractive,
-		DNS:         flagDNS,
-		DNSSearch:   flagDNSSearch,
-		DNSOpt:      flagDNSOpt,
 		MDSRegister: flagMDSRegister,
 		Apps:        apps,
 		RktGid:      rktgid,

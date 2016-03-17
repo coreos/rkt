@@ -98,6 +98,8 @@ func mirrorLocalZoneInfo(root string) {
 var (
 	debug        bool
 	netList      common.NetList
+	netConfig    string
+	netPlugin    string
 	interactive  bool
 	privateUsers string
 	mdsToken     string
@@ -110,6 +112,8 @@ var (
 func init() {
 	flag.BoolVar(&debug, "debug", false, "Run in debug mode")
 	flag.Var(&netList, "net", "Setup networking")
+	flag.StringVar(&netConfig, "net-config", "", "Directory to find the network configuration")
+	flag.StringVar(&netPlugin, "net-plugin", "", "Directory to find the network plugin binaries")
 	flag.BoolVar(&interactive, "interactive", false, "The pod is interactive")
 	flag.StringVar(&privateUsers, "private-users", "", "Run within user namespace. Can be set to [=UIDBASE[:NUIDS]]")
 	flag.StringVar(&mdsToken, "mds-token", "", "MDS auth token")
@@ -516,7 +520,7 @@ func stage1() int {
 			return 6
 		}
 
-		n, err = networking.Setup(root, p.UUID, fps, netList, localConfig, flavor, debug)
+		n, err = networking.Setup(root, p.UUID, fps, netList, localConfig, flavor, netConfig, netPlugin, debug)
 		if err != nil {
 			log.PrintE("failed to setup network", err)
 			return 6
