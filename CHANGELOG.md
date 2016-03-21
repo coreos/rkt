@@ -85,6 +85,10 @@ With this release, `rkt` RPM/dpkg packages should have the following updates:
 - Use the `--with-default-stage1-images-directory` configure flag, if the default is not acceptable and install the built stage1 images there.
 - Distributions using systemd: install the new file `dist/init/systemd/tmpfiles.d/rkt.conf` in `/usr/lib/tmpfiles.d/rkt.conf` and then run `systemd-tmpfiles --create rkt.conf`. This can replace running `rkt install` to set the correct ownership and permissions.
 
+#### Note for packagers
+
+- New vendored dependency added: github.com/coreos/go-systemd/sdjournal
+
 ## v0.16.0
 
 #### New features and UX changes
