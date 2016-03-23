@@ -284,7 +284,7 @@ func TestAPIServiceListInspectPods(t *testing.T) {
 		t.Errorf("Unexpected result: %v, should see zero pods", resp.Pods)
 	}
 
-	patches := []string{"--exec=/inspect --print-msg=HELLO_API --exit-code=42"}
+	patches := []string{"--exec=/inspect --print-msg=HELLO_API --exit-code=0"}
 	imageHash := patchImportAndFetchHash("rkt-inspect-print.aci", patches, t, ctx)
 	imgID, err := types.NewHash(imageHash)
 	if err != nil {

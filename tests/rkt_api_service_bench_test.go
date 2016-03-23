@@ -32,7 +32,7 @@ func setup() (*testutils.RktRunCtx, *gexpect.ExpectSubprocess, v1alpha.PublicAPI
 	ctx := testutils.NewRktRunCtx()
 	svc := startAPIService(t, ctx)
 	c, conn := newAPIClientOrFail(t, "localhost:15441")
-	imagePath := patchTestACI("rkt-inspect-print.aci", "--exec=/inspect --print-msg=HELLO_API --exit-code=42")
+	imagePath := patchTestACI("rkt-inspect-print.aci", "--exec=/inspect --print-msg=HELLO_API")
 
 	return ctx, svc, c, conn, imagePath
 }

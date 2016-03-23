@@ -47,19 +47,18 @@ func TestNonRootReadInfo(t *testing.T) {
 
 	// Launch some pods, this creates the environment for later testing.
 	imgs := []struct {
-		name     string
-		msg      string
-		exitCode string
-		imgFile  string
+		name    string
+		msg     string
+		imgFile string
 	}{
-		{name: "inspect-1", msg: "foo-1", exitCode: "1"},
-		{name: "inspect-2", msg: "foo-2", exitCode: "2"},
-		{name: "inspect-3", msg: "foo-3", exitCode: "3"},
+		{name: "inspect-1", msg: "foo-1"},
+		{name: "inspect-2", msg: "foo-2"},
+		{name: "inspect-3", msg: "foo-3"},
 	}
 
 	for i, img := range imgs {
 		imgName := fmt.Sprintf("rkt-%s.aci", img.name)
-		imgs[i].imgFile = patchTestACI(imgName, fmt.Sprintf("--name=%s", img.name), fmt.Sprintf("--exec=/inspect --print-msg=%s --exit-code=%s", img.msg, img.exitCode))
+		imgs[i].imgFile = patchTestACI(imgName, fmt.Sprintf("--name=%s", img.name), fmt.Sprintf("--exec=/inspect --print-msg=%s --exit-code=0", img.msg))
 		defer os.Remove(imgs[i].imgFile)
 	}
 

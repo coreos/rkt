@@ -30,38 +30,45 @@ func TestDNS(t *testing.T) {
 	defer ctx.Cleanup()
 
 	for _, tt := range []struct {
-		paramDNS     string
-		expectedLine string
+		paramDNS      string
+		expectedLine  string
+		expectedError bool
 	}{
 		{
-			paramDNS:     "",
-			expectedLine: "Cannot read file",
+			paramDNS:      "",
+			expectedLine:  "Cannot read file",
+			expectedError: true,
 		},
 		{
-			paramDNS:     "--dns=8.8.4.4",
-			expectedLine: "nameserver 8.8.4.4",
+			paramDNS:      "--dns=8.8.4.4",
+			expectedLine:  "nameserver 8.8.4.4",
+			expectedError: false,
 		},
 		{
-			paramDNS:     "--dns=8.8.8.8 --dns=8.8.4.4",
-			expectedLine: "nameserver 8.8.8.8",
+			paramDNS:      "--dns=8.8.8.8 --dns=8.8.4.4",
+			expectedLine:  "nameserver 8.8.8.8",
+			expectedError: false,
 		},
 		{
-			paramDNS:     "--dns=8.8.8.8 --dns=8.8.4.4 --dns-search=search.com --dns-opt=debug",
-			expectedLine: "nameserver 8.8.4.4",
+			paramDNS:      "--dns=8.8.8.8 --dns=8.8.4.4 --dns-search=search.com --dns-opt=debug",
+			expectedLine:  "nameserver 8.8.4.4",
+			expectedError: false,
 		},
 		{
-			paramDNS:     "--dns-search=foo.com --dns-search=bar.com",
-			expectedLine: "search foo.com bar.com",
+			paramDNS:      "--dns-search=foo.com --dns-search=bar.com",
+			expectedLine:  "search foo.com bar.com",
+			expectedError: false,
 		},
 		{
-			paramDNS:     "--dns-opt=debug --dns-opt=use-vc --dns-opt=rotate",
-			expectedLine: "options debug use-vc rotate",
+			paramDNS:      "--dns-opt=debug --dns-opt=use-vc --dns-opt=rotate",
+			expectedLine:  "options debug use-vc rotate",
+			expectedError: false,
 		},
 	} {
 
 		rktCmd := fmt.Sprintf(`%s --insecure-options=image run --set-env=FILE=/etc/resolv.conf %s %s`,
 			ctx.Cmd(), tt.paramDNS, imageFile)
 		t.Logf("%s\n", rktCmd)
-		runRktAndCheckOutput(t, rktCmd, tt.expectedLine, false)
+		runRktAndCheckOutput(t, rktCmd, tt.expectedLine, tt.expectedError)
 	}
 }

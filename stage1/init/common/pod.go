@@ -472,7 +472,7 @@ func appToSystemd(p *stage1commontypes.Pod, ra *schema.RuntimeApp, interactive b
 }
 
 func writeShutdownService(p *stage1commontypes.Pod) error {
-	_, systemdVersion, err := GetFlavor(p)
+	flavor, systemdVersion, err := GetFlavor(p)
 	if err != nil {
 		return err
 	}
@@ -493,7 +493,10 @@ func writeShutdownService(p *stage1commontypes.Pod) error {
 	// This can happen, for example, when building rkt with:
 	//
 	// ./configure --with-stage1-flavors=src --with-stage1-systemd-version=master
-	if systemdVersion != 0 && systemdVersion < 227 {
+	//
+	// The patches for the "exit" verb are backported to the "coreos" flavor, so
+	// don't rely on the systemd version on the "coreos" flavor.
+	if flavor != "coreos" && systemdVersion != 0 && systemdVersion < 227 {
 		shutdownVerb = "halt"
 	}
 

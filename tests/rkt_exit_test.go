@@ -35,7 +35,7 @@ func TestExitCodeSimple(t *testing.T) {
 		cmd := fmt.Sprintf(`%s --debug --insecure-options=image run --mds-register=false %s`,
 			ctx.Cmd(), imageFile)
 		t.Logf("%s\n", cmd)
-		spawnAndWaitOrFail(t, cmd, 0)
+		spawnAndWaitOrFail(t, cmd, i)
 		checkAppStatus(t, ctx, false, "rkt-inspect", fmt.Sprintf("status=%d", i))
 	}
 }
@@ -71,10 +71,8 @@ func TestExitCodeWithSeveralApps(t *testing.T) {
 	}
 
 	t.Logf("Waiting pod termination\n")
-	// Currently we have systemd v222 in the coreos flavor which doesn't
-	// include the exit status propagation code.
-	// TODO(iaguis): we should expect 5 as the exit status when we update to v229
-	waitOrFail(t, child, 0)
+	// Since systend v227, the exit status is propagated from the app to rkt
+	waitOrFail(t, child, 5)
 
 	t.Logf("Check final status\n")
 

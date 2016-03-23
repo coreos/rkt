@@ -139,7 +139,7 @@ func getCreationStartTime(t *testing.T, ctx *testutils.RktRunCtx, imageID string
 func TestRktListCreatedStarted(t *testing.T) {
 	const imgName = "rkt-list-creation-start-time-test"
 
-	image := patchTestACI(fmt.Sprintf("%s.aci", imgName), fmt.Sprintf("--exec=/inspect "))
+	image := patchTestACI(fmt.Sprintf("%s.aci", imgName), fmt.Sprintf("--exec=/inspect --exit-code=0"))
 	defer os.Remove(image)
 
 	imageHash := getHashOrPanic(image)
