@@ -52,22 +52,23 @@ will instead be appended to the preceding image app's exec arguments. End the
 image arguments with a lone "---" to resume argument parsing.`,
 		Run: ensureSuperuser(runWrapper(runRun)),
 	}
-	flagPorts        portList
-	flagNet          common.NetList
-	flagPrivateUsers bool
-	flagInheritEnv   bool
-	flagExplicitEnv  envMap
-	flagInteractive  bool
-	flagDNS          flagStringList
-	flagDNSSearch    flagStringList
-	flagDNSOpt       flagStringList
-	flagNoOverlay    bool
-	flagStoreOnly    bool
-	flagNoStore      bool
-	flagPodManifest  string
-	flagMDSRegister  bool
-	flagUUIDFileSave string
-	flagHostname     string
+	flagPorts          portList
+	flagNet            common.NetList
+	flagPrivateUsers   bool
+	flagInheritEnv     bool
+	flagExplicitEnv    envMap
+	flagInteractive    bool
+	flagDNS            flagStringList
+	flagDNSSearch      flagStringList
+	flagDNSOpt         flagStringList
+	flagNoOverlay      bool
+	flagStoreOnly      bool
+	flagNoStore        bool
+	flagPodManifest    string
+	flagMDSRegister    bool
+	flagUUIDFileSave   string
+	flagHostname       string
+	flagSelinuxOptions selinuxOptions
 )
 
 func init() {
@@ -92,6 +93,7 @@ func init() {
 	cmdRun.Flags().StringVar(&flagUUIDFileSave, "uuid-file-save", "", "write out pod UUID to specified file")
 	cmdRun.Flags().StringVar(&flagHostname, "hostname", "", `pod's hostname. If empty, it will be "rkt-$PODUUID"`)
 	cmdRun.Flags().Var((*appsVolume)(&rktApps), "volume", "volumes to make available in the pod")
+	cmdRun.Flags().Var(&flagSelinuxOptions, "selinux-options", "the SELinux options that will be passed to the pod and its mounted volumes. Syntax: --selinux-options=[user:USER][,role:ROLE][,type:TYPE][,level:LEVEL]")
 
 	// per-app flags
 	cmdRun.Flags().Var((*appAsc)(&rktApps), "signature", "local signature file to use in validating the preceding image")
@@ -216,7 +218,12 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		}
 	}
 
-	processLabel, mountLabel, err := label.InitLabels([]string{"mcsdir:/var/run/rkt/mcs"})
+	options := []string{"mcsdir:/var/run/rkt/mcs"}
+	if !flagSelinuxOptions.IsEmpty() {
+		options = append(options, flagSelinuxOptions.Strings()...)
+	}
+
+	processLabel, mountLabel, err := label.InitLabels(options)
 	if err != nil {
 		stderr.PrintE("error initialising SELinux", err)
 		return 1
@@ -405,4 +412,52 @@ func (e *envMap) Strings() []string {
 
 func (e *envMap) Type() string {
 	return "envMap"
+}
+
+// selinuxOptions implements the flag.Value interface to store the SELinux options.
+type selinuxOptions struct {
+	mapping map[string]string
+}
+
+func (c *selinuxOptions) String() string {
+	return strings.Join(c.Strings(), ",")
+}
+
+func (c *selinuxOptions) Strings() []string {
+	var opts []string
+	for k, v := range c.mapping {
+		opts = append(opts, fmt.Sprintf("%s:%s", k, v))
+	}
+	return opts
+}
+
+func (c *selinuxOptions) Type() string {
+	return "selinux-options"
+}
+
+func (c *selinuxOptions) IsEmpty() bool {
+	return len(c.mapping) == 0
+}
+
+func (c *selinuxOptions) Set(s string) error {
+	c.mapping = make(map[string]string)
+
+	for _, opt := range strings.Split(s, ",") {
+		if i := strings.Index(opt, ":"); i == -1 {
+			return fmt.Errorf("bad SELinux option: %q", opt)
+		}
+
+		value := strings.SplitN(opt, ":", 2)
+		switch value[0] {
+		case "user":
+		case "role":
+		case "type":
+		case "level":
+		default:
+			return fmt.Errorf("unrecognized SELinux option: %q", value[0])
+		}
+		c.mapping[value[0]] = value[1]
+	}
+
+	return nil
 }
