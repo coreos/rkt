@@ -52,6 +52,7 @@ c9fad0e6    etcd    coreos.com/etcd prepared
 | `--interactive` |  `false` | `true` or `false` | Run pod interactively. If true, only one image may be supplied |
 | `--mds-register` |  `false` | `true` or `false` | Register pod with metadata service. It needs network connectivity to the host (`--net=(default|default-restricted|host)` |
 | `--net` |  `default` | A comma-separated list of networks. Syntax: `--net[=n[:args], ...]` | Configure the pod's networking. Optionally, pass a list of user-configured networks to load and set arguments to pass to each network, respectively |
+| `--selinux-options` |  `` | An SELinux option string, e.g. `user:foo,role:admin,type:admin_t,level:s0` | The SELinux options that will be passed to the pod and its mounted volumes. Syntax: `--selinux-options=[user:USER][,role:ROLE][,type:TYPE][,level:LEVEL]` |
 
 ## Global options
 
