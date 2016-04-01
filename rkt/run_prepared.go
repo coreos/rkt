@@ -87,12 +87,12 @@ func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 		}
 	}
 
-	options := []string{"mcsdir:/var/run/rkt/mcs"}
+	var options []string
 	if !flagSelinuxOptions.IsEmpty() {
-		options = append(options, flagSelinuxOptions.Strings()...)
+		options = flagSelinuxOptions.Strings()
 	}
 
-	processLabel, mountLabel, err := label.InitLabels(options)
+	processLabel, mountLabel, err := label.InitLabels(defaultSelinuxMcsDir, options)
 	if err != nil {
 		stderr.PrintE("error initialising SELinux", err)
 		return 1

@@ -33,7 +33,8 @@ const (
 	cliName        = "rkt"
 	cliDescription = "rkt, the application container runner"
 
-	defaultDataDir = "/var/lib/rkt"
+	defaultDataDir       = "/var/lib/rkt"
+	defaultSelinuxMcsDir = "/var/run/rkt/mcs"
 
 	bash_completion_func = `__rkt_parse_image()
 {

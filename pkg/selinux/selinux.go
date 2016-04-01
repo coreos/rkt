@@ -45,15 +45,16 @@ const (
 	selinuxPath      = "/sys/fs/selinux"
 	xattrNameSelinux = "security.selinux"
 	stRdOnly         = 0x01
+	defaultMcsDir    = "/var/run/selinux/mcs"
 )
 
 var (
+	mcsdir                = defaultMcsDir // Directory to use for MCS storage
 	assignRegex           = regexp.MustCompile(`^([^=]+)=(.*)$`)
 	spaceRegex            = regexp.MustCompile(`^([^=]+) (.*)$`)
 	selinuxfs             = "unknown"
 	selinuxEnabled        = false // Stores whether selinux is currently enabled
 	selinuxEnabledChecked = false // Stores whether selinux enablement has been checked or established yet
-	mcsdir                = ""    // Directory to use for MCS storage
 
 	errMCSAlreadyExists = fmt.Errorf("MCS label already exists")
 )
@@ -506,7 +507,11 @@ func DisableSecOpt() []string {
 }
 
 // Set the directory used for storage of used MCS contexts
-func SetMCSDir(arg string) error {
-	mcsdir = arg
+func SetMCSDir(mcsDir string) error {
+	if mcsDir == "" {
+		mcsdir = defaultMcsDir
+	} else {
+		mcsdir = mcsDir
+	}
 	return os.MkdirAll(mcsdir, 0755)
 }
