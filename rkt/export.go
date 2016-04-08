@@ -22,11 +22,15 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"github.com/appc/spec/aci"
 	"github.com/appc/spec/schema"
 	"github.com/coreos/rkt/common"
+	"github.com/coreos/rkt/common/overlay"
 	"github.com/hashicorp/errwrap"
+
+	"github.com/coreos/rkt/store"
 	"github.com/spf13/cobra"
 )
 
@@ -36,7 +40,7 @@ var (
 		Short: "Export an exited pod to an ACI file",
 		Long: `UUID should be the uuid of an exited pod.
 
-Note that currently only pods with a single app and started with the --no-overlay option are supported.`,
+Note that currently only pods with a single app can be exported.`,
 		Run: runWrapper(runExport),
 	}
 )
@@ -67,33 +71,89 @@ func runExport(cmd *cobra.Command, args []string) (exit int) {
 	defer p.Close()
 
 	if !p.isExited {
-		stderr.Print("pod is not exited. Only exited pods are supported.")
+		stderr.Print("pod is not exited. Only exited pods can be exported")
 		return 1
 	}
 
-	if p.usesOverlay() {
-		stderr.Print("pod uses overlayfs. Only pods using the --no-overlay flag are supported.")
-		return 1
-	}
-
-	var apps schema.AppList
-	if apps, err = p.getApps(); err != nil {
-		stderr.PrintE("problem getting pod's app list", err)
+	apps, err := p.getApps()
+	if err != nil {
+		stderr.PrintE("problem getting the pod's app list", err)
 		return 1
 	}
 
 	if len(apps) != 1 {
-		stderr.Print("pod has more than one app. Only pods with one app are supported.")
+		stderr.Printf("pod has %d apps. Only pods with one app can be exported", len(apps))
 		return 1
 	}
+	app := apps[0]
 
-	root := common.AppPath(p.path(), apps[0].Name)
+	if p.usesOverlay() {
+		tmpMntDir := path.Join(getDataDir(), "tmp", fmt.Sprintf("rkt-export-%s", p.uuid))
+		if err := os.MkdirAll(tmpMntDir, common.DefaultRegularDirPerm); err != nil {
+			stderr.PrintE("unable to create temp directory", err)
+			return 1
+		}
+
+		mntDir, err := mountOverlay(p, &app, tmpMntDir)
+		if err != nil {
+			stderr.PrintE(fmt.Sprintf("couldn't mount directory at %s", tmpMntDir), err)
+		}
+		defer func() {
+			if err := syscall.Unmount(mntDir, 0); err != nil {
+				stderr.PrintE(fmt.Sprintf("error unmounting directory %s", mntDir), err)
+				exit = 1
+			}
+			if err := os.RemoveAll(tmpMntDir); err != nil {
+				stderr.PrintE("problem removing temp directory", err)
+				exit = 1
+			}
+		}()
+	}
+
+	root := common.AppPath(p.path(), app.Name)
 	if err = buildAci(root, aci); err != nil {
 		stderr.PrintE("error building aci", err)
 		return 1
 	}
 
 	return 0
+}
+
+// mountOverlay mounts the app from the overlay-rendered pod to the destination directory.
+func mountOverlay(pod *pod, app *schema.RuntimeApp, dest string) (string, error) {
+	if _, err := os.Stat(dest); err != nil {
+		return "", err
+	}
+
+	s, err := store.NewStore(getDataDir())
+	if err != nil {
+		return "", errwrap.Wrap(errors.New("cannot open store"), err)
+	}
+
+	treeStoreID, err := pod.getAppTreeStoreID(app.Name)
+	if err != nil {
+		return "", err
+	}
+	lower := s.GetTreeStoreRootFS(treeStoreID)
+	imgDir := path.Join(path.Join(pod.path(), "overlay"), treeStoreID)
+	if _, err := os.Stat(imgDir); err != nil {
+		return "", err
+	}
+	upper := path.Join(imgDir, "upper", app.Name.String())
+	if _, err := os.Stat(upper); err != nil {
+		return "", err
+	}
+	work := path.Join(imgDir, "work", app.Name.String())
+	if _, err := os.Stat(work); err != nil {
+		return "", err
+	}
+
+	mntDir, err := overlay.Mount(&overlay.MountCfg{lower, upper, work, dest, ""})
+	if err != nil {
+		return "", errwrap.Wrap(errors.New("problem mounting overlayfs directory"), err)
+	}
+
+	return mntDir, nil
 }
 
 func buildAci(root, target string) (e error) {
