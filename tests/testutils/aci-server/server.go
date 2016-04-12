@@ -24,8 +24,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
+)
+
+const (
+	Pubkeys = "pubkeys.gpg"
 )
 
 type PortType int
@@ -205,8 +210,15 @@ func (h *serverHandler) sendAcDiscovery(w http.ResponseWriter) {
 	// TODO(krnowak): When appc spec gets the discovery over
 	// custom port feature, possibly take it into account here
 	indexHTML := fmt.Sprintf(`<meta name="ac-discovery" content="localhost %s/{name}.{ext}">`, h.serverURL)
-	w.Write([]byte(indexHTML))
-	h.sendMsg("  done.")
+	if _, ok := h.fileSet[Pubkeys]; ok {
+		indexHTML = fmt.Sprintf(`%s<meta name="ac-discovery-pubkeys" content="localhost %s/%s">`, indexHTML, h.serverURL, Pubkeys)
+	}
+	h.sendMsg(fmt.Sprintf("  sending meta tags: %s", indexHTML))
+	logMsg := "  done."
+	if _, err := w.Write([]byte(indexHTML)); err != nil {
+		logMsg = fmt.Sprintf("  failed to write discovery meta tags: %v", err)
+	}
+	h.sendMsg(logMsg)
 }
 
 func (h *serverHandler) handleFile(w http.ResponseWriter, reqPath string, headers http.Header) {
@@ -232,14 +244,18 @@ func (h *serverHandler) handleFile(w http.ResponseWriter, reqPath string, header
 		return
 	}
 	addCacheHeaders(w, sf)
-	w.Write(contents)
+	w.Header().Set("Content-Length", strconv.Itoa(len(contents)))
+	logMsg := "  done."
+	if _, err := w.Write(contents); err != nil {
+		logMsg = fmt.Sprintf("  failed to write the file contents: %v", err)
+	}
 	reqImagePath, isAsc := isPathAnImageKey(reqPath)
 	if isAsc {
 		delete(h.servedImages, reqImagePath)
 	} else {
 		h.servedImages[reqPath] = struct{}{}
 	}
-	h.sendMsg("  done.")
+	h.sendMsg(logMsg)
 }
 
 func (h *serverHandler) canServe(reqPath string, w http.ResponseWriter) bool {
@@ -294,6 +310,10 @@ type ServerSetup struct {
 	MsgCapacity int
 }
 
+// GetDefaultServerSetup returns a setup for discovery server running
+// on a fixed https port (443), which does not defer the signature
+// download until the image is downloaded (like quay does) and
+// requires no authentication.
 func GetDefaultServerSetup() *ServerSetup {
 	return &ServerSetup{
 		Port:        PortFixed,
@@ -309,6 +329,11 @@ func (s *Server) Close() {
 	close(s.handler.msg)
 }
 
+// UpdateFileSet makes the given files to be available for downloading
+// from the server. The files are available under
+// http(s)://localhost/<key>. A special key named "pubkeys.gpg" will
+// make the server to emit the ac-discovery-pubkeys meta tag during
+// discovery.
 func (s *Server) UpdateFileSet(fileSet map[string]string) error {
 	s.handler.fileSet = make(map[string]*servedFile, len(fileSet))
 	for base, path := range fileSet {

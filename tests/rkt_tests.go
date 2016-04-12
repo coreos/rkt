@@ -84,7 +84,7 @@ func patchACI(inputFileName, newFileName string, args ...string) string {
 	var allArgs []string
 
 	actool := testutils.GetValueFromEnvOrPanic("ACTOOL")
-	tmpDir := testutils.GetValueFromEnvOrPanic("FUNCTIONAL_TMP")
+	tmpDir := getFunctionalTmpDir()
 
 	imagePath, err := filepath.Abs(filepath.Join(tmpDir, newFileName))
 	if err != nil {
@@ -150,6 +150,10 @@ func getEmptyImagePath() string {
 
 func getInspectImagePath() string {
 	return testutils.GetValueFromEnvOrPanic("RKT_INSPECT_IMAGE")
+}
+
+func getFunctionalTmpDir() string {
+	return testutils.GetValueFromEnvOrPanic("FUNCTIONAL_TMP")
 }
 
 func getHashOrPanic(path string) string {
@@ -628,29 +632,61 @@ func serverHandler(t *testing.T, server *taas.Server) {
 	}
 }
 
+type gpgkey struct {
+	fingerprint string
+	path        string
+}
+
+var gpgkeys = []*gpgkey{
+	{
+		fingerprint: "D9DCEF41",
+		path:        "key1.gpg",
+	},
+	{
+		fingerprint: "585091E3",
+		path:        "key2.gpg",
+	},
+	{
+		fingerprint: "7D526AD4",
+		path:        "key3.gpg",
+	},
+}
+
+func getGPGKey(t *testing.T, keyIndex int) *gpgkey {
+	realIndex := keyIndex - 1
+	if realIndex < 0 || len(gpgkeys) <= realIndex {
+		t.Fatalf("there are only %d keys, requested %dth key", len(gpgkeys), keyIndex)
+	}
+	return gpgkeys[realIndex]
+}
+
 func runSignImage(t *testing.T, imageFile string, keyIndex int) string {
 	ascFile := fmt.Sprintf("%s.asc", imageFile)
+	runSignImageToFile(t, imageFile, ascFile, keyIndex)
+	return ascFile
+}
+
+func runSignImageToFile(t *testing.T, imageFile, ascFile string, keyIndex int) {
+	if err := os.Remove(ascFile); err != nil && !os.IsNotExist(err) {
+		t.Fatalf("failed to remove the stray asc file %s", ascFile)
+	}
 
 	// keys stored in tests/secring.gpg, tests/pubring.gpg, tests/key1.gpg, tests/key2.gpg
-	keyFingerprint := ""
-	switch keyIndex {
-	case 1:
-		keyFingerprint = "D9DCEF41"
-	case 2:
-		keyFingerprint = "585091E3"
-	default:
-		panic("unknown key")
-	}
+	keyFingerprint := getGPGKey(t, keyIndex).fingerprint
 
 	cmd := fmt.Sprintf("gpg --no-default-keyring --secret-keyring ./secring.gpg --keyring ./pubring.gpg --default-key %s --output %s --detach-sig %s",
 		keyFingerprint, ascFile, imageFile)
 	spawnAndWaitOrFail(t, cmd, 0)
-	return ascFile
 }
 
 func runRktTrust(t *testing.T, ctx *testutils.RktRunCtx, prefix string, keyIndex int) {
+	key := getGPGKey(t, keyIndex)
+	runRktTrustKey(t, ctx, prefix, key)
+}
+
+func runRktTrustKey(t *testing.T, ctx *testutils.RktRunCtx, prefix string, key *gpgkey) {
 	var cmd string
-	keyFile := fmt.Sprintf("key%d.gpg", keyIndex)
+	keyFile := key.path
 	if prefix == "" {
 		cmd = fmt.Sprintf(`%s trust --root %s`, ctx.Cmd(), keyFile)
 	} else {
@@ -660,22 +696,32 @@ func runRktTrust(t *testing.T, ctx *testutils.RktRunCtx, prefix string, keyIndex
 	child := spawnOrFail(t, cmd)
 	defer waitOrFail(t, child, 0)
 
+	runGPGKeyReview(t, child, prefix, true)
+}
+
+func runGPGKeyReview(t *testing.T, child *gexpect.ExpectSubprocess, prefix string, accept bool) {
 	expected := "Are you sure you want to trust this key"
 	if err := expectWithOutput(child, expected); err != nil {
 		t.Fatalf("Expected but didn't find %q in %v", expected, err)
 	}
 
-	if err := child.SendLine("yes"); err != nil {
-		t.Fatalf("Cannot confirm rkt trust: %s", err)
-	}
+	if accept {
+		if err := child.SendLine("yes"); err != nil {
+			t.Fatalf("Cannot confirm GPG key trust: %v", err)
+		}
 
-	if prefix == "" {
-		expected = "Added root key at"
+		if prefix == "" {
+			expected = "Added root key at"
+		} else {
+			expected = fmt.Sprintf("Added key for prefix %q at", prefix)
+		}
+		if err := expectWithOutput(child, expected); err != nil {
+			t.Fatalf("Expected but didn't find %q in %v", expected, err)
+		}
 	} else {
-		expected = fmt.Sprintf(`Added key for prefix "%s" at`, prefix)
-	}
-	if err := expectWithOutput(child, expected); err != nil {
-		t.Fatalf("Expected but didn't find %q in %v", expected, err)
+		if err := child.SendLine("no"); err != nil {
+			t.Fatalf("Cannot reject GPG key trust: %v", err)
+		}
 	}
 }
 

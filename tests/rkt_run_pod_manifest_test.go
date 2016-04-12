@@ -42,7 +42,7 @@ func stringP(s string) *string {
 }
 
 func generatePodManifestFile(t *testing.T, manifest *schema.PodManifest) string {
-	tmpDir := testutils.GetValueFromEnvOrPanic("FUNCTIONAL_TMP")
+	tmpDir := getFunctionalTmpDir()
 	f, err := ioutil.TempFile(tmpDir, "rkt-test-manifest-")
 	if err != nil {
 		t.Fatalf("Cannot create tmp pod manifest: %v", err)

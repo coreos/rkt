@@ -153,7 +153,6 @@ func (f *nameFetcher) fetch(app *discovery.App, aciURL string, a *asc) (readSeek
 
 func (f *nameFetcher) fetchVerifiedURL(app *discovery.App, u *url.URL, a *asc) (readSeekCloser, *cacheData, error) {
 	appName := app.Name.String()
-	f.maybeFetchPubKeys(appName)
 
 	o := f.getHTTPOps()
 	ascFile, retry, err := o.DownloadSignature(a)
@@ -163,6 +162,7 @@ func (f *nameFetcher) fetchVerifiedURL(app *discovery.App, u *url.URL, a *asc) (
 	defer func() { maybeClose(ascFile) }()
 
 	if !retry {
+		f.maybeFetchPubKeys(appName)
 		if err := f.checkIdentity(appName, ascFile); err != nil {
 			return nil, nil, err
 		}
@@ -179,6 +179,7 @@ func (f *nameFetcher) fetchVerifiedURL(app *discovery.App, u *url.URL, a *asc) (
 		if err != nil {
 			return nil, nil, err
 		}
+		f.maybeFetchPubKeys(appName)
 	}
 
 	if err := f.validate(app, aciFile, ascFile); err != nil {
