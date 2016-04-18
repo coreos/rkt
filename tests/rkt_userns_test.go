@@ -46,7 +46,7 @@ var usernsTests = []struct {
 		"", // no check: it could be 0 but also the gid of 'rkt', see https://github.com/coreos/rkt/pull/1452
 	},
 	// TODO test with overlay fs too. We don't test it for now because
-	// Semaphore doesn't support it.
+	// Semaphore CI system doesn't support it.
 }
 
 func TestUserns(t *testing.T) {
