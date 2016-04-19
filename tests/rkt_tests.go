@@ -15,6 +15,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/sha512"
 	"encoding/hex"
@@ -790,4 +791,31 @@ func writeConfig(t *testing.T, dir, filename, contents string) {
 	if err := ioutil.WriteFile(path, []byte(contents), 0644); err != nil {
 		t.Fatalf("Failed to write file %q: %v", path, err)
 	}
+}
+
+// getOSInfo returns the content of /etc/os-release in a map.
+func getOSReleaseOrFail(t *testing.T) map[string]string {
+	result := make(map[string]string)
+
+	path := "/etc/os-release"
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("Failed to open %s: %v", path, err)
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		info := strings.SplitN(line, "=", 2)
+		if len(info) != 2 {
+			t.Fatalf("Invalid line %q in the file", line)
+		}
+		result[info[0]] = info[1]
+	}
+	if err := scanner.Err(); err != nil {
+		t.Fatalf("Failed to read %s: %v", path, err)
+	}
+
+	return result
 }
