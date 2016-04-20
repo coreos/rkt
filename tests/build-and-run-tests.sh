@@ -28,16 +28,16 @@ function ciSkip {
     exit 0
 }
 
-# Configure SemaphoreCI environment.
-function semaphoreConfiguration {
+# Configure Semaphore CI system environment.
+function semaphoreCIConfiguration {
     # We might not need to run functional tests or process docs.
     # This is best-effort; || true ensures this does not affect test outcome
-    # First, ensure origin is updated - semaphore can do some weird caching
+    # First, ensure origin is updated - Semaphore CI system can do some weird caching
     git fetch || true
     SRC_CHANGES=$(git diff-tree --no-commit-id --name-only -r HEAD..origin/master | grep -cEv ${DOC_CHANGE_PATTERN}) || true
     DOC_CHANGES=$(git diff-tree --no-commit-id --name-only -r HEAD..origin/master | grep -cE ${DOC_CHANGE_PATTERN}) || true
 
-    # Set up go environment on semaphore
+    # Set up go environment on Semaphore CI
     if [ -f /opt/change-go-version.sh ]; then
         . /opt/change-go-version.sh
         change-go-version 1.5
@@ -232,7 +232,7 @@ function main {
 
     # https://semaphoreci.com/docs/available-environment-variables.html
     if [ "${SEMAPHORE-}" == true ] ; then
-        semaphoreConfiguration
+        semaphoreCIConfiguration
     fi
 
     prepareBuildEnv
