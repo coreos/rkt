@@ -28,6 +28,7 @@ import (
 	"github.com/hashicorp/errwrap"
 
 	"github.com/coreos/rkt/common"
+	nettypes "github.com/coreos/rkt/networking/types"
 )
 
 // TODO(eyakubovich): make this configurable in rkt.conf
@@ -50,7 +51,7 @@ func pluginErr(err error, output []byte) error {
 	return err
 }
 
-func (e *podEnv) netPluginAdd(n *activeNet, netns string) (ip, hostIP net.IP, err error) {
+func (e *podEnv) netPluginAdd(n *nettypes.ActiveNet, netns string) (ip, hostIP net.IP, err error) {
 	output, err := e.execNetPlugin("ADD", n, netns)
 	if err != nil {
 		return nil, nil, pluginErr(err, output)
@@ -59,7 +60,7 @@ func (e *podEnv) netPluginAdd(n *activeNet, netns string) (ip, hostIP net.IP, er
 	pr := cnitypes.Result{}
 	if err = json.Unmarshal(output, &pr); err != nil {
 		err = errwrap.Wrap(fmt.Errorf("parsing %q", string(output)), err)
-		return nil, nil, errwrap.Wrap(fmt.Errorf("error parsing %q result", n.conf.Name), err)
+		return nil, nil, errwrap.Wrap(fmt.Errorf("error parsing %q result", n.Conf.Name), err)
 	}
 
 	if pr.IP4 == nil {
@@ -69,7 +70,7 @@ func (e *podEnv) netPluginAdd(n *activeNet, netns string) (ip, hostIP net.IP, er
 	return pr.IP4.IP.IP, pr.IP4.Gateway, nil
 }
 
-func (e *podEnv) netPluginDel(n *activeNet, netns string) error {
+func (e *podEnv) netPluginDel(n *nettypes.ActiveNet, netns string) error {
 	output, err := e.execNetPlugin("DEL", n, netns)
 	if err != nil {
 		return pluginErr(err, output)
@@ -107,29 +108,29 @@ func envVars(vars [][2]string) []string {
 	return env
 }
 
-func (e *podEnv) execNetPlugin(cmd string, n *activeNet, netns string) ([]byte, error) {
-	if n.runtime.PluginPath == "" {
-		n.runtime.PluginPath = e.findNetPlugin(n.conf.Type)
+func (e *podEnv) execNetPlugin(cmd string, n *nettypes.ActiveNet, netns string) ([]byte, error) {
+	if n.Runtime.PluginPath == "" {
+		n.Runtime.PluginPath = e.findNetPlugin(n.Conf.Type)
 	}
-	if n.runtime.PluginPath == "" {
-		return nil, fmt.Errorf("Could not find plugin %q", n.conf.Type)
+	if n.Runtime.PluginPath == "" {
+		return nil, fmt.Errorf("Could not find plugin %q", n.Conf.Type)
 	}
 
 	vars := [][2]string{
 		{"CNI_COMMAND", cmd},
 		{"CNI_CONTAINERID", e.podID.String()},
 		{"CNI_NETNS", netns},
-		{"CNI_ARGS", n.runtime.Args},
-		{"CNI_IFNAME", n.runtime.IfName},
+		{"CNI_ARGS", n.Runtime.Args},
+		{"CNI_IFNAME", n.Runtime.IfName},
 		{"CNI_PATH", strings.Join(e.pluginPaths(), ":")},
 	}
 
-	stdin := bytes.NewBuffer(n.confBytes)
+	stdin := bytes.NewBuffer(n.ConfBytes)
 	stdout := &bytes.Buffer{}
 
 	c := exec.Cmd{
-		Path:   n.runtime.PluginPath,
-		Args:   []string{n.runtime.PluginPath},
+		Path:   n.Runtime.PluginPath,
+		Args:   []string{n.Runtime.PluginPath},
 		Env:    envVars(vars),
 		Stdin:  stdin,
 		Stdout: stdout,

@@ -17,15 +17,16 @@ package config
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+
+	baseconfig "github.com/coreos/rkt/pkg/config"
 )
 
 const (
 	authHeader string = "Authorization"
 )
-
-type authV1JsonParser struct{}
 
 type authV1 struct {
 	Domains     []string        `json:"domains"`
@@ -42,17 +43,9 @@ type oauthV1 struct {
 	Token string `json:"token"`
 }
 
-type dockerAuthV1JsonParser struct{}
-
 type dockerAuthV1 struct {
 	Registries  []string `json:"registries"`
 	Credentials basicV1  `json:"credentials"`
-}
-
-func init() {
-	addParser("auth", "v1", &authV1JsonParser{})
-	addParser("dockerAuth", "v1", &dockerAuthV1JsonParser{})
-	registerSubDir("auth.d", []string{"auth", "dockerAuth"})
 }
 
 type basicAuthHeaderer struct {
@@ -79,16 +72,16 @@ func (h *oAuthBearerTokenHeaderer) Header() http.Header {
 	return headers
 }
 
-func (p *authV1JsonParser) parse(config *Config, raw []byte) error {
+func (p *authV1JsonParser) Parse(idx *baseconfig.PathIndex, raw []byte) error {
 	var auth authV1
 	if err := json.Unmarshal(raw, &auth); err != nil {
 		return err
 	}
 	if len(auth.Domains) == 0 {
-		return fmt.Errorf("no domains specified")
+		return errors.New("no domains specified")
 	}
 	if len(auth.Type) == 0 {
-		return fmt.Errorf("no auth type specified")
+		return errors.New("no auth type specified")
 	}
 	var (
 		err      error
@@ -105,6 +98,7 @@ func (p *authV1JsonParser) parse(config *Config, raw []byte) error {
 	if err != nil {
 		return err
 	}
+	config := p.getConfig(idx.Index)
 	for _, domain := range auth.Domains {
 		if _, ok := config.AuthPerHost[domain]; ok {
 			return fmt.Errorf("auth for domain %q is already specified", domain)
@@ -112,6 +106,14 @@ func (p *authV1JsonParser) parse(config *Config, raw []byte) error {
 		config.AuthPerHost[domain] = headerer
 	}
 	return nil
+}
+
+func (p *authV1JsonParser) propagateConfig(config *Config) {
+	for _, subconfig := range p.configs {
+		for host, headerer := range subconfig.AuthPerHost {
+			config.AuthPerHost[host] = headerer
+		}
+	}
 }
 
 func (p *authV1JsonParser) getBasicV1Headerer(raw json.RawMessage) (Headerer, error) {
@@ -133,20 +135,20 @@ func (p *authV1JsonParser) getOAuthV1Headerer(raw json.RawMessage) (Headerer, er
 		return nil, err
 	}
 	if len(oauth.Token) == 0 {
-		return nil, fmt.Errorf("no oauth bearer token specified")
+		return nil, errors.New("no oauth bearer token specified")
 	}
 	return &oAuthBearerTokenHeaderer{
 		auth: oauth,
 	}, nil
 }
 
-func (p *dockerAuthV1JsonParser) parse(config *Config, raw []byte) error {
+func (p *dockerAuthV1JsonParser) Parse(idx *baseconfig.PathIndex, raw []byte) error {
 	var auth dockerAuthV1
 	if err := json.Unmarshal(raw, &auth); err != nil {
 		return err
 	}
 	if len(auth.Registries) == 0 {
-		return fmt.Errorf("no registries specified")
+		return errors.New("no registries specified")
 	}
 	if err := validateBasicV1(&auth.Credentials); err != nil {
 		return err
@@ -155,6 +157,7 @@ func (p *dockerAuthV1JsonParser) parse(config *Config, raw []byte) error {
 		User:     auth.Credentials.User,
 		Password: auth.Credentials.Password,
 	}
+	config := p.getConfig(idx.Index)
 	for _, registry := range auth.Registries {
 		if _, ok := config.DockerCredentialsPerRegistry[registry]; ok {
 			return fmt.Errorf("credentials for docker registry %q are already specified", registry)
@@ -166,13 +169,21 @@ func (p *dockerAuthV1JsonParser) parse(config *Config, raw []byte) error {
 
 func validateBasicV1(basic *basicV1) error {
 	if basic == nil {
-		return fmt.Errorf("no credentials")
+		return errors.New("no credentials")
 	}
 	if len(basic.User) == 0 {
-		return fmt.Errorf("user not specified")
+		return errors.New("user not specified")
 	}
 	if len(basic.Password) == 0 {
-		return fmt.Errorf("password not specified")
+		return errors.New("password not specified")
 	}
 	return nil
+}
+
+func (p *dockerAuthV1JsonParser) propagateConfig(config *Config) {
+	for _, subconfig := range p.configs {
+		for registry, creds := range subconfig.DockerCredentialsPerRegistry {
+			config.DockerCredentialsPerRegistry[registry] = creds
+		}
+	}
 }
