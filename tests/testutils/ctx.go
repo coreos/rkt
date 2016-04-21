@@ -96,6 +96,7 @@ func NewRktRunCtx() *RktRunCtx {
 			newDirDesc("datadir-", "data", "dir"),
 			newDirDesc("localdir-", "local configuration", "local-config"),
 			newDirDesc("systemdir-", "system configuration", "system-config"),
+			newDirDesc("userdir-", "user configuration", "user-config"),
 		},
 	}
 }
@@ -119,6 +120,10 @@ func (ctx *RktRunCtx) LocalDir() string {
 
 func (ctx *RktRunCtx) SystemDir() string {
 	return ctx.dir(2)
+}
+
+func (ctx *RktRunCtx) UserDir() string {
+	return ctx.dir(3)
 }
 
 func (ctx *RktRunCtx) dir(idx int) string {

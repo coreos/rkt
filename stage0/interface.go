@@ -31,31 +31,49 @@ const (
 	interfaceVersion = "coreos.com/rkt/stage1/interface-version"
 )
 
+type ifaceVersion int
+
 // getStage1InterfaceVersion retrieves the interface version from the stage1
 // manifest for a given pod
-func getStage1InterfaceVersion(cdir string) (int, error) {
+func getStage1InterfaceVersion(cdir string) (ifaceVersion, error) {
+	var s1v ifaceVersion
+	s1v.Set(-1)
 	b, err := ioutil.ReadFile(common.Stage1ManifestPath(cdir))
 	if err != nil {
-		return -1, errwrap.Wrap(errors.New("error reading pod manifest"), err)
+		return s1v, errwrap.Wrap(errors.New("error reading pod manifest"), err)
 	}
 
 	s1m := schema.ImageManifest{}
 	if err := json.Unmarshal(b, &s1m); err != nil {
-		return -1, errwrap.Wrap(errors.New("error unmarshaling stage1 manifest"), err)
+		return s1v, errwrap.Wrap(errors.New("error unmarshaling stage1 manifest"), err)
 	}
 
 	if iv, ok := s1m.Annotations.Get(interfaceVersion); ok {
 		v, err := strconv.Atoi(iv)
 		if err != nil {
-			return -1, errwrap.Wrap(errors.New("error parsing interface version"), err)
+			return s1v, errwrap.Wrap(errors.New("error parsing interface version"), err)
 		}
-		return v, nil
+		s1v.Set(v)
+		return s1v, nil
 	}
 
 	// "interface-version" annotation not found, assume version 1
-	return 1, nil
+	s1v.Set(1)
+	return s1v, nil
 }
 
-func interfaceVersionSupportsHostname(version int) bool {
-	return version > 1
+func (s1v *ifaceVersion) Set(v int) {
+	*(*int)(s1v) = v
+}
+
+func (s1v *ifaceVersion) Get() int {
+	return *(*int)(s1v)
+}
+
+func (s1v *ifaceVersion) SupportsHostname() bool {
+	return s1v.Get() > 1
+}
+
+func (s1v *ifaceVersion) SupportsMoreConfigDirectories() bool {
+	return s1v.Get() > 2
 }

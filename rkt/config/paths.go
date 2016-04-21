@@ -16,44 +16,52 @@ package config
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"path/filepath"
+
+	baseconfig "github.com/coreos/rkt/pkg/config"
 )
 
-type configurablePathsV1 struct {
+type pathsV1 struct {
 	Data         string `json:"data"`
 	Stage1Images string `json:"stage1-images"`
 }
 
-func init() {
-	addParser("paths", "v1", &configurablePathsV1{})
-	// Look in 'paths.d' subdir for configs of type paths
-	registerSubDir("paths.d", []string{"paths"})
-}
-
-func (p *configurablePathsV1) parse(config *Config, raw []byte) error {
-	var dirs configurablePathsV1
-	if err := json.Unmarshal(raw, &dirs); err != nil {
+func (p *pathsV1JsonParser) Parse(idx *baseconfig.PathIndex, raw []byte) error {
+	var paths pathsV1
+	if err := json.Unmarshal(raw, &paths); err != nil {
 		return err
 	}
-	if dirs.Data != "" {
+	config := p.getConfig(idx.Index)
+	if paths.Data != "" {
 		if config.Paths.DataDir != "" {
-			return fmt.Errorf("data directory is already specified")
+			return errors.New("data directory is already specified")
 		}
-		if !filepath.IsAbs(dirs.Data) {
-			return fmt.Errorf("data directory must be an absolute path")
+		if !filepath.IsAbs(paths.Data) {
+			return errors.New("data directory must be an absolute path")
 		}
-		config.Paths.DataDir = dirs.Data
+		config.Paths.DataDir = paths.Data
 	}
-	if dirs.Stage1Images != "" {
+	if paths.Stage1Images != "" {
 		if config.Paths.Stage1ImagesDir != "" {
-			return fmt.Errorf("stage1 images directory is already specified")
+			return errors.New("stage1 images directory is already specified")
 		}
-		if !filepath.IsAbs(dirs.Stage1Images) {
-			return fmt.Errorf("stage1 images directory must be an absolute path")
+		if !filepath.IsAbs(paths.Stage1Images) {
+			return errors.New("stage1 images directory must be an absolute path")
 		}
-		config.Paths.Stage1ImagesDir = dirs.Stage1Images
+		config.Paths.Stage1ImagesDir = paths.Stage1Images
 	}
 
 	return nil
+}
+
+func (p *pathsV1JsonParser) propagateConfig(config *Config) {
+	for _, subconfig := range p.configs {
+		if subconfig.Paths.DataDir != "" {
+			config.Paths.DataDir = subconfig.Paths.DataDir
+		}
+		if subconfig.Paths.Stage1ImagesDir != "" {
+			config.Paths.Stage1ImagesDir = subconfig.Paths.Stage1ImagesDir
+		}
+	}
 }

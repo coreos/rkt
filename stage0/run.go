@@ -82,17 +82,19 @@ type PrepareConfig struct {
 // configuration parameters needed by Run
 type RunConfig struct {
 	*CommonConfig
-	Net         common.NetList // pod should have its own network stack
-	LockFd      int            // lock file descriptor
-	Interactive bool           // whether the pod is interactive or not
-	MDSRegister bool           // whether to register with metadata service or not
-	Apps        schema.AppList // applications (prepare gets them via Apps)
-	LocalConfig string         // Path to local configuration
-	Hostname    string         // hostname of the pod
-	RktGid      int            // group id of the 'rkt' group, -1 if there's no rkt group.
-	DNS         []string       // DNS name servers to write in /etc/resolv.conf
-	DNSSearch   []string       // DNS search domains to write in /etc/resolv.conf
-	DNSOpt      []string       // DNS options to write in /etc/resolv.conf
+	Net          common.NetList // pod should have its own network stack
+	LockFd       int            // lock file descriptor
+	Interactive  bool           // whether the pod is interactive or not
+	MDSRegister  bool           // whether to register with metadata service or not
+	Apps         schema.AppList // applications (prepare gets them via Apps)
+	SystemConfig string         // Path to system configuration
+	LocalConfig  string         // Path to local configuration
+	UserConfig   string         // Path to user configuration
+	Hostname     string         // hostname of the pod
+	RktGid       int            // group id of the 'rkt' group, -1 if there's no rkt group.
+	DNS          []string       // DNS name servers to write in /etc/resolv.conf
+	DNSSearch    []string       // DNS search domains to write in /etc/resolv.conf
+	DNSOpt       []string       // DNS options to write in /etc/resolv.conf
 }
 
 // configuration shared by both Run and Prepare
@@ -506,11 +508,22 @@ func Run(cfg RunConfig, dir string, dataDir string) {
 	}
 
 	if cfg.Hostname != "" {
-		if interfaceVersionSupportsHostname(s1v) {
+		if s1v.SupportsHostname() {
 			args = append(args, "--hostname="+cfg.Hostname)
 		} else {
 			log.Printf("warning: --hostname option is not supported by stage1")
 		}
+	}
+
+	if s1v.SupportsMoreConfigDirectories() {
+		if cfg.SystemConfig != "" {
+			args = append(args, "--system-config="+cfg.SystemConfig)
+		}
+		if cfg.UserConfig != "" {
+			args = append(args, "--user-config="+cfg.UserConfig)
+		}
+	} else {
+		log.Printf("warning: stage1 does not support configuration from system and user directories")
 	}
 
 	args = append(args, cfg.UUID.String())

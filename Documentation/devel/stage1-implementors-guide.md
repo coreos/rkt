@@ -69,6 +69,11 @@ Stage 1 must write the host PIDs of the pod's process #1 and that process's pare
 
 * `--hostname=$HOSTNAME` configures the host name of the pod. If empty, it will be "rkt-$PODUUID".
 
+##### Arguments added in interface version 3
+
+* `--system-config=<directory>` lets stage1 to get some configuration from system directory. Empty by default, but stage0 will usually pass a default system directory path.
+* `--system-config=<directory>` lets stage1 to get some configuration from user directory.
+
 ### `rkt enter` => `coreos.com/rkt/stage1/enter`
 
 1. rkt verifies the pod and image to enter are valid and running

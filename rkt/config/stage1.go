@@ -16,14 +16,16 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"path/filepath"
 	"sort"
 	"strings"
-)
 
-type stage1V1JsonParser struct{}
+	baseconfig "github.com/coreos/rkt/pkg/config"
+	"github.com/hashicorp/errwrap"
+)
 
 type stage1V1 struct {
 	Name     string `json:"name"`
@@ -40,31 +42,27 @@ var (
 	}
 )
 
-func init() {
-	addParser("stage1", "v1", &stage1V1JsonParser{})
-	registerSubDir("stage1.d", []string{"stage1"})
-}
-
-func (p *stage1V1JsonParser) parse(config *Config, raw []byte) error {
+func (p *stage1V1JsonParser) Parse(idx *baseconfig.PathIndex, raw []byte) error {
 	var stage1 stage1V1
 	if err := json.Unmarshal(raw, &stage1); err != nil {
 		return err
 	}
 	if err := p.validateStage1V1(&stage1); err != nil {
-		return fmt.Errorf("invalid stage1 configuration: %v", err)
+		return errwrap.Wrap(errors.New("invalid stage1 configuration"), err)
 	}
+	config := p.getConfig(idx.Index)
 	// At this point either both name and version are specified or
 	// neither. The same goes for data in Config.
 	if stage1.Name != "" {
 		if config.Stage1.Name != "" {
-			return fmt.Errorf("name and version of a default stage1 image are already specified")
+			return errors.New("name and version of a default stage1 image are already specified")
 		}
 		config.Stage1.Name = stage1.Name
 		config.Stage1.Version = stage1.Version
 	}
 	if stage1.Location != "" {
 		if config.Stage1.Location != "" {
-			return fmt.Errorf("location of a default stage1 image is already specified")
+			return errors.New("location of a default stage1 image is already specified")
 		}
 		config.Stage1.Location = stage1.Location
 	}
@@ -73,26 +71,43 @@ func (p *stage1V1JsonParser) parse(config *Config, raw []byte) error {
 
 func (p *stage1V1JsonParser) validateStage1V1(stage1 *stage1V1) error {
 	if stage1.Name == "" && stage1.Version != "" {
-		return fmt.Errorf("default stage1 image version specified, but name is missing")
+		return errors.New("default stage1 image version specified, but name is missing")
 	}
 	if stage1.Name != "" && stage1.Version == "" {
-		return fmt.Errorf("default stage1 image name specified, but version is missing")
+		return errors.New("default stage1 image name specified, but version is missing")
 	}
 	if stage1.Location != "" {
 		if !filepath.IsAbs(stage1.Location) {
 			url, err := url.Parse(stage1.Location)
 			if err != nil {
-				return fmt.Errorf("default stage1 image location is an invalid URL: %v", err)
+				return errwrap.Wrap(errors.New("default stage1 image location is an invalid URL"), err)
 			}
 			if url.Scheme == "" {
-				return fmt.Errorf("default stage1 image location is either a relative path or a URL without scheme")
+				return errors.New("default stage1 image location is either a relative path or a URL without scheme")
 			}
 			if _, ok := allowedSchemes[url.Scheme]; !ok {
-				schemes := toArray(allowedSchemes)
+				schemes := make([]string, 0, len(allowedSchemes))
+				for k := range allowedSchemes {
+					schemes = append(schemes, fmt.Sprintf("%q", k))
+				}
 				sort.Strings(schemes)
-				return fmt.Errorf("default stage1 image location URL has invalid scheme %q, allowed schemes are %q", url.Scheme, strings.Join(schemes, `", "`))
+				return fmt.Errorf("default stage1 image location URL has invalid scheme %q, allowed schemes are %s", url.Scheme, strings.Join(schemes, ", "))
 			}
 		}
 	}
 	return nil
+}
+
+func (p *stage1V1JsonParser) propagateConfig(config *Config) {
+	for _, subconfig := range p.configs {
+		// At this point either both name and version are
+		// specified or neither.
+		if subconfig.Stage1.Name != "" {
+			config.Stage1.Name = subconfig.Stage1.Name
+			config.Stage1.Version = subconfig.Stage1.Version
+		}
+		if subconfig.Stage1.Location != "" {
+			config.Stage1.Location = subconfig.Stage1.Location
+		}
+	}
 }

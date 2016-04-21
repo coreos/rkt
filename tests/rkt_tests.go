@@ -152,6 +152,10 @@ func getInspectImagePath() string {
 	return testutils.GetValueFromEnvOrPanic("RKT_INSPECT_IMAGE")
 }
 
+func getStubCNIPluginPath() string {
+	return testutils.GetValueFromEnvOrPanic("STUB_CNI_PLUGIN")
+}
+
 func getHashOrPanic(path string) string {
 	hash, err := getHash(path)
 	if err != nil {

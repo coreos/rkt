@@ -25,13 +25,14 @@ import (
 	"syscall"
 
 	"github.com/appc/cni/pkg/ns"
-	cnitypes "github.com/appc/cni/pkg/types"
 	"github.com/appc/spec/schema/types"
 	"github.com/hashicorp/errwrap"
 	"github.com/vishvananda/netlink"
 
 	"github.com/coreos/rkt/common"
+	"github.com/coreos/rkt/networking/config"
 	"github.com/coreos/rkt/networking/netinfo"
+	nettypes "github.com/coreos/rkt/networking/types"
 	"github.com/coreos/rkt/pkg/log"
 )
 
@@ -53,27 +54,25 @@ type Networking struct {
 	podEnv
 
 	hostNS *os.File
-	nets   []activeNet
-}
-
-// NetConf local struct extends cnitypes.NetConf with information about masquerading
-// similar to CNI plugins
-type NetConf struct {
-	cnitypes.NetConf
-	IPMasq bool `json:"ipMasq"`
-	MTU    int  `json:"mtu"`
+	nets   []*nettypes.ActiveNet
 }
 
 var stderr *log.Logger
 
-// Setup creates a new networking namespace and executes network plugins to
-// set up networking. It returns in the new pod namespace
-func Setup(podRoot string, podID types.UUID, fps []ForwardedPort, netList common.NetList, localConfig, flavor string, debug bool) (*Networking, error) {
+// Setup creates a new networking namespace and executes network
+// plugins to set up networking. It returns in the new pod
+// namespace. The config paths slice passed should have at least two
+// elements - a path to a system config and a path to a local config.
+func Setup(podRoot string, podID types.UUID, fps []ForwardedPort, netList common.NetList, configPaths []string, flavor string, debug bool) (*Networking, error) {
 
 	stderr = log.New(os.Stderr, "networking", debug)
 
 	if flavor == "kvm" {
-		return kvmSetup(podRoot, podID, fps, netList, localConfig)
+		return kvmSetup(podRoot, podID, fps, netList, configPaths)
+	}
+	cfg, err := config.GetConfigFrom(configPaths...)
+	if err != nil {
+		return nil, err
 	}
 
 	// TODO(jonboulle): currently podRoot is _always_ ".", and behaviour in other
@@ -83,7 +82,8 @@ func Setup(podRoot string, podID types.UUID, fps []ForwardedPort, netList common
 			podRoot:      podRoot,
 			podID:        podID,
 			netsLoadList: netList,
-			localConfig:  localConfig,
+			localConfig:  configPaths[1],
+			config:       cfg,
 		},
 	}
 
@@ -203,20 +203,18 @@ func Load(podRoot string, podID *types.UUID) (*Networking, error) {
 		return nil, err
 	}
 
-	var nets []activeNet
+	podCfg, err := config.GetPodConfig(podRoot)
+	if err != nil {
+		return nil, err
+	}
+	var nets []*nettypes.ActiveNet
 	for _, ni := range nis {
-		n, err := loadNet(ni.ConfPath)
-		if err != nil {
-			if !os.IsNotExist(err) {
-				stderr.PrintE(fmt.Sprintf("error loading %q; ignoring", ni.ConfPath), err)
-			}
+		an, exists := podCfg.Networks.ByName[ni.NetName]
+		if !exists {
 			continue
 		}
-
-		// make a copy of ni to make it a unique object as it's saved via ptr
-		rti := ni
-		n.runtime = &rti
-		nets = append(nets, *n)
+		an.Runtime = &ni
+		nets = append(nets, an)
 	}
 
 	return &Networking{
@@ -233,14 +231,14 @@ func (n *Networking) GetDefaultIP() net.IP {
 	if len(n.nets) == 0 {
 		return nil
 	}
-	return n.nets[len(n.nets)-1].runtime.IP
+	return n.nets[len(n.nets)-1].Runtime.IP
 }
 
 func (n *Networking) GetDefaultHostIP() (net.IP, error) {
 	if len(n.nets) == 0 {
 		return nil, fmt.Errorf("no networks found")
 	}
-	return n.nets[len(n.nets)-1].runtime.HostIP, nil
+	return n.nets[len(n.nets)-1].Runtime.HostIP, nil
 }
 
 // GetIfacesByIP searches for and returns the interfaces with the given IP
@@ -341,7 +339,7 @@ func (n *Networking) enterHostNS() error {
 func (e *Networking) Save() error {
 	var nis []netinfo.NetInfo
 	for _, n := range e.nets {
-		nis = append(nis, *n.runtime)
+		nis = append(nis, *n.Runtime)
 	}
 
 	return netinfo.Save(e.podRoot, nis)

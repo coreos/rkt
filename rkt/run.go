@@ -292,7 +292,9 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		DNSSearch:    flagDNSSearch,
 		DNSOpt:       flagDNSOpt,
 		MDSRegister:  flagMDSRegister,
+		SystemConfig: globalFlags.SystemConfigDir,
 		LocalConfig:  globalFlags.LocalConfigDir,
+		UserConfig:   globalFlags.UserConfigDir,
 		RktGid:       rktgid,
 		Hostname:     flagHostname,
 	}
