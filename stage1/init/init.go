@@ -112,7 +112,7 @@ func init() {
 	flag.BoolVar(&debug, "debug", false, "Run in debug mode")
 	flag.Var(&netList, "net", "Setup networking")
 	flag.BoolVar(&interactive, "interactive", false, "The pod is interactive")
-	flag.StringVar(&privateUsers, "private-users", "", "Run within user namespace. Can be set to [=UIDBASE[:NUIDS]]")
+	flag.StringVar(&privateUsers, "private-users", "", "Run within user namespace. Can be set to [=UIDBASE[:NUIDS]] or to pick for automatic assignment")
 	flag.StringVar(&mdsToken, "mds-token", "", "MDS auth token")
 	flag.StringVar(&localConfig, "local-config", common.DefaultLocalConfigDir, "Local config path")
 	flag.StringVar(&hostname, "hostname", "", "Hostname of the pod")

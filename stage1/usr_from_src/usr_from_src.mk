@@ -145,10 +145,8 @@ $(call generate-stamp-rule,$(UFS_SYSTEMD_BUILD_STAMP),$(UFS_SYSTEMD_CLONE_AND_PA
 	"$(abspath $(UFS_SYSTEMD_SRCDIR))/configure" \
 		$(call vl3,--quiet) \
 		--disable-dbus \
-		--disable-python-devel \
 		--disable-kmod \
 		--disable-blkid \
-		--disable-chkconfig \
 		--disable-selinux \
 		--disable-pam \
 		--disable-acl \
@@ -161,7 +159,6 @@ $(call generate-stamp-rule,$(UFS_SYSTEMD_BUILD_STAMP),$(UFS_SYSTEMD_CLONE_AND_PA
 		--disable-gnutls \
 		--disable-binfmt \
 		--disable-vconsole \
-		--disable-bootchart \
 		--disable-quotacheck \
 		--disable-tmpfiles \
 		--disable-sysusers \
@@ -179,12 +176,10 @@ $(call generate-stamp-rule,$(UFS_SYSTEMD_BUILD_STAMP),$(UFS_SYSTEMD_CLONE_AND_PA
 		--disable-networkd \
 		--disable-efi \
 		--disable-myhostname \
-		--disable-gudev \
 		--disable-manpages \
 		--disable-tests \
 		--disable-blkid \
 		--disable-hibernate \
-		--disable-terminal \
 		--disable-hwdb \
 		--disable-importd \
 		--disable-firstboot \

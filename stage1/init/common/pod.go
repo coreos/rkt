@@ -467,8 +467,10 @@ func parseUserGroup(p *stage1commontypes.Pod, ra *schema.RuntimeApp, privateUser
 	var err error
 
 	uidRange := uid.NewBlankUidRange()
-	if err := uidRange.Deserialize([]byte(privateUsers)); err != nil {
-		return -1, -1, errwrap.Wrap(errors.New("unable to deserialize uid range"), err)
+	if privateUsers != "pick" {
+		if err := uidRange.Deserialize([]byte(privateUsers)); err != nil {
+			return -1, -1, errwrap.Wrap(errors.New("unable to deserialize uid range"), err)
+		}
 	}
 
 	switch {
@@ -588,8 +590,10 @@ func writeEnvFile(p *stage1commontypes.Pod, env types.Environment, appName types
 	}
 
 	uidRange := uid.NewBlankUidRange()
-	if err := uidRange.Deserialize([]byte(privateUsers)); err != nil {
-		return err
+	if privateUsers != "pick" {
+		if err := uidRange.Deserialize([]byte(privateUsers)); err != nil {
+			return err
+		}
 	}
 
 	envFilePath := EnvFilePath(p.Root, appName)

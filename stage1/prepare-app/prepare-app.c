@@ -21,8 +21,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <sys/vfs.h>
-#include <dirent.h>
 
 #define err_out(_fmt, _args...)						\
 		fprintf(stderr, "Error: " _fmt "\n", ##_args);
@@ -51,10 +49,6 @@ static int exit_err;
 
 #define MACHINE_ID_LEN		lenof("0123456789abcdef0123456789ab")
 #define MACHINE_NAME_LEN	lenof("rkt-01234567-89ab-cdef-0123-456789ab")
-
-#ifndef CGROUP2_SUPER_MAGIC
-#define CGROUP2_SUPER_MAGIC 0x63677270
-#endif
 
 typedef struct _dir_op_t {
 	const char	*name;
@@ -125,66 +119,6 @@ _fail:
 	return 0;
 }
 
-static void mount_sys(const char *root)
-{
-	char from[4096];
-	char to[4096];
-	struct statfs fs;
-	DIR *dir = NULL;
-	struct dirent *d;
-
-	pexit_if(statfs("/sys/fs/cgroup", &fs) != 0,
-	         "Cannot statfs /sys/fs/cgroup");
-	if (fs.f_type == (typeof(fs.f_type)) CGROUP2_SUPER_MAGIC) {
-		/* With the unified cgroup hierarchy, recursive bind mounts
-		 * are fine. */
-		exit_if(snprintf(to, sizeof(to), "%s/%s", root, "sys") >= sizeof(to),
-			"Path too long: \"%s\"", to);
-		pexit_if(mount("/sys", to, "bind",
-			       MS_BIND | MS_REC, "NULL") == -1,
-				"Mounting \"%s\" on \"%s\" failed", "/sys", to);
-		return;
-	}
-
-	/* With cgroup-v1, rkt and systemd-nspawn add more cgroup
-	 * bind-mounts to control which files are read-only. To avoid
-	 * a quadratic progression, prepare-app does not bind mount
-	 * /sys recursively. See:
-	 * https://github.com/coreos/rkt/issues/2351 */
-	exit_if(snprintf(to, sizeof(to), "%s/%s", root, "sys") >= sizeof(to),
-		"Path too long: \"%s\"", to);
-	pexit_if(mount("/sys", to, "bind",
-		       MS_BIND, "NULL") == -1,
-			"Mounting \"%s\" on \"%s\" failed", "/sys", to);
-
-	exit_if(snprintf(to, sizeof(to), "%s/%s", root, "sys/fs/cgroup") >= sizeof(to),
-		"Path too long: \"%s\"", to);
-	pexit_if(mount("/sys/fs/cgroup", to, "bind",
-		       MS_BIND, "NULL") == -1,
-			"Mounting \"%s\" on \"%s\" failed", "/sys/fs/cgroup", to);
-
-	pexit_if(!(dir = opendir(to)), "Failed to open directory \"%s\"", to)
-	errno = 0;
-	while ((d = readdir(dir))) {
-		if (d->d_type != DT_DIR)
-			continue;
-		if (strcmp(d->d_name, ".") == 0)
-			continue;
-		if (strcmp(d->d_name, "..") == 0)
-			continue;
-
-		exit_if(snprintf(from, sizeof(from), "/sys/fs/cgroup/%s", d->d_name) >= sizeof(from),
-			"Path too long: \"%s\"", from);
-		exit_if(snprintf(to, sizeof(to), "%s/sys/fs/cgroup/%s", root, d->d_name) >= sizeof(to),
-			"Path too long: \"%s\"", to);
-		pexit_if(mount(from, to, "bind",
-			       MS_BIND, "NULL") == -1,
-				"Mounting \"%s\" on \"%s\" failed", from, to);
-	}
-	pexit_if(errno != 0, "Failed to read directory \"%s\"", to);
-	pexit_if(closedir(dir) != 0, "Failed to close directory");
-}
-
 int main(int argc, char *argv[])
 {
 	static const char *unlink_paths[] = {
@@ -218,10 +152,10 @@ int main(int argc, char *argv[])
 	};
 	static const mount_point dirs_mount_table[] = {
 		{ "/proc", "/proc", "bind", NULL, MS_BIND|MS_REC },
+		{ "/sys", "/sys", "bind", NULL, MS_BIND|MS_REC },
 		{ "/dev/shm", "/dev/shm", "bind", NULL, MS_BIND },
 		{ "/dev/pts", "/dev/pts", "bind", NULL, MS_BIND },
 		{ "/run/systemd/journal", "/run/systemd/journal", "bind", NULL, MS_BIND },
-		/* /sys is handled separately */
 	};
 	static const mount_point files_mount_table[] = {
 		{ "/etc/rkt-resolv.conf", "/etc/resolv.conf", "bind", NULL, MS_BIND },
@@ -325,9 +259,6 @@ int main(int argc, char *argv[])
 			       mnt->flags, mnt->options) == -1,
 				"Mounting \"%s\" on \"%s\" failed", mnt->source, to);
 	}
-
-	/* Bind mount /sys: handled differently, depending on cgroups */
-	mount_sys(root);
 
 	/* Bind mount files, if the source exists */
 	for (i = 0; i < nelems(files_mount_table); i++) {

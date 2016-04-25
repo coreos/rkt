@@ -76,7 +76,7 @@ type PrepareConfig struct {
 	UseOverlay         bool                // prepare pod with overlay fs
 	SkipTreeStoreCheck bool                // skip checking the treestore before rendering
 	PodManifest        string              // use the pod manifest specified by the user, this will ignore flags such as '--volume', '--port', etc.
-	PrivateUsers       *uid.UidRange       // User namespaces
+	PrivateUsers       bool                // Use user namespaces
 }
 
 // configuration parameters needed by Run
@@ -178,7 +178,7 @@ func MergeMounts(mounts []schema.Mount, appMounts []schema.Mount) []schema.Mount
 // generatePodManifest creates the pod manifest from the command line input.
 // It returns the pod manifest as []byte on success.
 // This is invoked if no pod manifest is specified at the command line.
-func generatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
+func generatePodManifest(cfg PrepareConfig, dir string, privateUsers *uid.UidRange) ([]byte, error) {
 	pm := schema.PodManifest{
 		ACKind: "PodManifest",
 		Apps:   make(schema.AppList, 0),
@@ -201,7 +201,7 @@ func generatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 		if err != nil {
 			return errwrap.Wrap(errors.New("error converting image name to app name"), err)
 		}
-		if err := prepareAppImage(cfg, *appName, img, dir, cfg.UseOverlay); err != nil {
+		if err := prepareAppImage(cfg, *appName, img, dir, cfg.UseOverlay, privateUsers); err != nil {
 			return errwrap.Wrap(fmt.Errorf("error setting up image %s", img), err)
 		}
 		if pm.Apps.Get(*appName) != nil {
@@ -281,7 +281,7 @@ func generatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 // and validates the pod manifest. If the pod manifest passes validation, it returns
 // the manifest as []byte.
 // TODO(yifan): More validation in the future.
-func validatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
+func validatePodManifest(cfg PrepareConfig, dir string, privateUsers *uid.UidRange) ([]byte, error) {
 	pmb, err := ioutil.ReadFile(cfg.PodManifest)
 	if err != nil {
 		return nil, errwrap.Wrap(errors.New("error reading pod manifest"), err)
@@ -302,7 +302,7 @@ func validatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 		if err != nil {
 			return nil, errwrap.Wrap(errors.New("error getting the image manifest from store"), err)
 		}
-		if err := prepareAppImage(cfg, ra.Name, img.ID, dir, cfg.UseOverlay); err != nil {
+		if err := prepareAppImage(cfg, ra.Name, img.ID, dir, cfg.UseOverlay, privateUsers); err != nil {
 			return nil, errwrap.Wrap(fmt.Errorf("error setting up image %s", img), err)
 		}
 		if _, ok := appNames[ra.Name]; ok {
@@ -321,17 +321,19 @@ func Prepare(cfg PrepareConfig, dir string, uuid *types.UUID) error {
 	if err := os.MkdirAll(common.AppsInfoPath(dir), defaultRegularDirPerm); err != nil {
 		return errwrap.Wrap(errors.New("error creating apps info directory"), err)
 	}
+
 	debug("Preparing stage1")
-	if err := prepareStage1Image(cfg, cfg.Stage1Image, dir, cfg.UseOverlay); err != nil {
+	var privateUsers *uid.UidRange
+	var err error
+	if _, privateUsers, err = prepareStage1Image(cfg, cfg.Stage1Image, dir, cfg.UseOverlay); err != nil {
 		return errwrap.Wrap(errors.New("error preparing stage1"), err)
 	}
 
 	var pmb []byte
-	var err error
 	if len(cfg.PodManifest) > 0 {
-		pmb, err = validatePodManifest(cfg, dir)
+		pmb, err = validatePodManifest(cfg, dir, privateUsers)
 	} else {
-		pmb, err = generatePodManifest(cfg, dir)
+		pmb, err = generatePodManifest(cfg, dir, privateUsers)
 	}
 	if err != nil {
 		return err
@@ -352,15 +354,6 @@ func Prepare(cfg PrepareConfig, dir string, uuid *types.UUID) error {
 			return errwrap.Wrap(errors.New("error writing overlay marker file"), err)
 		}
 		defer f.Close()
-	}
-
-	if cfg.PrivateUsers.Shift > 0 {
-		// mark the pod as prepared for user namespaces
-		uidrangeBytes := cfg.PrivateUsers.Serialize()
-
-		if err := ioutil.WriteFile(filepath.Join(dir, common.PrivateUsersPreparedFilename), uidrangeBytes, defaultRegularFilePerm); err != nil {
-			return errwrap.Wrap(errors.New("error writing userns marker file"), err)
-		}
 	}
 
 	return nil
@@ -534,7 +527,7 @@ func Run(cfg RunConfig, dir string, dataDir string) {
 // prepareAppImage renders and verifies the tree cache of the app image that
 // corresponds to the given app name.
 // When useOverlay is false, it attempts to render and expand the app image
-func prepareAppImage(cfg PrepareConfig, appName types.ACName, img types.Hash, cdir string, useOverlay bool) error {
+func prepareAppImage(cfg PrepareConfig, appName types.ACName, img types.Hash, cdir string, useOverlay bool, privateUsers *uid.UidRange) error {
 	debug("Loading image %s", img.String())
 
 	am, err := cfg.Store.GetImageManifest(img.String())
@@ -559,7 +552,7 @@ func prepareAppImage(cfg PrepareConfig, appName types.ACName, img types.Hash, cd
 	}
 
 	if useOverlay {
-		if cfg.PrivateUsers.Shift > 0 {
+		if cfg.PrivateUsers {
 			return fmt.Errorf("cannot use both overlay and user namespace: not implemented yet. (Try --no-overlay)")
 		}
 		treeStoreID, _, err := cfg.Store.RenderTreeStore(img.String(), false)
@@ -590,7 +583,7 @@ func prepareAppImage(cfg PrepareConfig, appName types.ACName, img types.Hash, cd
 			return errwrap.Wrap(errors.New("error creating image directory"), err)
 		}
 
-		shiftedUid, shiftedGid, err := cfg.PrivateUsers.ShiftRange(uint32(os.Getuid()), uint32(os.Getgid()))
+		shiftedUid, shiftedGid, err := privateUsers.ShiftRange(uint32(os.Getuid()), uint32(os.Getgid()))
 		if err != nil {
 			return errwrap.Wrap(errors.New("error getting uid, gid"), err)
 		}
@@ -599,7 +592,7 @@ func prepareAppImage(cfg PrepareConfig, appName types.ACName, img types.Hash, cd
 			return errwrap.Wrap(fmt.Errorf("error shifting app %q's stage2 dir", appName), err)
 		}
 
-		if err := aci.RenderACIWithImageID(img, ad, cfg.Store, cfg.PrivateUsers); err != nil {
+		if err := aci.RenderACIWithImageID(img, ad, cfg.Store, privateUsers); err != nil {
 			return errwrap.Wrap(errors.New("error rendering ACI"), err)
 		}
 	}
@@ -637,15 +630,15 @@ func setupAppImage(cfg RunConfig, appName types.ACName, img types.Hash, cdir str
 // prepareStage1Image renders and verifies tree cache of the given hash
 // when using overlay.
 // When useOverlay is false, it attempts to render and expand the stage1.
-func prepareStage1Image(cfg PrepareConfig, img types.Hash, cdir string, useOverlay bool) error {
+func prepareStage1Image(cfg PrepareConfig, img types.Hash, cdir string, useOverlay bool) (int, *uid.UidRange, error) {
 	s1 := common.Stage1ImagePath(cdir)
 	if err := os.MkdirAll(s1, defaultRegularDirPerm); err != nil {
-		return errwrap.Wrap(errors.New("error creating stage1 directory"), err)
+		return 0, nil, errwrap.Wrap(errors.New("error creating stage1 directory"), err)
 	}
 
 	treeStoreID, _, err := cfg.Store.RenderTreeStore(img.String(), false)
 	if err != nil {
-		return errwrap.Wrap(errors.New("error rendering tree image"), err)
+		return 0, nil, errwrap.Wrap(errors.New("error rendering tree image"), err)
 	}
 
 	if !cfg.SkipTreeStoreCheck {
@@ -655,29 +648,50 @@ func prepareStage1Image(cfg PrepareConfig, img types.Hash, cdir string, useOverl
 			var err error
 			treeStoreID, hash, err = cfg.Store.RenderTreeStore(img.String(), true)
 			if err != nil {
-				return errwrap.Wrap(errors.New("error rendering tree image"), err)
+				return 0, nil, errwrap.Wrap(errors.New("error rendering tree image"), err)
 			}
 		}
 		cfg.CommonConfig.RootHash = hash
 	}
 
 	if err := writeManifest(*cfg.CommonConfig, img, s1); err != nil {
-		return errwrap.Wrap(errors.New("error writing manifest"), err)
+		return 0, nil, errwrap.Wrap(errors.New("error writing manifest"), err)
+	}
+
+	s1v, err := getStage1InterfaceVersion(cdir)
+	if err != nil {
+		return 0, nil, errwrap.Wrap(errors.New("error determining stage1 interface version"), err)
+	}
+	// mark the pod as prepared for user namespaces
+	privateUsers := uid.NewBlankUidRange()
+	if cfg.PrivateUsers {
+		if interfaceVersionSupportsUserNsPick(s1v) {
+			if err := ioutil.WriteFile(filepath.Join(cdir, common.PrivateUsersPreparedFilename), []byte("pick"), defaultRegularFilePerm); err != nil {
+				return 0, nil, errwrap.Wrap(errors.New("error writing userns marker file"), err)
+			}
+		} else {
+			privateUsers.SetRandomUidRange(uid.DefaultRangeCount)
+			uidrangeBytes := privateUsers.Serialize()
+
+			if err := ioutil.WriteFile(filepath.Join(cdir, common.PrivateUsersPreparedFilename), uidrangeBytes, defaultRegularFilePerm); err != nil {
+				return 0, nil, errwrap.Wrap(errors.New("error writing userns marker file"), err)
+			}
+		}
 	}
 
 	if !useOverlay {
 		destRootfs := filepath.Join(s1, "rootfs")
 		cachedTreePath := cfg.Store.GetTreeStoreRootFS(treeStoreID)
-		if err := fileutil.CopyTree(cachedTreePath, destRootfs, cfg.PrivateUsers); err != nil {
-			return errwrap.Wrap(errors.New("error rendering ACI"), err)
+		if err := fileutil.CopyTree(cachedTreePath, destRootfs, privateUsers); err != nil {
+			return 0, nil, errwrap.Wrap(errors.New("error rendering ACI"), err)
 		}
 	}
 
 	fn := path.Join(cdir, common.Stage1TreeStoreIDFilename)
 	if err := ioutil.WriteFile(fn, []byte(treeStoreID), defaultRegularFilePerm); err != nil {
-		return errwrap.Wrap(errors.New("error writing stage1 treeStoreID"), err)
+		return 0, nil, errwrap.Wrap(errors.New("error writing stage1 treeStoreID"), err)
 	}
-	return nil
+	return s1v, privateUsers, nil
 }
 
 // setupStage1Image mounts the overlay filesystem for stage1.
