@@ -174,7 +174,12 @@ func (ctx *RktRunCtx) RunGC() {
 		"gc",
 		"--grace-period=0s",
 	)
-	if err := exec.Command(ctx.rktBin(), rktArgs...).Run(); err != nil {
+
+	cmd := exec.Command(ctx.rktBin(), rktArgs...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stdout
+
+	if err := cmd.Run(); err != nil {
 		panic(fmt.Sprintf("Failed to run gc: %v", err))
 	}
 }
