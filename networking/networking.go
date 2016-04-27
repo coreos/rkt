@@ -87,13 +87,40 @@ func Setup(podRoot string, podID types.UUID, fps []ForwardedPort, netList common
 		},
 	}
 
-	hostNS, podNS, err := basicNetNS()
-	if err != nil {
-		return nil, err
+	existingNetNsPath := ""
+	for _, name := range netList.StringsOnlyNames() {
+		if strings.HasPrefix(name, "/") {
+			existingNetNsPath = name
+			break
+		}
+	}
+
+	var hostNS, podNS *os.File
+	var err error
+	if existingNetNsPath != "" {
+		hostNS, err = os.Open(selfNetNS)
+		if err != nil {
+			return nil, errwrap.Wrap(errors.New("failed to get current network namespace"), err)
+		}
+
+		podNS, err = os.Open(existingNetNsPath)
+		if err != nil {
+			return nil, errwrap.Wrap(errors.New("failed to get pod target network namespace"), err)
+		}
+		n.podEnv.nsPath = existingNetNsPath
+
+		err = ns.SetNS(podNS, syscall.CLONE_NEWNET)
+		if err != nil {
+			return nil, errwrap.Wrap(errors.New("failed to set pod target network namespace"), err)
+		}
+	} else {
+		hostNS, podNS, err = basicNetNS()
+		if err != nil {
+			return nil, err
+		}
 	}
 	// we're in podNS!
 	n.hostNS = hostNS
-
 	nspath := n.podNSPath()
 
 	if err = bindMountFile(selfNetNS, nspath); err != nil {

@@ -46,6 +46,7 @@ const (
 // is running in
 type podEnv struct {
 	podRoot      string
+	nsPath       string
 	podID        types.UUID
 	netsLoadList common.NetList
 	localConfig  string
@@ -92,6 +93,9 @@ func (e *podEnv) loadNets() ([]activeNet, error) {
 }
 
 func (e *podEnv) podNSPath() string {
+	if e.nsPath != "" {
+		return e.nsPath
+	}
 	return filepath.Join(e.podRoot, "netns")
 }
 
