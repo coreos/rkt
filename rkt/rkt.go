@@ -290,8 +290,12 @@ func calculateDataDir() string {
 	// Resolve symlinks
 	realDataDir, err := filepath.EvalSymlinks(dataDir)
 	if err != nil {
-		stderr.PrintE(fmt.Sprintf("cannot evaluate dataDir %q real path", dataDir), err)
-		os.Exit(1)
+		if os.IsNotExist(err) {
+			realDataDir = dataDir
+		} else {
+			stderr.PrintE(fmt.Sprintf("cannot evaluate dataDir %q real path", dataDir), err)
+			os.Exit(1)
+		}
 	}
 	// If above fails, then use the default.
 	return realDataDir
