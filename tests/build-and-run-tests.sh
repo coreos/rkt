@@ -74,7 +74,7 @@ function checkFlavorValue {
 
 # Parse user provided parameters
 function parseParameters {
-    while getopts "f:s:cxu" option; do
+    while getopts "f:s:cxujd" option; do
         case ${option} in
         f)
             RKT_STAGE1_USR_FROM="${OPTARG}"
@@ -97,6 +97,16 @@ function parseParameters {
         c)
             PRECLEANUP=true
             POSTCLEANUP=true
+            ;;
+        j)
+            JUSTBUILD=true
+            ;;
+        d)
+            if [[ $(whereis -b rsync | awk '{print $2}') != "" ]]; then
+                DIRTYBUILD=true
+            else
+                echo "To use this option install rsync first! Use saved changes for build"
+            fi
             ;;
         \?)
             set -
@@ -158,9 +168,10 @@ function build {
     if [[ ${PRECLEANUP} == true ]]; then
         rm -rf "${BUILD_DIR}/tmp/usr_from_${RKT_STAGE1_USR_FROM}"
     fi
-
-    make check
-    make "-j${CORES}" clean
+    if [[ ${JUSTBUILD} != true ]]; then
+        make check
+        make "-j${CORES}" clean
+    fi
 }
 
 # Prepare build directory name
@@ -189,17 +200,33 @@ function detectChanges {
 function cloneCode {
     detectChanges
     git clone ../ "${BUILD_DIR}"
+}
+
+# Copy source code into build directory
+function copyCode {
+    rsync -aq ../ ${BUILD_DIR} --exclude='builds' --exclude='build-rkt-*'
+}
+
+# Set source code into build directory and enter into it
+function setCodeInBuildEnv {
+    if [[ ${DIRTYBUILD} == true ]]; then
+        copyCode
+    else
+        cloneCode
+    fi
     pushd "${BUILD_DIR}"
 }
 
 # Show usage
 function usage {
     echo "build-and-run-tests.sh usage:"
-    echo -e "-f\tSelect flavor"
-    echo -e "-s\tSystemd version"
     echo -e "-c\tCleanup"
-    echo -e "-x\tUse with '-c' to force cleanup on non-CI systems"
+    echo -e "-d\tUse unsaved changes for build"
+    echo -e "-f\tSelect flavor"
+    echo -e "-j\tJDon't run tests after build"
+    echo -e "-s\tSystemd version"
     echo -e "-u\tShow this message"
+    echo -e "-x\tUse with '-c' to force cleanup on non-CI systems"
 }
 
 # Prepare build environment
@@ -249,7 +276,7 @@ function main {
 
     prepareBuildEnv
     cd builds
-    cloneCode
+    setCodeInBuildEnv
 
     if [ ${SRC_CHANGES} -gt 0 ]; then
         build
