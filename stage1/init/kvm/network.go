@@ -30,8 +30,8 @@ import (
 
 // GetNetworkDescriptions explicitly convert slice of activeNets to slice of netDescribers
 // which is slice required by GetKVMNetArgs
-func GetNetworkDescriptions(n *networking.Networking) []netDescriber {
-	var nds []netDescriber
+func GetNetworkDescriptions(n *networking.Networking) []NetDescriber {
+	var nds []NetDescriber
 	for _, an := range n.GetActiveNetworks() {
 		nds = append(nds, an)
 	}
@@ -39,7 +39,7 @@ func GetNetworkDescriptions(n *networking.Networking) []netDescriber {
 }
 
 // netDescriber is something that describes network configuration
-type netDescriber interface {
+type NetDescriber interface {
 	GuestIP() net.IP
 	Mask() net.IP
 	IfName() string
@@ -47,23 +47,6 @@ type netDescriber interface {
 	Name() string
 	Gateway() net.IP
 	Routes() []types.Route
-}
-
-// GetKVMNetArgs returns additional arguments that need to be passed
-// to lkvm tool to configure networks properly.
-// Logic is based on Network configuration extracted from Networking struct
-// and essentially from activeNets that expose netDescriber behavior
-func GetKVMNetArgs(nds []netDescriber) ([]string, error) {
-
-	var lkvmArgs []string
-
-	for _, nd := range nds {
-		lkvmArgs = append(lkvmArgs, "--network")
-		lkvmArg := fmt.Sprintf("mode=tap,tapif=%s,host_ip=%s,guest_ip=%s", nd.IfName(), nd.Gateway(), nd.GuestIP())
-		lkvmArgs = append(lkvmArgs, lkvmArg)
-	}
-
-	return lkvmArgs, nil
 }
 
 // generateMacAddress returns net.HardwareAddr filled with fixed 3 byte prefix
@@ -103,7 +86,7 @@ func upInterfaceCommand(ifName string) string {
 	return fmt.Sprintf("/bin/ip link set dev %s up", ifName)
 }
 
-func GenerateNetworkInterfaceUnits(unitsPath string, netDescriptions []netDescriber) error {
+func GenerateNetworkInterfaceUnits(unitsPath string, netDescriptions []NetDescriber) error {
 
 	for i, netDescription := range netDescriptions {
 		ifName := fmt.Sprintf(networking.IfNamePattern, i)
