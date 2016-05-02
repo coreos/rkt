@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/tests/testutils"
 )
 
@@ -28,27 +29,50 @@ func TestExport(t *testing.T) {
 		testAci     = "test.aci"
 		testFile    = "test.txt"
 		testContent = "ThisIsATest"
-		runInspect  = "%s %s %s %s --exec=/inspect -- %s"
 	)
 
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
 
-	tests := []struct {
+	type testCfg struct {
 		runArgs        string
 		writeArgs      string
 		readArgs       string
-		expectedStatus int
 		expectedResult string
-	}{
+	}
+
+	tests := []testCfg{
 		{
 			"--no-overlay --insecure-options=image",
 			"--write-file --file-name=" + testFile + " --content=" + testContent,
 			"--read-file --file-name=" + testFile,
-			0,
 			testContent,
 		},
 	}
+
+	// Need to do both checks
+	if common.SupportsUserNS() && checkUserNS() == nil {
+		tests = append(tests, []testCfg{
+			{
+				"--private-users --no-overlay --insecure-options=image",
+				"--write-file --file-name=" + testFile + " --content=" + testContent,
+				"--read-file --file-name=" + testFile,
+				testContent,
+			},
+		}...)
+	}
+
+	if common.SupportsOverlay() {
+		tests = append(tests, []testCfg{
+			{
+				"--insecure-options=image",
+				"--write-file --file-name=" + testFile + " --content=" + testContent,
+				"--read-file --file-name=" + testFile,
+				testContent,
+			},
+		}...)
+	}
+
 	for _, tt := range tests {
 		tmpDir := createTempDirOrPanic("rkt-TestExport-tmp-")
 		defer os.RemoveAll(tmpDir)
@@ -56,6 +80,7 @@ func TestExport(t *testing.T) {
 		tmpTestAci := filepath.Join(tmpDir, testAci)
 
 		// Prepare the image with modifications
+		const runInspect = "%s %s %s %s --exec=/inspect -- %s"
 		prepareCmd := fmt.Sprintf(runInspect, ctx.Cmd(), "prepare", tt.runArgs, getInspectImagePath(), tt.writeArgs)
 		t.Logf("Preparing 'inspect --write-file'")
 		uuid := runRktAndGetUUID(t, prepareCmd)
@@ -69,20 +94,18 @@ func TestExport(t *testing.T) {
 		exportCmd := fmt.Sprintf("%s export %s %s", ctx.Cmd(), uuid, tmpTestAci)
 		t.Logf("Running 'export'")
 		child = spawnOrFail(t, exportCmd)
-		waitOrFail(t, child, tt.expectedStatus)
+		waitOrFail(t, child, 0)
 
-		if tt.expectedStatus == 0 {
-			// Run the newly created ACI and check the output
-			readCmd := fmt.Sprintf(runInspect, ctx.Cmd(), "run", tt.runArgs, tmpTestAci, tt.readArgs)
-			t.Logf("Running 'inspect --read-file'")
-			child := spawnOrFail(t, readCmd)
-			if tt.expectedResult != "" {
-				if _, out, err := expectRegexWithOutput(child, tt.expectedResult); err != nil {
-					t.Fatalf("expected %q but not found: %v\n%s", tt.expectedResult, err, out)
-				}
+		// Run the newly created ACI and check the output
+		readCmd := fmt.Sprintf(runInspect, ctx.Cmd(), "run", tt.runArgs, tmpTestAci, tt.readArgs)
+		t.Logf("Running 'inspect --read-file'")
+		child = spawnOrFail(t, readCmd)
+		if tt.expectedResult != "" {
+			if _, out, err := expectRegexWithOutput(child, tt.expectedResult); err != nil {
+				t.Fatalf("expected %q but not found: %v\n%s", tt.expectedResult, err, out)
 			}
-			waitOrFail(t, child, tt.expectedStatus)
 		}
+		waitOrFail(t, child, 0)
 
 		// run garbage collector on pods and images
 		runGC(t, ctx)
