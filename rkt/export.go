@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"syscall"
 
@@ -28,9 +29,9 @@ import (
 	"github.com/appc/spec/schema"
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/common/overlay"
-	"github.com/hashicorp/errwrap"
-
+	"github.com/coreos/rkt/pkg/user"
 	"github.com/coreos/rkt/store"
+	"github.com/hashicorp/errwrap"
 	"github.com/spf13/cobra"
 )
 
@@ -110,12 +111,24 @@ func runExport(cmd *cobra.Command, args []string) (exit int) {
 		}()
 	}
 
+	// Check for user namespace (--private-user), if in use get uidRange
+	var uidRange *user.UidRange
+	privUserFile := path.Join(p.path(), common.PrivateUsersPreparedFilename)
+	privUserContent, err := ioutil.ReadFile(privUserFile)
+	if err == nil {
+		uidRange = user.NewBlankUidRange()
+		// The file was found, save uid & gid shift and count
+		if err := uidRange.Deserialize(privUserContent); err != nil {
+			stderr.PrintE(fmt.Sprintf("problem deserializing the content of %s", common.PrivateUsersPreparedFilename), err)
+			return 1
+		}
+	}
+
 	root := common.AppPath(p.path(), app.Name)
-	if err = buildAci(root, aci); err != nil {
+	if err = buildAci(root, aci, uidRange); err != nil {
 		stderr.PrintE("error building aci", err)
 		return 1
 	}
-
 	return 0
 }
 
@@ -156,7 +169,9 @@ func mountOverlay(pod *pod, app *schema.RuntimeApp, dest string) (string, error)
 	return mntDir, nil
 }
 
-func buildAci(root, target string) (e error) {
+// buildAci builds a target aci from the root directory using any uid schift
+// information from uidRange.
+func buildAci(root, target string, uidRange *user.UidRange) (e error) {
 	mode := os.O_CREATE | os.O_WRONLY
 	if flagOverwriteACI {
 		mode |= os.O_TRUNC
@@ -197,7 +212,20 @@ func buildAci(root, target string) (e error) {
 	}
 	iw := aci.NewImageWriter(im, tr)
 
-	if err := filepath.Walk(root, aci.BuildWalker(root, iw, nil)); err != nil {
+	// Unshift uid and gid when pod was started with --private-user (user namespace)
+	var walkerCb aci.TarHeaderWalkFunc = func(hdr *tar.Header) bool {
+		if uidRange != nil {
+			uid, gid, err := uidRange.UnshiftRange(uint32(hdr.Uid), uint32(hdr.Gid))
+			if err != nil {
+				stderr.PrintE("error unshifting gid and uid", err)
+				return false
+			}
+			hdr.Uid, hdr.Gid = int(uid), int(gid)
+		}
+		return true
+	}
+
+	if err := filepath.Walk(root, aci.BuildWalker(root, iw, walkerCb)); err != nil {
 		return errwrap.Wrap(errors.New("error walking rootfs"), err)
 	}
 
