@@ -25,6 +25,11 @@ rkt will automatically [fetch](fetch.md) them if they're not present in the loca
 # rkt --insecure-options=image run docker://quay.io/coreos/etcd:v2.0.0
 ```
 
+### Run multiple applications in the same pod
+```
+# rkt run example.com/app1 example.com/app2
+```
+
 ## Overriding Executable to launch
 
 Application images include an `exec` field that specifies the executable to launch.
