@@ -54,6 +54,16 @@ rkt is available in the [Community Repository](https://www.archlinux.org/package
 sudo pacman -S rkt
 ```
 
+## NixOS
+
+rkt can be installed on NixOS using the following command:
+
+```
+nix-env -iA rkt
+```
+
+The source for the rkt.nix expression can be found on [GitHub](https://github.com/NixOS/nixpkgs/blob/master/pkgs/applications/virtualization/rkt/default.nix)
+
 ## Void
 
 rkt is available in the [official binary packages](http://www.voidlinux.eu/packages/) for the Void Linux distribution.
