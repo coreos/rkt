@@ -9,6 +9,8 @@ _S1_SS_SUBDIRS_ := \
 	net-plugins \
 	prepare-app \
 	reaper \
+	stop \
+	stop_kvm \
 	units \
 	aci
 

@@ -57,9 +57,6 @@ func TestRktList(t *testing.T) {
 	// Get hash
 	imageID := fmt.Sprintf("sha512-%s", imgID.hash[:12])
 
-	tmpDir := createTempDirOrPanic(imgName)
-	defer os.RemoveAll(tmpDir)
-
 	// Define tests
 	tests := []struct {
 		cmd           string

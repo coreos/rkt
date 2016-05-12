@@ -59,3 +59,7 @@ func getStage1InterfaceVersion(cdir string) (int, error) {
 func interfaceVersionSupportsHostname(version int) bool {
 	return version > 1
 }
+
+func interfaceVersionSupportsStop(version int) bool {
+	return version > 2
+}

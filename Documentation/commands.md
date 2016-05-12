@@ -28,6 +28,7 @@ If an ACI hasn't been cached on disk, rkt will attempt to find and download it.
 To use rkt's [metadata service][metadata-spec], enable registration with the `--mds-register` flag when [invoking it][rkt-mds].
 
 * [run](subcommands/run.md)
+* [stop](subcommands/stop.md)
 * [enter](subcommands/enter.md)
 * [prepare](subcommands/prepare.md)
 * [run-prepared](subcommands/run-prepared.md)

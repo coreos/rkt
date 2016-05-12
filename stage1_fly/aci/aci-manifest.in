@@ -28,6 +28,14 @@
         {
             "name": "coreos.com/rkt/stage1/gc",
             "value": "/gc"
+        },
+        {
+            "name": "coreos.com/rkt/stage1/stop",
+            "value": "/stop_fly"
+        },
+        {
+            "name": "coreos.com/rkt/stage1/interface-version",
+            "value": "3"
         }
     ]
 }

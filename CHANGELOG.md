@@ -110,6 +110,8 @@ This release includes a number of new features and bugfixes like a new config su
 
 - tests/aws.sh: add test for Fedora 24 ([#2340](https://github.com/coreos/rkt/pull/2340)).
 
+- Add a new subcommand `rkt stop` ([#1959](https://github.com/coreos/rkt/pull/1959)).
+
 #### Note for packagers
 
 Files generated from sources are no longer checked-in the git repository. Instead, packagers should build them:
