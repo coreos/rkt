@@ -449,6 +449,37 @@ func appToSystemd(p *stage1commontypes.Pod, ra *schema.RuntimeApp, interactive b
 		unit.NewUnitOption("Service", "CapabilityBoundingSet", strings.Join(capabilitiesStr, " ")),
 	}
 
+	if ra.ReadOnlyRootFS {
+		opts = append(opts, unit.NewUnitOption("Service", "ReadOnlyDirectories", "/"))
+	}
+
+	// TODO(tmrts): Extract this logic into a utility function.
+	vols := make(map[types.ACName]types.Volume)
+	for _, v := range p.Manifest.Volumes {
+		vols[v.Name] = v
+	}
+
+	absRoot, err := filepath.Abs(p.Root) // Absolute path to the pod's rootfs.
+	if err != nil {
+		return err
+	}
+	appRootfs := common.AppRootfsPath(absRoot, appName)
+
+	rwDirs := []string{}
+	imageManifest := p.Images[appName.String()]
+	for _, m := range GenerateMounts(ra, vols, imageManifest) {
+		mntPath, err := EvaluateSymlinksInsideApp(appRootfs, m.Path)
+		if err != nil {
+			return err
+		}
+
+		if !IsMountReadOnly(vols[m.Volume], app.MountPoints) {
+			rwDirs = append(rwDirs, mntPath)
+		}
+	}
+
+	opts = append(opts, unit.NewUnitOption("Service", "ReadWriteDirectories", strings.Join(rwDirs, " ")))
+
 	if interactive {
 		opts = append(opts, unit.NewUnitOption("Service", "StandardInput", "tty"))
 		opts = append(opts, unit.NewUnitOption("Service", "StandardOutput", "tty"))

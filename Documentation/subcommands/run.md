@@ -361,11 +361,11 @@ For more details see the [hacking documentation](../hacking.md).
 | `--private-users` |  `false` | `true` or `false` | Run within user namespaces. |
 | `--set-env` | none | An environment variable (ex. `--set-env=NAME=VALUE`) | An environment variable to set for apps. |
 | `--signature` | none | A file path | Local signature file to use in validating the preceding image |
-| `--stage1-url` | none | URL with protocol | A URL to a stage1 image. HTTP/HTTPS/File/Docker URLs are supported. |
-| `--stage1-path` | none | Absolute or relative path | A path to a stage1 image. |
-| `--stage1-name` | none | Image name (ex. `--stage1-name=coreos.com/rkt/stage1-coreos`) | A name of a stage1 image. Will perform a discovery if the image is not in the store. |
-| `--stage1-hash` | none | Image hash (ex. `--stage1-hash=sha512-dedce9f5ea50`) | A hash of a stage1 image. The image must exist in the store. |
 | `--stage1-from-dir` | none | Image name (ex. `--stage1-name=coreos.com/rkt/stage1-coreos`) | A stage1 image file name to search for inside the default stage1 images directory. |
+| `--stage1-hash` | none | Image hash (ex. `--stage1-hash=sha512-dedce9f5ea50`) | A hash of a stage1 image. The image must exist in the store. |
+| `--stage1-name` | none | Image name (ex. `--stage1-name=coreos.com/rkt/stage1-coreos`) | A name of a stage1 image. Will perform a discovery if the image is not in the store. |
+| `--stage1-path` | none | Absolute or relative path | A path to a stage1 image. |
+| `--stage1-url` | none | URL with protocol | A URL to a stage1 image. HTTP/HTTPS/File/Docker URLs are supported. |
 | `--store-only` | `false` | `true` or `false` | Use only available images in the store (do not discover or download from remote URLs). See [image fetching behavior](../image-fetching-behavior.md). |
 | `--uuid-file-save` | none | A file path | Write out the pod UUID to a file. |
 | `--volume` |  none | Volume syntax (ex. `--volume NAME,kind=KIND,source=PATH,readOnly=BOOL`) | Volumes to make available in the pod. See [Mount Volumes into a Pod](#mount-volumes-into-a-pod). |

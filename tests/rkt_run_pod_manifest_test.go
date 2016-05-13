@@ -144,6 +144,31 @@ func TestPodManifest(t *testing.T) {
 			"",
 		},
 		{
+			// Simple read from read-only rootfs.
+			[]imagePatch{
+				{"rkt-test-run-read-only-rootfs-pod-manifest-read.aci", []string{}},
+			},
+			&schema.PodManifest{
+				Apps: []schema.RuntimeApp{
+					{
+						Name: baseAppName,
+						App: &types.App{
+							Exec:  []string{"/inspect", "--read-file"},
+							User:  "0",
+							Group: "0",
+							Environment: []types.EnvironmentVariable{
+								{"FILE", "/dir1/file"},
+							},
+						},
+						ReadOnlyRootFS: true,
+					},
+				},
+			},
+			0,
+			"dir1",
+			"",
+		},
+		{
 			// Simple read after write with *empty* volume mounted.
 			[]imagePatch{
 				{"rkt-test-run-pod-manifest-empty-vol-rw.aci", []string{}},
@@ -164,6 +189,44 @@ func TestPodManifest(t *testing.T) {
 								{"dir1", "/dir1", false},
 							},
 						},
+					},
+				},
+				Volumes: []types.Volume{
+					{
+						Name: "dir1",
+						Kind: "empty",
+						Mode: stringP("0755"),
+						UID:  intP(0),
+						GID:  intP(0),
+					},
+				},
+			},
+			0,
+			"empty:foo",
+			"",
+		},
+		{
+			// Simple read from read-only rootfs after write with *empty* volume mounted.
+			[]imagePatch{
+				{"rkt-test-run-pod-manifest-read-only-rootfs-empty-vol-rw.aci", []string{}},
+			},
+			&schema.PodManifest{
+				Apps: []schema.RuntimeApp{
+					{
+						Name: baseAppName,
+						App: &types.App{
+							Exec:  []string{"/inspect", "--write-file", "--read-file"},
+							User:  "0",
+							Group: "0",
+							Environment: []types.EnvironmentVariable{
+								{"FILE", "/dir1/file"},
+								{"CONTENT", "empty:foo"},
+							},
+							MountPoints: []types.MountPoint{
+								{"dir1", "/dir1", false},
+							},
+						},
+						ReadOnlyRootFS: true,
 					},
 				},
 				Volumes: []types.Volume{
@@ -217,6 +280,43 @@ func TestPodManifest(t *testing.T) {
 			"",
 		},
 		{
+			// Stat directory in a *empty* volume mounted using a read-only rootfs.
+			[]imagePatch{
+				{"rkt-test-run-pod-manifest-read-only-rootfs-empty-vol-stat.aci", []string{}},
+			},
+			&schema.PodManifest{
+				Apps: []schema.RuntimeApp{
+					{
+						Name: baseAppName,
+						App: &types.App{
+							Exec:  []string{"/inspect", "--stat-file"},
+							User:  "0",
+							Group: "0",
+							Environment: []types.EnvironmentVariable{
+								{"FILE", "/dir1"},
+							},
+							MountPoints: []types.MountPoint{
+								{"dir1", "/dir1", false},
+							},
+						},
+						ReadOnlyRootFS: true,
+					},
+				},
+				Volumes: []types.Volume{
+					{
+						Name: "dir1",
+						Kind: "empty",
+						Mode: stringP("0123"),
+						UID:  intP(9991),
+						GID:  intP(9992),
+					},
+				},
+			},
+			0,
+			"(?s)/dir1: mode: d--x-w--wx.*" + "/dir1: user: 9991.*" + "/dir1: group: 9992",
+			"",
+		},
+		{
 			// Simple read after write with volume mounted.
 			[]imagePatch{
 				{"rkt-test-run-pod-manifest-vol-rw.aci", []string{}},
@@ -248,6 +348,38 @@ func TestPodManifest(t *testing.T) {
 			"",
 		},
 		{
+			// Simple read after write with volume mounted in a read-only rootfs.
+			[]imagePatch{
+				{"rkt-test-run-pod-manifest-read-only-rootfs-vol-rw.aci", []string{}},
+			},
+			&schema.PodManifest{
+				Apps: []schema.RuntimeApp{
+					{
+						Name: baseAppName,
+						App: &types.App{
+							Exec:  []string{"/inspect", "--write-file", "--read-file"},
+							User:  "0",
+							Group: "0",
+							Environment: []types.EnvironmentVariable{
+								{"FILE", "/dir1/file"},
+								{"CONTENT", "host:foo"},
+							},
+							MountPoints: []types.MountPoint{
+								{"dir1", "/dir1", false},
+							},
+						},
+						ReadOnlyRootFS: true,
+					},
+				},
+				Volumes: []types.Volume{
+					{"dir1", "host", tmpdir, nil, nil, nil, nil},
+				},
+			},
+			0,
+			"host:foo",
+			"",
+		},
+		{
 			// Simple read after write with read-only mount point, should fail.
 			[]imagePatch{
 				{"rkt-test-run-pod-manifest-vol-ro.aci", []string{}},
@@ -268,6 +400,38 @@ func TestPodManifest(t *testing.T) {
 								{"dir1", "/dir1", true},
 							},
 						},
+					},
+				},
+				Volumes: []types.Volume{
+					{"dir1", "host", tmpdir, nil, nil, nil, nil},
+				},
+			},
+			1,
+			`Cannot write to file "/dir1/file": open /dir1/file: read-only file system`,
+			"",
+		},
+		{
+			// Simple read after write with read-only mount point in a read-only rootfs, should fail.
+			[]imagePatch{
+				{"rkt-test-run-pod-manifest-read-only-rootfs-vol-ro.aci", []string{}},
+			},
+			&schema.PodManifest{
+				Apps: []schema.RuntimeApp{
+					{
+						Name: baseAppName,
+						App: &types.App{
+							Exec:  []string{"/inspect", "--write-file", "--read-file"},
+							User:  "0",
+							Group: "0",
+							Environment: []types.EnvironmentVariable{
+								{"FILE", "/dir1/file"},
+								{"CONTENT", "bar"},
+							},
+							MountPoints: []types.MountPoint{
+								{"dir1", "/dir1", true},
+							},
+						},
+						ReadOnlyRootFS: true,
 					},
 				},
 				Volumes: []types.Volume{
@@ -312,6 +476,40 @@ func TestPodManifest(t *testing.T) {
 			"",
 		},
 		{
+			// Simple read after write with volume mounted in a read-only rootfs.
+			// Override the image's mount point spec. This should fail as the volume is
+			// read-only in pod manifest, (which will override the mount point in both image/pod manifest).
+			[]imagePatch{
+				{"rkt-test-run-pod-manifest-vol-rw-override.aci", []string{"--mounts=dir1,path=/dir1,readOnly=false"}},
+			},
+			&schema.PodManifest{
+				Apps: []schema.RuntimeApp{
+					{
+						Name: baseAppName,
+						App: &types.App{
+							Exec:  []string{"/inspect", "--write-file", "--read-file"},
+							User:  "0",
+							Group: "0",
+							Environment: []types.EnvironmentVariable{
+								{"FILE", "/dir1/file"},
+								{"CONTENT", "bar"},
+							},
+							MountPoints: []types.MountPoint{
+								{"dir1", "/dir1", false},
+							},
+						},
+						ReadOnlyRootFS: true,
+					},
+				},
+				Volumes: []types.Volume{
+					{"dir1", "host", tmpdir, &boolTrue, nil, nil, nil},
+				},
+			},
+			1,
+			`Cannot write to file "/dir1/file": open /dir1/file: read-only file system`,
+			"",
+		},
+		{
 			// Simple read after write with volume mounted.
 			// Override the image's mount point spec.
 			[]imagePatch{
@@ -344,6 +542,39 @@ func TestPodManifest(t *testing.T) {
 			"",
 		},
 		{
+			// Simple read after write with volume mounted in a read-only rootfs.
+			// Override the image's mount point spec.
+			[]imagePatch{
+				{"rkt-test-run-pod-manifest-read-only-rootfs-vol-rw-override.aci", []string{"--mounts=dir1,path=/dir1,readOnly=true"}},
+			},
+			&schema.PodManifest{
+				Apps: []schema.RuntimeApp{
+					{
+						Name: baseAppName,
+						App: &types.App{
+							Exec:  []string{"/inspect", "--write-file", "--read-file"},
+							User:  "0",
+							Group: "0",
+							Environment: []types.EnvironmentVariable{
+								{"FILE", "/dir2/file"},
+								{"CONTENT", "host:bar"},
+							},
+							MountPoints: []types.MountPoint{
+								{"dir1", "/dir2", false},
+							},
+						},
+						ReadOnlyRootFS: true,
+					},
+				},
+				Volumes: []types.Volume{
+					{"dir1", "host", tmpdir, nil, nil, nil, nil},
+				},
+			},
+			0,
+			"host:bar",
+			"",
+		},
+		{
 			// Simple read after write with volume mounted, no apps in pod manifest.
 			[]imagePatch{
 				{
@@ -364,6 +595,32 @@ func TestPodManifest(t *testing.T) {
 			},
 			0,
 			"host:baz",
+			"",
+		},
+		{
+			// Simple read after write with volume mounted in a read-only rootfs, no apps in pod manifest.
+			[]imagePatch{
+				{
+					"rkt-test-run-pod-manifest-read-only-rootfs-vol-rw-no-app.aci",
+					[]string{
+						"--exec=/inspect --write-file --read-file --file-name=/dir1/file --content=host:baz",
+						"--mounts=dir1,path=/dir1,readOnly=false",
+					},
+				},
+			},
+			&schema.PodManifest{
+				Apps: []schema.RuntimeApp{
+					{
+						Name:           baseAppName,
+						ReadOnlyRootFS: true,
+					},
+				},
+				Volumes: []types.Volume{
+					{"dir1", "host", tmpdir, nil, nil, nil, nil},
+				},
+			},
+			1,
+			`Cannot write to file "/dir1/host": open /dir1/host: read-only file system`,
 			"",
 		},
 		{
@@ -406,6 +663,33 @@ func TestPodManifest(t *testing.T) {
 			&schema.PodManifest{
 				Apps: []schema.RuntimeApp{
 					{Name: baseAppName},
+				},
+				Volumes: []types.Volume{
+					{"dir1", "host", tmpdir, &boolTrue, nil, nil, nil},
+				},
+			},
+			1,
+			`Cannot write to file "/dir1/file": open /dir1/file: read-only file system`,
+			"",
+		},
+		{
+			// Simple read after write in read-only rootfs with read-only volume mounted, no apps in pod manifest.
+			// This should fail as the volume is read-only.
+			[]imagePatch{
+				{
+					"rkt-test-run-pod-manifest-read-only-rootfs-vol-ro-no-app.aci",
+					[]string{
+						"--exec=/inspect --write-file --read-file --file-name=/dir1/file --content=baz",
+						"--mounts=dir1,path=/dir1,readOnly=false",
+					},
+				},
+			},
+			&schema.PodManifest{
+				Apps: []schema.RuntimeApp{
+					{
+						Name:           baseAppName,
+						ReadOnlyRootFS: true,
+					},
 				},
 				Volumes: []types.Volume{
 					{"dir1", "host", tmpdir, &boolTrue, nil, nil, nil},
@@ -784,7 +1068,8 @@ func TestPodManifest(t *testing.T) {
 
 		if tt.expectedResult != "" {
 			if _, out, err := expectRegexWithOutput(child, tt.expectedResult); err != nil {
-				t.Fatalf("Expected %q but not found: %v\n%s", tt.expectedResult, err, out)
+				t.Errorf("Expected %q but not found: %v\n%s", tt.expectedResult, err, out)
+				continue
 			}
 		}
 		waitOrFail(t, child, tt.expectedExit)
@@ -801,7 +1086,8 @@ func TestPodManifest(t *testing.T) {
 
 		if tt.expectedResult != "" {
 			if _, out, err := expectRegexWithOutput(child, tt.expectedResult); err != nil {
-				t.Fatalf("Expected %q but not found: %v\n%s", tt.expectedResult, err, out)
+				t.Errorf("Expected %q but not found: %v\n%s", tt.expectedResult, err, out)
+				continue
 			}
 		}
 
