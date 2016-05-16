@@ -1,4 +1,4 @@
-# Getting Started with rkt on Ubuntu Vivid
+# Getting Started with rkt on Ubuntu Wily
 
 The following guide will show you how to build and run the sample [etcd ACI](https://github.com/coreos/etcd/releases/download/v2.0.9/etcd-v2.0.9-linux-amd64.aci) on the standard vagrantcloud.com [box for Ubuntu Wily](https://vagrantcloud.com/ubuntu/boxes/wily64).
 
