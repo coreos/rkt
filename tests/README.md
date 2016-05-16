@@ -77,17 +77,18 @@ The build script has the following parameters:
 Select `Ubuntu 14.04 LTS v1503 (beta with Docker support)`.
 The platform with *Docker support* means the tests will run in a VM.
 
-## Manually running the functional tests
+## Manually running the tests
 
 Make sure to pass `--enable-functional-tests` to the configure script, then, after building the project, you can run the tests.
 
 ```
+./autogen.sh
 ./configure --enable-functional-tests
 make -j4
 make check
 ```
 
-For more details about the `--enable-functional-tests` parameter, see [configure script parameters documentation](build-configure.md).
+For more details about the `--enable-functional-tests` parameter, see [configure script parameters documentation](../Documentation/build-configure.md).
 The snippet above will run both unit and functional tests.
 If you want to run only functional tests, use `make functional-check`.
 There is also a counterpart target for running unit tests only - it is named `unit-check`.

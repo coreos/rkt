@@ -25,7 +25,7 @@ are very busy and read the mailing lists.
 ### Getting Started
 
 - Fork the repository on GitHub
-- Read the [README](README.md) for build and test instructions
+- Read [`building rkt`](Documentation/hacking.md#building-rkt) for build and [`manually-running-the-tests`](tests/README.md#manually-running-the-tests) for test instructions
 - Play with the project, submit bugs, submit patches!
 
 ### Contribution Flow
@@ -36,7 +36,7 @@ This is a rough outline of what a contributor's workflow looks like:
 - Make commits of logical units.
 - Make sure your commit messages are in the proper format (see below).
 - Push your changes to a topic branch in your fork of the repository.
-- Make sure the tests pass, and add any new tests as appropriate.
+- Make sure the [tests](tests/README.md#manually-running-the-tests) pass, and add any new tests as appropriate.
 - Submit a pull request to the original repository.
 - Submit a comment with the sole content "@reviewer PTAL" (please take a look) in GitHub
   and replace "@reviewer" with the correct recipient.
