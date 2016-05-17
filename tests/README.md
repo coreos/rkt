@@ -79,19 +79,30 @@ The platform with *Docker support* means the tests will run in a VM.
 
 ## Manually running the tests
 
-Make sure to pass `--enable-functional-tests` to the configure script, then, after building the project, you can run the tests.
+The tests can be run manually. There is a rule to run unit, functional and all tests.
+
+### Unit tests
+
+The unit tests can be run with `make unit-check` after you [built](../Documentation/hacking.md#building-rkt) the project.
+
+### Functional tests
+
+The functional tests require to pass `--enable-functional-tests` to the configure script, then, after building the project, you can run the tests.
 
 ```
 ./autogen.sh
 ./configure --enable-functional-tests
 make -j4
-make check
+make functional-check
 ```
 
-For more details about the `--enable-functional-tests` parameter, see [configure script parameters documentation](../Documentation/build-configure.md).
-The snippet above will run both unit and functional tests.
-If you want to run only functional tests, use `make functional-check`.
-There is also a counterpart target for running unit tests only - it is named `unit-check`.
+For more details about the `--enable-functional-tests` parameter, see [configure script parameters documentation](../Documentation/build-configure.md#--enable-functional-tests).
+
+### All tests
+
+To run all tests, see [functional tests](./README.md#functional-tests) to configure and build it with functional tests enabled. Instead of `make functional-check` you have to call `make check` to run all tests.
+
+### Passing additional parameters
 
 You can use a `GO_TEST_FUNC_ARGS` variable to pass additional parameters to `go test`.
 This is mostly useful for running only the selected functional tests.
