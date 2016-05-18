@@ -65,6 +65,10 @@ MACHINE CLASS SERVICE
 0 machines listed.
 ```
 
+### KVM flavor with systemd-run
+
+`rkt` with KVM flavor requires to be runned with stdin/stdout connected to TTY so remember to add `--pty` into `systemd-run` parameters.
+
 ## Managing pods as systemd services
 
 ### Simple Unit File
