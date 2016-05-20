@@ -14,6 +14,7 @@ AMI_ACIROOTFSDIR := $(STAGE1_ACIROOTFSDIR_$(AMI_FLAVOR))
 AMI_ACI_DIRS_BASE := $(AMI_ACIROOTFSDIR)
 AMI_ACI_DIRS_RESTS := \
 	etc \
+	etc/systemd \
 	opt/stage2 \
 	rkt/status \
 	rkt/env
@@ -25,6 +26,8 @@ AMI_ACI_DIR_CHAINS := \
 AMI_ACI_INSTALLED_DIRS := $(addprefix $(AMI_ACI_DIRS_BASE)/,$(AMI_ACI_DIRS_RESTS))
 # os-release in /etc in the ACI rootfs
 AMI_ACI_OS_RELEASE := $(AMI_ACI_DIRS_BASE)/etc/os-release
+# /etc/systemd/system.conf in the ACI rootfs
+AMI_ACI_SYSTEMD_CONF := $(AMI_ACI_DIRS_BASE)/etc/systemd/system.conf
 # manifest in the ACI directory
 AMI_ACI_MANIFEST := $(STAGE1_ACIDIR_$(AMI_FLAVOR))/manifest
 # generated manifest to be copied to the ACI directory
@@ -35,6 +38,7 @@ AMI_SRC_MANIFEST := $(MK_SRCDIR)/aci-manifest.in
 AMI_NAME := coreos.com/rkt/stage1-$(AMI_FLAVOR)
 # list of installed files
 AMI_INSTALLED_FILES := \
+	$(AMI_ACI_SYSTEMD_CONF) \
 	$(AMI_ACI_OS_RELEASE) \
 	$(AMI_ACI_MANIFEST)
 
@@ -110,7 +114,8 @@ $(call generate-kv-deps,$(AMI_INSTALLED_KV_DEPMK_STAMP),$(AMI_RMDIR_STAMP),$(AMI
 STAGE1_INSTALL_DIRS_$(AMI_FLAVOR) += $(addsuffix :0755,$(AMI_ACI_DIR_CHAINS))
 STAGE1_INSTALL_FILES_$(AMI_FLAVOR) += \
 	$(AMI_GEN_MANIFEST):$(AMI_ACI_MANIFEST):0644 \
-	$(MK_SRCDIR)/os-release:$(AMI_ACI_OS_RELEASE):0644
+	$(MK_SRCDIR)/os-release:$(AMI_ACI_OS_RELEASE):0644 \
+	$(MK_SRCDIR)/system.conf:$(AMI_ACI_SYSTEMD_CONF):0644
 STAGE1_SECONDARY_STAMPS_$(AMI_FLAVOR) += $(AMI_STAMP)
 CLEAN_FILES += $(AMI_GEN_MANIFEST)
 

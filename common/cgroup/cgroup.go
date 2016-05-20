@@ -384,8 +384,11 @@ func RemountCgroupsRO(root string, enabledCgroups map[int][]string, subcgroup st
 
 		// Create cgroup directories and mount the files we need over
 		// themselves so they stay read-write
+		appCgroups := []string{filepath.Join(subcgroupPath, "init.scope")}
 		for _, serviceName := range serviceNames {
-			appCgroup := filepath.Join(subcgroupPath, serviceName)
+			appCgroups = append(appCgroups, filepath.Join(subcgroupPath, "system.slice", serviceName))
+		}
+		for _, appCgroup := range appCgroups {
 			if err := os.MkdirAll(appCgroup, 0755); err != nil {
 				return err
 			}
