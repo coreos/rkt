@@ -120,6 +120,28 @@ func TestPodManifest(t *testing.T) {
 			"",
 		},
 		{
+			// Working directory.
+			[]imagePatch{
+				{"rkt-test-run-pod-manifest-working-directory.aci", []string{}},
+			},
+			&schema.PodManifest{
+				Apps: []schema.RuntimeApp{
+					{
+						Name: baseAppName,
+						App: &types.App{
+							Exec:             []string{"/inspect", "--print-cwd"},
+							User:             "0",
+							Group:            "0",
+							WorkingDirectory: "/dir1",
+						},
+					},
+				},
+			},
+			0,
+			"<<</dir1>>>",
+			"",
+		},
+		{
 			// Simple read.
 			[]imagePatch{
 				{"rkt-test-run-pod-manifest-read.aci", []string{}},

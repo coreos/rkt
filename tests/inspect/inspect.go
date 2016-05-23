@@ -47,7 +47,7 @@ var (
 		PrintCapsPid       int
 		PrintUser          bool
 		PrintGroups        bool
-		CheckCwd           string
+		PrintCwd           bool
 		ExitCode           int
 		ReadFile           bool
 		WriteFile          bool
@@ -83,7 +83,7 @@ func init() {
 	globalFlagset.BoolVar(&globalFlags.PrintExec, "print-exec", false, "Print the command we were execed as (i.e. argv[0])")
 	globalFlagset.StringVar(&globalFlags.PrintMsg, "print-msg", "", "Print the message given as parameter")
 	globalFlagset.StringVar(&globalFlags.SuffixMsg, "suffix-msg", "", "Print this suffix after some commands")
-	globalFlagset.StringVar(&globalFlags.CheckCwd, "check-cwd", "", "Check if the current working directory is the one specified")
+	globalFlagset.BoolVar(&globalFlags.PrintCwd, "print-cwd", false, "Print the current working directory")
 	globalFlagset.StringVar(&globalFlags.PrintEnv, "print-env", "", "Print the specified environment variable")
 	globalFlagset.IntVar(&globalFlags.PrintCapsPid, "print-caps-pid", -1, "Print capabilities of the specified pid (or current process if pid=0)")
 	globalFlagset.BoolVar(&globalFlags.PrintUser, "print-user", false, "Print uid and gid")
@@ -285,16 +285,15 @@ func main() {
 		fmt.Printf("%s: group: %v\n", fileName, fi.Sys().(*syscall.Stat_t).Gid)
 	}
 
-	if globalFlags.CheckCwd != "" {
+	if globalFlags.PrintCwd {
 		wd, err := os.Getwd()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Cannot get working directory: %v\n", err)
 			os.Exit(1)
 		}
-		if wd != globalFlags.CheckCwd {
-			fmt.Fprintf(os.Stderr, "Working directory: %q. Expected: %q.\n", wd, globalFlags.CheckCwd)
-			os.Exit(1)
-		}
+		fmt.Print("<<<")
+		fmt.Print(wd)
+		fmt.Print(">>>")
 	}
 
 	if globalFlags.Sleep >= 0 {
