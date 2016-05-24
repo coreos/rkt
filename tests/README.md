@@ -66,11 +66,13 @@ It would be possible to add more tests with the following commands:
 #### build-and-run-tests.sh parameters description
 
 The build script has the following parameters:
-- `-f` - Select flavor for rkt. You can choose only one from the following list: "`coreos`, `host`, `kvm`, `none`, `src`".
-- `-s` - Systemd version. You can choose `master` or a tag from the [systemd GitHub repository](https://github.com/systemd/systemd).
 - `-c` - Run cleanup. Cleanup has two phases: *after build* and *after tests*. In the *after build* phase, this script removes artifacts from external dependencies (like kernel sources in the `kvm` flavor). In the  *after tests* phase, it removes `rkt` build artifacts and (if the build is running on CI or if the `-x` flag is used) it unmounts the remaining `rkt` mountpoints, removes unused `rkt` NICs and flushes the current state of IPAM IP reservation.
-- `-x` - Force after-test cleanup on a non-CI system. **WARNING: This flag can affect your system. Use with caution.**
+- `-d` - Run build based on current state of local rkt repository instead of commited changes.
+- `-f` - Select flavor for rkt. You can choose only one from the following list: "`coreos`, `host`, `kvm`, `none`, `src`".
+- `-j` - Build without running unit and functional tests. Artifacts are available after build.
+- `-s` - Systemd version. You can choose `master` or a tag from the [systemd GitHub repository](https://github.com/systemd/systemd).
 - `-u` - Show usage message and exit.
+- `-x` - Force after-test cleanup on a non-CI system. **WARNING: This flag can affect your system. Use with caution.**
 
 ### Platform
 

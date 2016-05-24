@@ -1,10 +1,23 @@
 $(call setup-stamp-file,UFK_CBU_STAMP,cbu)
 $(call setup-tmp-dir,UFK_TMPDIR)
 
+HV_BUILD_FILE :=
+
+ifeq ($(KVM_HV_TAG),"hv_lkvm")
+	HV_BUILD_FILE = lkvm.mk
+else ifeq ($(KVM_HV_TAG),"hv_qemu")
+	HV_BUILD_FILE = qemu.mk
+endif
+
 UFK_INCLUDES := \
 	kernel.mk \
-	files.mk \
-	lkvm.mk
+	files.mk
+
+ifneq ($(HV_BUILD_FILE),)
+    UFK_INCLUDES += \
+        $(HV_BUILD_FILE)
+endif
+
 # This directory will be used by the build-usr.mk
 UFK_CBUDIR := $(UFK_TMPDIR)/cbu
 

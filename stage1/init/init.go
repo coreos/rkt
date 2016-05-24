@@ -29,7 +29,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"syscall"
 
@@ -50,6 +49,7 @@ import (
 	rktlog "github.com/coreos/rkt/pkg/log"
 	"github.com/coreos/rkt/pkg/sys"
 	"github.com/coreos/rkt/stage1/init/kvm"
+	"github.com/coreos/rkt/stage1/init/kvm/hypervisor"
 )
 
 const (
@@ -236,60 +236,24 @@ func getArgsEnv(p *stage1commontypes.Pod, flavor string, debug bool, n *networki
 			return nil, nil, fmt.Errorf("flag --private-users cannot be used with an lkvm stage1")
 		}
 
-		// kernel and lkvm are relative path, because init has /var/lib/rkt/..../uuid as its working directory
+		// kernel and hypervisor binary are relative path, because init has /var/lib/rkt/..../uuid as
+		// its working directory
 		// TODO: move to path.go
 		kernelPath := filepath.Join(common.Stage1RootfsPath(p.Root), "bzImage")
-		lkvmPath := filepath.Join(common.Stage1RootfsPath(p.Root), "lkvm")
 		netDescriptions := kvm.GetNetworkDescriptions(n)
-		lkvmNetArgs, err := kvm.GetKVMNetArgs(netDescriptions)
-		if err != nil {
-			return nil, nil, err
-		}
 
 		cpu, mem := kvm.GetAppsResources(p.Manifest.Apps)
 
-		kernelParams := []string{
-			"console=hvc0",
-			"init=/usr/lib/systemd/systemd",
-			"no_timer_check",
-			"noreplace-smp",
-			"systemd.default_standard_error=journal+console",
-			"systemd.default_standard_output=journal+console",
-			// "systemd.default_standard_output=tty",
-			"tsc=reliable",
-			"MACHINEID=" + p.UUID.String(),
-		}
+		hvStartCmd, _ := hypervisor.StartCmd(
+			common.Stage1RootfsPath(p.Root),
+			p.UUID.String(),
+			kernelPath,
+			netDescriptions,
+			cpu,
+			mem,
+			debug)
 
-		if debug {
-			kernelParams = append(kernelParams, []string{
-				"debug",
-				"systemd.log_level=debug",
-				"systemd.show_status=true",
-				// "systemd.confirm_spawn=true",
-			}...)
-		} else {
-			kernelParams = append(kernelParams, "quiet")
-		}
-
-		args = append(args, []string{
-			"./" + lkvmPath, // relative path
-			"run",
-			"--name", "rkt-" + p.UUID.String(),
-			"--no-dhcp", // speed bootup
-			"--cpu", strconv.FormatInt(cpu, 10),
-			"--mem", strconv.FormatInt(mem, 10),
-			"--console=virtio",
-			"--kernel", kernelPath,
-			"--disk", "stage1/rootfs", // relative to run/pods/uuid dir this is a place where systemd resides
-			// MACHINEID will be available as environment variable
-			"--params", strings.Join(kernelParams, " "),
-		}...,
-		)
-		args = append(args, lkvmNetArgs...)
-
-		if debug {
-			args = append(args, "--debug")
-		}
+		args = append(args, hvStartCmd...)
 
 		// lkvm requires $HOME to be defined,
 		// see https://github.com/coreos/rkt/issues/1393
