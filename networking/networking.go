@@ -36,7 +36,7 @@ import (
 )
 
 const (
-	IfNamePattern = "eth%d"
+	IfNamePattern = "eth%d" // name inside the container
 	selfNetNS     = "/proc/self/ns/net"
 )
 

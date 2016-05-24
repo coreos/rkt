@@ -1,0 +1,5 @@
+# Ignore Virtual Ethernet device pair created by rkt.
+# New versions of NetworkManager already ignore network interfaces of type
+# "veth" but we want to ignore them in old versions of NetworkManager too.
+ENV{INTERFACE}=="rkt-.*", ENV{NM_UNMANAGED}="1"
+ENV{INTERFACE}=="cni-.*", ENV{NM_UNMANAGED}="1"
