@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
 	};
 	static const mount_point dirs_mount_table[] = {
 		{ "/proc", "/proc", "bind", NULL, MS_BIND|MS_REC },
-		{ "/sys", "/sys", "bind", NULL, MS_BIND|MS_REC },
+		{ "sysfs", "/sys", "sysfs", NULL, MS_NOSUID|MS_NODEV|MS_NOEXEC },
 		{ "/dev/shm", "/dev/shm", "bind", NULL, MS_BIND },
 		{ "/dev/pts", "/dev/pts", "bind", NULL, MS_BIND },
 		{ "/run/systemd/journal", "/run/systemd/journal", "bind", NULL, MS_BIND },
