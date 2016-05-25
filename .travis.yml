@@ -8,7 +8,7 @@ go:
 
 before_install:
  - go get -u github.com/coreos/git-validation
- - git-validation -run subsystem-in-subject,dangling-whitespace -range HEAD^..
+ - git-validation -run subsystem-in-subject,dangling-whitespace -range @~1..@
 
 install:
  - sudo apt-get update -qq
