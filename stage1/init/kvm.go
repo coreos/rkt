@@ -39,7 +39,7 @@ func KvmNetworkingToSystemd(p *stage1commontypes.Pod, n *networking.Networking) 
 
 	// networking
 	netDescriptions := kvm.GetNetworkDescriptions(n)
-	if err := kvm.GenerateNetworkInterfaceUnits(filepath.Join(podRoot, stage1initcommon.UnitsDir), netDescriptions); err != nil {
+	if err := kvm.GenerateNetworkInterfaceUnits(filepath.Join(podRoot, stage1initcommon.UnitsDir), netDescriptions, debug); err != nil {
 		return errwrap.Wrap(errors.New("failed to transform networking to units"), err)
 	}
 
