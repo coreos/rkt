@@ -34,7 +34,7 @@ import (
 	"github.com/appc/docker2aci/lib/internal/util"
 	"github.com/appc/docker2aci/pkg/log"
 	"github.com/appc/spec/schema"
-	"github.com/coreos/ioprogress"
+	"github.com/coreos/pkg/progressutil"
 )
 
 const (
@@ -66,42 +66,96 @@ func (rb *RepositoryBackend) getImageInfoV2(dockerURL *types.ParsedDockerURL) ([
 	return layers, dockerURL, nil
 }
 
-func (rb *RepositoryBackend) buildACIV2(layerNumber int, layerID string, dockerURL *types.ParsedDockerURL, outputDir string, tmpBaseDir string, curPwl []string, compression common.Compression) (string, *schema.ImageManifest, error) {
-	manifest := rb.imageManifests[*dockerURL]
+func (rb *RepositoryBackend) buildACIV2(layerIDs []string, dockerURL *types.ParsedDockerURL, outputDir string, tmpBaseDir string, compression common.Compression) ([]string, []*schema.ImageManifest, error) {
+	layerFiles := make([]*os.File, len(layerIDs))
+	layerDatas := make([]types.DockerImageData, len(layerIDs))
 
-	layerIndex, err := getLayerIndex(layerID, manifest)
+	tmpParentDir, err := ioutil.TempDir(tmpBaseDir, "docker2aci-")
 	if err != nil {
-		return "", nil, err
+		return nil, nil, err
 	}
+	defer os.RemoveAll(tmpParentDir)
 
-	if len(manifest.History) <= layerIndex {
-		return "", nil, fmt.Errorf("history not found for layer %s", layerID)
+	copier := &progressutil.CopyProgressPrinter{}
+
+	var errChannels []chan error
+	closers := make([]io.ReadCloser, len(layerIDs))
+	for i, layerID := range layerIDs {
+		errChan := make(chan error)
+		errChannels = append(errChannels, errChan)
+		// https://github.com/golang/go/wiki/CommonMistakes
+		i := i // golang--
+		layerID := layerID
+		go func() {
+			manifest := rb.imageManifests[*dockerURL]
+
+			layerIndex, err := getLayerIndex(layerID, manifest)
+			if err != nil {
+				errChan <- err
+				return
+			}
+
+			if len(manifest.History) <= layerIndex {
+				errChan <- fmt.Errorf("history not found for layer %s", layerID)
+				return
+			}
+
+			layerDatas[i] = types.DockerImageData{}
+			if err := json.Unmarshal([]byte(manifest.History[layerIndex].V1Compatibility), &layerDatas[i]); err != nil {
+				errChan <- fmt.Errorf("error unmarshaling layer data: %v", err)
+				return
+			}
+
+			tmpDir, err := ioutil.TempDir(tmpParentDir, "")
+			if err != nil {
+				errChan <- fmt.Errorf("error creating dir: %v", err)
+				return
+			}
+
+			layerFiles[i], closers[i], err = rb.getLayerV2(layerID, dockerURL, tmpDir, copier)
+			if err != nil {
+				errChan <- fmt.Errorf("error getting the remote layer: %v", err)
+				return
+			}
+			errChan <- nil
+		}()
 	}
-
-	layerData := types.DockerImageData{}
-	if err := json.Unmarshal([]byte(manifest.History[layerIndex].V1Compatibility), &layerData); err != nil {
-		return "", nil, fmt.Errorf("error unmarshaling layer data: %v", err)
-	}
-
-	tmpDir, err := ioutil.TempDir(tmpBaseDir, "docker2aci-")
+	err = copier.PrintAndWait(os.Stderr, 500*time.Millisecond, nil)
 	if err != nil {
-		return "", nil, fmt.Errorf("error creating dir: %v", err)
+		return nil, nil, err
 	}
-	defer os.RemoveAll(tmpDir)
-
-	layerFile, err := rb.getLayerV2(layerID, dockerURL, tmpDir)
-	if err != nil {
-		return "", nil, fmt.Errorf("error getting the remote layer: %v", err)
+	for _, closer := range closers {
+		closer.Close()
 	}
-	defer layerFile.Close()
+	for _, errChan := range errChannels {
+		err := <-errChan
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	for _, layerFile := range layerFiles {
+		err := layerFile.Sync()
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	var aciLayerPaths []string
+	var aciManifests []*schema.ImageManifest
+	var curPwl []string
+	for i := len(layerIDs) - 1; i >= 0; i-- {
+		log.Debug("Generating layer ACI...")
+		aciPath, aciManifest, err := internal.GenerateACI(i, layerDatas[i], dockerURL, outputDir, layerFiles[i], curPwl, compression)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error generating ACI: %v", err)
+		}
+		aciLayerPaths = append(aciLayerPaths, aciPath)
+		aciManifests = append(aciManifests, aciManifest)
+		curPwl = aciManifest.PathWhitelist
 
-	log.Debug("Generating layer ACI...")
-	aciPath, aciManifest, err := internal.GenerateACI(layerNumber, layerData, dockerURL, outputDir, layerFile, curPwl, compression)
-	if err != nil {
-		return "", nil, fmt.Errorf("error generating ACI: %v", err)
+		layerFiles[i].Close()
 	}
 
-	return aciPath, aciManifest, nil
+	return aciLayerPaths, aciManifests, nil
 }
 
 func (rb *RepositoryBackend) getManifestV2(dockerURL *types.ParsedDockerURL) (*v2Manifest, []string, error) {
@@ -224,84 +278,61 @@ func getLayerIndex(layerID string, manifest v2Manifest) (int, error) {
 	return -1, fmt.Errorf("layer not found in manifest: %s", layerID)
 }
 
-func (rb *RepositoryBackend) getLayerV2(layerID string, dockerURL *types.ParsedDockerURL, tmpDir string) (*os.File, error) {
+func (rb *RepositoryBackend) getLayerV2(layerID string, dockerURL *types.ParsedDockerURL, tmpDir string, copier *progressutil.CopyProgressPrinter) (*os.File, io.ReadCloser, error) {
 	url := rb.schema + path.Join(dockerURL.IndexURL, "v2", dockerURL.ImageName, "blobs", layerID)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	rb.setBasicAuth(req)
 
 	res, err := rb.makeRequest(req, dockerURL.ImageName)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	defer res.Body.Close()
 
 	if res.StatusCode == http.StatusTemporaryRedirect || res.StatusCode == http.StatusFound {
 		location := res.Header.Get("Location")
 		if location != "" {
 			req, err = http.NewRequest("GET", location, nil)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			res, err = rb.makeRequest(req, dockerURL.ImageName)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			defer res.Body.Close()
 		}
 	}
 
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP code: %d. URL: %s", res.StatusCode, req.URL)
+		return nil, nil, fmt.Errorf("HTTP code: %d. URL: %s", res.StatusCode, req.URL)
 	}
 
 	var in io.Reader
 	in = res.Body
 
-	if hdr := res.Header.Get("Content-Length"); hdr != "" {
-		imgSize, err := strconv.ParseInt(hdr, 10, 64)
-		if err != nil {
-			return nil, err
-		}
+	var size int64
 
-		prefix := "Downloading " + layerID[:18]
-		fmtBytesSize := 18
-		barSize := int64(80 - len(prefix) - fmtBytesSize)
-		bar := ioprogress.DrawTextFormatBarForW(barSize, os.Stderr)
-		fmtfunc := func(progress, total int64) string {
-			return fmt.Sprintf(
-				"%s: %s %s",
-				prefix,
-				bar(progress, total),
-				ioprogress.DrawTextFormatBytes(progress, total),
-			)
-		}
-		in = &ioprogress.Reader{
-			Reader:       res.Body,
-			Size:         imgSize,
-			DrawFunc:     ioprogress.DrawTerminalf(os.Stderr, fmtfunc),
-			DrawInterval: 500 * time.Millisecond,
+	if hdr := res.Header.Get("Content-Length"); hdr != "" {
+		size, err = strconv.ParseInt(hdr, 10, 64)
+		if err != nil {
+			return nil, nil, err
 		}
 	}
+
+	name := "Downloading " + layerID[:18]
 
 	layerFile, err := ioutil.TempFile(tmpDir, "dockerlayer-")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	_, err = io.Copy(layerFile, in)
-	if err != nil {
-		return nil, err
-	}
+	copier.AddCopy(in, name, size, layerFile)
 
-	if err := layerFile.Sync(); err != nil {
-		return nil, err
-	}
-
-	return layerFile, nil
+	return layerFile, res.Body, nil
 }
 
 func (rb *RepositoryBackend) makeRequest(req *http.Request, repo string) (*http.Response, error) {
@@ -330,18 +361,17 @@ func (rb *RepositoryBackend) makeRequest(req *http.Request, repo string) (*http.
 		return res, err
 	}
 
-	tokens := strings.Split(hdr, " ")
-	if len(tokens) != 2 || strings.ToLower(tokens[0]) != "bearer" {
+	tokens := strings.Split(hdr, ",")
+	if len(tokens) != 3 ||
+		!strings.HasPrefix(strings.ToLower(tokens[0]), "bearer realm") {
 		return res, err
 	}
 	res.Body.Close()
 
-	tokens = strings.Split(tokens[1], ",")
-
 	var realm, service, scope string
 	for _, token := range tokens {
-		if strings.HasPrefix(token, "realm") {
-			realm = strings.Trim(token[len("realm="):], "\"")
+		if strings.HasPrefix(strings.ToLower(token), "bearer realm") {
+			realm = strings.Trim(token[len("bearer realm="):], "\"")
 		}
 		if strings.HasPrefix(token, "service") {
 			service = strings.Trim(token[len("service="):], "\"")

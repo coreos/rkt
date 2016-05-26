@@ -93,11 +93,11 @@ func (rb *RepositoryBackend) GetImageInfo(url string) ([]string, *types.ParsedDo
 	}
 }
 
-func (rb *RepositoryBackend) BuildACI(layerNumber int, layerID string, dockerURL *types.ParsedDockerURL, outputDir string, tmpBaseDir string, curPwl []string, compression common.Compression) (string, *schema.ImageManifest, error) {
+func (rb *RepositoryBackend) BuildACI(layerIDs []string, dockerURL *types.ParsedDockerURL, outputDir string, tmpBaseDir string, compression common.Compression) ([]string, []*schema.ImageManifest, error) {
 	if rb.hostsV2Support[dockerURL.IndexURL] {
-		return rb.buildACIV2(layerNumber, layerID, dockerURL, outputDir, tmpBaseDir, curPwl, compression)
+		return rb.buildACIV2(layerIDs, dockerURL, outputDir, tmpBaseDir, compression)
 	} else {
-		return rb.buildACIV1(layerNumber, layerID, dockerURL, outputDir, tmpBaseDir, curPwl, compression)
+		return rb.buildACIV1(layerIDs, dockerURL, outputDir, tmpBaseDir, compression)
 	}
 }
 

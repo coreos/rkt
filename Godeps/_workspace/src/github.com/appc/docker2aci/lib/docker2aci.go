@@ -18,7 +18,6 @@ package docker2aci
 
 import (
 	"archive/tar"
-	"compress/gzip"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -38,6 +37,7 @@ import (
 	"github.com/appc/spec/pkg/acirenderer"
 	"github.com/appc/spec/schema"
 	appctypes "github.com/appc/spec/schema/types"
+	gzip "github.com/klauspost/pgzip"
 )
 
 // CommonConfig represents the shared configuration options for converting
@@ -124,31 +124,25 @@ func convertReal(backend internal.Docker2ACIBackend, dockerURL string, squash bo
 
 	conversionStore := newConversionStore()
 
+	// only compress individual layers if we're not squashing
+	layerCompression := compression
+	if squash {
+		layerCompression = common.NoCompression
+	}
+
+	aciLayerPaths, aciManifests, err := backend.BuildACI(ancestry, parsedDockerURL, layersOutputDir, tmpDir, layerCompression)
+	if err != nil {
+		return nil, err
+	}
+
 	var images acirenderer.Images
-	var aciLayerPaths []string
-	var curPwl []string
-	for i := len(ancestry) - 1; i >= 0; i-- {
-		layerID := ancestry[i]
-
-		// only compress individual layers if we're not squashing
-		layerCompression := compression
-		if squash {
-			layerCompression = common.NoCompression
-		}
-
-		aciPath, manifest, err := backend.BuildACI(i, layerID, parsedDockerURL, layersOutputDir, tmpDir, curPwl, layerCompression)
-		if err != nil {
-			return nil, fmt.Errorf("error building layer: %v", err)
-		}
-
-		key, err := conversionStore.WriteACI(aciPath)
+	for i, aciLayerPath := range aciLayerPaths {
+		key, err := conversionStore.WriteACI(aciLayerPath)
 		if err != nil {
 			return nil, fmt.Errorf("error inserting in the conversion store: %v", err)
 		}
 
-		images = append(images, acirenderer.Image{Im: manifest, Key: key, Level: uint16(i)})
-		aciLayerPaths = append(aciLayerPaths, aciPath)
-		curPwl = manifest.PathWhitelist
+		images = append(images, acirenderer.Image{Im: aciManifests[i], Key: key, Level: uint16(len(aciLayerPaths) - 1 - i)})
 	}
 
 	// acirenderer expects images in order from upper to base layer

@@ -68,39 +68,48 @@ func (lb *FileBackend) GetImageInfo(dockerURL string) ([]string, *types.ParsedDo
 	return ancestry, parsedDockerURL, nil
 }
 
-func (lb *FileBackend) BuildACI(layerNumber int, layerID string, dockerURL *types.ParsedDockerURL, outputDir string, tmpBaseDir string, curPwl []string, compression common.Compression) (string, *schema.ImageManifest, error) {
-	tmpDir, err := ioutil.TempDir(tmpBaseDir, "docker2aci-")
-	if err != nil {
-		return "", nil, fmt.Errorf("error creating dir: %v", err)
+func (lb *FileBackend) BuildACI(layerIDs []string, dockerURL *types.ParsedDockerURL, outputDir string, tmpBaseDir string, compression common.Compression) ([]string, []*schema.ImageManifest, error) {
+	var aciLayerPaths []string
+	var aciManifests []*schema.ImageManifest
+	var curPwl []string
+	for i := len(layerIDs) - 1; i >= 0; i-- {
+		tmpDir, err := ioutil.TempDir(tmpBaseDir, "docker2aci-")
+		if err != nil {
+			return nil, nil, fmt.Errorf("error creating dir: %v", err)
+		}
+		defer os.RemoveAll(tmpDir)
+
+		j, err := getJson(lb.file, layerIDs[i])
+		if err != nil {
+			return nil, nil, fmt.Errorf("error getting image json: %v", err)
+		}
+
+		layerData := types.DockerImageData{}
+		if err := json.Unmarshal(j, &layerData); err != nil {
+			return nil, nil, fmt.Errorf("error unmarshaling layer data: %v", err)
+		}
+
+		tmpLayerPath := path.Join(tmpDir, layerIDs[i])
+		tmpLayerPath += ".tar"
+
+		layerFile, err := extractEmbeddedLayer(lb.file, layerIDs[i], tmpLayerPath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error getting layer from file: %v", err)
+		}
+		defer layerFile.Close()
+
+		log.Debug("Generating layer ACI...")
+		aciPath, manifest, err := internal.GenerateACI(i, layerData, dockerURL, outputDir, layerFile, curPwl, compression)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error generating ACI: %v", err)
+		}
+
+		aciLayerPaths = append(aciLayerPaths, aciPath)
+		aciManifests = append(aciManifests, manifest)
+		curPwl = manifest.PathWhitelist
 	}
-	defer os.RemoveAll(tmpDir)
 
-	j, err := getJson(lb.file, layerID)
-	if err != nil {
-		return "", nil, fmt.Errorf("error getting image json: %v", err)
-	}
-
-	layerData := types.DockerImageData{}
-	if err := json.Unmarshal(j, &layerData); err != nil {
-		return "", nil, fmt.Errorf("error unmarshaling layer data: %v", err)
-	}
-
-	tmpLayerPath := path.Join(tmpDir, layerID)
-	tmpLayerPath += ".tar"
-
-	layerFile, err := extractEmbeddedLayer(lb.file, layerID, tmpLayerPath)
-	if err != nil {
-		return "", nil, fmt.Errorf("error getting layer from file: %v", err)
-	}
-	defer layerFile.Close()
-
-	log.Debug("Generating layer ACI...")
-	aciPath, manifest, err := internal.GenerateACI(layerNumber, layerData, dockerURL, outputDir, layerFile, curPwl, compression)
-	if err != nil {
-		return "", nil, fmt.Errorf("error generating ACI: %v", err)
-	}
-
-	return aciPath, manifest, nil
+	return aciLayerPaths, aciManifests, nil
 }
 
 func getImageID(file *os.File, dockerURL *types.ParsedDockerURL) (string, *types.ParsedDockerURL, error) {
