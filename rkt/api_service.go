@@ -380,16 +380,24 @@ func getBasicPod(p *pod) (*v1alpha.Pod, *schema.PodManifest) {
 		if err != nil {
 			stderr.PrintE(fmt.Sprintf("failed to get the container PID1 for pod %q", p.uuid), err)
 		} else {
-			cgroup, err := cgroup.GetCgroupPathByPid(pid, "name=systemd")
+			isUnified, err := cgroup.IsCgroupUnified("/")
+			if err != nil {
+				stderr.PrintE("failed to determine the cgroup version", err)
+			}
+
+			var cgroupPath string
+			if isUnified {
+				cgroupPath, err = cgroup.GetCgroupPathByPid(pid)
+			} else {
+				cgroupPath, err = cgroup.GetLegacyCgroupPathByPid(pid, "name=systemd")
+			}
 			if err != nil {
 				stderr.PrintE(fmt.Sprintf("failed to get the cgroup path for pod %q", p.uuid), err)
 			} else {
 				// If the stage1 systemd > v226, it will put the PID1 into "init.scope"
 				// implicit scope unit in the root slice.
 				// See https://github.com/coreos/rkt/pull/2331#issuecomment-203540543
-				//
-				// TODO(yifan): Revisit this when using unified cgroup hierarchy.
-				pod.Cgroup = strings.TrimSuffix(cgroup, "/init.scope")
+				pod.Cgroup = strings.TrimSuffix(cgroupPath, "/init.scope")
 			}
 		}
 	}

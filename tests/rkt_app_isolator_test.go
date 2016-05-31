@@ -58,7 +58,10 @@ var cgroupsTest = struct {
 }
 
 func TestAppIsolatorMemory(t *testing.T) {
-	ok := cgroup.IsIsolatorSupported("memory")
+	ok, err := cgroup.IsIsolatorSupported("memory")
+	if err != nil {
+		t.Fatalf("Error checking memory isolator support: %v", err)
+	}
 	if !ok {
 		t.Skip("Memory isolator not supported.")
 	}
@@ -81,7 +84,20 @@ func TestAppIsolatorMemory(t *testing.T) {
 }
 
 func TestAppIsolatorCPU(t *testing.T) {
-	ok := cgroup.IsIsolatorSupported("cpu")
+	isUnified, err := cgroup.IsCgroupUnified("/")
+	if err != nil {
+		t.Fatalf("Error determining the cgroup version: %v", err)
+	}
+
+	if isUnified {
+		// TODO: for now kernel does not support cpu isolator in cgroup2.
+		// Write a test when it does.
+		t.Skip("kernel does not support cpu isolator in cgroup2.")
+	}
+	ok, err := cgroup.IsIsolatorSupported("cpu")
+	if err != nil {
+		t.Fatalf("Error checking cpu isolator support: %v", err)
+	}
 	if !ok {
 		t.Skip("CPU isolator not supported.")
 	}

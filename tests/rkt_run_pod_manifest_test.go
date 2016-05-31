@@ -1057,9 +1057,15 @@ func TestPodManifest(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		if tt.cgroup != "" && !cgroup.IsIsolatorSupported(tt.cgroup) {
-			t.Logf("Skip test #%v: cgroup %s not supported", i, tt.cgroup)
-			continue
+		if tt.cgroup != "" {
+			ok, err := cgroup.IsIsolatorSupported(tt.cgroup)
+			if err != nil {
+				t.Fatalf("Error checking memory isolator support: %v", err)
+			}
+			if !ok {
+				t.Logf("Skip test #%v: cgroup %s not supported", i, tt.cgroup)
+				continue
+			}
 		}
 
 		var hashesToRemove []string

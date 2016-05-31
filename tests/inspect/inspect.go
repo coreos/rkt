@@ -313,17 +313,34 @@ func main() {
 	}
 
 	if globalFlags.PrintMemoryLimit {
-		memCgroupPath, err := cgroup.GetOwnCgroupPath("memory")
+		// we use /proc/1/root to escape the chroot we're in and read the file
+		isUnified, err := cgroup.IsCgroupUnified("/proc/1/root/")
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error getting own memory cgroup path: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Error getting cgroup type: %v\n", err)
 			os.Exit(1)
 		}
-		// we use /proc/1/root to escape the chroot we're in and read our
-		// memory limit
-		limitPath := filepath.Join("/proc/1/root/sys/fs/cgroup/memory", memCgroupPath, "memory.limit_in_bytes")
+
+		var limitPath string
+		if isUnified {
+			cgroupPath, err := cgroup.GetOwnCgroupPath()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error getting own memory cgroup path: %v\n", err)
+				os.Exit(1)
+			}
+			limitPath = filepath.Join("/proc/1/root/sys/fs/cgroup/", cgroupPath, "memory.max")
+			fmt.Fprintln(os.Stderr, "limitPath:", limitPath)
+		} else {
+			memCgroupPath, err := cgroup.GetOwnLegacyCgroupPath("memory")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error getting own memory cgroup path: %v\n", err)
+				os.Exit(1)
+			}
+			limitPath = filepath.Join("/proc/1/root/sys/fs/cgroup/memory", memCgroupPath, "memory.limit_in_bytes")
+			fmt.Fprintln(os.Stderr, limitPath)
+		}
 		limit, err := ioutil.ReadFile(limitPath)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Can't read memory.limit_in_bytes\n")
+			fmt.Fprintf(os.Stderr, "Can't read %s\n", limitPath)
 			os.Exit(1)
 		}
 
@@ -331,7 +348,7 @@ func main() {
 	}
 
 	if globalFlags.PrintCPUQuota {
-		cpuCgroupPath, err := cgroup.GetOwnCgroupPath("cpu")
+		cpuCgroupPath, err := cgroup.GetOwnLegacyCgroupPath("cpu")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error getting own cpu cgroup path: %v\n", err)
 			os.Exit(1)

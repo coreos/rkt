@@ -605,36 +605,44 @@ func stage1() int {
 		log.FatalE("error making / a shared and slave mount", err)
 	}
 
-	enabledCgroups, err := cgroup.GetEnabledCgroups()
+	unifiedCgroup, err := cgroup.IsCgroupUnified("/")
 	if err != nil {
-		log.FatalE("error getting cgroups", err)
+		log.FatalE("error determing cgroup version", err)
 		return 1
 	}
 
-	if err := mountHostCgroups(enabledCgroups); err != nil {
-		log.FatalE("couldn't mount the host cgroups", err)
-		return 1
-	}
-
-	var serviceNames []string
-	for _, app := range p.Manifest.Apps {
-		serviceNames = append(serviceNames, stage1initcommon.ServiceUnitName(app.Name))
-	}
 	s1Root := common.Stage1RootfsPath(p.Root)
 	machineID := stage1initcommon.GetMachineID(p)
-	subcgroup, err := getContainerSubCgroup(machineID)
-	if err == nil {
-		if err := ioutil.WriteFile(filepath.Join(p.Root, "subcgroup"),
-			[]byte(fmt.Sprintf("%s", subcgroup)), 0644); err != nil {
-			log.FatalE("cannot write subcgroup file", err)
+	if !unifiedCgroup {
+		enabledCgroups, err := cgroup.GetEnabledLegacyCgroups()
+		if err != nil {
+			log.FatalE("error getting legacy cgroups", err)
 			return 1
 		}
-		if err := mountContainerCgroups(s1Root, enabledCgroups, subcgroup, serviceNames); err != nil {
-			log.PrintE("couldn't mount the container cgroups", err)
+
+		if err := mountHostLegacyCgroups(enabledCgroups); err != nil {
+			log.FatalE("couldn't mount the host legacy cgroups", err)
 			return 1
 		}
-	} else {
-		log.PrintE("continuing with per-app isolators disabled", err)
+
+		var serviceNames []string
+		for _, app := range p.Manifest.Apps {
+			serviceNames = append(serviceNames, stage1initcommon.ServiceUnitName(app.Name))
+		}
+		subcgroup, err := getContainerLegacySubCgroup(machineID)
+		if err == nil {
+			if err := ioutil.WriteFile(filepath.Join(p.Root, "subcgroup"),
+				[]byte(fmt.Sprintf("%s", subcgroup)), 0644); err != nil {
+				log.FatalE("cannot write subcgroup file", err)
+				return 1
+			}
+			if err := mountContainerLegacyCgroups(s1Root, enabledCgroups, subcgroup, serviceNames); err != nil {
+				log.PrintE("couldn't mount the container legacy cgroups", err)
+				return 1
+			}
+		} else {
+			log.PrintE("continuing with per-app isolators disabled", err)
+		}
 	}
 
 	// KVM flavor has a bit different logic in handling pid vs ppid, for details look into #2389
@@ -668,10 +676,10 @@ func stage1() int {
 	return 0
 }
 
-func areHostCgroupsMounted(enabledCgroups map[int][]string) bool {
-	controllers := cgroup.GetControllerDirs(enabledCgroups)
+func areHostLegacyCgroupsMounted(enabledLegacyCgroups map[int][]string) bool {
+	controllers := cgroup.GetLegacyControllerDirs(enabledLegacyCgroups)
 	for _, c := range controllers {
-		if !cgroup.IsControllerMounted(c) {
+		if !cgroup.IsLegacyControllerMounted(c) {
 			return false
 		}
 	}
@@ -679,21 +687,21 @@ func areHostCgroupsMounted(enabledCgroups map[int][]string) bool {
 	return true
 }
 
-// mountHostCgroups mounts the host cgroup hierarchy as required by
+// mountHostLegacyCgroups mounts the host legacy cgroup hierarchy as required by
 // systemd-nspawn. We need this because some distributions don't have the
 // "name=systemd" cgroup or don't mount the cgroup controllers in
 // "/sys/fs/cgroup", and systemd-nspawn needs this. Since this is mounted
 // inside the rkt mount namespace, it doesn't affect the host.
-func mountHostCgroups(enabledCgroups map[int][]string) error {
+func mountHostLegacyCgroups(enabledCgroups map[int][]string) error {
 	systemdControllerPath := "/sys/fs/cgroup/systemd"
-	if !areHostCgroupsMounted(enabledCgroups) {
+	if !areHostLegacyCgroupsMounted(enabledCgroups) {
 		mountContext := os.Getenv(common.EnvSELinuxMountContext)
-		if err := cgroup.CreateCgroups("/", enabledCgroups, mountContext); err != nil {
+		if err := cgroup.CreateLegacyCgroups("/", enabledCgroups, mountContext); err != nil {
 			return errwrap.Wrap(errors.New("error creating host cgroups"), err)
 		}
 	}
 
-	if !cgroup.IsControllerMounted("systemd") {
+	if !cgroup.IsLegacyControllerMounted("systemd") {
 		if err := os.MkdirAll(systemdControllerPath, 0700); err != nil {
 			return err
 		}
@@ -705,22 +713,22 @@ func mountHostCgroups(enabledCgroups map[int][]string) error {
 	return nil
 }
 
-// mountContainerCgroups mounts the cgroup controllers hierarchy in the container's
+// mountContainerLegacyCgroups mounts the cgroup controllers hierarchy in the container's
 // namespace read-only, leaving the needed knobs in the subcgroup for each-app
 // read-write so systemd inside stage1 can apply isolators to them
-func mountContainerCgroups(s1Root string, enabledCgroups map[int][]string, subcgroup string, serviceNames []string) error {
+func mountContainerLegacyCgroups(s1Root string, enabledCgroups map[int][]string, subcgroup string, serviceNames []string) error {
 	mountContext := os.Getenv(common.EnvSELinuxMountContext)
-	if err := cgroup.CreateCgroups(s1Root, enabledCgroups, mountContext); err != nil {
+	if err := cgroup.CreateLegacyCgroups(s1Root, enabledCgroups, mountContext); err != nil {
 		return errwrap.Wrap(errors.New("error creating container cgroups"), err)
 	}
-	if err := cgroup.RemountCgroupsRO(s1Root, enabledCgroups, subcgroup, serviceNames); err != nil {
+	if err := cgroup.RemountLegacyCgroupsRO(s1Root, enabledCgroups, subcgroup, serviceNames); err != nil {
 		return errwrap.Wrap(errors.New("error restricting container cgroups"), err)
 	}
 
 	return nil
 }
 
-func getContainerSubCgroup(machineID string) (string, error) {
+func getContainerLegacySubCgroup(machineID string) (string, error) {
 	var subcgroup string
 	fromUnit, err := util.RunningFromSystemService()
 	if err != nil {
@@ -751,16 +759,16 @@ func getContainerSubCgroup(machineID string) (string, error) {
 		} else {
 			// when registration is disabled the container will be directly
 			// under the current cgroup so we can look it up in /proc/self/cgroup
-			ownCgroupPath, err := cgroup.GetOwnCgroupPath("name=systemd")
+			ownLegacyCgroupPath, err := cgroup.GetOwnLegacyCgroupPath("name=systemd")
 			if err != nil {
-				return "", errwrap.Wrap(errors.New("could not get own cgroup path"), err)
+				return "", errwrap.Wrap(errors.New("could not get own legacy cgroup path"), err)
 			}
 			// systemd-nspawn won't work if we are in the root cgroup. In addition,
 			// we want all rkt instances to be in distinct cgroups. Create a
 			// subcgroup and add ourselves to it.
-			subcgroup = filepath.Join(ownCgroupPath, machineDir)
-			if err := cgroup.JoinSubcgroup("systemd", subcgroup); err != nil {
-				return "", errwrap.Wrap(fmt.Errorf("error joining %s subcgroup", subcgroup), err)
+			subcgroup = filepath.Join(ownLegacyCgroupPath, machineDir)
+			if err := cgroup.JoinLegacySubcgroup("systemd", subcgroup); err != nil {
+				return "", errwrap.Wrap(fmt.Errorf("error joining %s subcgroup", ownLegacyCgroupPath), err)
 			}
 		}
 	}
