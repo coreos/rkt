@@ -1,3 +1,4 @@
+// Copyright 2016 The rkt Authors
 // Copyright 2014,2015 Red Hat, Inc
 // Copyright 2014,2015 Docker, Inc
 //
@@ -19,20 +20,18 @@ package selinux
 
 import (
 	"bufio"
-	"crypto/rand"
-	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/coreos/rkt/pkg/fileutil"
-	"github.com/hashicorp/errwrap"
 )
 
 const (
@@ -55,7 +54,13 @@ var (
 	selinuxEnabled        = false // Stores whether selinux is currently enabled
 	selinuxEnabledChecked = false // Stores whether selinux enablement has been checked or established yet
 	mcsdir                = ""    // Directory to use for MCS storage
+
+	errMCSAlreadyExists = fmt.Errorf("MCS label already exists")
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 type SELinuxContext map[string]string
 
@@ -281,10 +286,9 @@ func mcsAdd(mcs string) error {
 	file, err := os.OpenFile(filename, os.O_CREATE|os.O_EXCL|os.O_RDONLY, 0644)
 	if err != nil {
 		if os.IsExist(err) {
-			return fmt.Errorf("MCS label already exists")
-		} else {
-			return errwrap.Wrap(errors.New("unable to test MCS"), err)
+			return errMCSAlreadyExists
 		}
+		return fmt.Errorf("unable to create MCS: %v", err)
 	}
 	file.Close()
 	return nil
@@ -324,34 +328,31 @@ func IntToMcs(id int, catRange uint32) string {
 	return fmt.Sprintf("s0:c%d,c%d", TIER, ORD)
 }
 
-func uniqMcs(catRange uint32) string {
+func mustMakeUniqueMcs(catRange int32) string {
 	var (
-		n      uint32
 		c1, c2 uint32
 		mcs    string
+		tries  = 1000000
+		err    error
 	)
 
-	for {
-		binary.Read(rand.Reader, binary.LittleEndian, &n)
-		c1 = n % catRange
-		binary.Read(rand.Reader, binary.LittleEndian, &n)
-		c2 = n % catRange
+	for i := 0; i < tries; i++ {
+		c1 = uint32(rand.Int31n(catRange))
+		c2 = uint32(rand.Int31n(catRange))
 		if c1 == c2 {
 			continue
-		} else {
-			if c1 > c2 {
-				t := c1
-				c1 = c2
-				c2 = t
-			}
+		}
+		if c1 > c2 {
+			c1, c2 = c2, c1
 		}
 		mcs = fmt.Sprintf("s0:c%d,c%d", c1, c2)
-		if err := mcsAdd(mcs); err != nil {
-			continue
+		err = mcsAdd(mcs)
+		if err == nil {
+			return mcs
 		}
-		break
 	}
-	return mcs
+	// TODO(jonboulle): propagate this error
+	panic(fmt.Sprintf("couldn't generate unique MCS after %d tries! (last err=%v)", tries, err))
 }
 
 func FreeLxcContexts(scon string) {
@@ -413,8 +414,7 @@ func GetLxcContexts() (processLabel string, fileLabel string) {
 	}
 
 exit:
-	//	mcs := IntToMcs(os.Getpid(), 1024)
-	mcs := uniqMcs(1024)
+	mcs := mustMakeUniqueMcs(1024)
 	scon := NewContext(processLabel)
 	scon["level"] = mcs
 	processLabel = scon.Get()
