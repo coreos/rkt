@@ -3,6 +3,8 @@
 [![godoc](https://godoc.org/github.com/coreos/rkt?status.svg)](http://godoc.org/github.com/coreos/rkt)
 [![Build Status (Travis)](https://travis-ci.org/coreos/rkt.svg?branch=master)](https://travis-ci.org/coreos/rkt)
 [![Build Status (SemaphoreCI)](https://semaphoreci.com/api/v1/projects/28468e19-4fd0-483e-9c29-6c8368661333/395211/badge.svg)](https://semaphoreci.com/coreos/rkt)
+[![IRC](https://img.shields.io/badge/irc-%23rkt-F04C5C.svg)](irc://irc.freenode.org:6667/#rkt)
+[![IRC](https://img.shields.io/badge/irc-%23rkt-dev-F04C5C.svg)](irc://irc.freenode.org:6667/#rkt-dev)
 
 ![rkt Logo](logos/rkt-horizontal-color.png)
 
