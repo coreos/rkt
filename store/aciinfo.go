@@ -28,6 +28,10 @@ type ACIInfo struct {
 	BlobKey string
 	// Name is the name of the ACI.
 	Name string
+	// DockerID is the hash ID the image had under docker before being
+	// converted to an ACI. Only applicable to ACIs produced from docker
+	// images.
+	DockerID string
 	// ImportTime is the time this ACI was imported in the store.
 	ImportTime time.Time
 	// LastUsed is the last time this image was read
@@ -41,9 +45,10 @@ type ACIInfo struct {
 	Latest bool
 }
 
-func NewACIInfo(blobKey string, latest bool, t time.Time, size int64, treeStoreSize int64) *ACIInfo {
+func NewACIInfo(blobKey, dockerID string, latest bool, t time.Time, size int64, treeStoreSize int64) *ACIInfo {
 	return &ACIInfo{
 		BlobKey:       blobKey,
+		DockerID:      dockerID,
 		Latest:        latest,
 		ImportTime:    t,
 		LastUsed:      time.Now(),
@@ -54,7 +59,7 @@ func NewACIInfo(blobKey string, latest bool, t time.Time, size int64, treeStoreS
 
 func aciinfoRowScan(rows *sql.Rows, aciinfo *ACIInfo) error {
 	// This ordering MUST match that in schema.go
-	return rows.Scan(&aciinfo.BlobKey, &aciinfo.Name, &aciinfo.ImportTime, &aciinfo.LastUsed, &aciinfo.Latest, &aciinfo.Size, &aciinfo.TreeStoreSize)
+	return rows.Scan(&aciinfo.BlobKey, &aciinfo.Name, &aciinfo.DockerID, &aciinfo.ImportTime, &aciinfo.LastUsed, &aciinfo.Latest, &aciinfo.Size, &aciinfo.TreeStoreSize)
 }
 
 // GetAciInfosWithKeyPrefix returns all the ACIInfos with a blobkey starting with the given prefix.
@@ -83,6 +88,29 @@ func GetACIInfosWithName(tx *sql.Tx, name string) ([]*ACIInfo, bool, error) {
 	var aciinfos []*ACIInfo
 	found := false
 	rows, err := tx.Query("SELECT * from aciinfo WHERE name == $1", name)
+	if err != nil {
+		return nil, false, err
+	}
+	for rows.Next() {
+		found = true
+		aciinfo := &ACIInfo{}
+		if err := aciinfoRowScan(rows, aciinfo); err != nil {
+			return nil, false, err
+		}
+		aciinfos = append(aciinfos, aciinfo)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, false, err
+	}
+	return aciinfos, found, err
+}
+
+// getAciInfosWithDockerID returns all the ACIInfos with a given docker ID.
+// found will be false if no aciinfo exists.
+func getACIInfosWithDockerID(tx *sql.Tx, dockerid string) ([]*ACIInfo, bool, error) {
+	var aciinfos []*ACIInfo
+	found := false
+	rows, err := tx.Query("SELECT * from aciinfo WHERE dockerid == $1", dockerid)
 	if err != nil {
 		return nil, false, err
 	}
@@ -161,7 +189,7 @@ func WriteACIInfo(tx *sql.Tx, aciinfo *ACIInfo) error {
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec("INSERT into aciinfo (blobkey, name, importtime, lastused, latest, size, treestoresize) VALUES ($1, $2, $3, $4, $5, $6, $7)", aciinfo.BlobKey, aciinfo.Name, aciinfo.ImportTime, aciinfo.LastUsed, aciinfo.Latest, aciinfo.Size, aciinfo.TreeStoreSize)
+	_, err = tx.Exec("INSERT into aciinfo (blobkey, name, dockerid, importtime, lastused, latest, size, treestoresize) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", aciinfo.BlobKey, aciinfo.Name, aciinfo.DockerID, aciinfo.ImportTime, aciinfo.LastUsed, aciinfo.Latest, aciinfo.Size, aciinfo.TreeStoreSize)
 	if err != nil {
 		return err
 	}

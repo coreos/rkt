@@ -502,11 +502,14 @@ func (s *Store) WriteACI(r io.ReadSeeker, latest bool) (string, error) {
 		return "", errwrap.Wrap(errors.New("error importing image manifest"), err)
 	}
 
+	dockerID, _ := im.Annotations.Get("appc.io/docker/imageid")
+
 	// Save aciinfo
 	if err = s.db.Do(func(tx *sql.Tx) error {
 		aciinfo := &ACIInfo{
 			BlobKey:    key,
 			Name:       im.Name.String(),
+			DockerID:   dockerID,
 			ImportTime: time.Now(),
 			LastUsed:   time.Now(),
 			Latest:     latest,
@@ -849,6 +852,24 @@ func (s *Store) GetAllACIInfos(sortfields []string, ascending bool) ([]*ACIInfo,
 		aciInfos, err = GetAllACIInfos(tx, sortfields, ascending)
 		return err
 	})
+	return aciInfos, err
+}
+
+func (s *Store) GetACIInfosWithDockerID(dockerid string) ([]*ACIInfo, error) {
+	var aciInfos []*ACIInfo
+	var found bool
+	err := s.db.Do(func(tx *sql.Tx) error {
+		var err error
+		aciInfos, found, err = getACIInfosWithDockerID(tx, dockerid)
+		return err
+	})
+	if !found {
+		if err != nil {
+			err = errwrap.Wrap(fmt.Errorf("ACI info not found with docker hash %q", dockerid), err)
+		} else {
+			err = fmt.Errorf("ACI info not found with docker hash %q", dockerid)
+		}
+	}
 	return aciInfos, err
 }
 

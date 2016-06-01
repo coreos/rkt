@@ -161,6 +161,8 @@ func (f *Fetcher) fetchSingleImageByURL(urlStr string, a *asc) (string, error) {
 		return f.fetchSingleImageByHTTPURL(u, a)
 	case "docker":
 		return f.fetchSingleImageByDockerURL(u)
+	case "docker-hash":
+		return f.fetchSingleImageByDockerHash(u)
 	case "file":
 		return f.fetchSingleImageByPath(u.Path, a)
 	case "":
@@ -198,6 +200,23 @@ func (f *Fetcher) fetchSingleImageByDockerURL(u *url.URL) (string, error) {
 		return h, err
 	}
 	return "", fmt.Errorf("unable to fetch docker image from URL %q: either image was not found in the store or store was disabled and fetching from remote yielded nothing or it was disabled", u.String())
+}
+
+func (f *Fetcher) fetchSingleImageByDockerHash(u *url.URL) (string, error) {
+	if u.Host == "" {
+		return "", fmt.Errorf("the docker id cannot be empty")
+	}
+	aciinfos, err := f.S.GetACIInfosWithDockerID(u.Host)
+	if err != nil {
+		return "", err
+	}
+	if len(aciinfos) == 0 {
+		return "", fmt.Errorf("no images in the store with the docker id %q", u.Host)
+	}
+	if len(aciinfos) != 1 {
+		return "", fmt.Errorf("unexpected number of images with that docker hash: %d", len(aciinfos))
+	}
+	return aciinfos[0].BlobKey, nil
 }
 
 func (f *Fetcher) getRemoteForURL(u *url.URL) (*store.Remote, error) {

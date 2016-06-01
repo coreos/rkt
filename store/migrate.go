@@ -33,6 +33,7 @@ var (
 		3: migrateToV3,
 		4: migrateToV4,
 		5: migrateToV5,
+		6: migrateToV6,
 	}
 )
 
@@ -139,6 +140,25 @@ func migrateToV5(tx *sql.Tx) error {
 		"INSERT INTO aciinfo_tmp (blobkey, name, importtime, lastused, latest) SELECT blobkey, name, importtime, lastusedtime, latest from aciinfo",
 		"DROP TABLE aciinfo",
 		"CREATE TABLE aciinfo (blobkey string, name string, importtime time, lastused time, latest bool, size int64 DEFAULT 0, treestoresize int64 DEFAULT 0);",
+		"CREATE UNIQUE INDEX IF NOT EXISTS blobkeyidx ON aciinfo (blobkey)",
+		"CREATE INDEX IF NOT EXISTS nameidx ON aciinfo (name)",
+		"INSERT INTO aciinfo SELECT * from aciinfo_tmp",
+		"DROP TABLE aciinfo_tmp",
+	} {
+		_, err := tx.Exec(t)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func migrateToV6(tx *sql.Tx) error {
+	for _, t := range []string{
+		"CREATE TABLE aciinfo_tmp (blobkey string, name string, dockerid string, importtime time, lastused time, latest bool, size int64, treestoresize int64);",
+		"INSERT INTO aciinfo_tmp (blobkey, name, importtime, lastused, latest, size, treestoresize) SELECT blobkey, name, importtime, lastusedtime, latest, size, treestoresize from aciinfo",
+		"DROP TABLE aciinfo",
+		"CREATE TABLE aciinfo (blobkey string, name string, dockerid string DEFAULT \"\", importtime time, lastused time, latest bool, size int64, treestoresize int64);",
 		"CREATE UNIQUE INDEX IF NOT EXISTS blobkeyidx ON aciinfo (blobkey)",
 		"CREATE INDEX IF NOT EXISTS nameidx ON aciinfo (name)",
 		"INSERT INTO aciinfo SELECT * from aciinfo_tmp",

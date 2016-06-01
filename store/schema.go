@@ -21,7 +21,7 @@ import (
 
 const (
 	// Incremental db version at the current code revision.
-	dbVersion = 5
+	dbVersion = 6
 )
 
 // Statement to run when creating a db. These are the statements to create the
@@ -37,7 +37,7 @@ var dbCreateStmts = [...]string{
 	"CREATE UNIQUE INDEX IF NOT EXISTS aciurlidx ON remote (aciurl)",
 
 	// aciinfo table. The primary key is "blobkey" and it matches the key used to save that aci in the blob store
-	"CREATE TABLE IF NOT EXISTS aciinfo (blobkey string, name string, importtime time, lastused time, latest bool, size int64 DEFAULT 0, treestoresize int64 DEFAULT 0);",
+	"CREATE TABLE IF NOT EXISTS aciinfo (blobkey string, name string, dockerid string, importtime time, lastused time, latest bool, size int64 DEFAULT 0, treestoresize int64 DEFAULT 0);",
 	"CREATE UNIQUE INDEX IF NOT EXISTS blobkeyidx ON aciinfo (blobkey)",
 	"CREATE INDEX IF NOT EXISTS nameidx ON aciinfo (name)",
 }
