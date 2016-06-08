@@ -103,7 +103,7 @@ func upInterfaceCommand(ifName string) string {
 	return fmt.Sprintf("/bin/ip link set dev %s up", ifName)
 }
 
-func GenerateNetworkInterfaceUnits(unitsPath string, netDescriptions []netDescriber) error {
+func GenerateNetworkInterfaceUnits(unitsPath string, netDescriptions []netDescriber, debug bool) error {
 
 	for i, netDescription := range netDescriptions {
 		ifName := fmt.Sprintf(networking.IfNamePattern, i)
@@ -158,7 +158,9 @@ func GenerateNetworkInterfaceUnits(unitsPath string, netDescriptions []netDescri
 			return errwrap.Wrap(fmt.Errorf("failed to create network unit file %q", unitName), err)
 		}
 
-		rlog.Printf("network unit created: %q in %q (iface=%q, addr=%q)", unitName, unitsPath, ifName, address)
+		if debug {
+			rlog.Printf("network unit created: %q in %q (iface=%q, addr=%q)", unitName, unitsPath, ifName, address)
+		}
 	}
 	return nil
 }
