@@ -455,6 +455,7 @@ func appToSystemd(p *stage1commontypes.Pod, ra *schema.RuntimeApp, interactive b
 		// systemd unit name not getting written to the journal if the unit is
 		// short-lived and runs as non-root.
 		unit.NewUnitOption("Service", "SyslogIdentifier", appName.String()),
+		unit.NewUnitOption("Service", "SystemCallFilter", "~chroot"),
 	}
 
 	// Restrict access to sensitive paths (eg. procfs)
