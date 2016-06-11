@@ -18,6 +18,7 @@ package main
 
 import (
 	"github.com/coreos/rkt/common"
+	"github.com/coreos/rkt/pkg/label"
 	"github.com/coreos/rkt/stage0"
 	"github.com/coreos/rkt/store"
 	"github.com/spf13/cobra"
@@ -47,6 +48,7 @@ func init() {
 	cmdRunPrepared.Flags().BoolVar(&flagInteractive, "interactive", false, "run pod interactively")
 	cmdRunPrepared.Flags().BoolVar(&flagMDSRegister, "mds-register", false, "register pod with metadata service")
 	cmdRunPrepared.Flags().StringVar(&flagHostname, "hostname", "", `pod's hostname. If empty, it will be "rkt-$PODUUID"`)
+	cmdRunPrepared.Flags().Var(&flagSelinuxOptions, "selinux-options", "the SELinux options that will be passed to the pod and its mounted volumes. Syntax: --selinux-options=[user:USER][,role:ROLE][,type:TYPE][,level:LEVEL]")
 }
 
 func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
@@ -85,6 +87,21 @@ func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 		}
 	}
 
+	var options []string
+	if !flagSelinuxOptions.IsEmpty() {
+		options = flagSelinuxOptions.Strings()
+	}
+
+	processLabel, mountLabel, err := label.InitLabels(defaultSelinuxMcsDir, options)
+	if err != nil {
+		stderr.PrintE("error initialising SELinux", err)
+		return 1
+	}
+
+	// Make sure the pod has the mountLabel before moving the pod's state.
+	// because we will need to label the pod's dir in xToRun().
+	p.mountLabel = mountLabel
+
 	// Make sure we have a metadata service available before we move to
 	// run state so that the user can rerun the command without needing
 	// to prepare the image again.
@@ -120,9 +137,11 @@ func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 
 	rcfg := stage0.RunConfig{
 		CommonConfig: &stage0.CommonConfig{
-			Store: s,
-			UUID:  p.uuid,
-			Debug: globalFlags.Debug,
+			MountLabel:   mountLabel,
+			ProcessLabel: processLabel,
+			Store:        s,
+			UUID:         p.uuid,
+			Debug:        globalFlags.Debug,
 		},
 		Net:         flagNet,
 		LockFd:      lfd,

@@ -30,9 +30,12 @@ import (
 // the container.  A list of options can be passed into this function to alter
 // the labels.  The labels returned will include a random MCS String, that is
 // guaranteed to be unique.
-func InitLabels(options []string) (string, string, error) {
+func InitLabels(mcsDir string, options []string) (string, string, error) {
 	if !selinux.SelinuxEnabled() {
 		return "", "", nil
+	}
+	if err := selinux.SetMCSDir(mcsDir); err != nil {
+		return "", "", errwrap.Wrap(errors.New("unable to configure MCS storage directory"), err)
 	}
 	processLabel, mountLabel, err := selinux.GetLxcContexts()
 	if err != nil {
@@ -53,12 +56,6 @@ func InitLabels(options []string) (string, string, error) {
 			if con[0] == "level" || con[0] == "user" {
 				mcon[con[0]] = con[1]
 			}
-			if con[0] == "mcsdir" {
-				err := selinux.SetMCSDir(con[1])
-				if err != nil {
-					return "", "", errwrap.Wrap(errors.New("unable to configure MCS storage directory"), err)
-				}
-			}
 		}
 		processLabel = pcon.Get()
 		mountLabel = mcon.Get()
@@ -68,7 +65,7 @@ func InitLabels(options []string) (string, string, error) {
 
 // DEPRECATED: The GenLabels function is only to be used during the transition to the official API.
 func GenLabels(options string) (string, string, error) {
-	return InitLabels(strings.Fields(options))
+	return InitLabels("", strings.Fields(options))
 }
 
 // FormatMountLabel returns a string to be used by the mount command.

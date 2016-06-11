@@ -369,7 +369,8 @@ For more details see the [hacking documentation](../hacking.md).
 | `--store-only` | `false` | `true` or `false` | Use only available images in the store (do not discover or download from remote URLs). See [image fetching behavior](../image-fetching-behavior.md). |
 | `--uuid-file-save` | none | A file path | Write out the pod UUID to a file. |
 | `--volume` |  none | Volume syntax (ex. `--volume NAME,kind=KIND,source=PATH,readOnly=BOOL`) | Volumes to make available in the pod. See [Mount Volumes into a Pod](#mount-volumes-into-a-pod). |
+| `--selinux-options` |  `` | An SELinux option string, e.g. `user:foo,role:admin,type:admin_t,level:s0` | The SELinux options that will be passed to the pod and its mounted volumes. Syntax: `--selinux-options=[user:USER][,role:ROLE][,type:TYPE][,level:LEVEL]` |
 
 ## Global options
 
-See the table with [global options in general commands documentation](../commands.md#global-options).
+See the [table of global options](../commands.md#global-options) in the general commands documentation.
