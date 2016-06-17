@@ -63,7 +63,7 @@ func GetRemote(tx *sql.Tx, aciURL string) (remote *Remote, found bool, err error
 
 // WriteRemote adds or updates the provided Remote.
 func WriteRemote(tx *sql.Tx, remote *Remote) error {
-	// ql doesn't have an INSERT OR UPDATE function so
+	// sql doesn't have an INSERT OR UPDATE function so
 	// it's faster to remove and reinsert the row
 	_, err := tx.Exec("DELETE FROM remote WHERE aciurl == $1", remote.ACIURL)
 	if err != nil {
