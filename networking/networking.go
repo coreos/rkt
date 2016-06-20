@@ -53,8 +53,9 @@ type Networking struct {
 // similar to CNI plugins
 type NetConf struct {
 	cnitypes.NetConf
-	IPMasq bool `json:"ipMasq"`
-	MTU    int  `json:"mtu"`
+	IPMasq           bool `json:"ipMasq"`
+	MTU              int  `json:"mtu"`
+	IsDefaultGateway bool `json:"isDefaultGateway"`
 }
 
 var stderr *log.Logger

@@ -378,6 +378,10 @@ func kvmTransformFlannelNetwork(net *activeNet) error {
 		n.Delegate["type"] = "bridge"
 	}
 
+	if !hasKey(n.Delegate, "isDefaultGateway") {
+		n.Delegate["isDefaultGateway"] = false
+	}
+
 	if !hasKey(n.Delegate, "ipMasq") {
 		// if flannel is not doing ipmasq, we should
 		ipmasq := !fenv.ipmasq
@@ -420,6 +424,7 @@ func kvmTransformFlannelNetwork(net *activeNet) error {
 	net.conf.Type = n.Delegate["type"].(string)
 	net.conf.IPMasq = n.Delegate["ipMasq"].(bool)
 	net.conf.MTU = n.Delegate["mtu"].(int)
+	net.conf.IsDefaultGateway = n.Delegate["isDefaultGateway"].(bool)
 	net.conf.IPAM.Type = "host-local"
 	return nil
 }
@@ -436,6 +441,15 @@ func kvmSetup(podRoot string, podID types.UUID, fps []ForwardedPort, netList com
 		},
 	}
 	var e error
+
+	// If there's network set as default in CNI configuration
+	defaultGatewaySet := false
+
+	_, defaultNet, err := net.ParseCIDR("0.0.0.0/0")
+	if err != nil {
+		return nil, errwrap.Wrap(errors.New("error when parsing net address"), err)
+	}
+
 	network.nets, e = network.loadNets()
 	if e != nil {
 		return nil, errwrap.Wrap(errors.New("error loading network definitions"), e)
@@ -517,6 +531,15 @@ func kvmSetup(podRoot string, podID types.UUID, fps []ForwardedPort, netList com
 				return nil, err
 			}
 
+			if n.conf.IsDefaultGateway {
+				n.runtime.IP4.Routes = append(
+					n.runtime.IP4.Routes,
+					cnitypes.Route{Dst: *defaultNet, GW: n.runtime.IP4.Gateway},
+				)
+				defaultGatewaySet = true
+				config.IsGw = true
+			}
+
 			if config.IsGw {
 				err = ensureHasAddr(
 					br,
@@ -550,6 +573,15 @@ func kvmSetup(podRoot string, podID types.UUID, fps []ForwardedPort, netList com
 
 		default:
 			return nil, fmt.Errorf("network %q have unsupported type: %q", n.conf.Name, n.conf.Type)
+		}
+
+		// Check if there's any other network set as default gateway
+		if defaultGatewaySet {
+			for _, route := range n.runtime.IP4.Routes {
+				if (defaultNet.String() == route.Dst.String()) && !n.conf.IsDefaultGateway {
+					return nil, fmt.Errorf("flannel config consists default gateway and IPAM sets default gateway via %q", n.runtime.IP4.Gateway)
+				}
+			}
 		}
 
 		if n.conf.IPMasq {
