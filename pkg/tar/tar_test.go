@@ -427,7 +427,7 @@ func TestExtractTarOverwrite(t *testing.T) {
 	if !sys.HasChrootCapability() {
 		t.Skipf("chroot capability not available. Disabling test.")
 	}
-	testExtractTarOverwrite(t, extractTarHelper)
+	testExtractTarOverwrite(t, extractTarOverwriteHelper)
 }
 func TestExtractTarOverwriteInsecure(t *testing.T) {
 	testExtractTarOverwrite(t, extractTarInsecureHelper)
@@ -785,6 +785,10 @@ func testExtractTarHardLink(t *testing.T, extractTar func(io.Reader, string) err
 	if origFile.Ino != linkedFile.Ino {
 		t.Errorf("original file and linked file have different inodes")
 	}
+}
+
+func extractTarOverwriteHelper(rdr io.Reader, target string) error {
+	return ExtractTar(rdr, target, true, user.NewBlankUidRange(), nil)
 }
 
 func extractTarHelper(rdr io.Reader, target string) error {
