@@ -538,16 +538,16 @@ func (s *Store) RemoveACI(key string) error {
 	// Try to see if we are the owner of the images, if not, returns not enough permission error.
 	for _, ds := range s.stores {
 		// XXX: The construction of 'path' depends on the implementation of diskv.
-		path := filepath.Join(ds.BasePath, filepath.Join(ds.Transform(key)...))
+		path := filepath.Join(ds.BasePath, filepath.Join(ds.Transform(key)...), key)
 		fi, err := os.Stat(path)
 		if err != nil {
-			return errwrap.Wrap(errors.New("cannot get the stat of the image directory"), err)
+			return errwrap.Wrap(errors.New("cannot stat the image"), err)
 		}
 
 		uid := os.Getuid()
-		dirUid := int(fi.Sys().(*syscall.Stat_t).Uid)
+		aciUid := int(fi.Sys().(*syscall.Stat_t).Uid)
 
-		if uid != dirUid && uid != 0 {
+		if uid != aciUid && uid != 0 {
 			return fmt.Errorf("permission denied, are you root or the owner of the image?")
 		}
 	}

@@ -30,6 +30,7 @@ import (
 	"github.com/coreos/rkt/pkg/sys"
 
 	"github.com/appc/spec/schema/types"
+	"github.com/hashicorp/errwrap"
 )
 
 const tstprefix = "store-test"
@@ -564,8 +565,8 @@ func TestRemoveACI(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error: %v", err)
 	}
-	if _, ok := err.(*StoreRemovalError); !ok {
-		t.Fatalf("expected StoreRemovalError got: %v", err)
+	expectedErr := "cannot stat the image"
+	if !errwrap.Contains(err, expectedErr) {
+		t.Fatalf("expected %s got: %v", expectedErr, err)
 	}
-
 }
