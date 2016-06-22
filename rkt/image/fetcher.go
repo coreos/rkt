@@ -157,47 +157,13 @@ func (f *Fetcher) fetchSingleImageByURL(urlStr string, a *asc) (string, error) {
 	}
 
 	switch u.Scheme {
-	case "http", "https":
-		return f.fetchSingleImageByHTTPURL(u, a)
-	case "docker":
-		return f.fetchSingleImageByDockerURL(u)
 	case "file":
 		return f.fetchSingleImageByPath(u.Path, a)
 	case "":
 		return "", fmt.Errorf("expected image URL %q to contain a scheme", urlStr)
 	default:
-		return "", fmt.Errorf("an unsupported URL scheme %q - the only URL schemes supported by rkt are docker, http, https and file", u.Scheme)
+		return f.fetchSingleImageByPlugin(u, a)
 	}
-}
-
-func (f *Fetcher) fetchSingleImageByHTTPURL(u *url.URL, a *asc) (string, error) {
-	rem, err := f.getRemoteForURL(u)
-	if err != nil {
-		return "", err
-	}
-	if h := f.maybeCheckRemoteFromStore(rem, remoteCheckStrict); h != "" {
-		return h, nil
-	}
-	if h, err := f.maybeFetchHTTPURLFromRemote(rem, u, a); h != "" || err != nil {
-		return h, err
-	}
-	return "", fmt.Errorf("unable to fetch image from URL %q: either image was not found in the store or store was disabled and fetching from remote yielded nothing or it was disabled", u.String())
-}
-
-func (f *Fetcher) fetchSingleImageByDockerURL(u *url.URL) (string, error) {
-	rem, err := f.getRemoteForURL(u)
-	if err != nil {
-		return "", err
-	}
-	// TODO(krnowak): use strict checking when we implement
-	// setting CacheMaxAge in store.Remote for docker images
-	if h := f.maybeCheckRemoteFromStore(rem, remoteCheckLax); h != "" {
-		return h, nil
-	}
-	if h, err := f.maybeFetchDockerURLFromRemote(u); h != "" || err != nil {
-		return h, err
-	}
-	return "", fmt.Errorf("unable to fetch docker image from URL %q: either image was not found in the store or store was disabled and fetching from remote yielded nothing or it was disabled", u.String())
 }
 
 func (f *Fetcher) getRemoteForURL(u *url.URL) (*store.Remote, error) {
@@ -229,36 +195,6 @@ func (f *Fetcher) maybeCheckRemoteFromStore(rem *store.Remote, check remoteCheck
 		return rem.BlobKey
 	}
 	return ""
-}
-
-func (f *Fetcher) maybeFetchHTTPURLFromRemote(rem *store.Remote, u *url.URL, a *asc) (string, error) {
-	if !f.StoreOnly {
-		log.Printf("remote fetching from URL %q", u.String())
-		hf := &httpFetcher{
-			InsecureFlags: f.InsecureFlags,
-			S:             f.S,
-			Ks:            f.Ks,
-			Rem:           rem,
-			Debug:         f.Debug,
-			Headers:       f.Headers,
-		}
-		return hf.Hash(u, a)
-	}
-	return "", nil
-}
-
-func (f *Fetcher) maybeFetchDockerURLFromRemote(u *url.URL) (string, error) {
-	if !f.StoreOnly {
-		log.Printf("remote fetching from URL %q", u.String())
-		df := &dockerFetcher{
-			InsecureFlags: f.InsecureFlags,
-			DockerAuth:    f.DockerAuth,
-			S:             f.S,
-			Debug:         f.Debug,
-		}
-		return df.Hash(u)
-	}
-	return "", nil
 }
 
 func (f *Fetcher) fetchSingleImageByPath(path string, a *asc) (string, error) {
@@ -357,6 +293,35 @@ func (f *Fetcher) maybeFetchImageFromRemote(app *appBundle, a *asc) (string, err
 			TrustKeysFromHTTPS: f.TrustKeysFromHTTPS,
 		}
 		return nf.Hash(app.App, a)
+	}
+	return "", nil
+}
+
+func (f *Fetcher) fetchSingleImageByPlugin(u *url.URL, a *asc) (string, error) {
+	rem, err := f.getRemoteForURL(u)
+	if err != nil {
+		return "", err
+	}
+	// TODO(krnowak): use strict checking when we implement
+	// setting CacheMaxAge in store.Remote for docker images
+	if h := f.maybeCheckRemoteFromStore(rem, remoteCheckLax); h != "" {
+		return h, nil
+	}
+	return f.maybeFetchViaPluginFromRemote(u, rem)
+}
+
+func (f *Fetcher) maybeFetchViaPluginFromRemote(u *url.URL, rem *store.Remote) (string, error) {
+	log.Printf("remote fetching from URL %q", u.String())
+	if !f.StoreOnly {
+		pf := &pluginFetcher{
+			InsecureFlags: f.InsecureFlags,
+			Auth:          f.Headers,
+			S:             f.S,
+			Ks:            f.Ks,
+			Debug:         f.Debug,
+			Rem:           rem,
+		}
+		return pf.Hash(u)
 	}
 	return "", nil
 }
