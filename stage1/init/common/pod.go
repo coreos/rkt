@@ -940,7 +940,7 @@ func appToNspawnArgs(p *stage1commontypes.Pod, ra *schema.RuntimeApp, insecureOp
 			return nil, err
 		}
 
-		opt := make([]string, 4)
+		opt := make([]string, 6)
 
 		if IsMountReadOnly(vol, app.MountPoints) {
 			opt[0] = "--bind-ro="
@@ -958,6 +958,20 @@ func appToNspawnArgs(p *stage1commontypes.Pod, ra *schema.RuntimeApp, insecureOp
 		}
 		opt[2] = ":"
 		opt[3] = filepath.Join(common.RelAppRootfsPath(appName), mntPath)
+		opt[4] = ":"
+
+		// If Recursive is not set, default to recursive.
+		recursive := true
+		if vol.Recursive != nil {
+			recursive = *vol.Recursive
+		}
+
+		// rbind/norbind options exist since systemd-nspawn v226
+		if recursive {
+			opt[5] = "rbind"
+		} else {
+			opt[5] = "norbind"
+		}
 		args = append(args, strings.Join(opt, ""))
 	}
 

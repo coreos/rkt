@@ -191,13 +191,18 @@ func evaluateMounts(rfs string, app string, p *stage1commontypes.Pod) ([]flyMoun
 	}
 
 	argFlyMounts := []flyMount{}
-	var flags uintptr = syscall.MS_BIND // TODO: allow optional | syscall.MS_REC
 	for _, tuple := range namedVolumeMounts {
 		if _, isHostMount := hostMounts[tuple.V.Source]; isHostMount {
 			// Mark the host mount as SHARED so the container's changes to the mount are propagated to the host
 			argFlyMounts = append(argFlyMounts,
 				flyMount{"", "", tuple.V.Source, "none", syscall.MS_REC | syscall.MS_SHARED},
 			)
+		}
+
+		var flags uintptr = syscall.MS_BIND
+		// If Recursive is not set, default to non-recursive.
+		if tuple.V.Recursive != nil && *tuple.V.Recursive {
+			flags |= syscall.MS_REC
 		}
 		argFlyMounts = append(argFlyMounts,
 			flyMount{tuple.V.Source, rfs, tuple.M.Path, "none", flags},
