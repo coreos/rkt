@@ -19,12 +19,16 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
+	"syscall"
 	"testing"
 	"time"
 
+	"github.com/coreos/rkt/networking/netinfo"
 	"github.com/coreos/rkt/tests/testutils"
 	"github.com/coreos/rkt/tests/testutils/logger"
 	"github.com/vishvananda/netlink"
@@ -373,7 +377,7 @@ var (
 		Bridge:    "bridge1",
 		IpMasq:    true,
 		IsGateway: true,
-		Ipam: ipamTemplateT{
+		Ipam: &ipamTemplateT{
 			Type:   "host-local",
 			Subnet: "11.11.5.0/24",
 			Routes: []map[string]string{
@@ -496,26 +500,33 @@ func writeNetwork(t *testing.T, net networkTemplateT, netd string) error {
 }
 
 type networkTemplateT struct {
-	Name      string
-	Type      string
-	Master    string `json:"master,omitempty"`
-	IpMasq    bool
-	IsGateway bool
-	Bridge    string `json:"bridge,omitempty"`
-	Ipam      ipamTemplateT
+	Name       string
+	Type       string
+	SubnetFile string `json:"subnetFile,omitempty"`
+	Master     string `json:"master,omitempty"`
+	IpMasq     bool
+	IsGateway  bool
+	Bridge     string             `json:"bridge,omitempty"`
+	Ipam       *ipamTemplateT     `json:",omitempty"`
+	Delegate   *delegateTemplateT `json:",omitempty"`
 }
 
 type ipamTemplateT struct {
-	Type   string
+	Type   string              `json:",omitempty"`
 	Subnet string              `json:"subnet,omitempty"`
 	Routes []map[string]string `json:"routes,omitempty"`
+}
+
+type delegateTemplateT struct {
+	Bridge           string `json:"bridge,omitempty"`
+	IsDefaultGateway bool   `json:"isDefaultGateway"`
 }
 
 func TestNetTemplates(t *testing.T) {
 	net := networkTemplateT{
 		Name: "ptp0",
 		Type: "ptp",
-		Ipam: ipamTemplateT{
+		Ipam: &ipamTemplateT{
 			Type:   "host-local",
 			Subnet: "11.11.3.0/24",
 			Routes: []map[string]string{{"dst": "0.0.0.0/0"}},
@@ -704,7 +715,7 @@ func NewNetCustomPtpTest(runCustomDual bool) testutils.Test {
 			Name:   "ptp0",
 			Type:   "ptp",
 			IpMasq: true,
-			Ipam: ipamTemplateT{
+			Ipam: &ipamTemplateT{
 				Type:   "host-local",
 				Subnet: "11.11.1.0/24",
 				Routes: []map[string]string{
@@ -733,7 +744,7 @@ func NewNetCustomMacvlanTest() testutils.Test {
 			Name:   "macvlan0",
 			Type:   "macvlan",
 			Master: iface.Name,
-			Ipam: ipamTemplateT{
+			Ipam: &ipamTemplateT{
 				Type:   "host-local",
 				Subnet: "11.11.2.0/24",
 			},
@@ -758,7 +769,7 @@ func NewNetCustomBridgeTest() testutils.Test {
 			IpMasq:    true,
 			IsGateway: true,
 			Master:    iface.Name,
-			Ipam: ipamTemplateT{
+			Ipam: &ipamTemplateT{
 				Type:   "host-local",
 				Subnet: "11.11.3.0/24",
 				Routes: []map[string]string{
@@ -788,7 +799,7 @@ func NewNetOverrideTest() testutils.Test {
 			Name:   "overridemacvlan",
 			Type:   "macvlan",
 			Master: iface.Name,
-			Ipam: ipamTemplateT{
+			Ipam: &ipamTemplateT{
 				Type:   "host-local",
 				Subnet: "11.11.4.0/24",
 			},
@@ -827,7 +838,7 @@ func NewTestNetLongName() testutils.Test {
 			Name:   "thisnameiswaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaytoolong",
 			Type:   "ptp",
 			IpMasq: true,
-			Ipam: ipamTemplateT{
+			Ipam: &ipamTemplateT{
 				Type:   "host-local",
 				Subnet: "11.11.6.0/24",
 				Routes: []map[string]string{
@@ -836,5 +847,159 @@ func NewTestNetLongName() testutils.Test {
 			},
 		}
 		testNetCustomNatConnectivity(t, nt)
+	})
+}
+
+/*
+ * mockFlannelNetwork creates fake flannel network status file and configuration pointing to this network.
+ * We won't have connectivity, but we could check if: netName was correct and if default gateway was set.
+ */
+func mockFlannelNetwork(t *testing.T, ctx *testutils.RktRunCtx) (string, networkTemplateT, error) {
+	// write fake flannel info
+	subnetPath := filepath.Join(ctx.DataDir(), "subnet.env")
+	file, err := os.Create(subnetPath)
+	if err != nil {
+		return "", networkTemplateT{}, err
+	}
+	mockedFlannel := strings.Join([]string{
+		"FLANNEL_NETWORK=11.11.0.0/16",
+		"FLANNEL_SUBNET=11.11.3.1/24",
+		"FLANNEL_MTU=1472",
+		"FLANNEL_IPMASQ=true",
+	}, "\n")
+	if _, err = file.WriteString(mockedFlannel); err != nil {
+		return "", networkTemplateT{}, err
+	}
+
+	file.Close()
+
+	// write net config for "flannel" based network
+	ntFlannel := networkTemplateT{
+		Name:       "rkt.kubernetes.io",
+		Type:       "flannel",
+		SubnetFile: subnetPath,
+		Delegate: &delegateTemplateT{
+			IsDefaultGateway: true,
+		},
+	}
+
+	netdir := prepareTestNet(t, ctx, ntFlannel)
+
+	return netdir, ntFlannel, nil
+}
+
+/*
+ * NewNetPreserveNetNameTest checks if netName is set if network is configured via flannel
+ */
+func NewNetPreserveNetNameTest() testutils.Test {
+	return testutils.TestFunc(func(t *testing.T) {
+		ctx := testutils.NewRktRunCtx()
+		defer ctx.Cleanup()
+
+		netdir, ntFlannel, err := mockFlannelNetwork(t, ctx)
+		if err != nil {
+			t.Errorf("Can't mock flannel network: %v", err)
+		}
+
+		defer os.RemoveAll(netdir)
+		defer os.Remove(ntFlannel.SubnetFile)
+
+		getNetInfo, resumeContainer := make(chan struct{}), make(chan struct{})
+		ga := testutils.NewGoroutineAssistant(t)
+		ga.Add(1)
+
+		podUUIDFile := filepath.Join(ctx.DataDir(), "pod_uuid")
+		defer os.Remove(podUUIDFile)
+		go func() {
+			// start container with 'flannel' network
+			defer ga.Done()
+			testImageArgs := []string{"--exec=/inspect --print-msg=sleeping --sleep=10"}
+			testImage := patchTestACI("rkt-inspect-networking.aci", testImageArgs...)
+			defer os.Remove(testImage)
+			cmd := fmt.Sprintf("%s --debug --insecure-options=image run --uuid-file-save=%s --net=%s --mds-register=false %s", ctx.Cmd(), podUUIDFile, ntFlannel.Name, testImage)
+			child := ga.SpawnOrFail(cmd)
+			defer ga.WaitOrFail(child)
+
+			// wait until stage2
+			if _, out, err := expectRegexTimeoutWithOutput(child, "sleeping", time.Minute); err != nil {
+				ga.Fatalf("Can't spawn container!\nError: %v\nOutput: %v", err, out)
+			}
+
+			// trigger parsing net-info.json
+			getNetInfo <- struct{}{}
+
+			// wait with cleanup for loading netInfo's
+			<-resumeContainer
+		}()
+
+		<-getNetInfo
+		podUUID, err := ioutil.ReadFile(podUUIDFile)
+		if err != nil {
+			t.Fatalf("Can't read pod UUID: %v", err)
+		}
+
+		// read net-info.json created for pod
+		podDir := filepath.Join(ctx.DataDir(), "pods", "run", string(podUUID))
+		podDirfd, err := syscall.Open(podDir, syscall.O_RDONLY|syscall.O_DIRECTORY, 0)
+		if err != nil {
+			t.Fatalf("Can't open pod directory for reading! %v", err)
+		}
+
+		info, err := netinfo.LoadAt(podDirfd)
+		if err != nil {
+			t.Fatalf("Can't open net-info.json for reading: %v", err)
+		}
+
+		// resume rkt-inspect-networking container for cleanup
+		resumeContainer <- struct{}{}
+
+		if len(info) != 2 {
+			t.Fatalf("Incorrect number of networks: %v", len(info))
+		}
+
+		found := false
+		for _, net := range info {
+			if net.NetName == ntFlannel.Name {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			t.Fatalf("Network '%s' not found!\nnetInfo[0]: %v\nnetInfo[1]: %v", ntFlannel.Name, info[0], info[1])
+		}
+
+		ga.Wait()
+	})
+}
+
+/*
+ * NewNetDefaultGWTest checks if default gateway is correct if only configured network is one provided by flannel.
+ */
+func NewNetDefaultGWTest() testutils.Test {
+	return testutils.TestFunc(func(t *testing.T) {
+		ctx := testutils.NewRktRunCtx()
+		defer ctx.Cleanup()
+
+		netdir, ntFlannel, err := mockFlannelNetwork(t, ctx)
+		if err != nil {
+			t.Errorf("Can't mock flannel network: %v", err)
+		}
+
+		defer os.RemoveAll(netdir)
+		defer os.Remove(ntFlannel.SubnetFile)
+
+		testImageArgs := []string{"--exec=/inspect --print-defaultgwv4"}
+		testImage := patchTestACI("rkt-inspect-networking.aci", testImageArgs...)
+		defer os.Remove(testImage)
+
+		cmd := fmt.Sprintf("%s --debug --insecure-options=image run --net=%s --mds-register=false %s", ctx.Cmd(), ntFlannel.Name, testImage)
+		child := spawnOrFail(t, cmd)
+		defer waitOrFail(t, child, 0)
+
+		expectedRegex := `DefaultGWv4: (\d+\.\d+\.\d+\.\d+)`
+		if _, out, err := expectRegexTimeoutWithOutput(child, expectedRegex, time.Minute); err != nil {
+			t.Fatalf("No default gateway!\nError: %v\nOutput: %v", err, out)
+		}
 	})
 }

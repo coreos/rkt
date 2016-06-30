@@ -27,17 +27,18 @@ import (
 )
 
 func getDefaultGW(family int) (string, error) {
-	l, err := netlink.LinkByName("lo")
+	routes, err := netlink.RouteList(nil, family)
 	if err != nil {
 		return "", err
 	}
 
-	routes, err := netlink.RouteList(l, family)
-	if err != nil {
-		return "", err
+	for _, route := range routes {
+		if route.Src == nil && route.Dst == nil {
+			return route.Gw.String(), nil
+		}
 	}
 
-	return routes[0].Gw.String(), nil
+	return "", fmt.Errorf("Default route is not set")
 }
 func GetDefaultGWv4() (string, error) {
 	return getDefaultGW(netlink.FAMILY_V4)

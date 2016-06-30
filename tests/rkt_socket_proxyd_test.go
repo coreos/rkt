@@ -59,7 +59,7 @@ func TestSocketProxyd(t *testing.T) {
 		Type:   "ptp",
 		IpMasq: true,
 		Master: iface.Name,
-		Ipam: ipamTemplateT{
+		Ipam: &ipamTemplateT{
 			Type:   "host-local",
 			Subnet: "192.168.0.0/24",
 			Routes: []map[string]string{

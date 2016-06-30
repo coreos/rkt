@@ -75,3 +75,7 @@ func TestNetLongName(t *testing.T) {
 func TestNetDefaultRestrictedConnectivity(t *testing.T) {
 	NewTestNetDefaultRestrictedConnectivity().Execute(t)
 }
+
+func TestNetDefaultGW(t *testing.T) {
+	NewNetDefaultGWTest().Execute(t)
+}
