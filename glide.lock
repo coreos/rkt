@@ -1,5 +1,5 @@
-hash: 2ac18623b8f714aa0bc0c9ac3935fc6d584e37e14364c32d5446e844262265a3
-updated: 2016-07-05T15:16:12.832707394+02:00
+hash: 69df62d14f1b4930e19a6d309a855e2aeea51a64e584e1111eaa0054fd4bf4d1
+updated: 2016-07-05T15:34:53.102350937+02:00
 imports:
 - name: github.com/appc/docker2aci
   version: 355af275fa8d48b4ecdd361a5feaf173abff81e7
@@ -144,6 +144,10 @@ imports:
   version: f0e4d29ff0231dce36e250b2ed9ff08412584bca
 - name: github.com/d2g/dhcp4client
   version: bed07e1bc5b85f69c6f0fd73393aa35ec68ed892
+- name: github.com/davecgh/go-spew
+  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
+  subpackages:
+  - spew
 - name: github.com/docker/distribution
   version: 099622876197e3b24d627a72053d1bcc8968076a
   subpackages:
