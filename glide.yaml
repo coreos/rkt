@@ -289,3 +289,5 @@ import:
   version: v1.0
 - package: github.com/klauspost/cpuid
   version: v1.0
+- package: github.com/jonboulle/clockwork
+  version: 2eee05ed794112d45db504eb05aa693efd2b8b09
