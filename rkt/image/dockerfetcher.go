@@ -75,14 +75,14 @@ func (f *dockerFetcher) fetchImageFrom(u *url.URL, latest bool) (string, error) 
 	// alive, because we have an fd to it opened.
 	defer aciFile.Close()
 
-	key, err := f.S.WriteACI(aciFile, latest)
+	key, err := f.S.WriteACI(aciFile, store.ACIFetchInfo{
+		Latest:          latest,
+		InsecureOptions: int64(f.InsecureFlags.Value()),
+	})
 	if err != nil {
 		return "", err
 	}
 
-	// TODO(krnowak): Consider dropping the signature URL part
-	// from store.Remote. It is not used anywhere and the data
-	// stored here is useless.
 	newRem := store.NewRemote(u.String(), ascURLFromImgURL(u).String())
 	newRem.BlobKey = key
 	newRem.DownloadTime = time.Now()

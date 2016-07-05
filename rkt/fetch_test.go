@@ -382,7 +382,7 @@ func TestGetStoreKeyFromApp(t *testing.T) {
 	if _, err := a.Seek(0, 0); err != nil {
 		t.Fatalf("unexpected error %v", err)
 	}
-	_, err = s.WriteACI(a, false)
+	_, err = s.WriteACI(a, store.ACIFetchInfo{Latest: false})
 	if err != nil {
 		t.Fatalf("unexpected error %v", err)
 	}

@@ -108,7 +108,10 @@ func (f *nameFetcher) fetchImageFromSingleEndpoint(app *discovery.App, aciURL st
 	}
 	defer aciFile.Close()
 
-	key, err := f.S.WriteACI(aciFile, latest)
+	key, err := f.S.WriteACI(aciFile, store.ACIFetchInfo{
+		Latest:          latest,
+		InsecureOptions: int64(f.InsecureFlags.Value()),
+	})
 	if err != nil {
 		return "", err
 	}

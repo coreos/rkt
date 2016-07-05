@@ -21,6 +21,16 @@ import (
 	"time"
 )
 
+// ACIFetchInfo is used to store information about the fetching process of an ACI.
+type ACIFetchInfo struct {
+	// Latest defines if the ACI was imported using the latest pattern
+	// (no version label was provided on ACI discovery).
+	Latest bool
+
+	// InsecureOptions are the insecure options that was used when retrieving the ACI.
+	InsecureOptions int64
+}
+
 // ACIInfo is used to store information about an ACI.
 type ACIInfo struct {
 	// BlobKey is the key in the blob/imageManifest store of the related
@@ -39,6 +49,8 @@ type ACIInfo struct {
 	// Latest defines if the ACI was imported using the latest pattern (no
 	// version label was provided on ACI discovery)
 	Latest bool
+	// InsecureOptions are the insecure options that were used when retrieving the ACI.
+	InsecureOptions int64
 }
 
 func NewACIInfo(blobKey string, latest bool, t time.Time, size int64, treeStoreSize int64) *ACIInfo {
@@ -54,7 +66,7 @@ func NewACIInfo(blobKey string, latest bool, t time.Time, size int64, treeStoreS
 
 func aciinfoRowScan(rows *sql.Rows, aciinfo *ACIInfo) error {
 	// This ordering MUST match that in schema.go
-	return rows.Scan(&aciinfo.BlobKey, &aciinfo.Name, &aciinfo.ImportTime, &aciinfo.LastUsed, &aciinfo.Latest, &aciinfo.Size, &aciinfo.TreeStoreSize)
+	return rows.Scan(&aciinfo.BlobKey, &aciinfo.Name, &aciinfo.ImportTime, &aciinfo.LastUsed, &aciinfo.Latest, &aciinfo.Size, &aciinfo.TreeStoreSize, &aciinfo.InsecureOptions)
 }
 
 // GetAciInfosWithKeyPrefix returns all the ACIInfos with a blobkey starting with the given prefix.
@@ -161,7 +173,7 @@ func WriteACIInfo(tx *sql.Tx, aciinfo *ACIInfo) error {
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec("INSERT into aciinfo (blobkey, name, importtime, lastused, latest, size, treestoresize) VALUES ($1, $2, $3, $4, $5, $6, $7)", aciinfo.BlobKey, aciinfo.Name, aciinfo.ImportTime, aciinfo.LastUsed, aciinfo.Latest, aciinfo.Size, aciinfo.TreeStoreSize)
+	_, err = tx.Exec("INSERT into aciinfo (blobkey, name, importtime, lastused, latest, size, treestoresize, insecureoptions) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", aciinfo.BlobKey, aciinfo.Name, aciinfo.ImportTime, aciinfo.LastUsed, aciinfo.Latest, aciinfo.Size, aciinfo.TreeStoreSize, aciinfo.InsecureOptions)
 	if err != nil {
 		return err
 	}
