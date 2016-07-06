@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package store
+package store_test
 
 import (
 	"database/sql"
 	"io/ioutil"
 	"os"
 	"testing"
+
+	"github.com/coreos/rkt/store"
 )
 
 func TestWriteACIInfo(t *testing.T) {
@@ -27,20 +29,20 @@ func TestWriteACIInfo(t *testing.T) {
 		t.Fatalf("error creating tempdir: %v", err)
 	}
 	defer os.RemoveAll(dir)
-	s, err := NewStore(dir)
+	s, err := store.New(dir)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 	if err = s.db.Do(func(tx *sql.Tx) error {
-		aciinfo := &ACIInfo{
+		aciinfo := &store.ACIInfo{
 			BlobKey: "key01",
 			Name:    "name01",
 		}
-		if err := WriteACIInfo(tx, aciinfo); err != nil {
+		if err := store.WriteACIInfo(tx, aciinfo); err != nil {
 			return err
 		}
 		// Insert it another time to check that is should be overwritten
-		if err := WriteACIInfo(tx, aciinfo); err != nil {
+		if err := store.WriteACIInfo(tx, aciinfo); err != nil {
 			return err
 		}
 		return nil
@@ -48,10 +50,10 @@ func TestWriteACIInfo(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	var aciinfos []*ACIInfo
+	var aciinfos []*store.ACIInfo
 	ok := false
 	if err = s.db.Do(func(tx *sql.Tx) error {
-		aciinfos, ok, err = GetACIInfosWithName(tx, "name01")
+		aciinfos, ok, err = store.GetACIInfosWithName(tx, "name01")
 		return err
 	}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -64,13 +66,13 @@ func TestWriteACIInfo(t *testing.T) {
 		t.Fatalf("wrong number of records returned, wanted: 1, got: %d", len(aciinfos))
 	}
 
-	// Add another ACIInfo for the same app name
+	// Add another store.ACIInfo for the same app name
 	if err = s.db.Do(func(tx *sql.Tx) error {
-		aciinfo := &ACIInfo{
+		aciinfo := &store.ACIInfo{
 			BlobKey: "key02",
 			Name:    "name01",
 		}
-		if err := WriteACIInfo(tx, aciinfo); err != nil {
+		if err := store.WriteACIInfo(tx, aciinfo); err != nil {
 			return err
 		}
 		return nil
@@ -78,7 +80,7 @@ func TestWriteACIInfo(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if err = s.db.Do(func(tx *sql.Tx) error {
-		aciinfos, ok, err = GetACIInfosWithName(tx, "name01")
+		aciinfos, ok, err = store.GetACIInfosWithName(tx, "name01")
 		return err
 	}); err != nil {
 		t.Fatalf("unexpected error: %v", err)

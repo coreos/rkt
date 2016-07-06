@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package store
+package store_test
 
 import (
 	"io/ioutil"
 	"os"
 	"testing"
+
+	"github.com/coreos/rkt/store"
 )
 
 func TestNewRemote(t *testing.T) {
@@ -31,13 +33,13 @@ func TestNewRemote(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(dir)
-	s, err := NewStore(dir)
+	s, err := store.New(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Create our first Remote, and simulate Store() to create row in the table
-	na := NewRemote(u1, "")
+	na := store.NewRemote(u1, "")
 	na.BlobKey = data
 	s.WriteRemote(na)
 

@@ -154,7 +154,7 @@ func runImages(cmd *cobra.Command, args []string) int {
 		fmt.Fprintf(tabOut, "%s\n", strings.Join(headerFields, "\t"))
 	}
 
-	s, err := store.NewStore(getDataDir())
+	s, err := store.New(getDataDir())
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
 		return 1

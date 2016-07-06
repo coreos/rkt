@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE.BSD file,
 // or at https://opensource.org/licenses/BSD-3-Clause
 
-package store
+package store_test
 
 import (
 	"fmt"

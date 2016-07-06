@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package store
+package store_test
 
 import (
 	"archive/tar"
@@ -28,6 +28,7 @@ import (
 	"github.com/coreos/rkt/pkg/aci"
 	"github.com/coreos/rkt/pkg/multicall"
 	"github.com/coreos/rkt/pkg/sys"
+	"github.com/coreos/rkt/store"
 
 	"github.com/appc/spec/schema/types"
 )
@@ -44,7 +45,7 @@ func TestBlobStore(t *testing.T) {
 		t.Fatalf("error creating tempdir: %v", err)
 	}
 	defer os.RemoveAll(dir)
-	s, err := NewStore(dir)
+	s, err := store.New(dir)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -64,7 +65,7 @@ func TestResolveKey(t *testing.T) {
 		t.Fatalf("error creating tempdir: %v", err)
 	}
 	defer os.RemoveAll(dir)
-	s, err := NewStore(dir)
+	s, err := store.New(dir)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -157,7 +158,7 @@ func TestGetImageManifest(t *testing.T) {
 		t.Fatalf("error creating tempdir: %v", err)
 	}
 	defer os.RemoveAll(dir)
-	s, err := NewStore(dir)
+	s, err := store.New(dir)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -215,7 +216,7 @@ func TestGetAci(t *testing.T) {
 		t.Fatalf("error creating tempdir: %v", err)
 	}
 	defer os.RemoveAll(dir)
-	s, err := NewStore(dir)
+	s, err := store.New(dir)
 	if err != nil {
 		t.Fatalf("unexpected error %v", err)
 	}
@@ -356,7 +357,7 @@ func TestTreeStore(t *testing.T) {
 		t.Fatalf("error creating tempdir: %v", err)
 	}
 	defer os.RemoveAll(dir)
-	s, err := NewStore(dir)
+	s, err := store.New(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -480,7 +481,7 @@ func TestRemoveACI(t *testing.T) {
 		t.Fatalf("error creating tempdir: %v", err)
 	}
 	defer os.RemoveAll(dir)
-	s, err := NewStore(dir)
+	s, err := store.New(dir)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}

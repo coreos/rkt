@@ -104,7 +104,7 @@ type Store struct {
 	// storeLock is a lock on the whole store. It's used for store migration. If
 	// a previous version of rkt is using the store and in the meantime a
 	// new version is installed and executed it will try migrate the store
-	// during NewStore. This means that the previous running rkt will fail
+	// during New. This means that the previous running rkt will fail
 	// or behave badly after the migration as it's expecting another db format.
 	// For this reason, before executing migration, an exclusive lock must
 	// be taken on the whole store.
@@ -189,7 +189,8 @@ func (s *Store) populateSize() error {
 	return nil
 }
 
-func NewStore(baseDir string) (*Store, error) {
+// New creates a store using the given base directory path.
+func New(baseDir string) (*Store, error) {
 	// We need to allow the store's setgid bits (if any) to propagate, so
 	// disable umask
 	um := syscall.Umask(0)
@@ -305,7 +306,7 @@ func NewStore(baseDir string) (*Store, error) {
 	return s, nil
 }
 
-// Close closes a Store opened with NewStore().
+// Close closes a Store opened with New().
 func (s *Store) Close() error {
 	return s.storeLock.Close()
 }

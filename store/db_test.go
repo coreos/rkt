@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package store
+package store_test
 
 import (
 	"database/sql"
@@ -22,6 +22,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/coreos/rkt/store"
 	"github.com/coreos/rkt/tests/testutils"
 )
 
@@ -42,7 +43,7 @@ func queryValue(query string, tx *sql.Tx) (int, error) {
 	return value, nil
 }
 
-func insertValue(db *DB) error {
+func insertValue(db *store.DB) error {
 	return db.Do(func(tx *sql.Tx) error {
 		// Get the current count.
 		count, err := queryValue("SELECT count(*) FROM rkt_db_test", tx)
@@ -55,7 +56,7 @@ func insertValue(db *DB) error {
 	})
 }
 
-func getMaxCount(db *DB, t *testing.T) int {
+func getMaxCount(db *store.DB, t *testing.T) int {
 	var maxCount int
 	var err error
 	if err := db.Do(func(tx *sql.Tx) error {
@@ -68,7 +69,7 @@ func getMaxCount(db *DB, t *testing.T) int {
 	return maxCount
 }
 
-func createTable(db *DB, t *testing.T) {
+func createTable(db *store.DB, t *testing.T) {
 	if err := db.Do(func(tx *sql.Tx) error {
 		_, err := tx.Exec("CREATE TABLE rkt_db_test (counts int)")
 		return err
@@ -91,7 +92,7 @@ func TestDBRace(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	db, err := NewDB(dir)
+	db, err := store.NewDB(dir)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}

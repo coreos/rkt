@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package store
+package store_test
 
 import (
 	"archive/tar"
@@ -22,9 +22,10 @@ import (
 
 	"github.com/coreos/rkt/pkg/aci"
 	"github.com/coreos/rkt/pkg/sys"
+	"github.com/coreos/rkt/store"
 )
 
-func treeStoreWriteACI(dir string, s *Store) (string, error) {
+func treeStoreWriteACI(dir string, s *store.Store) (string, error) {
 	imj := `
 		{
 		    "acKind": "ImageManifest",
@@ -99,7 +100,7 @@ func TestTreeStoreWrite(t *testing.T) {
 		t.Fatalf("error creating tempdir: %v", err)
 	}
 	defer os.RemoveAll(dir)
-	s, err := NewStore(dir)
+	s, err := store.New(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -134,7 +135,7 @@ func TestTreeStoreRemove(t *testing.T) {
 		t.Fatalf("error creating tempdir: %v", err)
 	}
 	defer os.RemoveAll(dir)
-	s, err := NewStore(dir)
+	s, err := store.New(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

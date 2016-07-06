@@ -121,7 +121,7 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	s, err := store.NewStore(getDataDir())
+	s, err := store.New(getDataDir())
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
 		return 1

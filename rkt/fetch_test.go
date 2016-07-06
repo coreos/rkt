@@ -253,7 +253,7 @@ func TestDownloading(t *testing.T) {
 		{denyAuthTS.URL, true, noAuth, false},
 	}
 
-	s, err := store.NewStore(dir)
+	s, err := store.New(dir)
 	if err != nil {
 		t.Fatalf("unexpected error %v", err)
 	}
@@ -299,7 +299,7 @@ func TestFetchImage(t *testing.T) {
 		t.Fatalf("error creating tempdir: %v", err)
 	}
 	defer os.RemoveAll(dir)
-	s, err := store.NewStore(dir)
+	s, err := store.New(dir)
 	if err != nil {
 		t.Fatalf("unexpected error %v", err)
 	}
@@ -366,7 +366,7 @@ func TestGetStoreKeyFromApp(t *testing.T) {
 		t.Fatalf("error creating tempdir: %v", err)
 	}
 	defer os.RemoveAll(dir)
-	s, err := store.NewStore(dir)
+	s, err := store.New(dir)
 	if err != nil {
 		t.Fatalf("unexpected error %v", err)
 	}
@@ -437,7 +437,7 @@ func TestFetchImageCache(t *testing.T) {
 		t.Fatalf("error creating tempdir: %v", err)
 	}
 	defer os.RemoveAll(dir)
-	s, err := store.NewStore(dir)
+	s, err := store.New(dir)
 	if err != nil {
 		t.Fatalf("unexpected error %v", err)
 	}
