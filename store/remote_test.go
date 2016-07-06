@@ -56,6 +56,10 @@ func TestNewRemote(t *testing.T) {
 	// Get a remote with a different URI
 	nc, ok, err := s.GetRemote(u2)
 	// Should get an error, since the URI shouldn't be present in the table
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+
 	if ok {
 		t.Fatalf("unexpected index found")
 	}
