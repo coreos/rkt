@@ -94,15 +94,29 @@ var (
 // initPods creates the required global directories
 func initPods() error {
 	if !podsInitialized {
-		dirs := []string{embryoDir(), prepareDir(), preparedDir(), runDir(), exitedGarbageDir(), garbageDir()}
-		for _, d := range dirs {
+		for _, d := range []string{
+			embryoDir(), prepareDir(), preparedDir(),
+			runDir(), exitedGarbageDir(), garbageDir(),
+		} {
 			if err := os.MkdirAll(d, 0750); err != nil {
 				return errwrap.Wrap(errors.New("error creating directory"), err)
 			}
 		}
+
 		podsInitialized = true
 	}
+
 	return nil
+}
+
+func shouldOmitPod(include includeMask, p *pod) bool {
+	// it's preferable to keep these operations lock-free, for example a `rkt gc` shouldn't block `rkt run`.
+	return p.isEmbryo && include&includeEmbryoDir == 0 ||
+		p.isExitedGarbage && include&includeExitedGarbageDir == 0 ||
+		p.isGarbage && include&includeGarbageDir == 0 ||
+		p.isPrepared && include&includePreparedDir == 0 ||
+		((p.isPreparing || p.isAbortedPrepare) && include&includePrepareDir == 0) ||
+		p.isRunning() && include&includeRunDir == 0
 }
 
 // walkPods iterates over the included directories calling function f for every pod found.
@@ -115,6 +129,7 @@ func walkPods(include includeMask, f func(*pod)) error {
 	if err != nil {
 		return errwrap.Wrap(errors.New("failed to get pods"), err)
 	}
+
 	sort.Strings(ls)
 
 	for _, uuid := range ls {
@@ -123,21 +138,16 @@ func walkPods(include includeMask, f func(*pod)) error {
 			stderr.PrintE(fmt.Sprintf("skipping %q", uuid), err)
 			continue
 		}
+
 		p, err := getPod(u)
 		if err != nil {
 			stderr.PrintE(fmt.Sprintf("skipping %q", uuid), err)
 			continue
 		}
 
-		// omit pods found in unrequested states
-		// this is to cover a race between listPods finding the uuids and pod states changing
-		// it's preferable to keep these operations lock-free, for example a `rkt gc` shouldn't block `rkt run`.
-		if p.isEmbryo && include&includeEmbryoDir == 0 ||
-			p.isExitedGarbage && include&includeExitedGarbageDir == 0 ||
-			p.isGarbage && include&includeGarbageDir == 0 ||
-			p.isPrepared && include&includePreparedDir == 0 ||
-			((p.isPreparing || p.isAbortedPrepare) && include&includePrepareDir == 0) ||
-			p.isRunning() && include&includeRunDir == 0 {
+		// Omit pods found in unrequested states this is to cover a race between
+		// listPods finding the uuids and pod states changing
+		if shouldOmitPod(include, p) {
 			p.Close()
 			continue
 		}
@@ -152,18 +162,17 @@ func walkPods(include includeMask, f func(*pod)) error {
 // newPod creates a new pod directory in the "preparing" state, allocating a unique uuid for it in the process.
 // The returned pod is always left in an exclusively locked state (preparing is locked in the prepared directory)
 // The pod must be closed using pod.Close()
-func newPod() (*pod, error) {
+func newPod() (p *pod, err error) {
 	if err := initPods(); err != nil {
 		return nil, err
 	}
 
-	p := &pod{
+	p = &pod{
 		createdByMe: true,
 		isEmbryo:    true, // starts as an embryo, then xToPreparing locks, renames, and sets isPreparing
 		// rest start false.
 	}
 
-	var err error
 	p.uuid, err = types.NewUUID(uuid.New())
 	if err != nil {
 		return nil, errwrap.Wrap(errors.New("error creating UUID"), err)
@@ -171,23 +180,22 @@ func newPod() (*pod, error) {
 
 	err = os.Mkdir(p.embryoPath(), 0750)
 	if err != nil {
-		return nil, err
+		return p, nil
 	}
 
 	p.FileLock, err = lock.NewLock(p.embryoPath(), lock.Dir)
 	if err != nil {
 		os.Remove(p.embryoPath())
-		return nil, err
+		return p, nil
 	}
 
 	err = p.xToPreparing()
 	if err != nil {
-		return nil, err
+		return p, nil
 	}
 
 	// At this point we we have:
 	// /var/lib/rkt/pods/prepare/$uuid << exclusively locked to indicate "preparing"
-
 	return p, nil
 }
 
@@ -201,6 +209,7 @@ func getPod(uuid *types.UUID) (*pod, error) {
 
 	p := &pod{uuid: uuid}
 
+	// TODO(tmrts): clean this if-else hell
 	// we try open the pod in all possible directories, in the same order the states occur
 	l, err := lock.NewLock(p.embryoPath(), lock.Dir)
 	if err == nil {
@@ -241,46 +250,55 @@ func getPod(uuid *types.UUID) (*pod, error) {
 		return nil, errwrap.Wrap(fmt.Errorf("error opening pod %q", uuid), err)
 	}
 
-	if !p.isPrepared && !p.isEmbryo {
-		// preparing, run, exitedGarbage, and garbage dirs use exclusive locks to indicate preparing/aborted, running/exited, and deleting/marked
-		if err = l.TrySharedLock(); err != nil {
-			if err != lock.ErrLocked {
-				l.Close()
-				return nil, errwrap.Wrap(errors.New("unexpected lock error"), err)
-			}
-			if p.isExitedGarbage {
-				// locked exitedGarbage is also being deleted
-				p.isExitedDeleting = true
-			} else if p.isExited {
-				// locked exited and !exitedGarbage is not exited (default in the run dir)
-				p.isExited = false
-			} else if p.isAbortedPrepare {
-				// locked in preparing is preparing, not aborted (default in the preparing dir)
-				p.isAbortedPrepare = false
-				p.isPreparing = true
-			} else if p.isGarbage {
-				// locked in non-exited garbage is deleting
-				p.isDeleting = true
-			}
-			err = nil
-		} else {
-			l.Unlock()
+	if p.isPrepared || p.isEmbryo {
+		p.FileLock = l
+
+		if !p.isRunning() {
+			return p, nil
 		}
-	}
 
-	p.FileLock = l
-
-	if p.isRunning() {
 		cfd, err := p.Fd()
 		if err != nil {
 			return nil, errwrap.Wrap(fmt.Errorf("error acquiring pod %v dir fd", uuid), err)
 		}
+
 		p.nets, err = netinfo.LoadAt(cfd)
 		// ENOENT is ok -- assume running with --net=host
 		if err != nil && !os.IsNotExist(err) {
 			return nil, errwrap.Wrap(fmt.Errorf("error opening pod %v netinfo", uuid), err)
 		}
+
+		return p, nil
 	}
+
+	// Preparing, run, exitedGarbage, and garbage dirs use exclusive locks
+	// to indicate preparing/aborted, running/exited, and deleting/marked.
+	if err := l.TrySharedLock(); err != nil {
+		if err != lock.ErrLocked {
+			l.Close()
+			return nil, errwrap.Wrap(errors.New("unexpected lock error"), err)
+		}
+
+		switch {
+		case p.isExitedGarbage:
+			// locked exitedGarbage is also being deleted
+			p.isExitedDeleting = true
+		case p.isExited:
+			// locked exited and !exitedGarbage is not exited (default in the run dir)
+			p.isExited = false
+		case p.isAbortedPrepare:
+			// locked in preparing is preparing, not aborted (default in the preparing dir)
+			p.isAbortedPrepare = false
+			p.isPreparing = true
+		case p.isGarbage:
+			// locked in non-exited garbage is deleting
+			p.isDeleting = true
+		}
+
+		return p, nil
+	}
+
+	l.Unlock()
 
 	return p, nil
 }
@@ -303,18 +321,20 @@ func getPodFromUUIDString(uuid string) (*pod, error) {
 
 // path returns the path to the pod according to the current (cached) state.
 func (p *pod) path() string {
-	if p.isEmbryo {
+	switch {
+	case p.isEmbryo:
 		return p.embryoPath()
-	} else if p.isPreparing || p.isAbortedPrepare {
+	case p.isPreparing || p.isAbortedPrepare:
 		return p.preparePath()
-	} else if p.isPrepared {
+	case p.isPrepared:
 		return p.preparedPath()
-	} else if p.isExitedGarbage {
+	case p.isExitedGarbage:
 		return p.exitedGarbagePath()
-	} else if p.isGarbage {
+	case p.isGarbage:
 		return p.garbagePath()
-	} else if p.isGone {
-		return "" // TODO(vc): anything better?
+	case p.isGone:
+		// TODO(vc): anything better?
+		return ""
 	}
 
 	return p.runPath()
@@ -374,6 +394,7 @@ func (p *pod) xToPreparing() error {
 		return err
 	}
 	defer df.Close()
+
 	if err := df.Sync(); err != nil {
 		return err
 	}
@@ -398,6 +419,7 @@ func (p *pod) xToPrepared() error {
 	if err := os.Rename(p.path(), p.preparedPath()); err != nil {
 		return err
 	}
+
 	if err := p.Unlock(); err != nil {
 		return err
 	}
@@ -407,6 +429,7 @@ func (p *pod) xToPrepared() error {
 		return err
 	}
 	defer df.Close()
+
 	if err := df.Sync(); err != nil {
 		return err
 	}
@@ -443,6 +466,7 @@ func (p *pod) xToRun() error {
 		return err
 	}
 	defer df.Close()
+
 	if err := df.Sync(); err != nil {
 		return err
 	}
@@ -469,6 +493,7 @@ func (p *pod) xToExitedGarbage() error {
 		return err
 	}
 	defer df.Close()
+
 	if err := df.Sync(); err != nil {
 		return err
 	}
@@ -493,33 +518,36 @@ func (p *pod) xToGarbage() error {
 		return err
 	}
 	defer df.Close()
+
 	if err := df.Sync(); err != nil {
 		return err
 	}
 
 	p.isAbortedPrepare = false
 	p.isPrepared = false
+
 	p.isGarbage = true
 
 	return nil
 }
 
-// isRunning does the annoying tests to infer if a pod is in a running state
+// isRunning does the annoying tests to infer if a pod is in a running state.
 func (p *pod) isRunning() bool {
 	// when none of these things, running!
 	return !p.isEmbryo && !p.isAbortedPrepare && !p.isPreparing && !p.isPrepared &&
 		!p.isExited && !p.isExitedGarbage && !p.isExitedDeleting && !p.isGarbage && !p.isDeleting && !p.isGone
 }
 
-// afterRun tests if a pod is in a post-running state
+// afterRun determines whether a pod is in a post-running state.
 func (p *pod) afterRun() bool {
 	return p.isExitedDeleting || p.isDeleting || p.isExited || p.isGarbage
 }
 
-// listPods returns a list of pod uuids in string form.
+// listPods returns a list of pod uuids as a string slice form.
 func listPods(include includeMask) ([]string, error) {
-	// uniqued due to the possibility of a pod being renamed from across directories during the list operation
+	// Deduplication due to the possibility of a pod being renamed from across directories during the list operation.
 	ups := make(map[string]struct{})
+
 	dirs := []struct {
 		kind includeMask
 		path string
@@ -527,19 +555,24 @@ func listPods(include includeMask) ([]string, error) {
 		{ // the order here is significant: embryo -> preparing -> prepared -> running -> exitedGarbage
 			kind: includeEmbryoDir,
 			path: embryoDir(),
-		}, {
+		},
+		{
 			kind: includePrepareDir,
 			path: prepareDir(),
-		}, {
+		},
+		{
 			kind: includePreparedDir,
 			path: preparedDir(),
-		}, {
+		},
+		{
 			kind: includeRunDir,
 			path: runDir(),
-		}, {
+		},
+		{
 			kind: includeExitedGarbageDir,
 			path: exitedGarbageDir(),
-		}, {
+		},
+		{
 			kind: includeGarbageDir,
 			path: garbageDir(),
 		},
@@ -551,6 +584,7 @@ func listPods(include includeMask) ([]string, error) {
 			if err != nil {
 				return nil, err
 			}
+
 			for _, p := range ps {
 				ups[p] = struct{}{}
 			}
@@ -574,6 +608,7 @@ func listPodsFromDir(cdir string) ([]string, error) {
 		if os.IsNotExist(err) {
 			return ps, nil
 		}
+
 		return nil, errwrap.Wrap(errors.New("cannot read pods directory"), err)
 	}
 
@@ -582,6 +617,7 @@ func listPodsFromDir(cdir string) ([]string, error) {
 			stderr.Printf("unrecognized entry: %q, ignoring", p.Name())
 			continue
 		}
+
 		ps = append(ps, p.Name())
 	}
 
@@ -603,6 +639,7 @@ func (p *pod) refreshState() error {
 	p.isDeleting = false
 	p.isGone = false
 
+	// TODO(tmrts): clean this if-else hell
 	// we try open the pod in all possible directories, in the same order the states occur
 	_, err := os.Stat(p.embryoPath())
 	if err == nil {
@@ -639,36 +676,43 @@ func (p *pod) refreshState() error {
 			}
 		}
 	}
-
 	if err != nil && !os.IsNotExist(err) {
 		return errwrap.Wrap(fmt.Errorf("error refreshing state of pod %q", p.uuid.String()), err)
 	}
 
-	if !p.isPrepared && !p.isEmbryo && !p.isGone {
-		// preparing, run, and exitedGarbage dirs use exclusive locks to indicate preparing/aborted, running/exited, and deleting/marked
-		if err = p.TrySharedLock(); err != nil {
-			if err != lock.ErrLocked {
-				p.Close()
-				return errwrap.Wrap(errors.New("unexpected lock error"), err)
-			}
-			if p.isExitedGarbage {
-				// locked exitedGarbage is also being deleted
-				p.isExitedDeleting = true
-			} else if p.isExited {
-				// locked exited and !exitedGarbage is not exited (default in the run dir)
-				p.isExited = false
-			} else if p.isAbortedPrepare {
-				// locked in preparing is preparing, not aborted (default in the preparing dir)
-				p.isAbortedPrepare = false
-				p.isPreparing = true
-			} else if p.isGarbage {
-				// locked in non-exited garbage is deleting
-				p.isDeleting = true
-			}
-			err = nil
-		} else {
-			p.Unlock()
-		}
+	if p.isPrepared || p.isEmbryo || p.isGone {
+		return nil
+	}
+
+	// preparing, run, and exitedGarbage dirs use exclusive locks to indicate preparing/aborted, running/exited, and deleting/marked
+	if err = p.TrySharedLock(); err == nil {
+		p.Unlock()
+		return nil
+	}
+
+	if err != lock.ErrLocked {
+		p.Close()
+
+		return errwrap.Wrap(errors.New("unexpected lock error"), err)
+	}
+
+	switch {
+	case p.isExitedGarbage:
+		// locked exitedGarbage is also being deleted
+		p.isExitedDeleting = true
+
+	case p.isExited:
+		// locked exited and !exitedGarbage is not exited (default in the run dir)
+		p.isExited = false
+
+	case p.isAbortedPrepare:
+		// locked in preparing is preparing, not aborted (default in the preparing dir)
+		p.isAbortedPrepare = false
+		p.isPreparing = true
+
+	case p.isGarbage:
+		// locked in non-exited garbage is deleting
+		p.isDeleting = true
 	}
 
 	return nil
@@ -677,27 +721,28 @@ func (p *pod) refreshState() error {
 // waitExited waits for a pod to (run and) exit.
 func (p *pod) waitExited() error {
 	// isExited implies isExitedGarbage.
-	for !p.isExited && !p.isAbortedPrepare && !p.isGarbage && !p.isGone {
-		if err := p.SharedLock(); err != nil {
-			return err
-		}
+	for p.isExited || p.isAbortedPrepare || p.isGarbage || p.isGone {
+		return nil
+	}
 
-		if err := p.Unlock(); err != nil {
-			return err
-		}
+	if err := p.SharedLock(); err != nil {
+		return err
+	}
 
-		if err := p.refreshState(); err != nil {
-			return err
-		}
+	if err := p.Unlock(); err != nil {
+		return err
+	}
 
-		// if we're in the gap between preparing and running in a split prepare/run-prepared usage, take a nap
-		if p.isPrepared {
-			time.Sleep(time.Second)
-		}
+	if err := p.refreshState(); err != nil {
+		return err
+	}
+
+	// if we're in the gap between preparing and running in a split prepare/run-prepared usage, take a nap
+	if p.isPrepared {
+		time.Sleep(time.Second)
 	}
 
 	// TODO(vc): return error or let caller detect the !p.isExited possibilities?
-
 	return nil
 }
 
@@ -713,12 +758,13 @@ func (p *pod) readFile(path string) ([]byte, error) {
 }
 
 // readIntFromFile reads an int from a file in a pod's directory.
-func (p *pod) readIntFromFile(path string) (i int, err error) {
+func (p *pod) readIntFromFile(path string) (n int, err error) {
 	b, err := p.readFile(path)
 	if err != nil {
 		return
 	}
-	_, err = fmt.Sscanf(string(b), "%d", &i)
+
+	_, err = fmt.Sscanf(string(b), "%d", &n)
 	return
 }
 
@@ -737,23 +783,25 @@ func (p *pod) openFile(path string, flags int) (*os.File, error) {
 	return os.NewFile(uintptr(fd), path), nil
 }
 
-// getState returns the current state of the pod
+// getState returns the current state of the pod.
 func (p *pod) getState() string {
 	state := "running"
 
-	if p.isEmbryo {
+	switch {
+	case p.isEmbryo:
 		state = Embryo
-	} else if p.isPreparing {
+	case p.isPreparing:
 		state = Preparing
-	} else if p.isAbortedPrepare {
+	case p.isAbortedPrepare:
 		state = AbortedPrepare
-	} else if p.isPrepared {
+	case p.isPrepared:
 		state = Prepared
-	} else if p.isExitedDeleting || p.isDeleting {
+	case p.isExitedDeleting || p.isDeleting:
 		state = Deleting
-	} else if p.isExited { // this covers p.isExitedGarbage
+	case p.isExited:
+		// this covers p.isExitedGarbage
 		state = Exited
-	} else if p.isGarbage {
+	case p.isGarbage:
 		state = Garbage
 	}
 
@@ -781,15 +829,12 @@ func (p *pod) getCreationTime() (time.Time, error) {
 	if p.isPrepared || p.isRunning() || p.afterRun() {
 		return p.getModTime("pod")
 	}
+
 	return time.Time{}, nil
 }
 
 // getStartTime returns the time when the pod was started.
-func (p *pod) getStartTime() (time.Time, error) {
-	var (
-		t   time.Time
-		err error
-	)
+func (p *pod) getStartTime() (t time.Time, err error) {
 	if p.isRunning() || p.afterRun() {
 		// check pid and ppid files, since stage1 implementations can choose
 		// which one to implement.
@@ -800,11 +845,12 @@ func (p *pod) getStartTime() (time.Time, error) {
 			// the "ppid" (or "pid") files being created, return an error only
 			// if it's different than ENOENT.
 			if os.IsNotExist(err) {
-				err = nil
+				return t, nil
 			}
 		}
 	}
-	return t, err
+
+	return
 }
 
 func (p *pod) getGCMarkedTime() (time.Time, error) {
@@ -821,12 +867,14 @@ func (p *pod) getGCMarkedTime() (time.Time, error) {
 
 	st := &syscall.Stat_t{}
 	if err := syscall.Lstat(podPath, st); err != nil {
-		if err == syscall.ENOENT {
-			// Pod is gone.
-			err = nil
+		if err != syscall.ENOENT {
+			return time.Time{}, nil
 		}
-		return time.Time{}, err
+
+		// Pod is gone.
+		return time.Time{}, nil
 	}
+
 	return time.Unix(st.Ctim.Unix()), nil
 }
 
@@ -846,16 +894,20 @@ func getChildPID(ppid int) (int, error) {
 	_, err := os.Stat("/proc/1/task/1/children")
 	if err == nil {
 		b, err := ioutil.ReadFile(fmt.Sprintf("/proc/%d/task/%d/children", ppid, ppid))
-		if err == nil {
-			children := strings.SplitN(string(b), " ", 2)
-			if len(children) == 2 && children[1] != "" {
-				return -1, fmt.Errorf("too many children of pid %d", ppid)
-			}
-			if _, err := fmt.Sscanf(children[0], "%d ", &pid); err == nil {
-				return pid, nil
-			}
+		if err != nil {
+			return -1, ErrChildNotReady{}
 		}
-		return -1, ErrChildNotReady{}
+
+		children := strings.SplitN(string(b), " ", 2)
+		if len(children) == 2 && children[1] != "" {
+			return -1, fmt.Errorf("too many children of pid %d", ppid)
+		}
+
+		if _, err := fmt.Sscanf(children[0], "%d ", &pid); err != nil {
+			return -1, ErrChildNotReady{}
+		}
+
+		return pid, nil
 	}
 
 	// Fallback on the slower method
@@ -867,26 +919,32 @@ func getChildPID(ppid int) (int, error) {
 
 	for {
 		fi, err := fdir.Readdir(1)
-		if err == io.EOF {
-			break
-		}
 		if err != nil {
+			if err == io.EOF {
+				break
+			}
+
 			return -1, err
 		}
-		var pid64 int64
-		if pid64, err = strconv.ParseInt(fi[0].Name(), 10, 0); err != nil {
+
+		pid64, err := strconv.ParseInt(fi[0].Name(), 10, 0)
+		if err != nil {
 			continue
 		}
+
 		filename := fmt.Sprintf("/proc/%d/stat", pid64)
+
 		statBytes, err := ioutil.ReadFile(filename)
 		if err != nil {
 			// The process just died? It's not the one we want then.
 			continue
 		}
+
 		statFields := strings.SplitN(string(statBytes), " ", 5)
 		if len(statFields) != 5 {
 			return -1, fmt.Errorf("incomplete file %q", filename)
 		}
+
 		if statFields[3] == fmt.Sprintf("%d", ppid) {
 			return int(pid64), nil
 		}
@@ -900,11 +958,13 @@ func (p *pod) getPID() (int, error) {
 	if pid, err := p.readIntFromFile("pid"); err == nil {
 		return pid, nil
 	}
-	if pid, err := p.readIntFromFile("ppid"); err != nil {
+
+	pid, err := p.readIntFromFile("ppid")
+	if err != nil {
 		return -1, err
-	} else {
-		return pid, nil
 	}
+
+	return pid, nil
 }
 
 // getContainerPID1 returns the pid of the process with pid 1 in the pod.
@@ -925,14 +985,14 @@ func (p *pod) getContainerPID1() (pid int, err error) {
 		if err != nil && !os.IsNotExist(err) {
 			return -1, err
 		}
+
+		pid, err = getChildPID(ppid)
 		if err == nil {
-			pid, err = getChildPID(ppid)
-			if err == nil {
-				return pid, nil
-			}
-			if _, ok := err.(ErrChildNotReady); !ok {
-				return -1, err
-			}
+			return pid, nil
+		}
+
+		if _, ok := err.(ErrChildNotReady); !ok {
+			return -1, err
 		}
 
 		// There's a window between a pod transitioning to run and the pid file being created by stage1.
@@ -950,40 +1010,43 @@ func (p *pod) getContainerPID1() (pid int, err error) {
 	}
 }
 
-// getStage1TreeStoreID returns the treeStoreID of the stage1 image used in
-// this pod
+// getStage1TreeStoreID returns the treeStoreID of the stage1 image used in this pod.
 func (p *pod) getStage1TreeStoreID() (string, error) {
 	s1IDb, err := p.readFile(common.Stage1TreeStoreIDFilename)
 	if err != nil {
 		return "", err
 	}
+
 	return string(s1IDb), nil
 }
 
-// getAppTreeStoreIDs returns the treeStoreIDs of the apps images used in
-// this pod
-func (p *pod) getAppsTreeStoreIDs() ([]string, error) {
-	var treeStoreIDs []string
+// getAppTreeStoreIDs returns the treeStoreIDs of the apps images used in this pod.
+func (p *pod) getAppsTreeStoreIDs() (treeStoreIDs []string, err error) {
 	apps, err := p.getApps()
 	if err != nil {
 		return nil, err
 	}
+
 	for _, a := range apps {
 		path, err := filepath.Rel("/", common.AppTreeStoreIDPath("", a.Name))
 		if err != nil {
 			return nil, err
 		}
+
 		treeStoreID, err := p.readFile(path)
 		if err != nil {
 			// When not using overlayfs, apps don't have a treeStoreID file
 			if os.IsNotExist(err) {
 				continue
 			}
+
 			return nil, err
 		}
+
 		treeStoreIDs = append(treeStoreIDs, string(treeStoreID))
 	}
-	return treeStoreIDs, nil
+
+	return
 }
 
 // getAppsHashes returns a list of the app hashes in the pod
@@ -1016,35 +1079,39 @@ func (p *pod) getAppImageManifest(appName types.ACName) (*schema.ImageManifest, 
 	return aim, nil
 }
 
-// getManifest returns the PodManifest of the pod
+// getManifest returns the PodManifest of the pod.
 func (p *pod) getManifest() (*schema.PodManifest, error) {
 	pmb, err := p.readFile("pod")
 	if err != nil {
 		return nil, errwrap.Wrap(errors.New("error reading pod manifest"), err)
 	}
+
 	pm := &schema.PodManifest{}
 	if err = pm.UnmarshalJSON(pmb); err != nil {
 		return nil, errwrap.Wrap(errors.New("invalid pod manifest"), err)
 	}
+
 	return pm, nil
 }
 
-// getApps returns a list of apps in the pod
+// getApps returns a list of apps in the pod.
 func (p *pod) getApps() (schema.AppList, error) {
 	pm, err := p.getManifest()
 	if err != nil {
 		return nil, err
 	}
+
 	return pm.Apps, nil
 }
 
 // getAppCount returns the app count of a pod.
 func (p *pod) getAppCount() (int, error) {
 	apps, err := p.getApps()
+
 	return len(apps), err
 }
 
-// getDirNames returns the list of names from a pod's directory
+// getDirNames returns the list of names from a pod's directory.
 func (p *pod) getDirNames(path string) ([]string, error) {
 	dir, err := p.openFile(path, syscall.O_RDONLY|syscall.O_DIRECTORY)
 	if err != nil {
@@ -1062,14 +1129,15 @@ func (p *pod) getDirNames(path string) ([]string, error) {
 
 func (p *pod) usesOverlay() bool {
 	_, err := p.openFile(common.OverlayPreparedFilename, syscall.O_RDONLY)
+
 	return err == nil
 }
 
 func (p *pod) getStatusDir() (string, error) {
 	if p.usesOverlay() {
-		// the pod uses overlay. Since the mount is in another mount
+		// The pod uses overlay. Since the mount is in another mount
 		// namespace (or gone), return the status directory from the overlay
-		// upper layer
+		// upper layer.
 		stage1TreeStoreID, err := p.getStage1TreeStoreID()
 		if err != nil {
 			return "", err
@@ -1089,6 +1157,7 @@ func (p *pod) getExitStatuses() (map[string]int, error) {
 	if err != nil {
 		return nil, errwrap.Wrap(errors.New("unable to get status directory"), err)
 	}
+
 	ls, err := p.getDirNames(statusDir)
 	if err != nil {
 		return nil, errwrap.Wrap(errors.New("unable to read status directory"), err)
@@ -1101,8 +1170,10 @@ func (p *pod) getExitStatuses() (map[string]int, error) {
 			stderr.PrintE(fmt.Sprintf("unable to get status of app %q", name), err)
 			continue
 		}
+
 		stats[name] = s
 	}
+
 	return stats, nil
 }
 
@@ -1113,8 +1184,10 @@ func (p *pod) sync() error {
 	if err != nil {
 		return errwrap.Wrap(fmt.Errorf("error acquiring pod %v dir fd", p.uuid.String()), err)
 	}
+
 	if err := sys.Syncfs(cfd); err != nil {
 		return errwrap.Wrap(fmt.Errorf("failed to sync pod %v data", p.uuid.String()), err)
 	}
+
 	return nil
 }
