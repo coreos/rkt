@@ -31,13 +31,19 @@ func NewRemote(aciurl, sigurl string) *Remote {
 }
 
 type Remote struct {
+	// ACIURL is the URL used to import an ACI.
 	ACIURL string
+	// SigURL is the URL used to import an ACI verification signature.
 	SigURL string
 	ETag   string
 	// The key in the blob store under which the ACI has been saved.
 	BlobKey      string
 	CacheMaxAge  int
 	DownloadTime time.Time
+}
+
+func remoteRowScan(rows *sql.Rows, remote *Remote) error {
+	return rows.Scan(&remote.ACIURL, &remote.SigURL, &remote.ETag, &remote.BlobKey, &remote.CacheMaxAge, &remote.DownloadTime)
 }
 
 // GetRemote tries to retrieve a remote with the given aciURL. found will be
@@ -59,6 +65,38 @@ func GetRemote(tx *sql.Tx, aciURL string) (remote *Remote, found bool, err error
 	}
 
 	return remote, found, err
+}
+
+// GetAllRemotes returns all the ACIInfos sorted by optional sortfields and
+// with ascending or descending order.
+func GetAllRemotes(tx *sql.Tx) ([]*Remote, error) {
+	var remotes []*Remote
+	query := "SELECT * from remote"
+
+	rows, err := tx.Query(query)
+	if err != nil {
+		return nil, err
+
+	}
+
+	for rows.Next() {
+		r := &Remote{}
+		if err := remoteRowScan(rows, r); err != nil {
+			return nil, err
+
+		}
+
+		remotes = append(remotes, r)
+
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+
+	}
+
+	return remotes, nil
+
 }
 
 // WriteRemote adds or updates the provided Remote.

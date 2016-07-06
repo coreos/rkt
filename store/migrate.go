@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/errwrap"
+	"github.com/jonboulle/clockwork"
 )
 
 type migrateFunc func(*sql.Tx) error
@@ -33,7 +34,10 @@ var (
 		3: migrateToV3,
 		4: migrateToV4,
 		5: migrateToV5,
+		6: migrateToV6,
 	}
+
+	clock = clockwork.NewRealClock()
 )
 
 func migrate(tx *sql.Tx, finalVersion int) error {
@@ -46,16 +50,17 @@ func migrate(tx *sql.Tx, finalVersion int) error {
 	}
 
 	for v := version + 1; v <= finalVersion; v++ {
-		f, ok := migrateTable[v]
+		migrate, ok := migrateTable[v]
 		if !ok {
 			return fmt.Errorf("missing migrate function for version %d", v)
 		}
-		err := f(tx)
-		if err == nil {
-			updateDBVersion(tx, v)
-		}
-		if err != nil {
+
+		if err := migrate(tx); err != nil {
 			return errwrap.Wrap(fmt.Errorf("failed to migrate db to version %d", v), err)
+		}
+
+		if err := updateDBVersion(tx, v); err != nil {
+			return errwrap.Wrap(fmt.Errorf("updateDBVersion() failed to update the db to version %d", v), err)
 		}
 	}
 	return nil
@@ -125,7 +130,7 @@ func migrateToV4(tx *sql.Tx) error {
 			return err
 		}
 	}
-	t := time.Now().UTC()
+	t := clock.Now().UTC()
 	_, err := tx.Exec("UPDATE aciinfo lastusedtime = $1", t)
 	if err != nil {
 		return err
@@ -139,6 +144,26 @@ func migrateToV5(tx *sql.Tx) error {
 		"INSERT INTO aciinfo_tmp (blobkey, name, importtime, lastused, latest) SELECT blobkey, name, importtime, lastusedtime, latest from aciinfo",
 		"DROP TABLE aciinfo",
 		"CREATE TABLE aciinfo (blobkey string, name string, importtime time, lastused time, latest bool, size int64 DEFAULT 0, treestoresize int64 DEFAULT 0);",
+		"CREATE UNIQUE INDEX IF NOT EXISTS blobkeyidx ON aciinfo (blobkey)",
+		"CREATE INDEX IF NOT EXISTS nameidx ON aciinfo (name)",
+		"INSERT INTO aciinfo SELECT * from aciinfo_tmp",
+		"DROP TABLE aciinfo_tmp",
+	} {
+		_, err := tx.Exec(t)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func migrateToV6(tx *sql.Tx) error {
+	for _, t := range []string{
+		"CREATE TABLE aciinfo_tmp (blobkey string, name string, importtime time, lastused time, latest bool, size int64, treestoresize int64, insecureoptions int64 DEFAULT 0);",
+		"INSERT INTO aciinfo_tmp (blobkey, name, importtime, lastused, latest, size, treestoresize) SELECT blobkey, name, importtime, lastused, latest, size, treestoresize from aciinfo",
+		"DROP TABLE aciinfo",
+		"CREATE TABLE aciinfo (blobkey string, name string, importtime time, lastused time, latest bool, size int64 DEFAULT 0, treestoresize int64 DEFAULT 0, insecureoptions int64 DEFAULT 0);",
 		"CREATE UNIQUE INDEX IF NOT EXISTS blobkeyidx ON aciinfo (blobkey)",
 		"CREATE INDEX IF NOT EXISTS nameidx ON aciinfo (name)",
 		"INSERT INTO aciinfo SELECT * from aciinfo_tmp",

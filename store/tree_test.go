@@ -82,7 +82,7 @@ func treeStoreWriteACI(dir string, s *Store) (string, error) {
 	}
 
 	// Import the new ACI
-	key, err := s.WriteACI(aci, false)
+	key, err := s.WriteACI(aci, ACIFetchInfo{Latest: false})
 	if err != nil {
 		return "", err
 	}
