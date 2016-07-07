@@ -48,6 +48,8 @@ const (
 	defaultTimeLayout = "2006-01-02 15:04:05.999 -0700 MST"
 	nobodyUid         = 65534
 	nobodyGid         = 65534
+
+	baseAppName = "rkt-inspect"
 )
 
 func expectCommon(p *gexpect.ExpectSubprocess, searchString string, timeout time.Duration) error {
@@ -482,6 +484,11 @@ type podInfo struct {
 	startedAt int64
 }
 
+type imagePatch struct {
+	name    string
+	patches []string
+}
+
 // parsePodInfo parses the 'rkt status $UUID' result into podInfo struct.
 // For example, the 'result' can be:
 // state=running
@@ -815,6 +822,29 @@ func writeConfig(t *testing.T, dir, filename, contents string) {
 	os.Remove(path)
 	if err := ioutil.WriteFile(path, []byte(contents), 0644); err != nil {
 		t.Fatalf("Failed to write file %q: %v", path, err)
+	}
+}
+
+func verifyHostFile(t *testing.T, tmpdir, filename string, i int, expectedResult string) {
+	filePath := path.Join(tmpdir, filename)
+	defer os.Remove(filePath)
+
+	// Verify the file is written to host.
+	if strings.Contains(expectedResult, "host:") {
+		data, err := ioutil.ReadFile(filePath)
+		if err != nil {
+			t.Fatalf("%d: Cannot read the host file: %v", i, err)
+		}
+		if string(data) != expectedResult {
+			t.Fatalf("%d: Expecting %q in the host file, but saw %q", i, expectedResult, data)
+		}
+	}
+}
+
+func executeFuncsReverse(funcs []func()) {
+	n := len(funcs)
+	for i := n - 1; i >= 0; i-- {
+		funcs[i]()
 	}
 }
 

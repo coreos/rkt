@@ -71,12 +71,15 @@ func TestQuoteExec(t *testing.T) {
 	}
 }
 
+var (
+	falseVar = false
+	trueVar  = true
+)
+
 // TestAppToNspawnArgsOverridesImageManifestReadOnly tests
 // that the ImageManifest's `readOnly` volume setting will be
 // overrided by PodManifest.
 func TestAppToNspawnArgsOverridesImageManifestReadOnly(t *testing.T) {
-	falseVar := false
-	trueVar := true
 	tests := []struct {
 		imageManifestVolumeReadOnly bool
 		podManifestVolumeReadOnly   *bool
@@ -160,15 +163,92 @@ func TestAppToNspawnArgsOverridesImageManifestReadOnly(t *testing.T) {
 		}
 
 		if ro := hasBindROArg(output); ro != tt.expectReadOnly {
-			t.Errorf("#%d: expected: readOnly: %v, saw: %v", i, tt.expectReadOnly, ro)
+			t.Errorf("#%d: expected: readOnly: %v, saw: %v \nOutput:\n%v", i, tt.expectReadOnly, ro, output)
 		}
 	}
 }
 
 func hasBindROArg(output []string) bool {
-	roRegexp := regexp.MustCompile("^--bind-ro=/host/foo:.*/app/foo$")
+	roRegexp := regexp.MustCompile("^--bind-ro=/host/foo:.*/app/foo(:rbind)?$")
 	for i := len(output) - 1; i >= 0; i-- {
 		if roRegexp.MatchString(output[i]) {
+			return true
+		}
+	}
+	return false
+}
+
+func TestAppToNspawnArgsRecursive(t *testing.T) {
+	tests := []struct {
+		podManifestVolumeRecursive *bool
+		expectRecursive            bool
+	}{
+		{
+			nil,
+			true,
+		},
+		{
+			&trueVar,
+			true,
+		},
+		{
+			&falseVar,
+			false,
+		},
+	}
+
+	for i, tt := range tests {
+		podManifest := &schema.PodManifest{
+			Volumes: []types.Volume{
+				{
+					Name:      *types.MustACName("foo-mount"),
+					Kind:      "host",
+					Source:    "/host/foo",
+					Recursive: tt.podManifestVolumeRecursive,
+				},
+			},
+		}
+		appManifest := &schema.RuntimeApp{
+			Mounts: []schema.Mount{
+				{
+					Volume: *types.MustACName("foo-mount"),
+					Path:   "/app/foo",
+				},
+			},
+			App: &types.App{
+				Exec:  []string{"/bin/foo"},
+				User:  "0",
+				Group: "0",
+				MountPoints: []types.MountPoint{
+					{
+						Name: *types.MustACName("foo-mount"),
+						Path: "/app/foo",
+					},
+				},
+			},
+		}
+
+		tmpDir, err := ioutil.TempDir("", tstprefix)
+		if err != nil {
+			t.Errorf("error creating tempdir: %v", err)
+		}
+		defer os.RemoveAll(tmpDir)
+
+		p := &stage1commontypes.Pod{Manifest: podManifest, Root: tmpDir}
+		output, err := appToNspawnArgs(p, appManifest, Stage1InsecureOptions{})
+		if err != nil {
+			t.Errorf("#%d: unexpected error: `%v`", i, err)
+		}
+		if rbind := hasRbindArg(output); rbind != tt.expectRecursive {
+			t.Errorf("#%d: expected: recursive: %v, saw: %v \nOutput:\n%v", i, tt.expectRecursive, rbind, output)
+		}
+	}
+}
+
+func hasRbindArg(output []string) bool {
+	rbindRegexp := regexp.MustCompile("^--bind(-ro)?=/host/foo:.*/app/foo:rbind$")
+	for i := len(output) - 1; i >= 0; i-- {
+		if rbindRegexp.MatchString(output[i]) {
 			return true
 		}
 	}
