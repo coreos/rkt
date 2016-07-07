@@ -218,7 +218,7 @@ func (al *appMount) Type() string {
 	return "appMount"
 }
 
-// appsVolume is for --volume flags in the form name,kind=host,source=/tmp,readOnly=true (defined by appc)
+// appsVolume is for --volume flags in the form name,kind=host,source=/tmp,readOnly=true,recursive=true (defined by appc)
 type appsVolume apps.Apps
 
 func (al *appsVolume) Set(s string) error {

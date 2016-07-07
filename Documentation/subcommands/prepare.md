@@ -74,7 +74,7 @@ c9fad0e6-8236-4fc2-ad17-55d0a4c7d742
 | `--stage1-from-dir` |  `` | A stage1 image file inside the default stage1 images directory | Image to use as stage1 |
 | `--store-only` |  `false` | `true` or `false` | Use only available images in the store (do not discover or download from remote URLs). See [image fetching behavior](../image-fetching-behavior.md) |
 | `--user` | none | uid, username or file path | user override for the preceding image (example: '--user=user') |
-| `--volume` |  `` | Volume syntax (`NAME,kind=KIND,source=PATH,readOnly=BOOL`). See [Mount Volumes into a Pod](run.md#mount-volumes-into-a-pod) | Volumes to make available in the pod |
+| `--volume` |  `` | Volume syntax (`NAME,kind=KIND,source=PATH,readOnly=BOOL,recursive=BOOL`). See [Mount Volumes into a Pod](run.md#mount-volumes-into-a-pod) | Volumes to make available in the pod |
 
 ## Global options
 

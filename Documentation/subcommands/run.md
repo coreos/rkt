@@ -124,7 +124,8 @@ Each ACI can define a [list of mount points](https://github.com/appc/spec/blob/m
             {
                 "name": "data",
                 "path": "/var/data",
-                "readOnly": false
+                "readOnly": false,
+                "recursive": true
             }
         ]
     }
