@@ -105,21 +105,24 @@ func mountSharedVolumes(root string, p *stage1commontypes.Pod, ra *schema.Runtim
 			return errwrap.Wrap(fmt.Errorf("could not resolve symlink for source: %v", source), err)
 		} else if err := ensureDestinationExists(cleanedSource, absDestination); err != nil {
 			return errwrap.Wrap(fmt.Errorf("could not create destination mount point: %v", absDestination), err)
-		} else if err := doBindMount(cleanedSource, absDestination, readOnly); err != nil {
+		} else if err := doBindMount(cleanedSource, absDestination, readOnly, vol.Recursive); err != nil {
 			return errwrap.Wrap(fmt.Errorf("could not bind mount path %v (s: %v, d: %v)", m.Path, source, absDestination), err)
 		}
 	}
 	return nil
 }
 
-func doBindMount(source, destination string, readOnly bool) error {
-	if err := syscall.Mount(source, destination, "bind", syscall.MS_BIND, ""); err != nil {
-		return err
-	}
+func doBindMount(source, destination string, readOnly bool, recursive *bool) error {
+	var flags uintptr = syscall.MS_BIND | syscall.MS_REC
 	if readOnly {
-		return syscall.Mount(source, destination, "bind", syscall.MS_REMOUNT|syscall.MS_RDONLY|syscall.MS_BIND, "")
+		flags |= syscall.MS_RDONLY
 	}
-	return nil
+
+	// Enable recursive by default and remove it if explicitly requested
+	if recursive != nil && *recursive == false {
+		flags ^= syscall.MS_REC
+	}
+	return syscall.Mount(source, destination, "bind", flags, "")
 }
 
 func ensureDestinationExists(source, destination string) error {
