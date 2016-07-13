@@ -55,6 +55,15 @@ const (
 
 	DefaultLocalConfigDir  = "/etc/rkt"
 	DefaultSystemConfigDir = "/usr/lib/rkt"
+
+	// Default perm bits for the regular files
+	// within the stage1 directory. (e.g. image manifest,
+	// pod manifest, stage1ID, etc).
+	DefaultRegularFilePerm = os.FileMode(0640)
+
+	// Default perm bits for the regular directories
+	// within the stage1 directory.
+	DefaultRegularDirPerm = os.FileMode(0750)
 )
 
 const (

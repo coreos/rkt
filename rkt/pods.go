@@ -960,8 +960,25 @@ func (p *pod) getStage1TreeStoreID() (string, error) {
 	return string(s1IDb), nil
 }
 
-// getAppTreeStoreIDs returns the treeStoreIDs of the apps images used in
-// this pod
+// getAppTreeStoreID returns the treeStoreID of the provided app.
+func (p *pod) getAppTreeStoreID(app types.ACName) (string, error) {
+	path, err := filepath.Rel("/", common.AppTreeStoreIDPath("", app))
+	if err != nil {
+		return "", err
+	}
+	treeStoreID, err := p.readFile(path)
+	if err != nil {
+		// When not using overlayfs, apps don't have a treeStoreID file. In
+		// other cases we've got a problem.
+		if !(os.IsNotExist(err) && !p.usesOverlay()) {
+			return "", errwrap.Wrap(fmt.Errorf("no treeStoreID found for app %s", app), err)
+		}
+	}
+	return string(treeStoreID), nil
+}
+
+// getAppsTreeStoreIDs returns the treeStoreIDs of the apps images used in
+// this pod.
 func (p *pod) getAppsTreeStoreIDs() ([]string, error) {
 	var treeStoreIDs []string
 	apps, err := p.getApps()
@@ -969,19 +986,13 @@ func (p *pod) getAppsTreeStoreIDs() ([]string, error) {
 		return nil, err
 	}
 	for _, a := range apps {
-		path, err := filepath.Rel("/", common.AppTreeStoreIDPath("", a.Name))
+		id, err := p.getAppTreeStoreID(a.Name)
 		if err != nil {
 			return nil, err
 		}
-		treeStoreID, err := p.readFile(path)
-		if err != nil {
-			// When not using overlayfs, apps don't have a treeStoreID file
-			if os.IsNotExist(err) {
-				continue
-			}
-			return nil, err
+		if id != "" {
+			treeStoreIDs = append(treeStoreIDs, id)
 		}
-		treeStoreIDs = append(treeStoreIDs, string(treeStoreID))
 	}
 	return treeStoreIDs, nil
 }
