@@ -40,8 +40,9 @@ type Volume struct {
 
 	// currently used only by "host"
 	// TODO(jonboulle): factor out?
-	Source   string `json:"source,omitempty"`
-	ReadOnly *bool  `json:"readOnly,omitempty"`
+	Source    string `json:"source,omitempty"`
+	ReadOnly  *bool  `json:"readOnly,omitempty"`
+	Recursive *bool  `json:"recursive,omitempty"`
 
 	// currently used only by "empty"
 	Mode *string `json:"mode,omitempty"`
@@ -128,6 +129,10 @@ func (v Volume) String() string {
 		s = append(s, ",readOnly=")
 		s = append(s, strconv.FormatBool(*v.ReadOnly))
 	}
+	if v.Recursive != nil {
+		s = append(s, ",recursive=")
+		s = append(s, strconv.FormatBool(*v.Recursive))
+	}
 	switch v.Kind {
 	case "empty":
 		if *v.Mode != emptyVolumeDefaultMode {
@@ -149,7 +154,7 @@ func (v Volume) String() string {
 // VolumeFromString takes a command line volume parameter and returns a volume
 //
 // Example volume parameters:
-// 	database,kind=host,source=/tmp,readOnly=true
+// 	database,kind=host,source=/tmp,readOnly=true,recursive=true
 func VolumeFromString(vp string) (*Volume, error) {
 	var vol Volume
 
@@ -186,6 +191,12 @@ func VolumeFromString(vp string) (*Volume, error) {
 				return nil, err
 			}
 			vol.ReadOnly = &ro
+		case "recursive":
+			rec, err := strconv.ParseBool(val[0])
+			if err != nil {
+				return nil, err
+			}
+			vol.Recursive = &rec
 		case "mode":
 			vol.Mode = &val[0]
 		case "uid":
