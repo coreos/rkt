@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/hex"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -28,6 +29,7 @@ import (
 	"github.com/coreos/rkt/pkg/aci"
 	"github.com/coreos/rkt/pkg/multicall"
 	"github.com/coreos/rkt/pkg/sys"
+	"github.com/hashicorp/errwrap"
 
 	"github.com/appc/spec/schema/types"
 )
@@ -73,7 +75,7 @@ func TestResolveKey(t *testing.T) {
 	// Return a hash key buffer from a hex string
 	str2key := func(s string) *bytes.Buffer {
 		k, _ := hex.DecodeString(s)
-		return bytes.NewBufferString(keyToString(k))
+		return bytes.NewBufferString(NewSHA512HashAlgorithm().sumToHashString(k))
 	}
 
 	// Set up store (use key == data for simplicity)
@@ -104,11 +106,11 @@ func TestResolveKey(t *testing.T) {
 	fks := "sha512-67147019a5b56f5e2ee01e989a8aa4787f56b8445960be2d8678391cf111009b"
 	for _, k := range []string{fkl, fks} {
 		key, err := s.ResolveKey(k)
-		if key != fks {
-			t.Errorf("expected ResolveKey to return unaltered short key, but got %q", key)
-		}
 		if err != nil {
 			t.Errorf("expected err=nil, got %v", err)
+		}
+		if key != fks {
+			t.Errorf("expected ResolveKey to return unaltered short key, but got %q", key)
 		}
 	}
 
@@ -131,22 +133,22 @@ func TestResolveKey(t *testing.T) {
 	}
 
 	// wrong key prefix
+	expectedErr := fmt.Sprintf("wrong hash string prefix %q", "badprefix")
 	k, err = s.ResolveKey("badprefix-1")
-	expectedErr := "wrong key prefix"
 	if err == nil {
 		t.Errorf("expected non-nil error!")
 	}
-	if err.Error() != expectedErr {
+	if !errwrap.Contains(err, expectedErr) {
 		t.Errorf("expected err=%q, got %q", expectedErr, err)
 	}
 
-	// image ID too short
+	// key too short
 	k, err = s.ResolveKey("sha512-1")
-	expectedErr = "image ID too short"
+	expectedErr = "hash string too short"
 	if err == nil {
 		t.Errorf("expected non-nil error!")
 	}
-	if err.Error() != expectedErr {
+	if !errwrap.Contains(err, expectedErr) {
 		t.Errorf("expected err=%q, got %q", expectedErr, err)
 	}
 }

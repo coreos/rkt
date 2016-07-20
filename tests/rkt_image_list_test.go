@@ -197,7 +197,7 @@ func TestShortHash(t *testing.T) {
 		{
 			fmt.Sprintf("image cat-manifest %s", hash0[:len("sha512-")+1]),
 			true,
-			"image ID too short",
+			"hash string too short",
 		},
 		// Try short hash that collides
 		{

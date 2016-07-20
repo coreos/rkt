@@ -16,7 +16,6 @@ package store
 
 import (
 	"archive/tar"
-	"crypto/sha512"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -202,16 +201,14 @@ func (ts *TreeStore) GetRootFS(id string) string {
 func (ts *TreeStore) Hash(id string) (string, error) {
 	treepath := ts.GetPath(id)
 
-	hash := sha512.New()
+	hash := hashAlgorithms["sha512"].NewHash()
 	iw := NewHashWriter(hash)
 	err := filepath.Walk(treepath, buildWalker(treepath, iw))
 	if err != nil {
 		return "", errwrap.Wrap(errors.New("error walking rootfs"), err)
 	}
 
-	hashstring := hashToKey(hash)
-
-	return hashstring, nil
+	return hashAlgorithms["sha512"].HashToHashString(hash)
 }
 
 // Check calculates the actual rendered ACI's hash and verifies that it matches

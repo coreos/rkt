@@ -15,7 +15,6 @@
 package store
 
 import (
-	"crypto/sha512"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -47,24 +46,22 @@ const (
 	defaultPathPerm = os.FileMode(0770 | os.ModeSetgid)
 	defaultFilePerm = os.FileMode(0660)
 
-	// To ameliorate excessively long paths, keys for the (blob)store use
-	// only the first half of a sha512 rather than the entire sum
-	hashPrefix = "sha512-"
-	lenHash    = sha512.Size       // raw byte size
-	lenHashKey = (lenHash / 2) * 2 // half length, in hex characters
-	lenKey     = len(hashPrefix) + lenHashKey
-	minlenKey  = len(hashPrefix) + 2 // at least sha512-aa
-
 	// how many backups to keep when migrating to new db version
 	backupsNumber = 5
 )
 
-var diskvStores = [...]string{
-	"blob",
-	"imageManifest",
-}
-
 var (
+	// ACtually the store, since it only handle appc/spec ACIs, only uses
+	// the sha512 hash algorithm
+	hashAlgorithms = map[string]HashAlgorithm{
+		"sha512": NewSHA512HashAlgorithm(),
+	}
+
+	diskvStores = [...]string{
+		"blob",
+		"imageManifest",
+	}
+
 	ErrKeyNotFound = errors.New("no image IDs found")
 )
 
@@ -362,19 +359,16 @@ func (s *Store) TmpDir() (string, error) {
 // ResolveKey resolves a partial key (of format `sha512-0c45e8c0ab2`) to a full
 // key by considering the key a prefix and using the store for resolution.
 // If the key is longer than the full key length, it is first truncated.
+// Needed to satisfy the acirenderer.ACIProvider interface
 func (s *Store) ResolveKey(key string) (string, error) {
-	if !strings.HasPrefix(key, hashPrefix) {
-		return "", fmt.Errorf("wrong key prefix")
-	}
-	if len(key) < minlenKey {
-		return "", fmt.Errorf("image ID too short")
-	}
-	if len(key) > lenKey {
-		key = key[:lenKey]
+	var err error
+	key, err = hashAlgorithms["sha512"].NormalizeHashString(key)
+	if err != nil {
+		return "", errwrap.Wrap(errors.New("bad image ID"), err)
 	}
 
 	var aciInfos []*ACIInfo
-	err := s.db.Do(func(tx *sql.Tx) error {
+	err = s.db.Do(func(tx *sql.Tx) error {
 		var err error
 		aciInfos, err = GetACIInfosWithKeyPrefix(tx, key)
 		return err
@@ -417,6 +411,7 @@ func (s *Store) ResolveName(name string) ([]string, bool, error) {
 	return keys, found, nil
 }
 
+// Needed to satisfy the acirenderer.ACIProvider interface
 func (s *Store) ReadStream(key string) (io.ReadCloser, error) {
 	key, err := s.ResolveKey(key)
 	if err != nil {
@@ -466,7 +461,7 @@ func (s *Store) WriteACI(r io.ReadSeeker, latest bool) (string, error) {
 
 	// Write the decompressed image (tar) to a temporary file on disk, and
 	// tee so we can generate the hash
-	h := sha512.New()
+	h := hashAlgorithms["sha512"].NewHash()
 	tr := io.TeeReader(dr, h)
 	fh, err := s.TmpFile()
 	if err != nil {
@@ -614,9 +609,13 @@ func (s *Store) GetTreeStoreID(key string) (string, error) {
 		keys = append(keys, image.Key)
 	}
 	imagesString := strings.Join(keys, ",")
-	h := sha512.New()
+	h := hashAlgorithms["sha512"].NewHash()
 	h.Write([]byte(imagesString))
-	return "deps-" + hashToKey(h), nil
+	hashStr, err := hashAlgorithms["sha512"].HashToHashString(h)
+	if err != nil {
+		return "", err
+	}
+	return "deps-" + hashStr, nil
 }
 
 // RenderTreeStore renders a treestore for the given image key if it's not
@@ -898,19 +897,11 @@ func (s *Store) Dump(hex bool) {
 // HashToKey takes a hash.Hash (which currently _MUST_ represent a full SHA512),
 // calculates its sum, and returns a string which should be used as the key to
 // store the data matching the hash.
+// Needed to satisfy the acirenderer.ACIProvider interface
 func (s *Store) HashToKey(h hash.Hash) string {
-	return hashToKey(h)
-}
-
-func hashToKey(h hash.Hash) string {
-	s := h.Sum(nil)
-	return keyToString(s)
-}
-
-// keyToString takes a key and returns a shortened and prefixed hexadecimal string version
-func keyToString(k []byte) string {
-	if len(k) != lenHash {
-		panic(fmt.Sprintf("bad hash passed to hashToKey: %x", k))
+	key, err := hashAlgorithms["sha512"].HashToHashString(h)
+	if err != nil {
+		panic(err)
 	}
-	return fmt.Sprintf("%s%x", hashPrefix, k)[0:lenKey]
+	return key
 }
