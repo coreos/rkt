@@ -37,6 +37,114 @@ enum ImageType {
         IMAGE_TYPE_OCI       = 3;
 }
 
+// InsecureOption defines the insecure option flags to be used.
+enum InsecureOption {
+        INSECURE_OPTION_NONE    = 0;
+        INSECURE_OPTION_ALL     = 1;
+        INSECURE_OPTION_IMAGE   = 2;
+        INSECURE_OPTION_TLS     = 4;
+        INSECURE_OPTION_ON_DISK = 8;
+        INSECURE_OPTION_HTTP    = 16;
+        INSECURE_OPTION_PUBKEY  = 32;
+}
+
+// DiscoverOption defines the discovery options to be used for fetching.
+enum DiscoverOption {
+        DISCOVER_OPTION_NONE       = 0;
+        DISCOVER_OPTION_NO_STORE   = 1;
+        DISCOVER_OPTION_ONLY_STORE = 2;
+}
+
+// FetchImageRequest defines the request for FetchImage.
+message FetchImageRequest {
+        // Type of the image, e.g. aci, docker, oci, etc.
+        Image type = 1;
+
+        // Resolvable name of the image, used for discovery, can be string, hash, URL, file path.
+        string name = 2;
+
+        // Insecure options for fetch, it's a bitflag.
+        InsecureOption insecure_option = 3;
+
+        // Whether to fetch from the store, or skip the store.
+        DiscoverOption discover_option = 4;
+
+        // Whether to fetch the depedencies.
+        bool with_deps = 5;
+
+        // Serialized credential config file, used for fetching.
+        // The format is documented at:
+        // https://github.com/coreos/rkt/blob/master/Documentation/configuration.md#rktkind-auth
+        bytes credentials_confg = 6;
+
+        // TODO(yifan): Add discover scheme. Or add them in DiscoverOption?
+}
+
+// FetchImageResponse defines the response for FetchImage.
+message FetchImageResponse {
+        // ID of the fetched image, which can be used to uniquely identify the image.
+        string id = 1;
+}
+
+// PreparePodRequest defines the request for PreparePod.
+message PreparePodRequest {
+        // The pod manifest to use for preparing.
+        bytes pod_manifest = 1;
+}
+
+// PreparePodResponse defines the response for PreparePod.
+message PreparePodResponse {
+        // ID of the prepared rkt pod, which can be used to invoke `rkt run-prepared`.
+        string id = 1;
+}
+
+// RemovePodRequest defines the request for RemovePod.
+message RemovePodRequest {
+        // ID of the pod to remove, when specified, at most one image will be removed.
+        string id = 1;
+}
+
+// RemovePodResponse defines the response for RemovePod.
+message RemovePodResponse {}
+
+// RemoveImageRequest defines the request for RemoveImage.
+message RemoveImageRequest {
+        // ID of the image to remove, when specified, at most one image will be removed.
+        string id = 1;
+
+        // Name of the image to remove, if multiple images have the same name,
+        // all of them will be removed.
+        string name = 2;
+}
+
+// RemoveImageResponse defines the response for RemoveImage.
+message RemoveImageResponse {}
+
+// EnterPodRequest defines the request for EnterPod.
+message EnterPodRequest {
+        // ID of the pod to enter.
+        string id = 1;
+
+        // Name of the app inside the pod to enter.
+        // This must be non-empty if there are multiple apps in the pod.
+        string app_name = 2;
+
+        // The command to run for enter, optional.
+        repeated string command = 3;
+
+        // The stdin to for the enter, optional.
+        string stdin = 4;
+}
+
+// EnterPodResponse defines the response for EnterPod.
+message EnterPodResponse {
+        // The stdout to for the enter, optional.
+        string stdout = 1;
+
+        // The stderr to for the enter, optional.
+        string stderr = 2;
+}
+
 // ImageFormat defines the format of the image.
 message ImageFormat {
         // Type of the image, required.
@@ -484,4 +592,20 @@ service PublicAPI {
         // will not be closed after the first response, the future logs will be sent via
         // the stream.
         rpc GetLogs(GetLogsRequest) returns (stream GetLogsResponse) {}
+
+        // FetchImage fetches a container image into the image store.
+        rpc FetchImage (FetchImageRequest) returns (FetchImageResponse) {}
+
+        // PreparePod prepares a pod, currently it only supports preparing from a pod manifest.
+        rpc PreparePod (PreparePodRequest) returns (PreparePodResponse) {}
+
+        // RemovePod removes a pod.
+        rpc RemovePod (RemovePodRequest) returns (RemovePodResponse) {}
+
+        // RemoveImage removes a container image from the image store.
+        rpc RemoveImage (RemoveImageRequest) returns (RemoveImageResponse) {}
+
+        // EnterPod enters the pod's namespace, it also returns a stream where the client can
+        // read stdout and stderr.
+        rpc EnterPod (EnterPodRequest) returns (stream EnterPodResponse) {} // This returns a bi-directional stream, where client can send stdin and server can send stdout/stderr.
 }

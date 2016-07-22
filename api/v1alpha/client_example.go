@@ -100,7 +100,7 @@ func main() {
 	followFlag := flag.Bool("follow", false, "enable 'follow' option on GetLogs")
 	flag.Parse()
 
-	conn, err := grpc.Dial("localhost:15441", grpc.WithInsecure())
+	conn, err := grpc.Dial("localhost:15441", grpc.WithTimeout(time.Second), grpc.WithInsecure())
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
