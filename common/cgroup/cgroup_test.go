@@ -100,7 +100,7 @@ net_prio	6	432	1`
 	}
 
 	for i, tt := range tests {
-		o, err := parseCgroups(tt.input)
+		o, err := parseLegacyCgroups(tt.input)
 		if err != nil {
 			t.Errorf("#%d: unexpected error `%v`", i, err)
 		}
