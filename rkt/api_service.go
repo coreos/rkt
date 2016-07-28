@@ -68,26 +68,42 @@ func init() {
 	cmdAPIService.Flags().StringVar(&flagAPIServiceListenAddr, "listen", "", "address to listen for client API requests")
 }
 
-// v1AlphaAPIServer implements v1Alpha.APIServer interface.
-type v1AlphaAPIServer struct {
+// v1alphaAPIReadOnlyServer implements v1Alpha.APIServer interface.
+type v1alphaAPIReadOnlyServer struct {
 	store *imagestore.Store
 }
 
-var _ v1alpha.PublicAPIServer = &v1AlphaAPIServer{}
+type v1alphaAPIWriteOnlyServer struct {
+	store *imagestore.Store
+}
 
-func newV1AlphaAPIServer() (*v1AlphaAPIServer, error) {
+var _ v1alpha.PublicReadOnlyAPI = &v1alphaAPIReadOnlyServer{}
+var _ v1alpha.PublicWriteOnlyAPI = &v1alphaAPIWriteOnlyServer{}
+
+func newV1alphaAPIServer() (*v1alphaAPIReadOnlyServer, error) {
 	s, err := imagestore.NewStore(storeDir())
 	if err != nil {
 		return nil, err
 	}
 
-	return &v1AlphaAPIServer{
+	return &v1alphaAPIReadOnlyServer{
+		store: s,
+	}, nil
+}
+
+func newV1alphaWriteOnlyAPIServer() (*v1alphaAPIReadOnlyServer, error) {
+	s, err := imagestore.NewStore(storeDir())
+	if err != nil {
+		return nil, err
+	}
+
+	return &v1alphaAPIReadOnlyServer{
 		store: s,
 	}, nil
 }
 
 // GetInfo returns the information about the rkt, appc, api server version.
-func (s *v1AlphaAPIServer) GetInfo(context.Context, *v1alpha.GetInfoRequest) (*v1alpha.GetInfoResponse, error) {
+func (s *v1alphaAPIReadOnlyServer) GetInfo(context.Context, *v1alpha.GetInfoRequest) (*v1alpha.GetInfoResponse, error) {
 	return &v1alpha.GetInfoResponse{
 		Info: &v1alpha.Info{
 			RktVersion:  version.Version,
@@ -420,7 +436,7 @@ func waitForMachinedRegistration(uuid string) error {
 	return errors.New("pod not found")
 }
 
-func (s *v1AlphaAPIServer) ListPods(ctx context.Context, request *v1alpha.ListPodsRequest) (*v1alpha.ListPodsResponse, error) {
+func (s *v1alphaAPIReadOnlyServer) ListPods(ctx context.Context, request *v1alpha.ListPodsRequest) (*v1alpha.ListPodsResponse, error) {
 	var pods []*v1alpha.Pod
 	if err := walkPods(includeMostDirs, func(p *pod) {
 		pod := getBasicPod(p)
@@ -514,7 +530,7 @@ func fillAppInfo(store *imagestore.Store, p *pod, v1pod *v1alpha.Pod) {
 	}
 }
 
-func (s *v1AlphaAPIServer) InspectPod(ctx context.Context, request *v1alpha.InspectPodRequest) (*v1alpha.InspectPodResponse, error) {
+func (s *v1alphaAPIReadOnlyServer) InspectPod(ctx context.Context, request *v1alpha.InspectPodRequest) (*v1alpha.InspectPodResponse, error) {
 	uuid, err := types.NewUUID(request.Id)
 	if err != nil {
 		stderr.PrintE(fmt.Sprintf("invalid pod id %q", request.Id), err)
@@ -684,7 +700,7 @@ func satisfiesAnyImageFilters(image *v1alpha.Image, filters []*v1alpha.ImageFilt
 	return false
 }
 
-func (s *v1AlphaAPIServer) ListImages(ctx context.Context, request *v1alpha.ListImagesRequest) (*v1alpha.ListImagesResponse, error) {
+func (s *v1alphaAPIReadOnlyServer) ListImages(ctx context.Context, request *v1alpha.ListImagesRequest) (*v1alpha.ListImagesResponse, error) {
 	aciInfos, err := s.store.GetAllACIInfos(nil, false)
 	if err != nil {
 		stderr.PrintE("failed to get all ACI infos", err)
@@ -730,7 +746,7 @@ func getImageInfo(store *imagestore.Store, imageID string) (*v1alpha.Image, erro
 	return image, nil
 }
 
-func (s *v1AlphaAPIServer) InspectImage(ctx context.Context, request *v1alpha.InspectImageRequest) (*v1alpha.InspectImageResponse, error) {
+func (s *v1alphaAPIReadOnlyServer) InspectImage(ctx context.Context, request *v1alpha.InspectImageRequest) (*v1alpha.InspectImageResponse, error) {
 	image, err := getImageInfo(s.store, request.Id)
 	if err != nil {
 		return nil, err
@@ -759,11 +775,11 @@ func (sw LogsStreamWriter) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-func (s *v1AlphaAPIServer) GetLogs(request *v1alpha.GetLogsRequest, server v1alpha.PublicAPI_GetLogsServer) error {
+func (s *v1alphaAPIReadOnlyServer) GetLogs(request *v1alpha.GetLogsRequest, server v1alpha.PublicAPI_GetLogsServer) error {
 	return s.constrainedGetLogs(request, server)
 }
 
-func (s *v1AlphaAPIServer) ListenEvents(request *v1alpha.ListenEventsRequest, server v1alpha.PublicAPI_ListenEventsServer) error {
+func (s *v1alphaAPIReadOnlyServer) ListenEvents(request *v1alpha.ListenEventsRequest, server v1alpha.PublicAPI_ListenEventsServer) error {
 	return fmt.Errorf("not implemented yet")
 }
 
@@ -787,13 +803,13 @@ func runAPIService(cmd *cobra.Command, args []string) (exit int) {
 
 	publicServer := grpc.NewServer() // TODO(yifan): Add TLS credential option.
 
-	v1AlphaAPIServer, err := newV1AlphaAPIServer()
+	v1alphaAPIReadOnlyServer, err := newV1AlphaAPIServer()
 	if err != nil {
 		stderr.PrintE("failed to create API service", err)
 		return 1
 	}
 
-	v1alpha.RegisterPublicAPIServer(publicServer, v1AlphaAPIServer)
+	v1alpha.RegisterPublicAPIServer(publicServer, v1alphaAPIReadOnlyServer)
 
 	for _, l := range listeners {
 		defer l.Close()

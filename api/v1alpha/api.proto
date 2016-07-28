@@ -563,9 +563,9 @@ message GetLogsResponse {
         repeated string lines = 1;
 }
 
-// PublicAPI defines the read-only APIs that will be supported.
-// These will be handled over TCP sockets.
-service PublicAPI {
+// PublicReadOnlyAPI defines the read-only APIs that will be supported.
+// These will be handled over UNIX or TCP sockets.
+service PublicReadOnlyAPI {
         // GetInfo gets the rkt's information on the machine.
         rpc GetInfo (GetInfoRequest) returns (GetInfoResponse) {}
 
@@ -592,7 +592,11 @@ service PublicAPI {
         // will not be closed after the first response, the future logs will be sent via
         // the stream.
         rpc GetLogs(GetLogsRequest) returns (stream GetLogsResponse) {}
+}
 
+// PublicWriteOnlyAPI defines the read-only APIs that will be supported.
+// These will be only handled over UNIX sockets.
+service PublicWriteOnlyAPI {
         // FetchImage fetches a container image into the image store.
         rpc FetchImage (FetchImageRequest) returns (FetchImageResponse) {}
 
