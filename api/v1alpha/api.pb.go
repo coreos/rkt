@@ -9,6 +9,16 @@ It is generated from these files:
 	api.proto
 
 It has these top-level messages:
+	FetchImageRequest
+	FetchImageResponse
+	PreparePodRequest
+	PreparePodResponse
+	RemovePodRequest
+	RemovePodResponse
+	RemoveImageRequest
+	RemoveImageResponse
+	EnterPodRequest
+	EnterPodResponse
 	ImageFormat
 	Image
 	Network
@@ -84,6 +94,68 @@ func (x ImageType) String() string {
 }
 func (ImageType) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
 
+// InsecureOption defines the insecure option flags to be used.
+type InsecureOption int32
+
+const (
+	InsecureOption_INSECURE_OPTION_NONE    InsecureOption = 0
+	InsecureOption_INSECURE_OPTION_ALL     InsecureOption = 1
+	InsecureOption_INSECURE_OPTION_IMAGE   InsecureOption = 2
+	InsecureOption_INSECURE_OPTION_TLS     InsecureOption = 4
+	InsecureOption_INSECURE_OPTION_ON_DISK InsecureOption = 8
+	InsecureOption_INSECURE_OPTION_HTTP    InsecureOption = 16
+	InsecureOption_INSECURE_OPTION_PUBKEY  InsecureOption = 32
+)
+
+var InsecureOption_name = map[int32]string{
+	0:  "INSECURE_OPTION_NONE",
+	1:  "INSECURE_OPTION_ALL",
+	2:  "INSECURE_OPTION_IMAGE",
+	4:  "INSECURE_OPTION_TLS",
+	8:  "INSECURE_OPTION_ON_DISK",
+	16: "INSECURE_OPTION_HTTP",
+	32: "INSECURE_OPTION_PUBKEY",
+}
+var InsecureOption_value = map[string]int32{
+	"INSECURE_OPTION_NONE":    0,
+	"INSECURE_OPTION_ALL":     1,
+	"INSECURE_OPTION_IMAGE":   2,
+	"INSECURE_OPTION_TLS":     4,
+	"INSECURE_OPTION_ON_DISK": 8,
+	"INSECURE_OPTION_HTTP":    16,
+	"INSECURE_OPTION_PUBKEY":  32,
+}
+
+func (x InsecureOption) String() string {
+	return proto.EnumName(InsecureOption_name, int32(x))
+}
+func (InsecureOption) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
+
+// DiscoverOption defines the discovery options to be used for fetching.
+type DiscoverOption int32
+
+const (
+	DiscoverOption_DISCOVER_OPTION_NONE       DiscoverOption = 0
+	DiscoverOption_DISCOVER_OPTION_NO_STORE   DiscoverOption = 1
+	DiscoverOption_DISCOVER_OPTION_ONLY_STORE DiscoverOption = 2
+)
+
+var DiscoverOption_name = map[int32]string{
+	0: "DISCOVER_OPTION_NONE",
+	1: "DISCOVER_OPTION_NO_STORE",
+	2: "DISCOVER_OPTION_ONLY_STORE",
+}
+var DiscoverOption_value = map[string]int32{
+	"DISCOVER_OPTION_NONE":       0,
+	"DISCOVER_OPTION_NO_STORE":   1,
+	"DISCOVER_OPTION_ONLY_STORE": 2,
+}
+
+func (x DiscoverOption) String() string {
+	return proto.EnumName(DiscoverOption_name, int32(x))
+}
+func (DiscoverOption) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
+
 // AppState defines the possible states of the app.
 type AppState int32
 
@@ -107,7 +179,7 @@ var AppState_value = map[string]int32{
 func (x AppState) String() string {
 	return proto.EnumName(AppState_name, int32(x))
 }
-func (AppState) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
+func (AppState) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
 
 // PodState defines the possible states of the pod.
 // See https://github.com/coreos/rkt/blob/master/Documentation/devel/pod-lifecycle.md for a detailed
@@ -155,7 +227,7 @@ var PodState_value = map[string]int32{
 func (x PodState) String() string {
 	return proto.EnumName(PodState_name, int32(x))
 }
-func (PodState) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
+func (PodState) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
 
 // EventType defines the type of the events that will be received via ListenEvents().
 type EventType int32
@@ -204,7 +276,144 @@ var EventType_value = map[string]int32{
 func (x EventType) String() string {
 	return proto.EnumName(EventType_name, int32(x))
 }
-func (EventType) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
+func (EventType) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
+
+// FetchImageRequest defines the request for FetchImage.
+type FetchImageRequest struct {
+	// Type of the image, e.g. aci, docker, oci, etc.
+	Type *Image `protobuf:"bytes,1,opt,name=type" json:"type,omitempty"`
+	// Resolvable name of the image, used for discovery, can be string, hash, URL, file path.
+	Name string `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
+	// Insecure options for fetch, it's a bitflag.
+	InsecureOption InsecureOption `protobuf:"varint,3,opt,name=insecure_option,enum=v1alpha.InsecureOption" json:"insecure_option,omitempty"`
+	// Whether to fetch from the store, or skip the store.
+	DiscoverOption DiscoverOption `protobuf:"varint,4,opt,name=discover_option,enum=v1alpha.DiscoverOption" json:"discover_option,omitempty"`
+	// Whether to fetch the depedencies.
+	WithDeps bool `protobuf:"varint,5,opt,name=with_deps" json:"with_deps,omitempty"`
+	// Serialized credential config file, used for fetching.
+	// The format is documented at:
+	// https://github.com/coreos/rkt/blob/master/Documentation/configuration.md#rktkind-auth
+	CredentialsConfg []byte `protobuf:"bytes,6,opt,name=credentials_confg,proto3" json:"credentials_confg,omitempty"`
+}
+
+func (m *FetchImageRequest) Reset()                    { *m = FetchImageRequest{} }
+func (m *FetchImageRequest) String() string            { return proto.CompactTextString(m) }
+func (*FetchImageRequest) ProtoMessage()               {}
+func (*FetchImageRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
+
+func (m *FetchImageRequest) GetType() *Image {
+	if m != nil {
+		return m.Type
+	}
+	return nil
+}
+
+// FetchImageResponse defines the response for FetchImage.
+type FetchImageResponse struct {
+	// ID of the fetched image, which can be used to uniquely identify the image.
+	Id string `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
+}
+
+func (m *FetchImageResponse) Reset()                    { *m = FetchImageResponse{} }
+func (m *FetchImageResponse) String() string            { return proto.CompactTextString(m) }
+func (*FetchImageResponse) ProtoMessage()               {}
+func (*FetchImageResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
+
+// PreparePodRequest defines the request for PreparePod.
+type PreparePodRequest struct {
+	// The pod manifest to use for preparing.
+	PodManifest []byte `protobuf:"bytes,1,opt,name=pod_manifest,proto3" json:"pod_manifest,omitempty"`
+}
+
+func (m *PreparePodRequest) Reset()                    { *m = PreparePodRequest{} }
+func (m *PreparePodRequest) String() string            { return proto.CompactTextString(m) }
+func (*PreparePodRequest) ProtoMessage()               {}
+func (*PreparePodRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
+
+// PreparePodResponse defines the response for PreparePod.
+type PreparePodResponse struct {
+	// ID of the prepared rkt pod, which can be used to invoke `rkt run-prepared`.
+	Id string `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
+}
+
+func (m *PreparePodResponse) Reset()                    { *m = PreparePodResponse{} }
+func (m *PreparePodResponse) String() string            { return proto.CompactTextString(m) }
+func (*PreparePodResponse) ProtoMessage()               {}
+func (*PreparePodResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
+
+// RemovePodRequest defines the request for RemovePod.
+type RemovePodRequest struct {
+	// ID of the pod to remove, when specified, at most one image will be removed.
+	Id string `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
+}
+
+func (m *RemovePodRequest) Reset()                    { *m = RemovePodRequest{} }
+func (m *RemovePodRequest) String() string            { return proto.CompactTextString(m) }
+func (*RemovePodRequest) ProtoMessage()               {}
+func (*RemovePodRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
+
+// RemovePodResponse defines the response for RemovePod.
+type RemovePodResponse struct {
+}
+
+func (m *RemovePodResponse) Reset()                    { *m = RemovePodResponse{} }
+func (m *RemovePodResponse) String() string            { return proto.CompactTextString(m) }
+func (*RemovePodResponse) ProtoMessage()               {}
+func (*RemovePodResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
+
+// RemoveImageRequest defines the request for RemoveImage.
+type RemoveImageRequest struct {
+	// ID of the image to remove, when specified, at most one image will be removed.
+	Id string `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
+	// Name of the image to remove, if multiple images have the same name,
+	// all of them will be removed.
+	Name string `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
+}
+
+func (m *RemoveImageRequest) Reset()                    { *m = RemoveImageRequest{} }
+func (m *RemoveImageRequest) String() string            { return proto.CompactTextString(m) }
+func (*RemoveImageRequest) ProtoMessage()               {}
+func (*RemoveImageRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
+
+// RemoveImageResponse defines the response for RemoveImage.
+type RemoveImageResponse struct {
+}
+
+func (m *RemoveImageResponse) Reset()                    { *m = RemoveImageResponse{} }
+func (m *RemoveImageResponse) String() string            { return proto.CompactTextString(m) }
+func (*RemoveImageResponse) ProtoMessage()               {}
+func (*RemoveImageResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
+
+// EnterPodRequest defines the request for EnterPod.
+type EnterPodRequest struct {
+	// ID of the pod to enter.
+	Id string `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
+	// Name of the app inside the pod to enter.
+	// This must be non-empty if there are multiple apps in the pod.
+	AppName string `protobuf:"bytes,2,opt,name=app_name" json:"app_name,omitempty"`
+	// The command to run for enter, optional.
+	Command []string `protobuf:"bytes,3,rep,name=command" json:"command,omitempty"`
+	// The stdin to for the enter, optional.
+	Stdin string `protobuf:"bytes,4,opt,name=stdin" json:"stdin,omitempty"`
+}
+
+func (m *EnterPodRequest) Reset()                    { *m = EnterPodRequest{} }
+func (m *EnterPodRequest) String() string            { return proto.CompactTextString(m) }
+func (*EnterPodRequest) ProtoMessage()               {}
+func (*EnterPodRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
+
+// EnterPodResponse defines the response for EnterPod.
+type EnterPodResponse struct {
+	// The stdout to for the enter, optional.
+	Stdout string `protobuf:"bytes,1,opt,name=stdout" json:"stdout,omitempty"`
+	// The stderr to for the enter, optional.
+	Stderr string `protobuf:"bytes,2,opt,name=stderr" json:"stderr,omitempty"`
+}
+
+func (m *EnterPodResponse) Reset()                    { *m = EnterPodResponse{} }
+func (m *EnterPodResponse) String() string            { return proto.CompactTextString(m) }
+func (*EnterPodResponse) ProtoMessage()               {}
+func (*EnterPodResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{9} }
 
 // ImageFormat defines the format of the image.
 type ImageFormat struct {
@@ -217,7 +426,7 @@ type ImageFormat struct {
 func (m *ImageFormat) Reset()                    { *m = ImageFormat{} }
 func (m *ImageFormat) String() string            { return proto.CompactTextString(m) }
 func (*ImageFormat) ProtoMessage()               {}
-func (*ImageFormat) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
+func (*ImageFormat) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{10} }
 
 // Image describes the image's information.
 type Image struct {
@@ -247,7 +456,7 @@ type Image struct {
 func (m *Image) Reset()                    { *m = Image{} }
 func (m *Image) String() string            { return proto.CompactTextString(m) }
 func (*Image) ProtoMessage()               {}
-func (*Image) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
+func (*Image) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{11} }
 
 func (m *Image) GetBaseFormat() *ImageFormat {
 	if m != nil {
@@ -283,7 +492,7 @@ type Network struct {
 func (m *Network) Reset()                    { *m = Network{} }
 func (m *Network) String() string            { return proto.CompactTextString(m) }
 func (*Network) ProtoMessage()               {}
-func (*Network) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
+func (*Network) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{12} }
 
 // App describes the information of an app that's running in a pod.
 type App struct {
@@ -304,7 +513,7 @@ type App struct {
 func (m *App) Reset()                    { *m = App{} }
 func (m *App) String() string            { return proto.CompactTextString(m) }
 func (*App) ProtoMessage()               {}
-func (*App) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
+func (*App) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{13} }
 
 func (m *App) GetImage() *Image {
 	if m != nil {
@@ -364,7 +573,7 @@ type Pod struct {
 func (m *Pod) Reset()                    { *m = Pod{} }
 func (m *Pod) String() string            { return proto.CompactTextString(m) }
 func (*Pod) ProtoMessage()               {}
-func (*Pod) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{4} }
+func (*Pod) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{14} }
 
 func (m *Pod) GetApps() []*App {
 	if m != nil {
@@ -397,7 +606,7 @@ type KeyValue struct {
 func (m *KeyValue) Reset()                    { *m = KeyValue{} }
 func (m *KeyValue) String() string            { return proto.CompactTextString(m) }
 func (*KeyValue) ProtoMessage()               {}
-func (*KeyValue) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{5} }
+func (*KeyValue) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{15} }
 
 // PodFilter defines the condition that the returned pods need to satisfy in ListPods().
 // The conditions are combined by 'AND', and different filters are combined by 'OR'.
@@ -424,7 +633,7 @@ type PodFilter struct {
 func (m *PodFilter) Reset()                    { *m = PodFilter{} }
 func (m *PodFilter) String() string            { return proto.CompactTextString(m) }
 func (*PodFilter) ProtoMessage()               {}
-func (*PodFilter) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{6} }
+func (*PodFilter) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{16} }
 
 func (m *PodFilter) GetAnnotations() []*KeyValue {
 	if m != nil {
@@ -462,7 +671,7 @@ type ImageFilter struct {
 func (m *ImageFilter) Reset()                    { *m = ImageFilter{} }
 func (m *ImageFilter) String() string            { return proto.CompactTextString(m) }
 func (*ImageFilter) ProtoMessage()               {}
-func (*ImageFilter) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{7} }
+func (*ImageFilter) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{17} }
 
 func (m *ImageFilter) GetLabels() []*KeyValue {
 	if m != nil {
@@ -497,7 +706,7 @@ type GlobalFlags struct {
 func (m *GlobalFlags) Reset()                    { *m = GlobalFlags{} }
 func (m *GlobalFlags) String() string            { return proto.CompactTextString(m) }
 func (*GlobalFlags) ProtoMessage()               {}
-func (*GlobalFlags) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{8} }
+func (*GlobalFlags) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{18} }
 
 // Info describes the information of rkt on the machine.
 type Info struct {
@@ -514,7 +723,7 @@ type Info struct {
 func (m *Info) Reset()                    { *m = Info{} }
 func (m *Info) String() string            { return proto.CompactTextString(m) }
 func (*Info) ProtoMessage()               {}
-func (*Info) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{9} }
+func (*Info) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{19} }
 
 func (m *Info) GetGlobalFlags() *GlobalFlags {
 	if m != nil {
@@ -545,7 +754,7 @@ type Event struct {
 func (m *Event) Reset()                    { *m = Event{} }
 func (m *Event) String() string            { return proto.CompactTextString(m) }
 func (*Event) ProtoMessage()               {}
-func (*Event) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{10} }
+func (*Event) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{20} }
 
 func (m *Event) GetData() []*KeyValue {
 	if m != nil {
@@ -575,7 +784,7 @@ type EventFilter struct {
 func (m *EventFilter) Reset()                    { *m = EventFilter{} }
 func (m *EventFilter) String() string            { return proto.CompactTextString(m) }
 func (*EventFilter) ProtoMessage()               {}
-func (*EventFilter) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{11} }
+func (*EventFilter) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{21} }
 
 // Request for GetInfo().
 type GetInfoRequest struct {
@@ -584,7 +793,7 @@ type GetInfoRequest struct {
 func (m *GetInfoRequest) Reset()                    { *m = GetInfoRequest{} }
 func (m *GetInfoRequest) String() string            { return proto.CompactTextString(m) }
 func (*GetInfoRequest) ProtoMessage()               {}
-func (*GetInfoRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{12} }
+func (*GetInfoRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{22} }
 
 // Response for GetInfo().
 type GetInfoResponse struct {
@@ -594,7 +803,7 @@ type GetInfoResponse struct {
 func (m *GetInfoResponse) Reset()                    { *m = GetInfoResponse{} }
 func (m *GetInfoResponse) String() string            { return proto.CompactTextString(m) }
 func (*GetInfoResponse) ProtoMessage()               {}
-func (*GetInfoResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{13} }
+func (*GetInfoResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{23} }
 
 func (m *GetInfoResponse) GetInfo() *Info {
 	if m != nil {
@@ -612,7 +821,7 @@ type ListPodsRequest struct {
 func (m *ListPodsRequest) Reset()                    { *m = ListPodsRequest{} }
 func (m *ListPodsRequest) String() string            { return proto.CompactTextString(m) }
 func (*ListPodsRequest) ProtoMessage()               {}
-func (*ListPodsRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{14} }
+func (*ListPodsRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{24} }
 
 func (m *ListPodsRequest) GetFilters() []*PodFilter {
 	if m != nil {
@@ -629,7 +838,7 @@ type ListPodsResponse struct {
 func (m *ListPodsResponse) Reset()                    { *m = ListPodsResponse{} }
 func (m *ListPodsResponse) String() string            { return proto.CompactTextString(m) }
 func (*ListPodsResponse) ProtoMessage()               {}
-func (*ListPodsResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{15} }
+func (*ListPodsResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{25} }
 
 func (m *ListPodsResponse) GetPods() []*Pod {
 	if m != nil {
@@ -647,7 +856,7 @@ type InspectPodRequest struct {
 func (m *InspectPodRequest) Reset()                    { *m = InspectPodRequest{} }
 func (m *InspectPodRequest) String() string            { return proto.CompactTextString(m) }
 func (*InspectPodRequest) ProtoMessage()               {}
-func (*InspectPodRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{16} }
+func (*InspectPodRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{26} }
 
 // Response for InspectPod().
 type InspectPodResponse struct {
@@ -657,7 +866,7 @@ type InspectPodResponse struct {
 func (m *InspectPodResponse) Reset()                    { *m = InspectPodResponse{} }
 func (m *InspectPodResponse) String() string            { return proto.CompactTextString(m) }
 func (*InspectPodResponse) ProtoMessage()               {}
-func (*InspectPodResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{17} }
+func (*InspectPodResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{27} }
 
 func (m *InspectPodResponse) GetPod() *Pod {
 	if m != nil {
@@ -675,7 +884,7 @@ type ListImagesRequest struct {
 func (m *ListImagesRequest) Reset()                    { *m = ListImagesRequest{} }
 func (m *ListImagesRequest) String() string            { return proto.CompactTextString(m) }
 func (*ListImagesRequest) ProtoMessage()               {}
-func (*ListImagesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{18} }
+func (*ListImagesRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{28} }
 
 func (m *ListImagesRequest) GetFilters() []*ImageFilter {
 	if m != nil {
@@ -692,7 +901,7 @@ type ListImagesResponse struct {
 func (m *ListImagesResponse) Reset()                    { *m = ListImagesResponse{} }
 func (m *ListImagesResponse) String() string            { return proto.CompactTextString(m) }
 func (*ListImagesResponse) ProtoMessage()               {}
-func (*ListImagesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{19} }
+func (*ListImagesResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{29} }
 
 func (m *ListImagesResponse) GetImages() []*Image {
 	if m != nil {
@@ -709,7 +918,7 @@ type InspectImageRequest struct {
 func (m *InspectImageRequest) Reset()                    { *m = InspectImageRequest{} }
 func (m *InspectImageRequest) String() string            { return proto.CompactTextString(m) }
 func (*InspectImageRequest) ProtoMessage()               {}
-func (*InspectImageRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{20} }
+func (*InspectImageRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{30} }
 
 // Response for InspectImage().
 type InspectImageResponse struct {
@@ -719,7 +928,7 @@ type InspectImageResponse struct {
 func (m *InspectImageResponse) Reset()                    { *m = InspectImageResponse{} }
 func (m *InspectImageResponse) String() string            { return proto.CompactTextString(m) }
 func (*InspectImageResponse) ProtoMessage()               {}
-func (*InspectImageResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{21} }
+func (*InspectImageResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{31} }
 
 func (m *InspectImageResponse) GetImage() *Image {
 	if m != nil {
@@ -736,7 +945,7 @@ type ListenEventsRequest struct {
 func (m *ListenEventsRequest) Reset()                    { *m = ListenEventsRequest{} }
 func (m *ListenEventsRequest) String() string            { return proto.CompactTextString(m) }
 func (*ListenEventsRequest) ProtoMessage()               {}
-func (*ListenEventsRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{22} }
+func (*ListenEventsRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{32} }
 
 func (m *ListenEventsRequest) GetFilter() *EventFilter {
 	if m != nil {
@@ -754,7 +963,7 @@ type ListenEventsResponse struct {
 func (m *ListenEventsResponse) Reset()                    { *m = ListenEventsResponse{} }
 func (m *ListenEventsResponse) String() string            { return proto.CompactTextString(m) }
 func (*ListenEventsResponse) ProtoMessage()               {}
-func (*ListenEventsResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{23} }
+func (*ListenEventsResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{33} }
 
 func (m *ListenEventsResponse) GetEvents() []*Event {
 	if m != nil {
@@ -787,7 +996,7 @@ type GetLogsRequest struct {
 func (m *GetLogsRequest) Reset()                    { *m = GetLogsRequest{} }
 func (m *GetLogsRequest) String() string            { return proto.CompactTextString(m) }
 func (*GetLogsRequest) ProtoMessage()               {}
-func (*GetLogsRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{24} }
+func (*GetLogsRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{34} }
 
 // Response for GetLogs().
 type GetLogsResponse struct {
@@ -798,9 +1007,19 @@ type GetLogsResponse struct {
 func (m *GetLogsResponse) Reset()                    { *m = GetLogsResponse{} }
 func (m *GetLogsResponse) String() string            { return proto.CompactTextString(m) }
 func (*GetLogsResponse) ProtoMessage()               {}
-func (*GetLogsResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{25} }
+func (*GetLogsResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{35} }
 
 func init() {
+	proto.RegisterType((*FetchImageRequest)(nil), "v1alpha.FetchImageRequest")
+	proto.RegisterType((*FetchImageResponse)(nil), "v1alpha.FetchImageResponse")
+	proto.RegisterType((*PreparePodRequest)(nil), "v1alpha.PreparePodRequest")
+	proto.RegisterType((*PreparePodResponse)(nil), "v1alpha.PreparePodResponse")
+	proto.RegisterType((*RemovePodRequest)(nil), "v1alpha.RemovePodRequest")
+	proto.RegisterType((*RemovePodResponse)(nil), "v1alpha.RemovePodResponse")
+	proto.RegisterType((*RemoveImageRequest)(nil), "v1alpha.RemoveImageRequest")
+	proto.RegisterType((*RemoveImageResponse)(nil), "v1alpha.RemoveImageResponse")
+	proto.RegisterType((*EnterPodRequest)(nil), "v1alpha.EnterPodRequest")
+	proto.RegisterType((*EnterPodResponse)(nil), "v1alpha.EnterPodResponse")
 	proto.RegisterType((*ImageFormat)(nil), "v1alpha.ImageFormat")
 	proto.RegisterType((*Image)(nil), "v1alpha.Image")
 	proto.RegisterType((*Network)(nil), "v1alpha.Network")
@@ -828,6 +1047,8 @@ func init() {
 	proto.RegisterType((*GetLogsRequest)(nil), "v1alpha.GetLogsRequest")
 	proto.RegisterType((*GetLogsResponse)(nil), "v1alpha.GetLogsResponse")
 	proto.RegisterEnum("v1alpha.ImageType", ImageType_name, ImageType_value)
+	proto.RegisterEnum("v1alpha.InsecureOption", InsecureOption_name, InsecureOption_value)
+	proto.RegisterEnum("v1alpha.DiscoverOption", DiscoverOption_name, DiscoverOption_value)
 	proto.RegisterEnum("v1alpha.AppState", AppState_name, AppState_value)
 	proto.RegisterEnum("v1alpha.PodState", PodState_name, PodState_value)
 	proto.RegisterEnum("v1alpha.EventType", EventType_name, EventType_value)
@@ -837,9 +1058,9 @@ func init() {
 var _ context.Context
 var _ grpc.ClientConn
 
-// Client API for PublicAPI service
+// Client API for PublicReadOnlyAPI service
 
-type PublicAPIClient interface {
+type PublicReadOnlyAPIClient interface {
 	// GetInfo gets the rkt's information on the machine.
 	GetInfo(ctx context.Context, in *GetInfoRequest, opts ...grpc.CallOption) (*GetInfoResponse, error)
 	// ListPods lists rkt pods on the machine.
@@ -852,75 +1073,75 @@ type PublicAPIClient interface {
 	InspectImage(ctx context.Context, in *InspectImageRequest, opts ...grpc.CallOption) (*InspectImageResponse, error)
 	// ListenEvents listens for the events, it will return a response stream
 	// that will contain event objects.
-	ListenEvents(ctx context.Context, in *ListenEventsRequest, opts ...grpc.CallOption) (PublicAPI_ListenEventsClient, error)
+	ListenEvents(ctx context.Context, in *ListenEventsRequest, opts ...grpc.CallOption) (PublicReadOnlyAPI_ListenEventsClient, error)
 	// GetLogs gets the logs for a pod, if the app is also specified, then only the logs
 	// of the app will be returned.
 	//
 	// If 'follow' in the 'GetLogsRequest' is set to 'true', then the response stream
 	// will not be closed after the first response, the future logs will be sent via
 	// the stream.
-	GetLogs(ctx context.Context, in *GetLogsRequest, opts ...grpc.CallOption) (PublicAPI_GetLogsClient, error)
+	GetLogs(ctx context.Context, in *GetLogsRequest, opts ...grpc.CallOption) (PublicReadOnlyAPI_GetLogsClient, error)
 }
 
-type publicAPIClient struct {
+type publicReadOnlyAPIClient struct {
 	cc *grpc.ClientConn
 }
 
-func NewPublicAPIClient(cc *grpc.ClientConn) PublicAPIClient {
-	return &publicAPIClient{cc}
+func NewPublicReadOnlyAPIClient(cc *grpc.ClientConn) PublicReadOnlyAPIClient {
+	return &publicReadOnlyAPIClient{cc}
 }
 
-func (c *publicAPIClient) GetInfo(ctx context.Context, in *GetInfoRequest, opts ...grpc.CallOption) (*GetInfoResponse, error) {
+func (c *publicReadOnlyAPIClient) GetInfo(ctx context.Context, in *GetInfoRequest, opts ...grpc.CallOption) (*GetInfoResponse, error) {
 	out := new(GetInfoResponse)
-	err := grpc.Invoke(ctx, "/v1alpha.PublicAPI/GetInfo", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/v1alpha.PublicReadOnlyAPI/GetInfo", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *publicAPIClient) ListPods(ctx context.Context, in *ListPodsRequest, opts ...grpc.CallOption) (*ListPodsResponse, error) {
+func (c *publicReadOnlyAPIClient) ListPods(ctx context.Context, in *ListPodsRequest, opts ...grpc.CallOption) (*ListPodsResponse, error) {
 	out := new(ListPodsResponse)
-	err := grpc.Invoke(ctx, "/v1alpha.PublicAPI/ListPods", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/v1alpha.PublicReadOnlyAPI/ListPods", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *publicAPIClient) InspectPod(ctx context.Context, in *InspectPodRequest, opts ...grpc.CallOption) (*InspectPodResponse, error) {
+func (c *publicReadOnlyAPIClient) InspectPod(ctx context.Context, in *InspectPodRequest, opts ...grpc.CallOption) (*InspectPodResponse, error) {
 	out := new(InspectPodResponse)
-	err := grpc.Invoke(ctx, "/v1alpha.PublicAPI/InspectPod", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/v1alpha.PublicReadOnlyAPI/InspectPod", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *publicAPIClient) ListImages(ctx context.Context, in *ListImagesRequest, opts ...grpc.CallOption) (*ListImagesResponse, error) {
+func (c *publicReadOnlyAPIClient) ListImages(ctx context.Context, in *ListImagesRequest, opts ...grpc.CallOption) (*ListImagesResponse, error) {
 	out := new(ListImagesResponse)
-	err := grpc.Invoke(ctx, "/v1alpha.PublicAPI/ListImages", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/v1alpha.PublicReadOnlyAPI/ListImages", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *publicAPIClient) InspectImage(ctx context.Context, in *InspectImageRequest, opts ...grpc.CallOption) (*InspectImageResponse, error) {
+func (c *publicReadOnlyAPIClient) InspectImage(ctx context.Context, in *InspectImageRequest, opts ...grpc.CallOption) (*InspectImageResponse, error) {
 	out := new(InspectImageResponse)
-	err := grpc.Invoke(ctx, "/v1alpha.PublicAPI/InspectImage", in, out, c.cc, opts...)
+	err := grpc.Invoke(ctx, "/v1alpha.PublicReadOnlyAPI/InspectImage", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *publicAPIClient) ListenEvents(ctx context.Context, in *ListenEventsRequest, opts ...grpc.CallOption) (PublicAPI_ListenEventsClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_PublicAPI_serviceDesc.Streams[0], c.cc, "/v1alpha.PublicAPI/ListenEvents", opts...)
+func (c *publicReadOnlyAPIClient) ListenEvents(ctx context.Context, in *ListenEventsRequest, opts ...grpc.CallOption) (PublicReadOnlyAPI_ListenEventsClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_PublicReadOnlyAPI_serviceDesc.Streams[0], c.cc, "/v1alpha.PublicReadOnlyAPI/ListenEvents", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &publicAPIListenEventsClient{stream}
+	x := &publicReadOnlyAPIListenEventsClient{stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -930,16 +1151,16 @@ func (c *publicAPIClient) ListenEvents(ctx context.Context, in *ListenEventsRequ
 	return x, nil
 }
 
-type PublicAPI_ListenEventsClient interface {
+type PublicReadOnlyAPI_ListenEventsClient interface {
 	Recv() (*ListenEventsResponse, error)
 	grpc.ClientStream
 }
 
-type publicAPIListenEventsClient struct {
+type publicReadOnlyAPIListenEventsClient struct {
 	grpc.ClientStream
 }
 
-func (x *publicAPIListenEventsClient) Recv() (*ListenEventsResponse, error) {
+func (x *publicReadOnlyAPIListenEventsClient) Recv() (*ListenEventsResponse, error) {
 	m := new(ListenEventsResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -947,12 +1168,12 @@ func (x *publicAPIListenEventsClient) Recv() (*ListenEventsResponse, error) {
 	return m, nil
 }
 
-func (c *publicAPIClient) GetLogs(ctx context.Context, in *GetLogsRequest, opts ...grpc.CallOption) (PublicAPI_GetLogsClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_PublicAPI_serviceDesc.Streams[1], c.cc, "/v1alpha.PublicAPI/GetLogs", opts...)
+func (c *publicReadOnlyAPIClient) GetLogs(ctx context.Context, in *GetLogsRequest, opts ...grpc.CallOption) (PublicReadOnlyAPI_GetLogsClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_PublicReadOnlyAPI_serviceDesc.Streams[1], c.cc, "/v1alpha.PublicReadOnlyAPI/GetLogs", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &publicAPIGetLogsClient{stream}
+	x := &publicReadOnlyAPIGetLogsClient{stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -962,16 +1183,16 @@ func (c *publicAPIClient) GetLogs(ctx context.Context, in *GetLogsRequest, opts 
 	return x, nil
 }
 
-type PublicAPI_GetLogsClient interface {
+type PublicReadOnlyAPI_GetLogsClient interface {
 	Recv() (*GetLogsResponse, error)
 	grpc.ClientStream
 }
 
-type publicAPIGetLogsClient struct {
+type publicReadOnlyAPIGetLogsClient struct {
 	grpc.ClientStream
 }
 
-func (x *publicAPIGetLogsClient) Recv() (*GetLogsResponse, error) {
+func (x *publicReadOnlyAPIGetLogsClient) Recv() (*GetLogsResponse, error) {
 	m := new(GetLogsResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -979,9 +1200,9 @@ func (x *publicAPIGetLogsClient) Recv() (*GetLogsResponse, error) {
 	return m, nil
 }
 
-// Server API for PublicAPI service
+// Server API for PublicReadOnlyAPI service
 
-type PublicAPIServer interface {
+type PublicReadOnlyAPIServer interface {
 	// GetInfo gets the rkt's information on the machine.
 	GetInfo(context.Context, *GetInfoRequest) (*GetInfoResponse, error)
 	// ListPods lists rkt pods on the machine.
@@ -994,255 +1215,492 @@ type PublicAPIServer interface {
 	InspectImage(context.Context, *InspectImageRequest) (*InspectImageResponse, error)
 	// ListenEvents listens for the events, it will return a response stream
 	// that will contain event objects.
-	ListenEvents(*ListenEventsRequest, PublicAPI_ListenEventsServer) error
+	ListenEvents(*ListenEventsRequest, PublicReadOnlyAPI_ListenEventsServer) error
 	// GetLogs gets the logs for a pod, if the app is also specified, then only the logs
 	// of the app will be returned.
 	//
 	// If 'follow' in the 'GetLogsRequest' is set to 'true', then the response stream
 	// will not be closed after the first response, the future logs will be sent via
 	// the stream.
-	GetLogs(*GetLogsRequest, PublicAPI_GetLogsServer) error
+	GetLogs(*GetLogsRequest, PublicReadOnlyAPI_GetLogsServer) error
 }
 
-func RegisterPublicAPIServer(s *grpc.Server, srv PublicAPIServer) {
-	s.RegisterService(&_PublicAPI_serviceDesc, srv)
+func RegisterPublicReadOnlyAPIServer(s *grpc.Server, srv PublicReadOnlyAPIServer) {
+	s.RegisterService(&_PublicReadOnlyAPI_serviceDesc, srv)
 }
 
-func _PublicAPI_GetInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+func _PublicReadOnlyAPI_GetInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(GetInfoRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
-	out, err := srv.(PublicAPIServer).GetInfo(ctx, in)
+	out, err := srv.(PublicReadOnlyAPIServer).GetInfo(ctx, in)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func _PublicAPI_ListPods_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+func _PublicReadOnlyAPI_ListPods_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(ListPodsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
-	out, err := srv.(PublicAPIServer).ListPods(ctx, in)
+	out, err := srv.(PublicReadOnlyAPIServer).ListPods(ctx, in)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func _PublicAPI_InspectPod_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+func _PublicReadOnlyAPI_InspectPod_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(InspectPodRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
-	out, err := srv.(PublicAPIServer).InspectPod(ctx, in)
+	out, err := srv.(PublicReadOnlyAPIServer).InspectPod(ctx, in)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func _PublicAPI_ListImages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+func _PublicReadOnlyAPI_ListImages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(ListImagesRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
-	out, err := srv.(PublicAPIServer).ListImages(ctx, in)
+	out, err := srv.(PublicReadOnlyAPIServer).ListImages(ctx, in)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func _PublicAPI_InspectImage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+func _PublicReadOnlyAPI_InspectImage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
 	in := new(InspectImageRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
-	out, err := srv.(PublicAPIServer).InspectImage(ctx, in)
+	out, err := srv.(PublicReadOnlyAPIServer).InspectImage(ctx, in)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func _PublicAPI_ListenEvents_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _PublicReadOnlyAPI_ListenEvents_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(ListenEventsRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(PublicAPIServer).ListenEvents(m, &publicAPIListenEventsServer{stream})
+	return srv.(PublicReadOnlyAPIServer).ListenEvents(m, &publicReadOnlyAPIListenEventsServer{stream})
 }
 
-type PublicAPI_ListenEventsServer interface {
+type PublicReadOnlyAPI_ListenEventsServer interface {
 	Send(*ListenEventsResponse) error
 	grpc.ServerStream
 }
 
-type publicAPIListenEventsServer struct {
+type publicReadOnlyAPIListenEventsServer struct {
 	grpc.ServerStream
 }
 
-func (x *publicAPIListenEventsServer) Send(m *ListenEventsResponse) error {
+func (x *publicReadOnlyAPIListenEventsServer) Send(m *ListenEventsResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _PublicAPI_GetLogs_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _PublicReadOnlyAPI_GetLogs_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(GetLogsRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(PublicAPIServer).GetLogs(m, &publicAPIGetLogsServer{stream})
+	return srv.(PublicReadOnlyAPIServer).GetLogs(m, &publicReadOnlyAPIGetLogsServer{stream})
 }
 
-type PublicAPI_GetLogsServer interface {
+type PublicReadOnlyAPI_GetLogsServer interface {
 	Send(*GetLogsResponse) error
 	grpc.ServerStream
 }
 
-type publicAPIGetLogsServer struct {
+type publicReadOnlyAPIGetLogsServer struct {
 	grpc.ServerStream
 }
 
-func (x *publicAPIGetLogsServer) Send(m *GetLogsResponse) error {
+func (x *publicReadOnlyAPIGetLogsServer) Send(m *GetLogsResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-var _PublicAPI_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "v1alpha.PublicAPI",
-	HandlerType: (*PublicAPIServer)(nil),
+var _PublicReadOnlyAPI_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "v1alpha.PublicReadOnlyAPI",
+	HandlerType: (*PublicReadOnlyAPIServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "GetInfo",
-			Handler:    _PublicAPI_GetInfo_Handler,
+			Handler:    _PublicReadOnlyAPI_GetInfo_Handler,
 		},
 		{
 			MethodName: "ListPods",
-			Handler:    _PublicAPI_ListPods_Handler,
+			Handler:    _PublicReadOnlyAPI_ListPods_Handler,
 		},
 		{
 			MethodName: "InspectPod",
-			Handler:    _PublicAPI_InspectPod_Handler,
+			Handler:    _PublicReadOnlyAPI_InspectPod_Handler,
 		},
 		{
 			MethodName: "ListImages",
-			Handler:    _PublicAPI_ListImages_Handler,
+			Handler:    _PublicReadOnlyAPI_ListImages_Handler,
 		},
 		{
 			MethodName: "InspectImage",
-			Handler:    _PublicAPI_InspectImage_Handler,
+			Handler:    _PublicReadOnlyAPI_InspectImage_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "ListenEvents",
-			Handler:       _PublicAPI_ListenEvents_Handler,
+			Handler:       _PublicReadOnlyAPI_ListenEvents_Handler,
 			ServerStreams: true,
 		},
 		{
 			StreamName:    "GetLogs",
-			Handler:       _PublicAPI_GetLogs_Handler,
+			Handler:       _PublicReadOnlyAPI_GetLogs_Handler,
+			ServerStreams: true,
+		},
+	},
+}
+
+// Client API for PublicWriteAPI service
+
+type PublicWriteAPIClient interface {
+	// FetchImage fetches a container image into the image store.
+	FetchImage(ctx context.Context, in *FetchImageRequest, opts ...grpc.CallOption) (*FetchImageResponse, error)
+	// PreparePod prepares a pod, currently it only supports preparing from a pod manifest.
+	PreparePod(ctx context.Context, in *PreparePodRequest, opts ...grpc.CallOption) (*PreparePodResponse, error)
+	// RemovePod removes a pod.
+	RemovePod(ctx context.Context, in *RemovePodRequest, opts ...grpc.CallOption) (*RemovePodResponse, error)
+	// RemoveImage removes a container image from the image store.
+	RemoveImage(ctx context.Context, in *RemoveImageRequest, opts ...grpc.CallOption) (*RemoveImageResponse, error)
+	// EnterPod enters the pod's namespace, it also returns a stream where the client can
+	// read stdout and stderr.
+	EnterPod(ctx context.Context, in *EnterPodRequest, opts ...grpc.CallOption) (PublicWriteAPI_EnterPodClient, error)
+}
+
+type publicWriteAPIClient struct {
+	cc *grpc.ClientConn
+}
+
+func NewPublicWriteAPIClient(cc *grpc.ClientConn) PublicWriteAPIClient {
+	return &publicWriteAPIClient{cc}
+}
+
+func (c *publicWriteAPIClient) FetchImage(ctx context.Context, in *FetchImageRequest, opts ...grpc.CallOption) (*FetchImageResponse, error) {
+	out := new(FetchImageResponse)
+	err := grpc.Invoke(ctx, "/v1alpha.PublicWriteAPI/FetchImage", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *publicWriteAPIClient) PreparePod(ctx context.Context, in *PreparePodRequest, opts ...grpc.CallOption) (*PreparePodResponse, error) {
+	out := new(PreparePodResponse)
+	err := grpc.Invoke(ctx, "/v1alpha.PublicWriteAPI/PreparePod", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *publicWriteAPIClient) RemovePod(ctx context.Context, in *RemovePodRequest, opts ...grpc.CallOption) (*RemovePodResponse, error) {
+	out := new(RemovePodResponse)
+	err := grpc.Invoke(ctx, "/v1alpha.PublicWriteAPI/RemovePod", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *publicWriteAPIClient) RemoveImage(ctx context.Context, in *RemoveImageRequest, opts ...grpc.CallOption) (*RemoveImageResponse, error) {
+	out := new(RemoveImageResponse)
+	err := grpc.Invoke(ctx, "/v1alpha.PublicWriteAPI/RemoveImage", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *publicWriteAPIClient) EnterPod(ctx context.Context, in *EnterPodRequest, opts ...grpc.CallOption) (PublicWriteAPI_EnterPodClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_PublicWriteAPI_serviceDesc.Streams[0], c.cc, "/v1alpha.PublicWriteAPI/EnterPod", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &publicWriteAPIEnterPodClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type PublicWriteAPI_EnterPodClient interface {
+	Recv() (*EnterPodResponse, error)
+	grpc.ClientStream
+}
+
+type publicWriteAPIEnterPodClient struct {
+	grpc.ClientStream
+}
+
+func (x *publicWriteAPIEnterPodClient) Recv() (*EnterPodResponse, error) {
+	m := new(EnterPodResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// Server API for PublicWriteAPI service
+
+type PublicWriteAPIServer interface {
+	// FetchImage fetches a container image into the image store.
+	FetchImage(context.Context, *FetchImageRequest) (*FetchImageResponse, error)
+	// PreparePod prepares a pod, currently it only supports preparing from a pod manifest.
+	PreparePod(context.Context, *PreparePodRequest) (*PreparePodResponse, error)
+	// RemovePod removes a pod.
+	RemovePod(context.Context, *RemovePodRequest) (*RemovePodResponse, error)
+	// RemoveImage removes a container image from the image store.
+	RemoveImage(context.Context, *RemoveImageRequest) (*RemoveImageResponse, error)
+	// EnterPod enters the pod's namespace, it also returns a stream where the client can
+	// read stdout and stderr.
+	EnterPod(*EnterPodRequest, PublicWriteAPI_EnterPodServer) error
+}
+
+func RegisterPublicWriteAPIServer(s *grpc.Server, srv PublicWriteAPIServer) {
+	s.RegisterService(&_PublicWriteAPI_serviceDesc, srv)
+}
+
+func _PublicWriteAPI_FetchImage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(FetchImageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(PublicWriteAPIServer).FetchImage(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _PublicWriteAPI_PreparePod_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(PreparePodRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(PublicWriteAPIServer).PreparePod(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _PublicWriteAPI_RemovePod_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(RemovePodRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(PublicWriteAPIServer).RemovePod(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _PublicWriteAPI_RemoveImage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+	in := new(RemoveImageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(PublicWriteAPIServer).RemoveImage(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _PublicWriteAPI_EnterPod_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(EnterPodRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(PublicWriteAPIServer).EnterPod(m, &publicWriteAPIEnterPodServer{stream})
+}
+
+type PublicWriteAPI_EnterPodServer interface {
+	Send(*EnterPodResponse) error
+	grpc.ServerStream
+}
+
+type publicWriteAPIEnterPodServer struct {
+	grpc.ServerStream
+}
+
+func (x *publicWriteAPIEnterPodServer) Send(m *EnterPodResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+var _PublicWriteAPI_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "v1alpha.PublicWriteAPI",
+	HandlerType: (*PublicWriteAPIServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "FetchImage",
+			Handler:    _PublicWriteAPI_FetchImage_Handler,
+		},
+		{
+			MethodName: "PreparePod",
+			Handler:    _PublicWriteAPI_PreparePod_Handler,
+		},
+		{
+			MethodName: "RemovePod",
+			Handler:    _PublicWriteAPI_RemovePod_Handler,
+		},
+		{
+			MethodName: "RemoveImage",
+			Handler:    _PublicWriteAPI_RemoveImage_Handler,
+		},
+	},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "EnterPod",
+			Handler:       _PublicWriteAPI_EnterPod_Handler,
 			ServerStreams: true,
 		},
 	},
 }
 
 var fileDescriptor0 = []byte{
-	// 1496 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0x94, 0x57, 0xcd, 0x6e, 0xdb, 0x46,
-	0x10, 0x8e, 0xfe, 0xa5, 0x91, 0x22, 0x4b, 0x6b, 0x27, 0x96, 0x95, 0x3f, 0x87, 0x6d, 0x83, 0xd4,
-	0x07, 0xb7, 0x75, 0xd2, 0x5c, 0x0a, 0x14, 0x51, 0x6c, 0xda, 0x50, 0x63, 0x4b, 0x82, 0xa2, 0x18,
-	0xcd, 0x89, 0xa0, 0xa4, 0x95, 0x43, 0x98, 0x22, 0x59, 0x92, 0x72, 0xe2, 0x1e, 0x7b, 0xea, 0xad,
-	0x8f, 0xd0, 0xc7, 0xe8, 0x3b, 0xf4, 0x31, 0x0a, 0xf4, 0x3d, 0x3a, 0xbb, 0x5c, 0x92, 0x4b, 0x8a,
-	0x3a, 0xf4, 0x66, 0xcd, 0xcc, 0x7e, 0xf3, 0xcd, 0xec, 0xcc, 0xb7, 0x34, 0xd4, 0x74, 0xc7, 0x38,
-	0x74, 0x5c, 0xdb, 0xb7, 0x49, 0xe5, 0xe6, 0x3b, 0xdd, 0x74, 0x3e, 0xea, 0xca, 0x6b, 0xa8, 0xf7,
-	0x97, 0xfa, 0x15, 0x3d, 0xb5, 0xdd, 0xa5, 0xee, 0x93, 0x7d, 0x28, 0xfa, 0xb7, 0x0e, 0xed, 0xe4,
-	0xf6, 0x73, 0xcf, 0x9b, 0x47, 0xe4, 0x50, 0x84, 0x1d, 0xf2, 0x98, 0x09, 0x7a, 0xc8, 0x16, 0x54,
-	0x6e, 0xa8, 0xeb, 0x19, 0xb6, 0xd5, 0xc9, 0x63, 0x50, 0x4d, 0xf9, 0x27, 0x07, 0x25, 0xee, 0x26,
-	0x5f, 0x43, 0x7d, 0xaa, 0x7b, 0x54, 0x5b, 0x70, 0x2c, 0x8e, 0x51, 0x3f, 0xda, 0x49, 0x62, 0x88,
-	0x3c, 0x00, 0x79, 0x63, 0x1e, 0x00, 0x90, 0x06, 0x14, 0x2d, 0x7d, 0x49, 0x3b, 0x05, 0xfe, 0x4b,
-	0xc2, 0x2f, 0x72, 0x43, 0x07, 0x5a, 0xc6, 0xd2, 0xb1, 0x5d, 0x5f, 0xf3, 0x8d, 0x25, 0xf5, 0x7c,
-	0x7d, 0xe9, 0x74, 0x4a, 0xe8, 0x29, 0x90, 0x16, 0x54, 0x97, 0xba, 0x65, 0x2c, 0xd0, 0xd8, 0x29,
-	0xa3, 0xa5, 0xc1, 0xa0, 0x3c, 0xe3, 0x57, 0xda, 0xa9, 0x70, 0xff, 0x33, 0xa8, 0xeb, 0x96, 0x65,
-	0xfb, 0xba, 0x8f, 0x68, 0x5e, 0xa7, 0xba, 0x5f, 0x40, 0x3e, 0xed, 0x88, 0xcf, 0x5b, 0x7a, 0x7b,
-	0xa9, 0x9b, 0x2b, 0x4a, 0x9e, 0x42, 0xd9, 0xd4, 0xa7, 0xd4, 0xf4, 0x3a, 0xb5, 0x0d, 0x21, 0xca,
-	0x0b, 0xa8, 0x0c, 0xa8, 0xff, 0xc9, 0x76, 0xaf, 0x23, 0xba, 0xb9, 0x90, 0xbc, 0xe1, 0xdc, 0xbc,
-	0x8c, 0x4b, 0xc1, 0x5f, 0xaf, 0x82, 0x52, 0x94, 0x3f, 0x72, 0x50, 0xe8, 0x39, 0x4e, 0xea, 0xc4,
-	0x23, 0x28, 0x19, 0xac, 0x13, 0xfc, 0x48, 0xfd, 0xa8, 0x99, 0xec, 0x0f, 0xde, 0x40, 0x09, 0x6b,
-	0xf4, 0x83, 0x76, 0x34, 0x25, 0x2e, 0x88, 0xf4, 0x8e, 0x39, 0x48, 0x1b, 0x6a, 0xf4, 0xb3, 0xe1,
-	0x6b, 0x33, 0x7b, 0x4e, 0x79, 0x8f, 0xda, 0xe9, 0x4a, 0x4b, 0x9b, 0xca, 0xf8, 0x3d, 0x0f, 0x85,
-	0x91, 0x3d, 0x17, 0xed, 0x0f, 0xf8, 0xd4, 0xa1, 0xe0, 0x88, 0xbb, 0x68, 0x6f, 0xce, 0x8e, 0xa7,
-	0x82, 0xec, 0x5d, 0x28, 0xea, 0x8e, 0xe3, 0x61, 0x62, 0x96, 0xa3, 0x21, 0xd3, 0x23, 0x0a, 0x54,
-	0xad, 0xa0, 0x4b, 0x21, 0x87, 0x56, 0xe4, 0x0f, 0xdb, 0xb7, 0x7e, 0x69, 0x29, 0xf2, 0x95, 0x4d,
-	0xd7, 0xd4, 0x84, 0xf2, 0xec, 0xca, 0xb5, 0x57, 0x0e, 0xde, 0x24, 0x23, 0x8e, 0x55, 0xcc, 0x5c,
-	0x8a, 0x9c, 0xe6, 0x1a, 0x4e, 0x5b, 0x8d, 0x5f, 0x39, 0xda, 0x90, 0xbf, 0x2b, 0x6c, 0xc0, 0x6d,
-	0x3b, 0xd0, 0xb8, 0x9a, 0x69, 0x4b, 0xdd, 0xbd, 0x0e, 0xac, 0x75, 0x66, 0x55, 0x9e, 0x41, 0x35,
-	0x42, 0xc6, 0x16, 0xe0, 0xdf, 0xa2, 0x1f, 0x77, 0xa1, 0x74, 0xc3, 0xac, 0x62, 0xbc, 0xff, 0xce,
-	0x41, 0x0d, 0x8b, 0x3f, 0x35, 0x4c, 0x9f, 0xba, 0x2c, 0xd2, 0x98, 0x7b, 0x18, 0x59, 0xc0, 0x48,
-	0x9c, 0x1b, 0xde, 0x2c, 0x0f, 0x43, 0x0b, 0xd9, 0xdd, 0x6a, 0xb3, 0xa5, 0x73, 0x34, 0x76, 0xfd,
-	0x1e, 0xf6, 0x94, 0x9d, 0x42, 0x13, 0xbf, 0x7f, 0x8d, 0x01, 0x15, 0xb9, 0xe9, 0x1e, 0xdc, 0x15,
-	0x7d, 0x13, 0x91, 0x25, 0x6e, 0x4e, 0x35, 0xa6, 0xbc, 0xa9, 0x31, 0xb8, 0x32, 0x41, 0x63, 0x82,
-	0xe6, 0xd5, 0xc8, 0x2e, 0x6c, 0x39, 0xf6, 0x5c, 0xf3, 0x56, 0x53, 0x2d, 0x74, 0xb0, 0xe1, 0xe7,
-	0xbb, 0x2a, 0xd6, 0x3d, 0xa3, 0x1c, 0xbc, 0x19, 0xc7, 0xa5, 0x0b, 0xe3, 0xb3, 0x28, 0x88, 0x77,
-	0x98, 0x2f, 0xb4, 0x4c, 0x1f, 0xa3, 0xae, 0xe9, 0x2d, 0x72, 0x8d, 0xd8, 0xc7, 0xeb, 0xb3, 0x69,
-	0xee, 0xc8, 0x7d, 0x68, 0x06, 0x3b, 0xcc, 0x6e, 0x60, 0x81, 0x99, 0xf9, 0xd5, 0x17, 0x18, 0xd1,
-	0xc8, 0x3e, 0xa5, 0xa8, 0x1b, 0xff, 0x77, 0x75, 0x91, 0xe1, 0x62, 0x65, 0x9a, 0x82, 0x61, 0x8d,
-	0x17, 0xf9, 0x27, 0x16, 0x79, 0x66, 0xda, 0x53, 0xdd, 0x3c, 0x35, 0xf5, 0x2b, 0x8f, 0x15, 0x39,
-	0x37, 0x5c, 0x71, 0xbb, 0x7b, 0xd0, 0xf6, 0x6e, 0x3d, 0x9f, 0x2e, 0x71, 0x7d, 0xac, 0x85, 0x71,
-	0xa5, 0x31, 0x57, 0x3e, 0x14, 0x1a, 0xd3, 0x9e, 0xe9, 0xa6, 0xec, 0x09, 0x34, 0x09, 0x69, 0xae,
-	0x3c, 0xea, 0xca, 0x8e, 0x40, 0x9b, 0x58, 0x5d, 0x96, 0x47, 0x67, 0x2b, 0x17, 0x55, 0x8f, 0x25,
-	0xe3, 0xca, 0xc4, 0x76, 0xfc, 0x9e, 0xef, 0xae, 0x3c, 0x5f, 0xc3, 0x56, 0x79, 0xda, 0xc2, 0xb5,
-	0x97, 0xda, 0x47, 0xdf, 0x77, 0x3c, 0x5e, 0x76, 0x55, 0x71, 0xa1, 0xd8, 0xb7, 0x16, 0x36, 0xd9,
-	0x86, 0xba, 0x7b, 0xed, 0x6b, 0xa1, 0xde, 0x05, 0x0c, 0x71, 0x5c, 0x71, 0x64, 0x66, 0x5a, 0x42,
-	0x65, 0x59, 0x28, 0xaa, 0x77, 0x64, 0x0c, 0x78, 0x1d, 0xe0, 0x64, 0xf3, 0x42, 0x45, 0xf2, 0x62,
-	0x4a, 0x71, 0xa5, 0x2e, 0x60, 0xce, 0x92, 0x7a, 0x43, 0xad, 0xcd, 0x12, 0xcf, 0xbd, 0x5c, 0xe2,
-	0x53, 0xe2, 0xcc, 0xe8, 0x8b, 0x84, 0xf8, 0x8b, 0x89, 0x30, 0x4f, 0x54, 0x20, 0x4f, 0xa0, 0x38,
-	0xd7, 0x7d, 0x7d, 0xb3, 0xdc, 0xf8, 0x50, 0xe7, 0xa8, 0x62, 0xda, 0x9e, 0x42, 0x89, 0x65, 0x0e,
-	0xe6, 0x2d, 0x3b, 0xb5, 0x18, 0xc8, 0x60, 0xfc, 0x70, 0x13, 0xe5, 0xc9, 0x63, 0xbb, 0x6d, 0x58,
-	0x33, 0xaa, 0x49, 0x14, 0xd0, 0xb6, 0xb2, 0x7c, 0xc3, 0x0c, 0x6c, 0xfc, 0x59, 0x50, 0x5a, 0xd0,
-	0x3c, 0xa3, 0x3e, 0x6b, 0xf0, 0x98, 0xfe, 0xb2, 0x42, 0x9d, 0x51, 0x0e, 0x61, 0x2b, 0xb2, 0x78,
-	0x0e, 0x0e, 0x14, 0x25, 0x0f, 0x50, 0xa9, 0xf1, 0xb7, 0x78, 0xa4, 0xee, 0xc6, 0x22, 0x8c, 0x46,
-	0xe5, 0x14, 0xb6, 0xce, 0x0d, 0xcf, 0xc7, 0x2d, 0xf6, 0x04, 0x04, 0xf9, 0x02, 0x2a, 0x0b, 0x5e,
-	0x45, 0xc0, 0xbe, 0x2e, 0xb1, 0x8f, 0xd5, 0x01, 0x15, 0x6a, 0x4e, 0x7d, 0xdd, 0x30, 0x79, 0xf3,
-	0xaa, 0x98, 0xb7, 0x15, 0xe3, 0x88, 0xc4, 0xa8, 0x9f, 0xb8, 0x9b, 0x21, 0x4a, 0x43, 0x46, 0x51,
-	0x9e, 0x40, 0xbb, 0x6f, 0x79, 0x0e, 0x9d, 0xb1, 0x23, 0x61, 0x66, 0x49, 0xab, 0x95, 0x6f, 0x80,
-	0xc8, 0x01, 0x02, 0x72, 0x0f, 0x15, 0xdc, 0x9e, 0x8b, 0x52, 0x92, 0x88, 0x3f, 0x41, 0x9b, 0x31,
-	0xe0, 0x3b, 0x1f, 0xd5, 0xf2, 0x55, 0xba, 0x96, 0xf4, 0x1b, 0x9d, 0x5d, 0xcd, 0x4b, 0x20, 0x32,
-	0x96, 0x48, 0xfe, 0x18, 0xca, 0x5c, 0xce, 0x42, 0xac, 0xd4, 0x7b, 0xa6, 0x3c, 0x85, 0x6d, 0x41,
-	0x99, 0xff, 0xce, 0xaa, 0xea, 0x7b, 0xd8, 0x49, 0x86, 0x08, 0xe8, 0xe8, 0xa5, 0xcc, 0x65, 0xbd,
-	0x94, 0xca, 0x0f, 0xb0, 0xcd, 0xf8, 0x50, 0x8b, 0x8f, 0x4f, 0x54, 0xdd, 0x97, 0x50, 0x0e, 0xaa,
-	0x5b, 0xfb, 0x00, 0x91, 0x66, 0x51, 0x79, 0x05, 0x3b, 0xc9, 0xc3, 0x71, 0x39, 0x94, 0x5b, 0xd6,
-	0xca, 0xe1, 0x81, 0xca, 0x2d, 0x1f, 0xae, 0x73, 0xfb, 0x2a, 0xca, 0x87, 0x6d, 0x62, 0x62, 0x1b,
-	0xbd, 0xa7, 0x28, 0x90, 0xa1, 0xe4, 0x8b, 0x1d, 0xc2, 0x39, 0x36, 0x0d, 0x8b, 0xcf, 0x71, 0xee,
-	0x79, 0x89, 0x1d, 0x58, 0xd8, 0xa6, 0x69, 0x7f, 0xe2, 0x33, 0x5c, 0x4d, 0xcd, 0x75, 0x29, 0x63,
-	0xae, 0xb9, 0x58, 0x2a, 0xfb, 0x7c, 0x8a, 0x83, 0xd4, 0x82, 0x6d, 0x84, 0xcc, 0x15, 0xfc, 0x80,
-	0x42, 0x2d, 0xfe, 0x50, 0xeb, 0x60, 0x57, 0x2f, 0x7a, 0x67, 0xaa, 0x36, 0xf9, 0x30, 0x52, 0xb5,
-	0xf7, 0x83, 0x13, 0xf5, 0xb4, 0x3f, 0x50, 0x4f, 0x5a, 0x77, 0x50, 0x4b, 0xb6, 0x24, 0x4f, 0x6f,
-	0x34, 0x3a, 0x6e, 0xe5, 0xf0, 0x0d, 0x6a, 0x4b, 0xc6, 0x93, 0xe1, 0xf1, 0x5b, 0x75, 0xdc, 0xca,
-	0x23, 0x91, 0xa6, 0x64, 0x1e, 0x1e, 0xf7, 0x5b, 0x85, 0x83, 0x11, 0x54, 0xa3, 0x8f, 0x91, 0x5d,
-	0xd8, 0x46, 0x00, 0xed, 0xdd, 0xa4, 0x37, 0x49, 0x26, 0x41, 0xbc, 0xd8, 0x31, 0x7e, 0x3f, 0x18,
-	0xf4, 0x07, 0x67, 0x98, 0x66, 0x07, 0x5a, 0xb1, 0x59, 0xfd, 0xb9, 0x3f, 0xc1, 0xe0, 0xfc, 0xc1,
-	0xbf, 0x39, 0xa8, 0x46, 0x6f, 0x26, 0x42, 0x8e, 0x86, 0x27, 0x19, 0x90, 0x78, 0x36, 0x76, 0xa8,
-	0x17, 0x6f, 0xc6, 0x1f, 0x86, 0x88, 0x98, 0x08, 0x1f, 0x8d, 0xd5, 0x51, 0x6f, 0xcc, 0x52, 0xe5,
-	0x51, 0x9c, 0x49, 0xda, 0x81, 0x30, 0x05, 0xc6, 0x2c, 0xb6, 0x87, 0xcc, 0x8a, 0x38, 0x6d, 0x7b,
-	0xb1, 0xb9, 0xf7, 0x66, 0x38, 0x46, 0x6a, 0xe1, 0xb1, 0x56, 0x29, 0x95, 0x3c, 0x20, 0x5e, 0x4e,
-	0xe6, 0x38, 0x51, 0xcf, 0xd5, 0x09, 0x03, 0xab, 0x24, 0x73, 0x9c, 0xf5, 0xc6, 0x6f, 0xb0, 0x85,
-	0xad, 0xea, 0xc1, 0x5f, 0x79, 0xa8, 0xc5, 0x62, 0x87, 0x37, 0xa4, 0x5e, 0xaa, 0x83, 0xc9, 0xfa,
-	0x0d, 0x3d, 0x80, 0x5d, 0xc9, 0xc3, 0x90, 0x22, 0xfe, 0x39, 0xfc, 0xca, 0x7a, 0x9c, 0xed, 0x0c,
-	0x59, 0x63, 0xed, 0x5d, 0xb8, 0x9f, 0x8a, 0x41, 0x2a, 0xdc, 0x57, 0x40, 0xb9, 0xb8, 0x97, 0xf2,
-	0x89, 0x72, 0x8a, 0xb8, 0x3b, 0xfb, 0x29, 0x97, 0xe0, 0xae, 0x1d, 0x0f, 0xcf, 0xcf, 0xd5, 0x63,
-	0x16, 0x55, 0x4a, 0x81, 0x8b, 0xeb, 0x1c, 0x07, 0x0d, 0x49, 0x82, 0x33, 0x9f, 0x00, 0xaf, 0xb0,
-	0x06, 0x4b, 0xae, 0x60, 0xaa, 0xfa, 0x17, 0xa3, 0x80, 0x72, 0x95, 0x3c, 0x84, 0xce, 0x9a, 0x7b,
-	0xac, 0x5e, 0x0c, 0x2f, 0xd1, 0x5b, 0x3b, 0xfa, 0xad, 0x88, 0x9f, 0x61, 0xab, 0xa9, 0x69, 0xcc,
-	0x7a, 0xa3, 0x3e, 0xf9, 0x11, 0x2a, 0x42, 0xd0, 0xc9, 0x6e, 0xfc, 0xda, 0x25, 0x44, 0xbf, 0xdb,
-	0x59, 0x77, 0x04, 0x5b, 0xa3, 0xdc, 0x21, 0x3d, 0xa8, 0x86, 0xc2, 0x4c, 0xe2, 0xb8, 0x94, 0xe6,
-	0x77, 0xf7, 0x32, 0x3c, 0x11, 0xc4, 0x19, 0x40, 0x2c, 0xc5, 0xa4, 0x2b, 0x3d, 0x20, 0x29, 0x01,
-	0xef, 0x3e, 0xc8, 0xf4, 0xc9, 0x40, 0xb1, 0xac, 0x4a, 0x40, 0x6b, 0xba, 0x2d, 0x01, 0xad, 0xeb,
-	0x30, 0x02, 0x5d, 0x40, 0x43, 0x96, 0x51, 0xf2, 0x30, 0x9d, 0x57, 0x16, 0xe0, 0xee, 0xa3, 0x0d,
-	0xde, 0x08, 0x6e, 0x08, 0x0d, 0x59, 0x21, 0x25, 0xb8, 0x0c, 0xd5, 0x95, 0xe0, 0xb2, 0x64, 0x55,
-	0xb9, 0xf3, 0x6d, 0x8e, 0xbc, 0xe6, 0x97, 0xc6, 0xf4, 0x2b, 0x79, 0x69, 0x92, 0x98, 0x26, 0x2f,
-	0x4d, 0x96, 0x3a, 0x86, 0x30, 0x2d, 0xf3, 0x7f, 0x5e, 0x5f, 0xfc, 0x17, 0x00, 0x00, 0xff, 0xff,
-	0x7c, 0xce, 0xe5, 0x26, 0xc9, 0x0e, 0x00, 0x00,
+	// 1919 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0x94, 0x58, 0xdd, 0x52, 0xeb, 0xc8,
+	0x11, 0x3e, 0xfe, 0xb7, 0xdb, 0x1c, 0x5b, 0x16, 0xb0, 0x18, 0x1f, 0x96, 0x05, 0x25, 0xd9, 0xda,
+	0xe5, 0x82, 0x6c, 0xd8, 0xcd, 0xde, 0xa4, 0x2a, 0xb5, 0xc6, 0x16, 0xc4, 0x8b, 0xb1, 0x5d, 0xc6,
+	0x9c, 0x84, 0x2b, 0x95, 0xb0, 0xc6, 0xa0, 0x42, 0xb6, 0x14, 0x49, 0xe6, 0x2c, 0x79, 0x82, 0x54,
+	0x6e, 0xf2, 0x08, 0x79, 0x8c, 0xbc, 0x43, 0xee, 0xf2, 0x0a, 0xa9, 0xca, 0x43, 0xe4, 0x2e, 0x3d,
+	0xa3, 0x91, 0x34, 0x92, 0xe5, 0x54, 0xa5, 0x8a, 0x0b, 0xd4, 0xdd, 0xf3, 0xf5, 0x7f, 0xf7, 0x78,
+	0xa0, 0xa6, 0x3b, 0xe6, 0xb9, 0xe3, 0xda, 0xbe, 0x2d, 0x57, 0x5e, 0x7f, 0xa5, 0x5b, 0xce, 0xb3,
+	0xae, 0xfc, 0x33, 0x07, 0xad, 0x2b, 0xe2, 0xcf, 0x9f, 0x07, 0x4b, 0xfd, 0x89, 0x4c, 0xc9, 0x1f,
+	0xd7, 0xc4, 0xf3, 0xe5, 0x23, 0x28, 0xfa, 0x6f, 0x0e, 0x69, 0xe7, 0x4e, 0x72, 0x5f, 0xd5, 0x2f,
+	0x1a, 0xe7, 0x5c, 0xfa, 0x9c, 0x09, 0xc9, 0x3b, 0x50, 0x5c, 0xe9, 0x4b, 0xd2, 0xce, 0x23, 0xb7,
+	0x26, 0x7f, 0x03, 0x4d, 0x73, 0xe5, 0x91, 0xf9, 0xda, 0x25, 0x9a, 0xed, 0xf8, 0xa6, 0xbd, 0x6a,
+	0x17, 0x90, 0xd1, 0xb8, 0x38, 0x88, 0x8f, 0x71, 0xfe, 0x98, 0xb1, 0xe9, 0x09, 0xc3, 0xf4, 0xe6,
+	0xf6, 0x2b, 0x71, 0xc3, 0x13, 0xc5, 0xd4, 0x89, 0x3e, 0xe7, 0xf3, 0x13, 0x2d, 0xa8, 0x7d, 0x32,
+	0xfd, 0x67, 0xcd, 0x20, 0x8e, 0xd7, 0x2e, 0xa1, 0x6c, 0x55, 0x3e, 0x84, 0xd6, 0xdc, 0x25, 0x06,
+	0x59, 0xf9, 0xa6, 0x6e, 0x79, 0xda, 0xdc, 0x5e, 0x2d, 0x9e, 0xda, 0x65, 0x64, 0xed, 0x28, 0x27,
+	0x20, 0x8b, 0x2e, 0x79, 0x8e, 0x8d, 0xfa, 0x65, 0x80, 0xbc, 0x69, 0x30, 0x8f, 0x6a, 0xca, 0xd7,
+	0xd0, 0x9a, 0xb8, 0xc4, 0xd1, 0x5d, 0x32, 0xb1, 0x8d, 0xd0, 0xe9, 0x3d, 0xd8, 0x71, 0x6c, 0x43,
+	0x5b, 0xea, 0x2b, 0x73, 0x81, 0xdf, 0x4c, 0x94, 0x81, 0x89, 0xa2, 0x19, 0x60, 0xc7, 0x20, 0x4d,
+	0xc9, 0x12, 0xad, 0x15, 0xb0, 0x44, 0xfe, 0x2e, 0xb4, 0x04, 0x7e, 0x00, 0xa0, 0x9c, 0x83, 0x1c,
+	0x10, 0x13, 0x71, 0x17, 0x8e, 0x25, 0xa3, 0xac, 0xec, 0xc3, 0x6e, 0x42, 0x9e, 0xc3, 0x8c, 0xa1,
+	0xa9, 0xae, 0x7c, 0xe2, 0x66, 0xab, 0x96, 0x25, 0xa8, 0xea, 0x8e, 0xa3, 0x09, 0xd9, 0x6a, 0x42,
+	0x65, 0x6e, 0x2f, 0xd1, 0x47, 0x03, 0xb3, 0x54, 0x40, 0xc2, 0x7b, 0x28, 0x79, 0xbe, 0x61, 0x06,
+	0x29, 0xa8, 0x29, 0x17, 0x20, 0xc5, 0x80, 0xdc, 0xd9, 0x06, 0x94, 0x51, 0xc4, 0x5e, 0xfb, 0x1c,
+	0x35, 0xf8, 0x26, 0xae, 0xcb, 0x6d, 0xfb, 0x01, 0xea, 0xcc, 0xaa, 0x2b, 0xdb, 0x5d, 0xea, 0xbe,
+	0x7c, 0x22, 0x14, 0x4f, 0xe3, 0x42, 0x4e, 0x16, 0xcf, 0x0c, 0x39, 0xd4, 0x08, 0xcc, 0xad, 0x47,
+	0x13, 0x1f, 0x20, 0xfc, 0x2b, 0x07, 0xa5, 0xa0, 0xb6, 0xbe, 0x86, 0xfa, 0xa3, 0xee, 0x11, 0x6d,
+	0xc1, 0xb0, 0x78, 0x01, 0xee, 0x25, 0x31, 0xb8, 0x9e, 0xc0, 0xd1, 0x7c, 0x22, 0x58, 0x85, 0xd0,
+	0xc9, 0x10, 0x9f, 0x79, 0x25, 0xb7, 0x41, 0x32, 0x97, 0x8e, 0xed, 0xfa, 0x9a, 0x6f, 0x2e, 0x31,
+	0x48, 0xfa, 0xd2, 0x61, 0x65, 0x54, 0xa0, 0x11, 0x8a, 0x12, 0xce, 0xaa, 0x87, 0x42, 0x79, 0xe6,
+	0x9f, 0x48, 0xbb, 0xc2, 0xf8, 0x5f, 0x42, 0x5d, 0x5f, 0xad, 0x6c, 0x5f, 0xa7, 0x75, 0xe8, 0xb5,
+	0xab, 0x18, 0xb3, 0xfa, 0x45, 0x2b, 0xb2, 0xe7, 0x86, 0xbc, 0x7d, 0xd4, 0xad, 0x35, 0x91, 0x4f,
+	0xa1, 0x6c, 0xe9, 0x8f, 0xc4, 0xf2, 0xda, 0xb5, 0x2d, 0x22, 0xca, 0xb7, 0x50, 0x19, 0x11, 0xff,
+	0x93, 0xed, 0xbe, 0x44, 0xe6, 0x46, 0x99, 0x36, 0x9d, 0xd7, 0xef, 0x62, 0x57, 0xf0, 0xeb, 0xfb,
+	0xc0, 0x15, 0xe5, 0xaf, 0x39, 0x28, 0x74, 0x1d, 0x27, 0x75, 0xe2, 0x73, 0x28, 0x99, 0x34, 0x12,
+	0xec, 0xc8, 0x66, 0x83, 0x9e, 0xd0, 0x9c, 0xea, 0x3e, 0xe1, 0x8d, 0x18, 0xdb, 0x82, 0x48, 0x77,
+	0x94, 0x41, 0x1b, 0x8a, 0xfc, 0x64, 0xfa, 0xd8, 0x36, 0x06, 0x61, 0x31, 0x6a, 0xa5, 0x3d, 0x2d,
+	0x6d, 0x73, 0xe3, 0xcf, 0x79, 0x28, 0x60, 0x75, 0x24, 0xea, 0xac, 0x0e, 0x05, 0x87, 0xe7, 0xa2,
+	0xb5, 0x5d, 0x3b, 0x9e, 0x0a, 0xb4, 0x77, 0xa0, 0x88, 0x65, 0xe9, 0xa1, 0x62, 0xaa, 0x63, 0x47,
+	0x34, 0x4f, 0x56, 0xa0, 0xba, 0x0a, 0xa2, 0x14, 0xda, 0x20, 0x45, 0xfc, 0x30, 0x7c, 0x9b, 0x49,
+	0x4b, 0x19, 0x5f, 0xd9, 0x96, 0x26, 0x2c, 0xdd, 0xf9, 0x93, 0x6b, 0xaf, 0x1d, 0xcc, 0x24, 0x35,
+	0x1c, 0xbd, 0xc0, 0x29, 0x82, 0x36, 0x19, 0x1a, 0x56, 0x5b, 0x8d, 0xa5, 0x1c, 0x69, 0x68, 0xbf,
+	0xcb, 0x69, 0xc0, 0x68, 0x38, 0x1b, 0x9e, 0xe6, 0x38, 0x1a, 0xdc, 0x97, 0x80, 0x5a, 0xa7, 0x54,
+	0xe5, 0x4b, 0xa8, 0x46, 0xc8, 0x18, 0x02, 0xfc, 0x9f, 0xc7, 0x03, 0x9b, 0xea, 0x95, 0x52, 0x79,
+	0x79, 0xff, 0x23, 0x07, 0x35, 0x74, 0xfe, 0xca, 0xb4, 0xb0, 0xb3, 0xa8, 0xa4, 0x69, 0x78, 0x28,
+	0x49, 0xdb, 0xef, 0x94, 0xf6, 0x12, 0xea, 0xf7, 0x50, 0xb4, 0x90, 0x1d, 0xad, 0x16, 0x1d, 0xdc,
+	0x41, 0x13, 0x7b, 0xbc, 0x69, 0x91, 0xc4, 0xf2, 0xaf, 0x51, 0xa0, 0x22, 0x23, 0xed, 0xc3, 0x7b,
+	0x1e, 0x37, 0x2e, 0x59, 0x62, 0xe4, 0x54, 0x60, 0xca, 0xdb, 0x02, 0x43, 0xe7, 0x02, 0x0b, 0x4c,
+	0x10, 0xbc, 0x9a, 0x7c, 0x00, 0x4d, 0x3a, 0x0d, 0xbd, 0xf5, 0xa3, 0x16, 0x32, 0x68, 0xf1, 0xb3,
+	0x5e, 0xe5, 0xed, 0x9e, 0xe1, 0x0e, 0x66, 0xc6, 0x71, 0xc9, 0xc2, 0xfc, 0x89, 0x3b, 0xc4, 0x22,
+	0xcc, 0x1a, 0x5a, 0x34, 0x1f, 0xa5, 0x5e, 0xc8, 0x1b, 0xda, 0x1a, 0x59, 0x1f, 0xb7, 0xcf, 0xb6,
+	0xba, 0x93, 0x3f, 0x83, 0x46, 0xd0, 0xc3, 0x34, 0x03, 0x0b, 0xd4, 0xcc, 0x52, 0x5f, 0xa0, 0x86,
+	0x46, 0xf4, 0x47, 0x82, 0x73, 0xe3, 0xff, 0x6d, 0x5d, 0xb4, 0x70, 0xb1, 0xb6, 0x2c, 0x6e, 0x61,
+	0x8d, 0x39, 0xf9, 0x37, 0x74, 0xf2, 0xda, 0xb2, 0x1f, 0x75, 0xeb, 0xca, 0xd2, 0x9f, 0x3c, 0xea,
+	0xa4, 0x61, 0xba, 0x3c, 0xbb, 0xb8, 0x7a, 0xbc, 0x37, 0xcf, 0x27, 0x4b, 0xb6, 0x75, 0xcc, 0x27,
+	0x8d, 0xb2, 0xf2, 0xe1, 0xa0, 0xb1, 0xec, 0xb9, 0x6e, 0x89, 0x9c, 0x60, 0x26, 0xa1, 0x99, 0x6b,
+	0x0f, 0x17, 0x9e, 0xc0, 0x08, 0x66, 0x13, 0xf5, 0x2b, 0xdc, 0x9f, 0x0b, 0xaa, 0x8c, 0x4d, 0x26,
+	0xda, 0xe3, 0xfb, 0xbe, 0xbb, 0xf6, 0x7c, 0x0d, 0x43, 0xe5, 0x69, 0x0b, 0xd7, 0x5e, 0x6a, 0xcf,
+	0xbe, 0xef, 0x78, 0xcc, 0xed, 0xaa, 0xe2, 0x42, 0x71, 0xb0, 0x5a, 0xd8, 0xf2, 0x2e, 0xd4, 0xdd,
+	0x17, 0x5f, 0x0b, 0xe7, 0x5d, 0x60, 0x21, 0x96, 0x2b, 0x96, 0xcc, 0x5c, 0x4b, 0x4c, 0x59, 0x2a,
+	0x8a, 0x37, 0x80, 0x88, 0x18, 0xd8, 0x75, 0x86, 0x95, 0xcd, 0x1c, 0xe5, 0xca, 0x8b, 0xa9, 0x89,
+	0x2b, 0x44, 0x01, 0x75, 0x96, 0xd4, 0x57, 0xdc, 0xb8, 0x5b, 0x47, 0x3c, 0xe3, 0xb2, 0x11, 0x9f,
+	0x1a, 0xce, 0xd4, 0x7c, 0xae, 0x10, 0xbf, 0xe8, 0x10, 0x66, 0x8a, 0x0a, 0xf2, 0x17, 0x50, 0x34,
+	0x74, 0x5f, 0xdf, 0x3e, 0x6e, 0x7c, 0xa8, 0x33, 0x54, 0x5e, 0x6d, 0xa7, 0x50, 0xa2, 0x9a, 0x83,
+	0x7a, 0xcb, 0x56, 0xcd, 0x0b, 0x32, 0x1f, 0xae, 0x37, 0xb1, 0xf2, 0x68, 0x6f, 0x9b, 0xab, 0x39,
+	0xd1, 0x04, 0x13, 0x90, 0xb6, 0xc6, 0x5b, 0x84, 0x15, 0xd0, 0xd8, 0x5a, 0x50, 0x24, 0x68, 0x5c,
+	0x13, 0x9f, 0x06, 0x98, 0xaf, 0x55, 0x5c, 0xd8, 0xcd, 0x88, 0xc2, 0xf7, 0xe2, 0x07, 0x9c, 0xd4,
+	0xf8, 0xcd, 0x97, 0xd4, 0x7b, 0xe1, 0xba, 0xb3, 0xb0, 0x95, 0x2b, 0x68, 0x0e, 0x4d, 0xcf, 0xc7,
+	0x2e, 0xf6, 0xc2, 0xcd, 0xfc, 0x33, 0xa8, 0x2c, 0x98, 0x17, 0x81, 0xf5, 0x75, 0xc1, 0xfa, 0x78,
+	0x3a, 0xe0, 0x84, 0x32, 0x88, 0xaf, 0x9b, 0x16, 0x0b, 0x5e, 0x15, 0xf5, 0x4a, 0x31, 0x0e, 0x57,
+	0x8c, 0xf3, 0x13, 0x7b, 0x33, 0x44, 0xd9, 0x11, 0x51, 0x94, 0x2f, 0xa0, 0x85, 0xd7, 0x2d, 0x87,
+	0xcc, 0xfd, 0x2d, 0xd7, 0x91, 0x5f, 0x82, 0x2c, 0x0a, 0x70, 0xc8, 0x43, 0x9c, 0xe0, 0xb6, 0xc1,
+	0x5d, 0x49, 0x22, 0xfe, 0x08, 0x2d, 0x6a, 0x01, 0xeb, 0xf9, 0xc8, 0x97, 0x5f, 0xa4, 0x7d, 0x49,
+	0xef, 0xe8, 0x6c, 0x6f, 0xbe, 0x03, 0x59, 0xc4, 0xe2, 0xca, 0x8f, 0xa1, 0xcc, 0xc6, 0x59, 0x88,
+	0x95, 0xda, 0x67, 0xca, 0x29, 0xec, 0x72, 0x93, 0xb7, 0xdd, 0x96, 0x94, 0x5f, 0xc3, 0x5e, 0x52,
+	0x84, 0x43, 0x47, 0x9b, 0x32, 0xf3, 0x2a, 0xab, 0xfc, 0x06, 0x76, 0xa9, 0x3d, 0x64, 0xc5, 0xca,
+	0x27, 0xf2, 0xee, 0xe7, 0x50, 0x0e, 0xbc, 0xdb, 0xb8, 0x80, 0x08, 0xb5, 0xa8, 0x7c, 0x0f, 0x7b,
+	0xc9, 0xc3, 0xb1, 0x3b, 0x84, 0x51, 0x36, 0xdc, 0x61, 0x82, 0xca, 0x1b, 0x2b, 0xae, 0xa1, 0xfd,
+	0x14, 0xe9, 0xc3, 0x30, 0xd1, 0x61, 0xfb, 0x3f, 0xee, 0x6d, 0x58, 0xc7, 0x96, 0xb9, 0x62, 0x75,
+	0x9c, 0xfb, 0xaa, 0x44, 0x0f, 0x2c, 0x6c, 0xcb, 0xb2, 0x3f, 0xb1, 0x1a, 0xae, 0xa6, 0xea, 0xba,
+	0x94, 0x51, 0xd7, 0x6c, 0x58, 0xe2, 0x6d, 0xb6, 0x19, 0xa9, 0xe6, 0xd6, 0x46, 0xc8, 0x6c, 0x82,
+	0x9f, 0x11, 0xa8, 0xc5, 0x17, 0xb5, 0x36, 0x46, 0xf5, 0xb6, 0x7b, 0xad, 0x6a, 0xb3, 0x87, 0x89,
+	0xaa, 0xdd, 0x8f, 0xfa, 0xea, 0xd5, 0x60, 0xa4, 0xf6, 0xa5, 0x77, 0x38, 0x4b, 0x9a, 0x02, 0xa7,
+	0x3b, 0x99, 0xf4, 0xa4, 0x1c, 0xee, 0xa0, 0x96, 0x40, 0xec, 0x8f, 0x7b, 0x37, 0xea, 0x54, 0xca,
+	0xa3, 0x21, 0x0d, 0x81, 0x3c, 0xee, 0x0d, 0xa4, 0xc2, 0x19, 0xae, 0xc4, 0x46, 0xea, 0x67, 0x01,
+	0x55, 0x36, 0xba, 0x53, 0x7b, 0xf7, 0x53, 0x14, 0x9a, 0xcc, 0x06, 0xe3, 0x91, 0x36, 0x1a, 0x8f,
+	0x54, 0x54, 0x76, 0x80, 0xf9, 0x4f, 0x71, 0xba, 0xc3, 0x21, 0x2a, 0x3c, 0x84, 0xfd, 0x34, 0x83,
+	0x69, 0x42, 0xa5, 0x19, 0x67, 0x66, 0xc3, 0x3b, 0xa9, 0x88, 0x5d, 0x7b, 0x90, 0x66, 0xe0, 0x5f,
+	0x7f, 0x70, 0x77, 0x23, 0x55, 0xb3, 0x6c, 0xf8, 0xdd, 0x6c, 0x36, 0x91, 0x24, 0xec, 0xb9, 0xcf,
+	0xd2, 0x9c, 0xc9, 0xfd, 0xe5, 0x8d, 0xfa, 0x20, 0x9d, 0x9c, 0x3d, 0x43, 0x23, 0xf5, 0x83, 0x05,
+	0x71, 0x10, 0xb1, 0x37, 0xfe, 0xa8, 0x4e, 0x53, 0xbe, 0x1c, 0x41, 0x7b, 0x93, 0xa3, 0xdd, 0xcd,
+	0xc6, 0x53, 0x15, 0x1d, 0x3a, 0x86, 0x4e, 0x9a, 0x3b, 0x1e, 0x0d, 0x1f, 0x38, 0x3f, 0x7f, 0x36,
+	0x81, 0x6a, 0x74, 0x87, 0x43, 0x0f, 0x31, 0xee, 0xc8, 0xea, 0xce, 0x92, 0xb9, 0xc1, 0x34, 0xc4,
+	0x8c, 0xe9, 0xfd, 0x68, 0x34, 0x18, 0x5d, 0x23, 0xf6, 0x1e, 0x48, 0x31, 0x59, 0xfd, 0xc3, 0x60,
+	0x86, 0xc2, 0xf9, 0xb3, 0x7f, 0xe7, 0xa0, 0x1a, 0x5d, 0x35, 0x10, 0x72, 0x32, 0xee, 0x67, 0x40,
+	0xe2, 0xd9, 0x98, 0xa1, 0xde, 0x5e, 0x4e, 0x1f, 0xc6, 0x88, 0x98, 0x10, 0x9f, 0x4c, 0xd5, 0x49,
+	0x77, 0x4a, 0x55, 0xe5, 0x71, 0xa7, 0xc9, 0x69, 0x06, 0xc2, 0x14, 0xa8, 0x65, 0x31, 0x3d, 0xb4,
+	0xac, 0x88, 0x4d, 0x7a, 0x18, 0x93, 0xbb, 0x97, 0xe3, 0x29, 0x9a, 0x16, 0x1e, 0x93, 0x4a, 0x29,
+	0xe5, 0x81, 0xe1, 0xe5, 0xa4, 0x8e, 0xbe, 0x3a, 0x54, 0x67, 0x14, 0xac, 0x92, 0xd4, 0x71, 0xdd,
+	0x9d, 0x5e, 0xd2, 0x7a, 0xa8, 0x9e, 0xfd, 0x3d, 0x0f, 0xb5, 0x78, 0x47, 0x60, 0x7e, 0xd4, 0x8f,
+	0xea, 0x68, 0xb6, 0x59, 0xd8, 0x58, 0x1e, 0x02, 0x87, 0x22, 0x45, 0xf6, 0xe7, 0xf0, 0x72, 0x7a,
+	0x9c, 0xcd, 0x0c, 0xad, 0x46, 0xdf, 0xb1, 0x50, 0x52, 0x32, 0x68, 0x0a, 0xe3, 0x15, 0x68, 0xbd,
+	0xa6, 0x78, 0xdc, 0x9d, 0x22, 0x8e, 0x9c, 0x93, 0x14, 0x8b, 0xdb, 0xae, 0xf5, 0xc6, 0xc3, 0xa1,
+	0xda, 0xa3, 0x52, 0xa5, 0x14, 0x38, 0x4f, 0xe7, 0x34, 0x08, 0x48, 0x12, 0x9c, 0xf2, 0x38, 0x78,
+	0x85, 0x06, 0x58, 0x60, 0x05, 0xcd, 0x38, 0xb8, 0x9d, 0x04, 0x26, 0x57, 0x69, 0x4d, 0x6e, 0xb0,
+	0xa7, 0xea, 0x2d, 0x56, 0x61, 0x5f, 0xaa, 0x5d, 0xfc, 0xa5, 0x88, 0x11, 0x5d, 0x3f, 0x5a, 0xe6,
+	0x7c, 0x4a, 0x74, 0x63, 0xbc, 0xb2, 0xde, 0xba, 0x93, 0x81, 0xfc, 0x5b, 0xa8, 0xf0, 0x7d, 0x28,
+	0xc7, 0x3f, 0xdb, 0x93, 0x3b, 0xb3, 0xd3, 0xde, 0x64, 0xf0, 0xdf, 0xad, 0xef, 0xe4, 0x2e, 0x54,
+	0xc3, 0xbd, 0x26, 0xc7, 0x72, 0xa9, 0x95, 0xd9, 0x39, 0xcc, 0xe0, 0x44, 0x10, 0xd7, 0x00, 0xf1,
+	0x26, 0x93, 0x3b, 0xe2, 0x73, 0x43, 0x72, 0xff, 0x75, 0x3e, 0x64, 0xf2, 0x44, 0xa0, 0x78, 0x2b,
+	0x09, 0x40, 0x1b, 0x6b, 0x4f, 0x00, 0xda, 0x5c, 0x63, 0x08, 0x74, 0x0b, 0x3b, 0xe2, 0x16, 0x92,
+	0x8f, 0xd2, 0x7a, 0xc5, 0xfd, 0xd5, 0xf9, 0x7c, 0x0b, 0x37, 0x82, 0x1b, 0xc3, 0x8e, 0xb8, 0x60,
+	0x04, 0xb8, 0x8c, 0xa5, 0x25, 0xc0, 0x65, 0x6d, 0x25, 0xe5, 0xdd, 0x37, 0x39, 0xf9, 0x07, 0x96,
+	0x34, 0x3a, 0xfe, 0x93, 0x49, 0x13, 0x76, 0x51, 0x32, 0x69, 0xe2, 0xa6, 0xa0, 0x08, 0x17, 0xff,
+	0xc9, 0x43, 0x23, 0x28, 0x86, 0xdf, 0xbb, 0xa6, 0x4f, 0x68, 0x25, 0x60, 0xf4, 0xe2, 0xe7, 0x16,
+	0x21, 0x7a, 0x1b, 0xcf, 0x4a, 0x42, 0xf4, 0x36, 0xdf, 0x67, 0x82, 0x34, 0xc4, 0x4f, 0x2d, 0x02,
+	0xd0, 0xc6, 0x53, 0x8d, 0x00, 0xb4, 0xf9, 0x36, 0x83, 0x40, 0x7d, 0xa8, 0x45, 0x2f, 0x2e, 0x72,
+	0x5c, 0x42, 0xe9, 0x57, 0x9a, 0x4e, 0x27, 0x8b, 0x15, 0xa1, 0xfc, 0x08, 0x75, 0xe1, 0xc9, 0x45,
+	0xfe, 0x90, 0x12, 0x4e, 0x78, 0x76, 0x94, 0xcd, 0x8c, 0xb0, 0x7a, 0x50, 0x0d, 0x9f, 0x55, 0x84,
+	0x6a, 0x4f, 0x3d, 0xdd, 0x08, 0xd5, 0x9e, 0x7e, 0x83, 0xa1, 0xb1, 0x7f, 0x2c, 0xb3, 0xb7, 0xbb,
+	0x6f, 0xff, 0x1b, 0x00, 0x00, 0xff, 0xff, 0x4d, 0xc7, 0xf9, 0x01, 0xc8, 0x13, 0x00, 0x00,
 }
