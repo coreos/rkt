@@ -289,3 +289,5 @@ import:
   - spew
 - package: github.com/hashicorp/golang-lru
   version: a0d98a5f288019575c6d1f4bb1573fef2d1fcdc4
+- package: github.com/boltdb/bolt
+  version: v1.2.1

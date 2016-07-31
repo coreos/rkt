@@ -15,129 +15,199 @@
 package treestore
 
 import (
-	"archive/tar"
-	"crypto/sha512"
-	"encoding/json"
+	"crypto/sha256"
 	"errors"
 	"fmt"
-	"hash"
-	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"syscall"
 
-	specaci "github.com/appc/spec/aci"
 	"github.com/appc/spec/pkg/acirenderer"
-	"github.com/appc/spec/pkg/tarheader"
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/pkg/aci"
 	"github.com/coreos/rkt/pkg/fileutil"
+	"github.com/coreos/rkt/pkg/kvdb"
 	"github.com/coreos/rkt/pkg/lock"
 	"github.com/coreos/rkt/pkg/sys"
 	"github.com/coreos/rkt/pkg/user"
 	"github.com/coreos/rkt/store/imagestore"
+
+	"github.com/boltdb/bolt"
 	"github.com/hashicorp/errwrap"
 )
 
 const (
-	hashfilename     = "hash"
-	renderedfilename = "rendered"
-	imagefilename    = "image"
+	defaultPathPerm = os.FileMode(0770 | os.ModeSetgid)
+	defaultFilePerm = os.FileMode(0660)
 
-	// To ameliorate excessively long paths, keys for the (blob)store use
-	// only the first half of a sha512 rather than the entire sum
-	hashPrefix = "sha512-"
-	lenHash    = sha512.Size       // raw byte size
-	lenHashKey = (lenHash / 2) * 2 // half length, in hex characters
-	lenKey     = len(hashPrefix) + lenHashKey
-	minlenKey  = len(hashPrefix) + 2 // at least sha512-aa
+	hashPrefix = "sha256-"
 )
 
-// Store represents a store of rendered ACIs
+// Store represents a store of rendered images
 type Store struct {
-	dir string
-	// TODO(sgotti) make this an interface (acirenderer.ACIRegistry) when the ACIStore functions to update treestore size will be removed
-	store   *imagestore.Store
-	lockDir string
+	dir       string
+	renderDir string
+	// Path to previous implementaion render directory
+	// TODO(sgotti) remove when backward compatibility isn't needed anymore
+	oldRenderDir string
+	store        *imagestore.Store
+	db           *kvdb.DB
+	lockDir      string
 }
 
 func NewStore(dir string, store *imagestore.Store) (*Store, error) {
-	// TODO(sgotti) backward compatibility with the current tree store paths. Needs a migration path to better paths.
-	ts := &Store{dir: filepath.Join(dir, "tree"), store: store}
+	// We need to allow the store's setgid bits (if any) to propagate, so
+	// disable umask
+	um := syscall.Umask(0)
+	defer syscall.Umask(um)
 
-	ts.lockDir = filepath.Join(dir, "treestorelocks")
-	if err := os.MkdirAll(ts.lockDir, 0755); err != nil {
-		return nil, err
+	ts := &Store{dir: dir, renderDir: filepath.Join(dir, "tree"), store: store}
+
+	if err := os.MkdirAll(ts.dbDir(), defaultPathPerm); err != nil {
+		return nil, errwrap.Wrap(errors.New("cannot create treestore db dir"), err)
 	}
+
+	ts.lockDir = filepath.Join(dir, "locks")
+	if err := os.MkdirAll(ts.lockDir, 0755); err != nil {
+		return nil, errwrap.Wrap(errors.New("cannot create treestore locks dir"), err)
+	}
+
+	if err := ts.initDB(); err != nil {
+		return nil, errwrap.Wrap(errors.New("cannot initialize treestore db"), err)
+	}
+	ts.db = kvdb.NewDB(ts.dbFile(), defaultFilePerm)
+
 	return ts, nil
 }
 
-// GetID calculates the treestore ID for the given image key.
-// The treeStoreID is computed as an hash of the flattened dependency tree
-// image keys. In this way the ID may change for the same key if the image's
-// dependencies change.
-func (ts *Store) GetID(key string) (string, error) {
-	hash, err := types.NewHash(key)
-	if err != nil {
-		return "", err
-	}
-	images, err := acirenderer.CreateDepListFromImageID(*hash, ts.store)
-	if err != nil {
-		return "", err
-	}
-
-	var keys []string
-	for _, image := range images {
-		keys = append(keys, image.Key)
-	}
-	imagesString := strings.Join(keys, ",")
-	h := sha512.New()
-	h.Write([]byte(imagesString))
-	return "deps-" + hashToKey(h), nil
+func (ts *Store) dbDir() string {
+	return filepath.Join(ts.dir, "db")
 }
 
-// Render renders a treestore for the given image key if it's not
+func (ts *Store) dbFile() string {
+	return filepath.Join(ts.dbDir(), "db")
+}
+
+func (ts *Store) initDB() error {
+	db := kvdb.NewDB(ts.dbFile(), defaultFilePerm)
+
+	// Create the "info" bucket
+	if err := db.DoRW(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists([]byte(infobucket))
+		return err
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+// SetOldTreeStoreDir sets the old treestore dir, used for backward compatibility
+// TODO(sgotti) remove when backward compatibility isn't needed anymore
+func (ts *Store) SetOldTreeStoreDir(olddir string) {
+	ts.oldRenderDir = olddir
+}
+
+// GetInfo returns the treestore info for the specified id
+func (ts *Store) GetInfo(id string) (*Info, error) {
+	var info *Info
+	if err := ts.db.DoRO(func(tx *bolt.Tx) error {
+		var err error
+		info, err = getInfo(tx, id)
+		if err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return info, nil
+}
+
+// GetInfosByImageDigest returns all the treestore infos for the specified
+// image digest
+func (ts *Store) GetInfosByImageDigest(digest string) ([]*Info, error) {
+	if digest == "" {
+		return nil, fmt.Errorf("empty digest")
+	}
+	var infos []*Info
+	if err := ts.db.DoRO(func(tx *bolt.Tx) error {
+		var err error
+		infos, err = getInfosByImageDigest(tx, digest)
+		if err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return infos, nil
+}
+
+// Render renders a treestore for the given image digest if it's not
 // already fully rendered.
 // Users of treestore should call s.Render before using it to ensure
 // that the treestore is completely rendered.
-// Returns the id and hash of the rendered treestore if it is newly rendered,
-// and only the id if it is already rendered.
-func (ts *Store) Render(key string, rebuild bool) (id string, hash string, err error) {
-	id, err = ts.GetID(key)
+// Returns the id of the rendered treestore
+func (ts *Store) Render(digest string, rebuild bool) (id string, err error) {
+	// Get the full digest
+	digest, err = ts.store.ResolveKey(digest)
 	if err != nil {
-		return "", "", errwrap.Wrap(errors.New("cannot calculate treestore id"), err)
+		return "", err
+	}
+	id, err = ts.calculateID(digest)
+	if err != nil {
+		return "", errwrap.Wrap(errors.New("cannot calculate treestore id"), err)
 	}
 
 	// this lock references the treestore dir for the specified id.
 	treeStoreKeyLock, err := lock.ExclusiveKeyLock(ts.lockDir, id)
 	if err != nil {
-		return "", "", errwrap.Wrap(errors.New("error locking tree store"), err)
+		return "", errwrap.Wrap(errors.New("error locking tree store"), err)
 	}
 	defer treeStoreKeyLock.Close()
 
 	if !rebuild {
 		rendered, err := ts.IsRendered(id)
 		if err != nil {
-			return "", "", errwrap.Wrap(errors.New("cannot determine if tree is already rendered"), err)
+			return "", errwrap.Wrap(errors.New("cannot determine if tree is already rendered"), err)
 		}
 		if rendered {
-			return id, "", nil
+			return id, nil
 		}
 	}
 	// Firstly remove a possible partial treestore if existing.
-	// This is needed as a previous ACI removal operation could have failed
-	// cleaning the tree store leaving some stale files.
+	// This is needed as a previous treestore removal operation could have
+	// failed cleaning the tree store leaving some stale files.
 	if err := ts.remove(id); err != nil {
-		return "", "", err
+		return "", err
 	}
-	if hash, err = ts.render(id, key); err != nil {
-		return "", "", err
+	if err = ts.render(id, digest); err != nil {
+		return "", err
 	}
 
-	return id, hash, nil
+	return id, nil
+}
+
+// IsRendered checks if the tree store with the provided id is fully rendered
+func (ts *Store) IsRendered(id string) (bool, error) {
+	var info *Info
+	if err := ts.db.DoRO(func(tx *bolt.Tx) error {
+		var err error
+		info, err = getInfo(tx, id)
+		if err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return false, err
+	}
+
+	if info == nil {
+		return false, nil
+	}
+	return true, nil
 }
 
 // Check verifies the treestore consistency for the specified id.
@@ -153,6 +223,13 @@ func (ts *Store) Check(id string) (string, error) {
 
 // Remove removes the rendered image in tree store with the given id.
 func (ts *Store) Remove(id string) error {
+	// Backward compatibility check for old treestore version
+	// If a rootfs for the provided id exists in the old treestore remove it.
+	// TODO(sgotti) remove when backward compatibility isn't needed anymore
+	if ts.oldPathExists(id) {
+		return os.RemoveAll(ts.getOldPath(id))
+	}
+
 	treeStoreKeyLock, err := lock.ExclusiveKeyLock(ts.lockDir, id)
 	if err != nil {
 		return errwrap.Wrap(errors.New("error locking tree store"), err)
@@ -166,101 +243,149 @@ func (ts *Store) Remove(id string) error {
 	return nil
 }
 
-// GetIDs returns a slice containing all the treeStore's IDs available
-// (both fully or partially rendered).
-func (ts *Store) GetIDs() ([]string, error) {
+// ListIDs returns a slice containing all the fully rendered treestore's IDs
+func (ts *Store) ListIDs() ([]string, error) {
+	var infos []*Info
+	if err := ts.db.DoRO(func(tx *bolt.Tx) error {
+		var err error
+		infos, err = getAllInfos(tx)
+		if err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
 	var treeStoreIDs []string
-	ls, err := ioutil.ReadDir(ts.dir)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return nil, errwrap.Wrap(errors.New("cannot read treestore directory"), err)
+	for _, i := range infos {
+		treeStoreIDs = append(treeStoreIDs, i.ID)
+
+	}
+
+	// Backward compatibility code for old treestore version
+	// add also old treestore ids
+	// TODO(sgotti) remove when backward compatibility isn't needed anymore
+	ls, err := ioutil.ReadDir(ts.oldRenderDir)
+	// We want to ignore errors on readdir on the old path
+	if err == nil {
+		for _, p := range ls {
+			if p.IsDir() {
+				id := filepath.Base(p.Name())
+				// TODO(sgotti) handle duplicated ids between
+				// old and new render dirs? It shouldn't
+				// happen due to different naming.
+				treeStoreIDs = append(treeStoreIDs, id)
+			}
 		}
 	}
 
-	for _, p := range ls {
-		if p.IsDir() {
-			id := filepath.Base(p.Name())
-			treeStoreIDs = append(treeStoreIDs, id)
-		}
-	}
 	return treeStoreIDs, nil
 }
 
-// render renders the ACI with the provided key in the treestore. id references
+// GetPath returns the absolute path of the treestore for the provided id.
+// It doesn't ensure that the path exists and is fully rendered. This should
+// be done calling IsRendered()
+func (ts *Store) GetPath(id string) string {
+	return filepath.Join(ts.renderDir, id)
+}
+
+// GetRootFS returns the absolute path of the rootfs for the provided id.
+// It doesn't ensure that the rootfs exists and is fully rendered. This should
+// be done calling IsRendered()
+func (ts *Store) GetRootFS(id string) string {
+	// Backward compatibility check for old treestore version
+	// If a rootfs for the provided id exists in the old treestore return it.
+	// TODO(sgotti) remove when backward compatibility isn't needed anymore
+	if ts.oldPathExists(id) {
+		return filepath.Join(ts.getOldPath(id), "rootfs")
+	}
+
+	return filepath.Join(ts.GetPath(id), "rootfs")
+}
+
+// calculateID calculates the treestore ID for the given image digest.
+// For ACI image types the ID is computed as an sha256 hash of the flattened
+// dependency tree image digests. In this way the ID may change for the same
+// digest if the image's dependencies change.
+// For future OCI image types the ID will just be the digest (in this case the
+// manifest digest)
+func (ts *Store) calculateID(digest string) (string, error) {
+	hash, err := types.NewHash(digest)
+	if err != nil {
+		return "", err
+	}
+	images, err := acirenderer.CreateDepListFromImageID(*hash, ts.store)
+	if err != nil {
+		return "", err
+	}
+
+	var digests []string
+	for _, image := range images {
+		digests = append(digests, image.Key)
+	}
+	imagesString := strings.Join(digests, ",")
+	h := sha256.New()
+	h.Write([]byte(imagesString))
+	return "deps-" + hashString(h), nil
+}
+
+// render renders the image with the provided digest in the treestore. id references
 // that specific tree store rendered image.
-// render, to avoid having a rendered ACI with old stale files, requires that
+// render, to avoid having a rendered image with old stale files, requires that
 // the destination directory doesn't exist (usually remove should be called
 // before render)
-func (ts *Store) render(id string, key string) (string, error) {
+func (ts *Store) render(id string, digest string) error {
 	treepath := ts.GetPath(id)
 	fi, _ := os.Stat(treepath)
 	if fi != nil {
-		return "", fmt.Errorf("path %s already exists", treepath)
+		return fmt.Errorf("path %s already exists", treepath)
 	}
-	imageID, err := types.NewHash(key)
+	imageID, err := types.NewHash(digest)
 	if err != nil {
-		return "", errwrap.Wrap(errors.New("cannot convert key to imageID"), err)
+		return errwrap.Wrap(errors.New("cannot convert digest to imageID"), err)
 	}
 	if err := os.MkdirAll(treepath, 0755); err != nil {
-		return "", errwrap.Wrap(fmt.Errorf("cannot create treestore directory %s", treepath), err)
+		return errwrap.Wrap(fmt.Errorf("cannot create treestore directory %s", treepath), err)
 	}
 	err = aci.RenderACIWithImageID(*imageID, treepath, ts.store, user.NewBlankUidRange())
 	if err != nil {
-		return "", errwrap.Wrap(errors.New("cannot render aci"), err)
+		return errwrap.Wrap(errors.New("cannot render aci"), err)
 	}
-	hash, err := ts.Hash(id)
+	checksum, err := ts.checksum(id)
 	if err != nil {
-		return "", errwrap.Wrap(errors.New("cannot calculate tree hash"), err)
+		return errwrap.Wrap(errors.New("cannot calculate tree checksum"), err)
 	}
-	err = ioutil.WriteFile(filepath.Join(treepath, hashfilename), []byte(hash), 0644)
-	if err != nil {
-		return "", errwrap.Wrap(errors.New("cannot write hash file"), err)
-	}
-	// before creating the "rendered" flag file we need to ensure that all data is fsynced
+	// before writing the treestore info in the db we need to ensure that all data is fsynced
 	dfd, err := syscall.Open(treepath, syscall.O_RDONLY, 0)
 	if err != nil {
-		return "", err
+		return err
 	}
 	defer syscall.Close(dfd)
 	if err := sys.Syncfs(dfd); err != nil {
-		return "", errwrap.Wrap(errors.New("failed to sync data"), err)
+		return errwrap.Wrap(errors.New("failed to sync data"), err)
 	}
-	// Create rendered file
-	f, err := os.Create(filepath.Join(treepath, renderedfilename))
-	if err != nil {
-		return "", errwrap.Wrap(errors.New("failed to write rendered file"), err)
-	}
-	f.Close()
-
-	// Write the hash of the image that will use this tree store
-	err = ioutil.WriteFile(filepath.Join(treepath, imagefilename), []byte(key), 0644)
-	if err != nil {
-		return "", errwrap.Wrap(errors.New("cannot write image file"), err)
-	}
-
 	if err := syscall.Fsync(dfd); err != nil {
-		return "", errwrap.Wrap(errors.New("failed to sync tree store directory"), err)
+		return errwrap.Wrap(errors.New("failed to sync tree store directory"), err)
 	}
 
-	// TODO(sgotti) this is wrong for various reasons:
-	// * Doesn't consider that can there can be multiple treestore per ACI
-	// (and fixing this adding/subtracting sizes is bad since cannot be
-	// atomic and could bring to duplicated/missing subtractions causing
-	// wrong sizes)
-	// * ImageStore and TreeStore are decoupled (TreeStore should just use acirenderer.ACIRegistry interface)
-	treeSize, err := ts.Size(id)
+	size, err := ts.size(id)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	if err := ts.store.UpdateTreeStoreSize(key, treeSize); err != nil {
-		return "", err
+	info := &Info{ID: id, ImageDigest: digest, Checksum: checksum, Size: size}
+	if err := ts.db.DoRW(func(tx *bolt.Tx) error {
+		return writeInfo(tx, info)
+	}); err != nil {
+		return err
 	}
 
-	return string(hash), nil
+	return nil
 }
 
-// remove cleans the directory for the provided id
+// remove remove the treestore info from the db and clean the directory for the
+// provided id
 func (ts *Store) remove(id string) error {
 	treepath := ts.GetPath(id)
 	// If tree path doesn't exist we're done
@@ -272,288 +397,90 @@ func (ts *Store) remove(id string) error {
 		return errwrap.Wrap(errors.New("failed to open tree store directory"), err)
 	}
 
-	renderedFilePath := filepath.Join(treepath, renderedfilename)
-	// The "rendered" flag file should be the firstly removed file. So if
-	// the removal ends with some error leaving some stale files IsRendered()
-	// will return false.
-	_, err = os.Stat(renderedFilePath)
-	if err != nil && !os.IsNotExist(err) {
+	if err := ts.db.DoRW(func(tx *bolt.Tx) error {
+		return removeInfo(tx, id)
+	}); err != nil {
 		return err
 	}
-	if !os.IsNotExist(err) {
-		err := os.Remove(renderedFilePath)
-		// Ensure that the treepath directory is fsynced after removing the
-		// "rendered" flag file
-		f, err := os.Open(treepath)
-		if err != nil {
-			return errwrap.Wrap(errors.New("failed to open tree store directory"), err)
-		}
-		defer f.Close()
-		err = f.Sync()
-		if err != nil {
-			return errwrap.Wrap(errors.New("failed to sync tree store directory"), err)
-		}
-	}
-
-	// Ignore error retrieving image hash
-	key, _ := ts.GetImageHash(id)
 
 	if err := os.RemoveAll(treepath); err != nil {
 		return err
 	}
-
-	if key != "" {
-		return ts.store.UpdateTreeStoreSize(key, 0)
-	}
-
 	return nil
 }
 
-// IsRendered checks if the tree store with the provided id is fully rendered
-func (ts *Store) IsRendered(id string) (bool, error) {
-	// if the "rendered" flag file exists, assume that the store is already
-	// fully rendered.
-	treepath := ts.GetPath(id)
-	_, err := os.Stat(filepath.Join(treepath, renderedfilename))
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
-// GetPath returns the absolute path of the treestore for the provided id.
+// getOldPath returns the absolute path of the treestore for the provided id.
 // It doesn't ensure that the path exists and is fully rendered. This should
 // be done calling IsRendered()
-func (ts *Store) GetPath(id string) string {
-	return filepath.Join(ts.dir, id)
+func (ts *Store) getOldPath(id string) string {
+	return filepath.Join(ts.oldRenderDir, id)
 }
 
-// GetRootFS returns the absolute path of the rootfs for the provided id.
-// It doesn't ensure that the rootfs exists and is fully rendered. This should
-// be done calling IsRendered()
-func (ts *Store) GetRootFS(id string) string {
-	return filepath.Join(ts.GetPath(id), "rootfs")
+func (ts *Store) oldPathExists(id string) bool {
+	if ts.oldRenderDir != "" {
+		_, err := os.Stat(ts.getOldPath(id))
+		// We want to ignore errors on stat on old path so just take
+		// any non error as the path exists (without checkong os.IsNotExists
+		if err == nil {
+			return true
+		}
+	}
+	return false
 }
 
-// Hash calculates an hash of the rendered ACI. It uses the same functions
-// used to create a tar but instead of writing the full archive is just
-// computes the sha512 sum of the file infos and contents.
-func (ts *Store) Hash(id string) (string, error) {
+// checksum calculates a checksum of the rendered image. It uses the same
+// functions used to create a tar but instead of writing the full archive is
+// just computes the sha256 sum of the file infos and contents.
+func (ts *Store) checksum(id string) (string, error) {
 	treepath := ts.GetPath(id)
 
-	hash := sha512.New()
-	iw := NewHashWriter(hash)
+	hash := sha256.New()
+	iw := newHashWriter(hash)
 	err := filepath.Walk(treepath, buildWalker(treepath, iw))
 	if err != nil {
 		return "", errwrap.Wrap(errors.New("error walking rootfs"), err)
 	}
 
-	hashstring := hashToKey(hash)
+	checksum := hashString(hash)
 
-	return hashstring, nil
+	return checksum, nil
 }
 
-// check calculates the actual rendered ACI's hash and verifies that it matches
-// the saved value. Returns the calculated hash.
+// check calculates the actual rendered image's checksum and verifies that it matches
+// the saved value. Returns the calculated checksum.
 func (ts *Store) check(id string) (string, error) {
-	treepath := ts.GetPath(id)
-	hash, err := ioutil.ReadFile(filepath.Join(treepath, hashfilename))
+	var info *Info
+	if err := ts.db.DoRO(func(tx *bolt.Tx) error {
+		var err error
+		info, err = getInfo(tx, id)
+		if err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return "", err
+	}
+
+	if info == nil {
+		return "", fmt.Errorf("tree store does not exists")
+	}
+
+	curChecksum, err := ts.checksum(id)
 	if err != nil {
-		return "", errwrap.Wrap(errors.New("cannot read hash file"), err)
+		return "", errwrap.Wrap(errors.New("cannot calculate tree checksum"), err)
 	}
-	curhash, err := ts.Hash(id)
-	if err != nil {
-		return "", errwrap.Wrap(errors.New("cannot calculate tree hash"), err)
+	if curChecksum != info.Checksum {
+		return "", fmt.Errorf("wrong tree checksum: %s, expected: %s", curChecksum, info.Checksum)
 	}
-	if curhash != string(hash) {
-		return "", fmt.Errorf("wrong tree hash: %s, expected: %s", curhash, hash)
-	}
-	return curhash, nil
+	return curChecksum, nil
 }
 
-// Size returns the size of the rootfs for the provided id. It is a relatively
+// size returns the size of the rootfs for the provided id. It is a relatively
 // expensive operation, it goes through all the files and adds up their size.
-func (ts *Store) Size(id string) (int64, error) {
+func (ts *Store) size(id string) (int64, error) {
 	sz, err := fileutil.DirSize(ts.GetPath(id))
 	if err != nil {
 		return -1, errwrap.Wrap(errors.New("error calculating size"), err)
 	}
 	return sz, nil
-}
-
-// GetImageHash returns the hash of the image that uses the tree store
-// identified by id.
-func (ts *Store) GetImageHash(id string) (string, error) {
-	treepath := ts.GetPath(id)
-
-	imgHash, err := ioutil.ReadFile(filepath.Join(treepath, imagefilename))
-	if err != nil {
-		return "", errwrap.Wrap(errors.New("cannot read image file"), err)
-	}
-
-	return string(imgHash), nil
-}
-
-type xattr struct {
-	Name  string
-	Value string
-}
-
-// Like tar Header but, to keep json output reproducible:
-// * Xattrs as a slice
-// * Skip Uname and Gname
-// TODO. Should ModTime/AccessTime/ChangeTime be saved? For validation its
-// probably enough to hash the file contents and the other infos and avoid
-// problems due to them changing.
-// TODO(sgotti) Is it possible that json output will change between go
-// versions? Use another or our own Marshaller?
-type fileInfo struct {
-	Name     string // name of header file entry
-	Mode     int64  // permission and mode bits
-	Uid      int    // user id of owner
-	Gid      int    // group id of owner
-	Size     int64  // length in bytes
-	Typeflag byte   // type of header entry
-	Linkname string // target name of link
-	Devmajor int64  // major number of character or block device
-	Devminor int64  // minor number of character or block device
-	Xattrs   []xattr
-}
-
-func FileInfoFromHeader(hdr *tar.Header) *fileInfo {
-	fi := &fileInfo{
-		Name:     hdr.Name,
-		Mode:     hdr.Mode,
-		Uid:      hdr.Uid,
-		Gid:      hdr.Gid,
-		Size:     hdr.Size,
-		Typeflag: hdr.Typeflag,
-		Linkname: hdr.Linkname,
-		Devmajor: hdr.Devmajor,
-		Devminor: hdr.Devminor,
-	}
-	keys := make([]string, 0, len(hdr.Xattrs))
-	for k := range hdr.Xattrs {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	xattrs := make([]xattr, 0, len(keys))
-	for _, k := range keys {
-		xattrs = append(xattrs, xattr{Name: k, Value: hdr.Xattrs[k]})
-	}
-	fi.Xattrs = xattrs
-	return fi
-}
-
-// TODO(sgotti) this func is copied from appcs/spec/aci/build.go but also
-// removes the hash, rendered and image files. Find a way to reuse it.
-func buildWalker(root string, aw specaci.ArchiveWriter) filepath.WalkFunc {
-	// cache of inode -> filepath, used to leverage hard links in the archive
-	inos := map[uint64]string{}
-	return func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		relpath, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		if relpath == "." {
-			return nil
-		}
-		if relpath == specaci.ManifestFile ||
-			relpath == hashfilename ||
-			relpath == renderedfilename ||
-			relpath == imagefilename {
-			// ignore; this will be written by the archive writer
-			// TODO(jonboulle): does this make sense? maybe just remove from archivewriter?
-			return nil
-		}
-
-		link := ""
-		var r io.Reader
-		switch info.Mode() & os.ModeType {
-		case os.ModeSocket:
-			return nil
-		case os.ModeNamedPipe:
-		case os.ModeCharDevice:
-		case os.ModeDevice:
-		case os.ModeDir:
-		case os.ModeSymlink:
-			target, err := os.Readlink(path)
-			if err != nil {
-				return err
-			}
-			link = target
-		default:
-			file, err := os.Open(path)
-			if err != nil {
-				return err
-			}
-			defer file.Close()
-			r = file
-		}
-
-		hdr, err := tar.FileInfoHeader(info, link)
-		if err != nil {
-			panic(err)
-		}
-		// Because os.FileInfo's Name method returns only the base
-		// name of the file it describes, it may be necessary to
-		// modify the Name field of the returned header to provide the
-		// full path name of the file.
-		hdr.Name = relpath
-		tarheader.Populate(hdr, info, inos)
-		// If the file is a hard link to a file we've already seen, we
-		// don't need the contents
-		if hdr.Typeflag == tar.TypeLink {
-			hdr.Size = 0
-			r = nil
-		}
-
-		return aw.AddFile(hdr, r)
-	}
-}
-
-type imageHashWriter struct {
-	io.Writer
-}
-
-func NewHashWriter(w io.Writer) specaci.ArchiveWriter {
-	return &imageHashWriter{w}
-}
-
-func (aw *imageHashWriter) AddFile(hdr *tar.Header, r io.Reader) error {
-	// Write the json encoding of the FileInfo struct
-	hdrj, err := json.Marshal(FileInfoFromHeader(hdr))
-	if err != nil {
-		return err
-	}
-	_, err = aw.Writer.Write(hdrj)
-	if err != nil {
-		return err
-	}
-
-	if r != nil {
-		// Write the file data
-		_, err := io.Copy(aw.Writer, r)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (aw *imageHashWriter) Close() error {
-	return nil
-}
-
-func hashToKey(h hash.Hash) string {
-	s := h.Sum(nil)
-	return fmt.Sprintf("%s%x", hashPrefix, s)[0:lenKey]
 }

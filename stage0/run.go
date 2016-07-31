@@ -591,22 +591,21 @@ func prepareAppImage(cfg PrepareConfig, appName types.ACName, img types.Hash, cd
 		if cfg.PrivateUsers.Shift > 0 {
 			return fmt.Errorf("cannot use both overlay and user namespace: not implemented yet. (Try --no-overlay)")
 		}
-		treeStoreID, _, err := cfg.TreeStore.Render(img.String(), false)
+		treeStoreID, err := cfg.TreeStore.Render(img.String(), false)
 		if err != nil {
 			return errwrap.Wrap(errors.New("error rendering tree image"), err)
 		}
 
 		if !cfg.SkipTreeStoreCheck {
-			hash, err := cfg.TreeStore.Check(treeStoreID)
+			_, err := cfg.TreeStore.Check(treeStoreID)
 			if err != nil {
 				log.PrintE("warning: tree cache is in a bad state.  Rebuilding...", err)
 				var err error
-				treeStoreID, hash, err = cfg.TreeStore.Render(img.String(), true)
+				treeStoreID, err = cfg.TreeStore.Render(img.String(), true)
 				if err != nil {
 					return errwrap.Wrap(errors.New("error rendering tree image"), err)
 				}
 			}
-			cfg.CommonConfig.RootHash = hash
 		}
 
 		if err := ioutil.WriteFile(common.AppTreeStoreIDPath(cdir, appName), []byte(treeStoreID), common.DefaultRegularFilePerm); err != nil {
@@ -672,22 +671,27 @@ func prepareStage1Image(cfg PrepareConfig, img types.Hash, cdir string, useOverl
 		return errwrap.Wrap(errors.New("error creating stage1 directory"), err)
 	}
 
-	treeStoreID, _, err := cfg.TreeStore.Render(img.String(), false)
+	treeStoreID, err := cfg.TreeStore.Render(img.String(), false)
 	if err != nil {
 		return errwrap.Wrap(errors.New("error rendering tree image"), err)
 	}
 
 	if !cfg.SkipTreeStoreCheck {
-		hash, err := cfg.TreeStore.Check(treeStoreID)
+		checksum, err := cfg.TreeStore.Check(treeStoreID)
 		if err != nil {
 			log.Printf("warning: tree cache is in a bad state: %v. Rebuilding...", err)
 			var err error
-			treeStoreID, hash, err = cfg.TreeStore.Render(img.String(), true)
+			treeStoreID, err = cfg.TreeStore.Render(img.String(), true)
 			if err != nil {
 				return errwrap.Wrap(errors.New("error rendering tree image"), err)
 			}
+			info, err := cfg.TreeStore.GetInfo(treeStoreID)
+			if err != nil {
+				return errwrap.Wrap(errors.New("error retrieving treestore info"), err)
+			}
+			checksum = info.Checksum
 		}
-		cfg.CommonConfig.RootHash = hash
+		cfg.CommonConfig.RootHash = checksum
 	}
 
 	if err := writeManifest(*cfg.CommonConfig, img, s1); err != nil {

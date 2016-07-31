@@ -35,6 +35,7 @@ import (
 	"github.com/coreos/rkt/common/cgroup"
 	"github.com/coreos/rkt/pkg/set"
 	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/treestore"
 	"github.com/coreos/rkt/version"
 	"github.com/godbus/dbus"
 	"github.com/hashicorp/errwrap"
@@ -97,8 +98,9 @@ func copyPod(pod *v1alpha.Pod) *v1alpha.Pod {
 
 // v1AlphaAPIServer implements v1Alpha.APIServer interface.
 type v1AlphaAPIServer struct {
-	store    *imagestore.Store
-	podCache *lru.Cache
+	store     *imagestore.Store
+	treeStore *treestore.Store
+	podCache  *lru.Cache
 }
 
 var _ v1alpha.PublicAPIServer = &v1AlphaAPIServer{}
@@ -109,14 +111,20 @@ func newV1AlphaAPIServer() (*v1AlphaAPIServer, error) {
 		return nil, err
 	}
 
+	ts, err := newTreeStore(s)
+	if err != nil {
+		return nil, err
+	}
+
 	cache, err := lru.New(defaultCacheSize)
 	if err != nil {
 		return nil, err
 	}
 
 	return &v1AlphaAPIServer{
-		store:    s,
-		podCache: cache,
+		store:     s,
+		treeStore: ts,
+		podCache:  cache,
 	}, nil
 }
 
@@ -621,7 +629,7 @@ func (s *v1AlphaAPIServer) InspectPod(ctx context.Context, request *v1alpha.Insp
 }
 
 // aciInfoToV1AlphaAPIImage takes an aciInfo object and construct the v1alpha.Image object.
-func aciInfoToV1AlphaAPIImage(store *imagestore.Store, aciInfo *imagestore.ACIInfo) (*v1alpha.Image, error) {
+func aciInfoToV1AlphaAPIImage(store *imagestore.Store, treeStore *treestore.Store, aciInfo *imagestore.ACIInfo) (*v1alpha.Image, error) {
 	manifest, err := store.GetImageManifestJSON(aciInfo.BlobKey)
 	if err != nil {
 		stderr.PrintE("failed to read the image manifest", err)
@@ -639,6 +647,15 @@ func aciInfoToV1AlphaAPIImage(store *imagestore.Store, aciInfo *imagestore.ACIIn
 		version = "latest"
 	}
 
+	infos, err := treeStore.GetInfosByImageDigest(aciInfo.BlobKey)
+	if err != nil {
+		return nil, err
+	}
+	var treeStoreSize int64
+	for _, i := range infos {
+		treeStoreSize += i.Size
+	}
+
 	return &v1alpha.Image{
 		BaseFormat: &v1alpha.ImageFormat{
 			// Only support appc image now. If it's a docker image, then it
@@ -651,7 +668,7 @@ func aciInfoToV1AlphaAPIImage(store *imagestore.Store, aciInfo *imagestore.ACIIn
 		Version:         version,
 		ImportTimestamp: aciInfo.ImportTime.Unix(),
 		Manifest:        manifest,
-		Size:            aciInfo.Size + aciInfo.TreeStoreSize,
+		Size:            aciInfo.Size + treeStoreSize,
 		Annotations:     convertAnnotationsToKeyValue(im.Annotations),
 		Labels:          convertLabelsToKeyValue(im.Labels),
 	}, nil
@@ -777,7 +794,7 @@ func (s *v1AlphaAPIServer) ListImages(ctx context.Context, request *v1alpha.List
 
 	var images []*v1alpha.Image
 	for _, aciInfo := range aciInfos {
-		image, err := aciInfoToV1AlphaAPIImage(s.store, aciInfo)
+		image, err := aciInfoToV1AlphaAPIImage(s.store, s.treeStore, aciInfo)
 		if err != nil {
 			continue
 		}
@@ -793,14 +810,14 @@ func (s *v1AlphaAPIServer) ListImages(ctx context.Context, request *v1alpha.List
 }
 
 // getImageInfo for a given image ID, returns the *v1alpha.Image object.
-func getImageInfo(store *imagestore.Store, imageID string) (*v1alpha.Image, error) {
+func getImageInfo(store *imagestore.Store, treeStore *treestore.Store, imageID string) (*v1alpha.Image, error) {
 	aciInfo, err := store.GetACIInfoWithBlobKey(imageID)
 	if err != nil {
 		stderr.PrintE(fmt.Sprintf("failed to get ACI info for image %q", imageID), err)
 		return nil, err
 	}
 
-	image, err := aciInfoToV1AlphaAPIImage(store, aciInfo)
+	image, err := aciInfoToV1AlphaAPIImage(store, treeStore, aciInfo)
 	if err != nil {
 		stderr.PrintE(fmt.Sprintf("failed to convert ACI to v1alphaAPIImage for image %q", imageID), err)
 		return nil, err
@@ -809,7 +826,7 @@ func getImageInfo(store *imagestore.Store, imageID string) (*v1alpha.Image, erro
 }
 
 func (s *v1AlphaAPIServer) InspectImage(ctx context.Context, request *v1alpha.InspectImageRequest) (*v1alpha.InspectImageResponse, error) {
-	image, err := getImageInfo(s.store, request.Id)
+	image, err := getImageInfo(s.store, s.treeStore, request.Id)
 	if err != nil {
 		return nil, err
 	}

@@ -27,6 +27,8 @@ import (
 	"github.com/coreos/rkt/pkg/log"
 	"github.com/coreos/rkt/rkt/config"
 	rktflag "github.com/coreos/rkt/rkt/flag"
+	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/treestore"
 	"github.com/spf13/cobra"
 )
 
@@ -297,9 +299,13 @@ func storeDir() string {
 	return filepath.Join(getDataDir(), "cas")
 }
 
-// TODO(sgotti) backward compatibility with the current tree store paths. Needs a migration path to better paths.
 func treeStoreDir() string {
-	return filepath.Join(getDataDir(), "cas")
+	return filepath.Join(getDataDir(), "treestore")
+}
+
+// Backward compatibility with the old tree store paths
+func oldTreeStoreDir() string {
+	return filepath.Join(getDataDir(), "cas", "tree")
 }
 
 func getKeystore() *keystore.Keystore {
@@ -388,4 +394,16 @@ func getConfig() (*config.Config, error) {
 
 func lockDir() string {
 	return filepath.Join(getDataDir(), "locks")
+}
+
+// newTreeStore is a facility to create a new treestore instance and set
+// backward compatibility with the previous treestore implementation
+func newTreeStore(s *imagestore.Store) (*treestore.Store, error) {
+	ts, err := treestore.NewStore(treeStoreDir(), s)
+	if err != nil {
+		return nil, err
+	}
+	ts.SetOldTreeStoreDir(oldTreeStoreDir())
+
+	return ts, nil
 }

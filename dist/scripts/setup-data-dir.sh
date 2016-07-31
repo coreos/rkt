@@ -62,8 +62,11 @@ make_rkt_directory "${datadir}/cas/imagelocks" 2770
 make_rkt_directory "${datadir}/cas/imageManifest" 2770
 make_rkt_directory "${datadir}/cas/blob" 2770
 make_rkt_directory "${datadir}/cas/tmp" 2770
-make_rkt_directory "${datadir}/cas/tree" 2700
-make_rkt_directory "${datadir}/cas/treestorelocks" 2700
+make_rkt_directory "${datadir}/treestore" 2770
+make_rkt_directory "${datadir}/treestore/db" 2770
+create_rkt_file "${datadir}/treestore/db/db" 0660
+make_rkt_directory "${datadir}/treestore/tree" 2700
+make_rkt_directory "${datadir}/treestore/locks" 2700
 make_rkt_directory "${datadir}/locks" 2750
 
 make_rkt_directory "${datadir}/pods" 2750

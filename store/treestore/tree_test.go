@@ -122,8 +122,7 @@ func TestTreeStoreRender(t *testing.T) {
 
 	id := "treestoreid01"
 
-	_, err = ts.render(id, key)
-	if err != nil {
+	if err := ts.render(id, key); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -168,8 +167,7 @@ func TestTreeStoreRemove(t *testing.T) {
 	}
 
 	// Test rendered tree
-	_, err = ts.render(id, key)
-	if err != nil {
+	if err = ts.render(id, key); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -262,7 +260,7 @@ func TestTreeStore(t *testing.T) {
 	}
 
 	// Ask the store to render the treestore
-	id, _, err := ts.Render(key, false)
+	id, err := ts.Render(key, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -288,7 +286,7 @@ func TestTreeStore(t *testing.T) {
 
 	// rebuild the tree
 	prevID := id
-	id, _, err = ts.Render(key, true)
+	id, err = ts.Render(key, true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

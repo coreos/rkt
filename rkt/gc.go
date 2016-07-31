@@ -237,7 +237,7 @@ func deletePod(p *pod) {
 		}
 		defer s.Close()
 
-		ts, err := treestore.NewStore(treeStoreDir(), s)
+		ts, err := newTreeStore(s)
 		if err != nil {
 			stderr.PrintE("cannot open store", err)
 			return

@@ -254,7 +254,7 @@ func TestRenderOnFetch(t *testing.T) {
 	fetchCmd := fmt.Sprintf("%s --debug --insecure-options=image,tls fetch %s", ctx.Cmd(), topImage)
 	child := spawnOrFail(t, fetchCmd)
 
-	treeStoreDir := filepath.Join(ctx.DataDir(), "cas", "tree")
+	treeStoreDir := filepath.Join(ctx.DataDir(), "treestore", "tree")
 	trees, err := ioutil.ReadDir(treeStoreDir)
 	if err != nil {
 		panic(fmt.Sprintf("Cannot read tree store dir: %v", err))

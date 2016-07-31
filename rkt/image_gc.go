@@ -56,7 +56,7 @@ func runGCImage(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	ts, err := treestore.NewStore(treeStoreDir(), s)
+	ts, err := newTreeStore(s)
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
 		return
@@ -92,18 +92,23 @@ func gcTreeStore(ts *treestore.Store) error {
 	if err != nil {
 		return errwrap.Wrap(errors.New("cannot get referenced treestoreIDs"), err)
 	}
-	treeStoreIDs, err := ts.GetIDs()
+	treeStoreIDs, err := ts.ListIDs()
 	if err != nil {
 		return errwrap.Wrap(errors.New("cannot get treestoreIDs from the store"), err)
 	}
+	errors := 0
 	for _, treeStoreID := range treeStoreIDs {
 		if _, ok := referencedTreeStoreIDs[treeStoreID]; !ok {
 			if err := ts.Remove(treeStoreID); err != nil {
 				stderr.PrintE(fmt.Sprintf("error removing treestore %q", treeStoreID), err)
+				errors++
 			} else {
 				stderr.Printf("removed treestore %q", treeStoreID)
 			}
 		}
+	}
+	if errors > 0 {
+		return fmt.Errorf("failed to remove %d treestores", errors)
 	}
 	return nil
 }

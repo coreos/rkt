@@ -23,7 +23,6 @@ import (
 	"github.com/coreos/rkt/pkg/fileutil"
 	"github.com/coreos/rkt/pkg/user"
 	"github.com/coreos/rkt/store/imagestore"
-	"github.com/coreos/rkt/store/treestore"
 
 	"github.com/spf13/cobra"
 )
@@ -64,7 +63,7 @@ func runImageRender(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	ts, err := treestore.NewStore(treeStoreDir(), s)
+	ts, err := newTreeStore(s)
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
 		return
@@ -76,7 +75,7 @@ func runImageRender(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	id, _, err := ts.Render(key, false)
+	id, err := ts.Render(key, false)
 	if err != nil {
 		stderr.PrintE("error rendering ACI", err)
 		return 1
@@ -84,7 +83,7 @@ func runImageRender(cmd *cobra.Command, args []string) (exit int) {
 	if _, err := ts.Check(id); err != nil {
 		stderr.Print("warning: tree cache is in a bad state. Rebuilding...")
 		var err error
-		if id, _, err = ts.Render(key, true); err != nil {
+		if id, err = ts.Render(key, true); err != nil {
 			stderr.PrintE("error rendering ACI", err)
 			return 1
 		}

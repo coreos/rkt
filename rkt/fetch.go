@@ -21,7 +21,6 @@ import (
 	"github.com/coreos/rkt/common/apps"
 	"github.com/coreos/rkt/rkt/image"
 	"github.com/coreos/rkt/store/imagestore"
-	"github.com/coreos/rkt/store/treestore"
 
 	"github.com/spf13/cobra"
 )
@@ -85,7 +84,7 @@ func runFetch(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	ts, err := treestore.NewStore(treeStoreDir(), s)
+	ts, err := newTreeStore(s)
 	if err != nil {
 		stderr.PrintE("cannot open treestore", err)
 		return 1

@@ -31,7 +31,6 @@ import (
 	"github.com/coreos/rkt/rkt/image"
 	"github.com/coreos/rkt/stage0"
 	"github.com/coreos/rkt/store/imagestore"
-	"github.com/coreos/rkt/store/treestore"
 	"github.com/hashicorp/errwrap"
 	"github.com/spf13/cobra"
 )
@@ -180,7 +179,7 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	ts, err := treestore.NewStore(treeStoreDir(), s)
+	ts, err := newTreeStore(s)
 	if err != nil {
 		stderr.PrintE("cannot open treestore", err)
 		return 1
