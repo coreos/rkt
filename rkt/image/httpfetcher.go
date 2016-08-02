@@ -17,7 +17,6 @@ package image
 import (
 	"errors"
 	"io"
-
 	"net/url"
 	"time"
 
@@ -71,10 +70,7 @@ func (f *httpFetcher) Hash(u *url.URL, a *asc) (string, error) {
 		// CacheMaxAge is exceeded
 		return key, nil
 	}
-	key, err := f.S.WriteACI(aciFile, imagestore.ACIFetchInfo{
-		Latest:          false,
-		InsecureOptions: int64(f.InsecureFlags.Value()),
-	})
+	key, err := f.S.WriteACI(aciFile, false)
 	if err != nil {
 		return "", err
 	}

@@ -620,18 +620,18 @@ func getPodInfo(t *testing.T, ctx *testutils.RktRunCtx, podID string) *podInfo {
 // For example, the 'result' can be:
 // 'sha512-e9b77714dbbfda12cb9e136318b103a6f0ce082004d09d0224a620d2bbf38133 nginx:latest 2015-10-16 17:42:57.741 -0700 PDT true'
 func parseImageInfoOutput(t *testing.T, result string) *imageInfo {
-	fields := regexp.MustCompile("\t+").Split(result, -1)
+	fields := regexp.MustCompile("\t+").Split(result, 6)
 	nameVersion := strings.Split(fields[1], ":")
 	if len(nameVersion) != 2 {
 		t.Fatalf("Failed to parse name version string: %q", fields[1])
 	}
-	importTime, err := time.Parse(defaultTimeLayout, fields[6])
+	importTime, err := time.Parse(defaultTimeLayout, fields[2])
 	if err != nil {
-		t.Fatalf("Failed to parse time string: %q", fields[6])
+		t.Fatalf("Failed to parse time string: %q", fields[2])
 	}
-	size, err := strconv.Atoi(fields[5])
+	size, err := strconv.Atoi(fields[4])
 	if err != nil {
-		t.Fatalf("Failed to parse image size string: %q", fields[5])
+		t.Fatalf("Failed to parse image size string: %q", fields[4])
 	}
 
 	return &imageInfo{

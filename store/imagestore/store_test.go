@@ -175,7 +175,7 @@ func TestGetImageManifest(t *testing.T) {
 	if _, err := aci.Seek(0, 0); err != nil {
 		t.Fatalf("unexpected error %v", err)
 	}
-	key, err := s.WriteACI(aci, ACIFetchInfo{Latest: false})
+	key, err := s.WriteACI(aci, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -318,7 +318,7 @@ func TestGetAci(t *testing.T) {
 				t.Fatalf("unexpected error %v", err)
 			}
 
-			key, err := s.WriteACI(aci, ACIFetchInfo{Latest: ad.latest})
+			key, err := s.WriteACI(aci, ad.latest)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -370,7 +370,7 @@ func TestRemoveACI(t *testing.T) {
 	if _, err := aciFile.Seek(0, 0); err != nil {
 		t.Fatalf("unexpected error %v", err)
 	}
-	key, err := s.WriteACI(aciFile, ACIFetchInfo{Latest: false})
+	key, err := s.WriteACI(aciFile, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -415,7 +415,7 @@ func TestRemoveACI(t *testing.T) {
 	if _, err := aciFile.Seek(0, 0); err != nil {
 		t.Fatalf("unexpected error %v", err)
 	}
-	key, err = s.WriteACI(aciFile, ACIFetchInfo{Latest: false})
+	key, err = s.WriteACI(aciFile, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

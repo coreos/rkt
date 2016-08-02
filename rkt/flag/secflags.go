@@ -14,8 +14,6 @@
 
 package flag
 
-import "strings"
-
 const (
 	insecureNone  = 0
 	insecureImage = 1 << (iota - 1)
@@ -43,14 +41,6 @@ var (
 
 type SecFlags struct {
 	*bitFlags
-}
-
-func NewSecFlagsFromValue(val int) (*SecFlags, error) {
-	sf := &SecFlags{
-		bitFlags: &bitFlags{flags: val},
-	}
-
-	return sf, nil
 }
 
 func NewSecFlags(defOpts string) (*SecFlags, error) {
@@ -91,27 +81,4 @@ func (sf *SecFlags) SkipAllSecurityChecks() bool {
 
 func (sf *SecFlags) SkipAnySecurityChecks() bool {
 	return sf.flags != 0
-}
-
-func (sf *SecFlags) Value() int {
-	return sf.flags
-}
-
-func (sf *SecFlags) String() string {
-	opts := []string{}
-
-	for optstr, opt := range insecureOptionsMap {
-		if sf.hasFlag(opt) {
-			if opt == insecureNone || opt == insecureAll {
-				continue
-			}
-			opts = append(opts, optstr)
-		}
-	}
-
-	if len(opts) == 0 {
-		return "none"
-	}
-
-	return strings.Join(opts, ",")
 }

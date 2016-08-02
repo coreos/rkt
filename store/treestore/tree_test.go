@@ -88,7 +88,7 @@ func testStoreWriteACI(dir string, s *imagestore.Store) (string, error) {
 	}
 
 	// Import the new ACI
-	key, err := s.WriteACI(aci, imagestore.ACIFetchInfo{Latest: false})
+	key, err := s.WriteACI(aci, false)
 	if err != nil {
 		return "", err
 	}
@@ -256,7 +256,7 @@ func TestTreeStore(t *testing.T) {
 	}
 
 	// Import the new ACI
-	key, err := s.WriteACI(aci, imagestore.ACIFetchInfo{Latest: false})
+	key, err := s.WriteACI(aci, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

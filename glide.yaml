@@ -282,11 +282,5 @@ import:
   version: v1.0
 - package: github.com/klauspost/cpuid
   version: v1.0
-- package: github.com/jonboulle/clockwork
-  version: v0.1.0
-- package: github.com/davecgh/go-spew
-  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
-  subpackages:
-  - spew
 - package: github.com/hashicorp/golang-lru
   version: a0d98a5f288019575c6d1f4bb1573fef2d1fcdc4

@@ -1,4 +1,4 @@
-hash: 6dd4eb2d90cb8ac317ad1aeb1a1cd0ed0d29375f4fecddaf5ae168eb62f6bc4b
+hash: a5b953ee688f543a2cd123b2feaa5e92bbf0caf6a0cb79f39f63c789bd047dc7
 updated: 2016-08-01T11:52:19.106454487-07:00
 imports:
 - name: github.com/appc/docker2aci
@@ -139,10 +139,6 @@ imports:
   version: f0e4d29ff0231dce36e250b2ed9ff08412584bca
 - name: github.com/d2g/dhcp4client
   version: bed07e1bc5b85f69c6f0fd73393aa35ec68ed892
-- name: github.com/davecgh/go-spew
-  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
-  subpackages:
-  - spew
 - name: github.com/docker/distribution
   version: 099622876197e3b24d627a72053d1bcc8968076a
   subpackages:
@@ -192,8 +188,6 @@ imports:
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/jmespath/go-jmespath
   version: 0b12d6b521d83fc7f755e7cfc1b1fbdd35a01a74
-- name: github.com/jonboulle/clockwork
-  version: 2eee05ed794112d45db504eb05aa693efd2b8b09
 - name: github.com/kballard/go-shellquote
   version: e5c918b80c17694cbc49aab32a759f9a40067f5d
 - name: github.com/klauspost/compress
