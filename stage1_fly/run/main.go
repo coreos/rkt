@@ -35,6 +35,7 @@ import (
 	rktlog "github.com/coreos/rkt/pkg/log"
 	"github.com/coreos/rkt/pkg/sys"
 	"github.com/coreos/rkt/pkg/user"
+	"github.com/coreos/rkt/stage0"
 	stage1common "github.com/coreos/rkt/stage1/common"
 	stage1commontypes "github.com/coreos/rkt/stage1/common/types"
 )
@@ -199,19 +200,40 @@ func evaluateMounts(rfs string, app string, p *stage1commontypes.Pod) ([]flyMoun
 			)
 		}
 
-		var flags uintptr = syscall.MS_BIND
+		var (
+			flags     uintptr = syscall.MS_BIND
+			recursive         = tuple.V.Recursive != nil && *tuple.V.Recursive
+			ro                = tuple.V.ReadOnly != nil && *tuple.V.ReadOnly
+		)
+
 		// If Recursive is not set, default to non-recursive.
-		if tuple.V.Recursive != nil && *tuple.V.Recursive {
+		if recursive {
 			flags |= syscall.MS_REC
 		}
+
 		argFlyMounts = append(argFlyMounts,
 			flyMount{tuple.V.Source, rfs, tuple.M.Path, "none", flags},
 		)
 
-		if tuple.V.ReadOnly != nil && *tuple.V.ReadOnly {
+		if ro {
 			argFlyMounts = append(argFlyMounts,
 				flyMount{"", rfs, tuple.M.Path, "none", flags | syscall.MS_REMOUNT | syscall.MS_RDONLY},
 			)
+
+			if recursive {
+				// Every sub-mount needs to be remounted read-only separately
+				mnts, err := stage0.GetMountsForPrefix(tuple.V.Source + "/")
+				if err != nil {
+					return nil, errwrap.Wrap(fmt.Errorf("error getting mounts under %q from mountinfo", tuple.V.Source), err)
+				}
+
+				for _, mnt := range mnts {
+					innerRelPath := tuple.M.Path + strings.Replace(mnt.MountPoint, tuple.V.Source, "", -1)
+					argFlyMounts = append(argFlyMounts,
+						flyMount{"", rfs, innerRelPath, "none", flags | syscall.MS_REMOUNT | syscall.MS_RDONLY},
+					)
+				}
+			}
 		}
 	}
 	return argFlyMounts, nil
@@ -298,6 +320,8 @@ func stage1() int {
 	)
 
 	for _, mount := range effectiveMounts {
+		log.Printf("Processing %+v", mount)
+
 		var (
 			err            error
 			hostPathInfo   os.FileInfo
@@ -320,6 +344,10 @@ func stage1() int {
 		}
 
 		switch {
+		case (mount.Flags & syscall.MS_REMOUNT) != 0:
+			{
+				log.Printf("don't attempt to create files for remount of %q", absTargetPath)
+			}
 		case targetPathInfo == nil:
 			absTargetPathParent, _ := filepath.Split(absTargetPath)
 			if err := os.MkdirAll(absTargetPathParent, 0755); err != nil {

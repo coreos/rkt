@@ -69,7 +69,7 @@ func GC(pdir string, uuid *types.UUID) error {
 type mount struct {
 	id         int
 	parentID   int
-	mountPoint string
+	MountPoint string
 	opt        map[string]struct{}
 }
 
@@ -98,6 +98,21 @@ func (m mounts) getMountDepth(i int) int {
 func (m mounts) Less(i, j int) (result bool) { return m.getMountDepth(i) >= m.getMountDepth(j) }
 func (m mounts) Len() int                    { return len(m) }
 func (m mounts) Swap(i, j int)               { m[i], m[j] = m[j], m[i] }
+
+func GetMountsForPrefix(path string) (mounts, error) {
+	mi, err := os.Open("/proc/self/mountinfo")
+	if err != nil {
+		return nil, err
+	}
+	defer mi.Close()
+
+	mnts, err := getMountsForPrefix(path, mi)
+	if err != nil {
+		return nil, errwrap.Wrap(fmt.Errorf("error getting sub-mounts under %q from mountinfo", path), err)
+	}
+
+	return mnts, nil
+}
 
 // getMountsForPrefix parses mi (/proc/PID/mountinfo) and returns mounts for path prefix
 func getMountsForPrefix(path string, mi io.Reader) (mounts, error) {
@@ -147,11 +162,11 @@ func getMountsForPrefix(path string, mi io.Reader) (mounts, error) {
 			}
 		}
 
-		if strings.Contains(mountPoint, path) {
+		if strings.HasPrefix(mountPoint, path) {
 			mnt := &mount{
 				id:         mountID,
 				parentID:   parentID,
-				mountPoint: mountPoint,
+				MountPoint: mountPoint,
 				opt:        opt,
 			}
 			podMounts = append(podMounts, mnt)
@@ -192,16 +207,16 @@ func MountGC(path, uuid string) error {
 	for i := len(mnts) - 1; i >= 0; i-- {
 		mnt := mnts[i]
 		if needsRemountPrivate(mnt) {
-			if err := syscall.Mount("", mnt.mountPoint, "", syscall.MS_PRIVATE, ""); err != nil {
-				return errwrap.Wrap(fmt.Errorf("could not remount at %v", mnt.mountPoint), err)
+			if err := syscall.Mount("", mnt.MountPoint, "", syscall.MS_PRIVATE, ""); err != nil {
+				return errwrap.Wrap(fmt.Errorf("could not remount at %v", mnt.MountPoint), err)
 			}
 		}
 	}
 
 	for _, mnt := range mnts {
-		if err := syscall.Unmount(mnt.mountPoint, 0); err != nil {
+		if err := syscall.Unmount(mnt.MountPoint, 0); err != nil {
 			if err != syscall.ENOENT && err != syscall.EINVAL {
-				return errwrap.Wrap(fmt.Errorf("could not unmount %v", mnt.mountPoint), err)
+				return errwrap.Wrap(fmt.Errorf("could not unmount %v", mnt.MountPoint), err)
 			}
 		}
 	}

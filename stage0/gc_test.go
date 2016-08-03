@@ -121,7 +121,7 @@ func TestMountOrdering(t *testing.T) {
 		}
 
 		for _, mntCur := range mnts {
-			t.Logf("Unmounting %d: %q", mntCur.id, mntCur.mountPoint)
+			t.Logf("Unmounting %d: %q", mntCur.id, mntCur.MountPoint)
 		}
 
 		if err := safeOrder(mnts); err != nil {
@@ -138,8 +138,8 @@ func safeOrder(m mounts) error {
 			if !m.Less(i, j) {
 				return fmt.Errorf("Transitivity check failed for %d(%d) and %d(%d)", i, mntCur.id, j, mntNext.id)
 			}
-			if strings.HasPrefix(mntNext.mountPoint, mntCur.mountPoint) {
-				return fmt.Errorf("Must not unmount \n%q before\n%q.", mntCur.mountPoint, mntNext.mountPoint)
+			if strings.HasPrefix(mntNext.MountPoint, mntCur.MountPoint) {
+				return fmt.Errorf("Must not unmount \n%q before\n%q.", mntCur.MountPoint, mntNext.MountPoint)
 			}
 		}
 	}

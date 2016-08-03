@@ -121,6 +121,22 @@ var (
 			0,
 			tmpdir2innerfilecontent,
 		},
+		{
+			"CLI: recursive read-only mount write file must fail",
+			[]imagePatch{
+				{
+					"rkt-test-run-write-file.aci",
+					[]string{fmt.Sprintf("--exec=/inspect --write-file --file-name %s", tmpdir2filepathpod)},
+				},
+			},
+			fmt.Sprintf(
+				"--volume=test1,kind=host,source=%s,recursive=true,readOnly=true --mount volume=test1,target=%s",
+				tmpdir, tmpdirpathpod,
+			),
+			nil,
+			1,
+			"",
+		},
 	}
 
 	volumeMountTestCasesNonRecursiveCLI = []volumeMountTestCase{
@@ -174,6 +190,39 @@ var (
 			},
 			0,
 			tmpdir2innerfilecontent,
+		},
+		{
+			"Write of nested file for recursive/read-only mount must fail",
+			[]imagePatch{
+				{"rkt-test-run-pod-manifest-recursive-mount-write.aci", []string{}},
+			},
+			"",
+			&schema.PodManifest{
+				Apps: []schema.RuntimeApp{
+					{
+						Name: baseAppName,
+						App: &types.App{
+							Exec:  []string{"/inspect", "--write-file"},
+							User:  "0",
+							Group: "0",
+							Environment: []types.EnvironmentVariable{
+								{"FILE", tmpdir2filepathpod},
+								{"CONTENT", "should-not-see-me"},
+							},
+							MountPoints: []types.MountPoint{
+								{tmpdirmountname, tmpdirpathpod, false},
+							},
+						},
+					},
+				},
+				Volumes: []types.Volume{
+					{Name: tmpdirmountname, Kind: "host", Source: tmpdir,
+						ReadOnly: &boolTrue, Recursive: &boolTrue,
+						Mode: nil, UID: nil, GID: nil},
+				},
+			},
+			1,
+			"",
 		},
 	}
 
