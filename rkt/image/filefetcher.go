@@ -60,7 +60,7 @@ func (f *fileFetcher) Hash(aciPath string, a *asc) (string, error) {
 	}
 
 	ascLocation := ""
-	if a != nil {
+	if a != nil && a.Location != "" {
 		ascLocation = "file://" + a.Location
 	}
 

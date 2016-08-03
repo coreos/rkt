@@ -75,6 +75,34 @@ func (ol *OptionList) Set(s string) error {
 	return nil
 }
 
+func (ol *OptionList) Contains(s string) bool {
+	for _, o := range ol.Options {
+		if o == s {
+			return true
+		}
+	}
+	return false
+}
+
+func (ol *OptionList) Add(s string) {
+	if ol.Contains(s) {
+		return
+	}
+	ol.Options = append(ol.Options, s)
+}
+
+func (ol *OptionList) Remove(s string) error {
+	if !ol.Contains(s) {
+		return fmt.Errorf("option %q not found", s)
+	}
+	for i, o := range ol.Options {
+		if o == s {
+			ol.Options = append(ol.Options[:i], ol.Options[i+1:]...)
+		}
+	}
+	return nil
+}
+
 func (ol *OptionList) String() string {
 	return strings.Join(ol.Options, ",")
 }

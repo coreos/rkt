@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
 	rktflag "github.com/coreos/rkt/rkt/flag"
@@ -127,11 +128,12 @@ var (
 func init() {
 	sortFields := []string{l(name), l(importTime), l(lastUsed), l(size)}
 
-	fields := []string{l(id), l(name), l(aciURL), l(signatureURL), l(insecureOptions), l(size), l(importTime), l(lastUsed)}
+	fields := []string{l(id), l(name), l(insecureOptions), l(size), l(importTime), l(lastUsed), l(aciURL), l(signatureURL)}
+	defaultFields := []string{l(id), l(name), l(insecureOptions), l(size), l(importTime), l(lastUsed)}
 
 	// Set defaults
 	var err error
-	flagImagesFields, err = rktflag.NewOptionList(fields, strings.Join(fields, ","))
+	flagImagesFields, err = rktflag.NewOptionList(fields, strings.Join(defaultFields, ","))
 	if err != nil {
 		stderr.FatalE("", err)
 	}
@@ -151,10 +153,30 @@ func init() {
 	cmdImageList.Flags().BoolVar(&flagFullOutput, "full", false, "use long output format")
 }
 
+func fieldsPassed() bool {
+	for _, a := range os.Args {
+		if strings.Contains(a, "fields") {
+			return true
+		}
+	}
+	return false
+}
+
 func runImages(cmd *cobra.Command, args []string) int {
 	var errors []error
 	tabBuffer := new(bytes.Buffer)
 	tabOut := getTabOutWithWriter(tabBuffer)
+
+	if !fieldsPassed() {
+		if flagFullOutput {
+			if !flagImagesFields.Contains(l(aciURL)) {
+				flagImagesFields.Add(l(aciURL))
+			}
+			if !flagImagesFields.Contains(l(signatureURL)) {
+				flagImagesFields.Add(l(signatureURL))
+			}
+		}
+	}
 
 	if !flagNoLegend {
 		var headerFields []string
