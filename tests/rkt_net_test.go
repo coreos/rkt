@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -29,6 +30,7 @@ import (
 	"time"
 
 	"github.com/coreos/rkt/networking/netinfo"
+	"github.com/coreos/rkt/pkg/fileutil"
 	"github.com/coreos/rkt/tests/testutils"
 	"github.com/coreos/rkt/tests/testutils/logger"
 	"github.com/vishvananda/netlink"
@@ -499,6 +501,17 @@ func writeNetwork(t *testing.T, net networkTemplateT, netd string) error {
 	return nil
 }
 
+// Compute what we should pass to the --net parameter at runtime
+func (nt *networkTemplateT) NetParameter() string {
+	out := nt.Name
+
+	if len(nt.Args) > 0 {
+		out += ":" + strings.Join(nt.Args, ";")
+	}
+
+	return out
+}
+
 type networkTemplateT struct {
 	Name       string
 	Type       string
@@ -509,6 +522,7 @@ type networkTemplateT struct {
 	Bridge     string             `json:"bridge,omitempty"`
 	Ipam       *ipamTemplateT     `json:",omitempty"`
 	Delegate   *delegateTemplateT `json:",omitempty"`
+	Args       []string           `json:"args,omitempty"` // Arguments to the CNI plugin, array of "foo=bar" pairs
 }
 
 type ipamTemplateT struct {
@@ -526,6 +540,7 @@ func TestNetTemplates(t *testing.T) {
 	net := networkTemplateT{
 		Name: "ptp0",
 		Type: "ptp",
+		Args: []string{"two=three", "black=white"},
 		Ipam: &ipamTemplateT{
 			Type:   "host-local",
 			Subnet: "11.11.3.0/24",
@@ -537,10 +552,45 @@ func TestNetTemplates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-	expected := `{"Name":"ptp0","Type":"ptp","IpMasq":false,"IsGateway":false,"Ipam":{"Type":"host-local","subnet":"11.11.3.0/24","routes":[{"dst":"0.0.0.0/0"}]}}`
+	expected := `{"Name":"ptp0","Type":"ptp","IpMasq":false,"IsGateway":false,"Ipam":{"Type":"host-local","subnet":"11.11.3.0/24","routes":[{"dst":"0.0.0.0/0"}]},"args":["two=three","black=white"]}`
 	if string(b) != expected {
 		t.Fatalf("Template extected:\n%v\ngot:\n%v\n", expected, string(b))
 	}
+}
+
+// The format of the logfile from cniproxy
+type cniProxyResult struct {
+	PluginPath string            `json:"pluginPath"`
+	Stdin      string            `json:"stdin"`
+	Stdout     string            `json:"stdout"`
+	Stderr     string            `json:"stderr"`
+	ExitCode   int               `json:"exitCode"`
+	Env        []string          `json:"env"`
+	EnvMap     map[string]string `json:"-"`
+}
+
+func parseCNIProxyLog(filepath string) (*cniProxyResult, error) {
+	fp, err := os.Open(filepath)
+	defer fp.Close()
+	if err != nil {
+		return nil, err
+	}
+	res := new(cniProxyResult)
+	err = json.NewDecoder(fp).Decode(res)
+	if err != nil {
+		return nil, err
+	}
+	res.EnvMap = make(map[string]string)
+
+	for _, envstr := range res.Env {
+		vals := strings.SplitN(envstr, "=", 2)
+		if len(vals) != 2 {
+			continue
+		}
+		res.EnvMap[vals[0]] = vals[1]
+	}
+
+	return res, nil
 }
 
 func prepareTestNet(t *testing.T, ctx *testutils.RktRunCtx, nt networkTemplateT) (netdir string) {
@@ -553,6 +603,19 @@ func prepareTestNet(t *testing.T, ctx *testutils.RktRunCtx, nt networkTemplateT)
 	err = writeNetwork(t, nt, netdir)
 	if err != nil {
 		t.Fatalf("Cannot write network file: %v", err)
+	}
+
+	// If we're proxying the CNI call, then make sure it's in the netdir
+	if nt.Type == "cniproxy" {
+		dest := filepath.Join(netdir, "cniproxy")
+		err := fileutil.CopyRegularFile(testutils.GetValueFromEnvOrPanic("RKT_CNI_PROXY"), dest)
+		if err != nil {
+			t.Fatalf("Cannot copy cniproxy")
+		}
+		os.Chmod(dest, 0755)
+		if err != nil {
+			t.Fatalf("Cannot chmod cniproxy")
+		}
 	}
 	return netdir
 }
@@ -707,6 +770,223 @@ func testNetCustomNatConnectivity(t *testing.T, nt networkTemplateT) {
 	}()
 
 	ga.Wait()
+}
+
+//Test that the CNI execution environment matches the spec
+func NewNetCNIEnvTest() testutils.Test {
+	return testutils.TestFunc(func(t *testing.T) {
+		ctx := testutils.NewRktRunCtx()
+		defer ctx.Cleanup()
+
+		iface, _, err := testutils.GetNonLoIfaceWithAddrs(netlink.FAMILY_V4)
+		if err != nil {
+			t.Fatalf("Error while getting non-lo host interface: %v\n", err)
+		}
+		if iface.Name == "" {
+			t.Skipf("Cannot run test without non-lo host interface")
+		}
+
+		// Declares a network of type cniproxy, which will record state and
+		// proxy through to $X_REAL_PLUGIN
+		nt := networkTemplateT{
+			Name:      "bridge0",
+			Type:      "cniproxy",
+			Args:      []string{"X_LOG=output.json", "X_REAL_PLUGIN=bridge"},
+			IpMasq:    true,
+			IsGateway: true,
+			Master:    iface.Name,
+			Ipam: &ipamTemplateT{
+				Type:   "host-local",
+				Subnet: "11.11.3.0/24",
+				Routes: []map[string]string{
+					{"dst": "0.0.0.0/0"},
+				},
+			},
+		}
+
+		// bring the networking up, copy the proxy
+		netdir := prepareTestNet(t, ctx, nt)
+		defer os.RemoveAll(netdir)
+
+		ga := testutils.NewGoroutineAssistant(t)
+		ga.Add(1)
+
+		go func() {
+			defer ga.Done()
+			appCmd := "--exec=/inspect -- --print-defaultgwv4 "
+			cmd := fmt.Sprintf("%s --debug --insecure-options=image run --net=%v --mds-register=false %s %s",
+				ctx.Cmd(), nt.NetParameter(), getInspectImagePath(), appCmd)
+			child := ga.SpawnOrFail(cmd)
+			defer ga.WaitOrFail(child)
+
+			expectedRegex := "DefaultGWv4: 11.11.3.1"
+
+			_, out, err := expectRegexTimeoutWithOutput(child, expectedRegex, 30*time.Second)
+			if err != nil {
+				ga.Fatalf("Error: %v\nOutput: %v", err, out)
+			}
+		}()
+
+		ga.Wait()
+
+		// Parse the log file
+		proxyLog, err := parseCNIProxyLog(filepath.Join(netdir, "output.json"))
+		if err != nil {
+			t.Fatal("Failed to read cniproxy log", err)
+		}
+
+		// Check that the stdin matches the network config file
+		expectedConfig, err := ioutil.ReadFile(filepath.Join(netdir, nt.Name+".conf"))
+		if err != nil {
+			t.Fatal("Failed to read network configuration", err)
+		}
+
+		if string(expectedConfig) != proxyLog.Stdin {
+			t.Fatalf("CNI plugin stdin incorrect, expected <<%v>>, actual <<%v>>", expectedConfig, proxyLog.Stdin)
+		}
+
+		// Check that the environment is sane - these are regexes
+		expectedEnv := map[string]string{
+			"CNI_VERSION":     "0.3.0",
+			"CNI_COMMAND":     "ADD",
+			"CNI_IFNAME":      `eth\d`,
+			"CNI_PATH":        netdir,
+			"CNI_NETNS":       `/var/run/netns/cni-`,
+			"CNI_CONTAINERID": `^[a-fA-F0-9-]{36}`, //UUID, close enough
+		}
+
+		for k, v := range expectedEnv {
+			actual, exists := proxyLog.EnvMap[k]
+			if !exists {
+				t.Fatalf("Expected proxy CNI arg %s but not found", k)
+			}
+
+			re, err := regexp.Compile(v)
+			if err != nil {
+				t.Fatal("Invalid CNI env regex", v, err)
+			}
+			found := re.FindString(actual)
+			if found == "" {
+				t.Fatalf("CNI_ARG %s was %s but expected pattern %s", k, actual, v)
+			}
+		}
+	})
+}
+
+// Test that CNI invocations which return DNS information are carried through to /etc/resolv.conf
+func NewNetCNIDNSTest() testutils.Test {
+	return testutils.TestFunc(func(t *testing.T) {
+		ctx := testutils.NewRktRunCtx()
+		defer ctx.Cleanup()
+
+		iface, _, err := testutils.GetNonLoIfaceWithAddrs(netlink.FAMILY_V4)
+		if err != nil {
+			t.Fatalf("Error while getting non-lo host interface: %v\n", err)
+		}
+		if iface.Name == "" {
+			t.Skipf("Cannot run test without non-lo host interface")
+		}
+
+		nt := networkTemplateT{
+			Name:      "bridge0",
+			Type:      "cniproxy",
+			Args:      []string{"X_LOG=output.json", "X_REAL_PLUGIN=bridge", "X_ADD_DNS=1"},
+			IpMasq:    true,
+			IsGateway: true,
+			Master:    iface.Name,
+			Ipam: &ipamTemplateT{
+				Type:   "host-local",
+				Subnet: "11.11.3.0/24",
+				Routes: []map[string]string{
+					{"dst": "0.0.0.0/0"},
+				},
+			},
+		}
+
+		// bring the networking up, copy the proxy
+		netdir := prepareTestNet(t, ctx, nt)
+		defer os.RemoveAll(netdir)
+
+		ga := testutils.NewGoroutineAssistant(t)
+		ga.Add(1)
+
+		go func() {
+			defer ga.Done()
+
+			appCmd := "--exec=/inspect -- --read-file --file-name=/etc/resolv.conf"
+			cmd := fmt.Sprintf("%s --debug --insecure-options=image run --net=%v --mds-register=false %s %s",
+				ctx.Cmd(), nt.NetParameter(), getInspectImagePath(), appCmd)
+			child := ga.SpawnOrFail(cmd)
+			defer ga.WaitOrFail(child)
+
+			expectedRegex := "nameserver 1.2.3.4"
+
+			_, out, err := expectRegexTimeoutWithOutput(child, expectedRegex, 30*time.Second)
+			if err != nil {
+				ga.Fatalf("Error: %v\nOutput: %v", err, out)
+			}
+		}()
+
+		ga.Wait()
+	})
+}
+
+// Test that `rkt run --dns` overrides CNI DNS
+func NewNetCNIDNSArgTest() testutils.Test {
+	return testutils.TestFunc(func(t *testing.T) {
+		ctx := testutils.NewRktRunCtx()
+		defer ctx.Cleanup()
+
+		iface, _, err := testutils.GetNonLoIfaceWithAddrs(netlink.FAMILY_V4)
+		if err != nil {
+			t.Fatalf("Error while getting non-lo host interface: %v\n", err)
+		}
+		if iface.Name == "" {
+			t.Skipf("Cannot run test without non-lo host interface")
+		}
+
+		nt := networkTemplateT{
+			Name:      "bridge0",
+			Type:      "cniproxy",
+			Args:      []string{"X_LOG=output.json", "X_REAL_PLUGIN=bridge", "X_ADD_DNS=1"},
+			IpMasq:    true,
+			IsGateway: true,
+			Master:    iface.Name,
+			Ipam: &ipamTemplateT{
+				Type:   "host-local",
+				Subnet: "11.11.3.0/24",
+				Routes: []map[string]string{
+					{"dst": "0.0.0.0/0"},
+				},
+			},
+		}
+
+		// bring the networking up, copy the proxy
+		netdir := prepareTestNet(t, ctx, nt)
+		defer os.RemoveAll(netdir)
+
+		ga := testutils.NewGoroutineAssistant(t)
+		ga.Add(1)
+
+		go func() {
+			defer ga.Done()
+
+			appCmd := "--exec=/inspect -- --read-file --file-name=/etc/resolv.conf"
+			cmd := fmt.Sprintf("%s --debug --insecure-options=image run --net=%v --mds-register=false --dns=244.244.244.244 %s %s",
+				ctx.Cmd(), nt.NetParameter(), getInspectImagePath(), appCmd)
+			child := ga.SpawnOrFail(cmd)
+			defer ga.WaitOrFail(child)
+
+			expectedRegex := "nameserver 244.244.244.244"
+
+			_, out, err := expectRegexTimeoutWithOutput(child, expectedRegex, 30*time.Second)
+			if err != nil {
+				ga.Fatalf("Error: %v\nOutput: %v", err, out)
+			}
+		}()
+
+		ga.Wait()
+	})
 }
 
 func NewNetCustomPtpTest(runCustomDual bool) testutils.Test {

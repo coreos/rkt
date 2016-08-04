@@ -169,7 +169,7 @@ func kvmSetupNetAddressing(network *Networking, n activeNet, ifName string) erro
 		return fmt.Errorf("net-plugin returned no IPv4 configuration")
 	}
 
-	n.runtime.IP, n.runtime.Mask, n.runtime.HostIP, n.runtime.IP4 = result.IP4.IP.IP, net.IP(result.IP4.IP.Mask), result.IP4.Gateway, result.IP4
+	n.runtime.MergeCNIResult(result)
 
 	return nil
 }

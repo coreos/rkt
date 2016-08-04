@@ -12,6 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/*
+A type and some structure to represent rkt's view of a *runtime*
+network instance.
+
+Each instance represents a network configuration that has been enabled,
+along with runtime information from the network plugin.
+
+This information is also serialized in the pod's runtime directory so that
+`rkt list` and other stage0 programs can access the runtime state.
+*/
 package netinfo
 
 import (
@@ -36,6 +46,7 @@ type NetInfo struct {
 	Mask       net.IP          `json:"mask"` // we used IP instead of IPMask because support for json serialization (we don't need specific functionalities)
 	HostIP     net.IP          `json:"-"`
 	IP4        *types.IPConfig `json:"-"`
+	DNS        types.DNS       `json:"-"`
 }
 
 func LoadAt(cdirfd int) ([]NetInfo, error) {
@@ -59,4 +70,25 @@ func Save(root string, info []NetInfo) error {
 	defer f.Close()
 
 	return json.NewEncoder(f).Encode(info)
+}
+
+// Merge the result of a CNI plugin's execution
+func (ni *NetInfo) MergeCNIResult(result types.Result) {
+
+	ni.IP = result.IP4.IP.IP
+	ni.Mask = net.IP(result.IP4.IP.Mask)
+	ni.HostIP = result.IP4.Gateway
+	ni.IP4 = result.IP4
+	ni.DNS = result.DNS
+}
+
+// the CNI spec passes around empty DNS configurations
+// instead of null pointers
+// This determines if the DNS struct has meaningful data
+func (ni *NetInfo) HasDNSConfig() bool {
+	d := ni.DNS
+	return !(len(d.Nameservers) == 0 &&
+		len(d.Domain) == 0 &&
+		len(d.Search) == 0 &&
+		len(d.Options) == 0)
 }
