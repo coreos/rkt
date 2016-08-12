@@ -16,7 +16,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -36,9 +35,8 @@ import (
 	"github.com/coreos/rkt/pkg/set"
 	"github.com/coreos/rkt/store/imagestore"
 	"github.com/coreos/rkt/version"
-	"github.com/godbus/dbus"
 	"github.com/hashicorp/errwrap"
-	"github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -471,25 +469,6 @@ func (s *v1AlphaAPIServer) getBasicPod(p *pod) *v1alpha.Pod {
 	return copyPod(cacheItem.pod)
 }
 
-func waitForMachinedRegistration(uuid string) error {
-	conn, err := dbus.SystemBus()
-	if err != nil {
-		return err
-	}
-	machined := conn.Object("org.freedesktop.machine1", "/org/freedesktop/machine1")
-	machineName := "rkt-" + uuid
-
-	var o dbus.ObjectPath
-	for i := 0; i < 10; i++ {
-		if err := machined.Call("org.freedesktop.machine1.Manager.GetMachine", 0, machineName).Store(&o); err == nil {
-			return nil
-		}
-		time.Sleep(time.Millisecond * 50)
-	}
-
-	return errors.New("pod not found")
-}
-
 // fillPodDetails fills the v1pod's dynamic info in place, e.g. the pod's state,
 // the pod's network info, the apps' state, etc. Such information can change
 // during the lifecycle of the pod, so we need to read it in every request.
@@ -552,12 +531,12 @@ func fillPodDetails(store *imagestore.Store, p *pod, v1pod *v1alpha.Pod) {
 	}
 
 	if v1pod.State == v1alpha.PodState_POD_STATE_RUNNING {
-		if err := waitForMachinedRegistration(v1pod.Id); err != nil {
-			// If there's an error, it means we're not registered to machined
-			// in a reasonable time. Just output the cgroup we're in.
-			stderr.PrintE("checking for machined registration failed", err)
-		}
 		// Get cgroup for the "name=systemd" controller.
+		// TODO(euank): It's possible the pod is not yet in its final cgroup due to
+		// machined registration having not occured. There should be a way to
+		// validate that the pod's cgroup is final and skip returning it if it's
+		// not (but waiting for machined in this hot path is not the answer since
+		// not all pods will ever register)
 		pid, err := p.getContainerPID1()
 		if err != nil {
 			stderr.PrintE(fmt.Sprintf("failed to get the container PID1 for pod %q", p.uuid), err)

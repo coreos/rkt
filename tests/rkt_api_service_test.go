@@ -19,6 +19,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/user"
@@ -36,6 +37,7 @@ import (
 	"github.com/coreos/rkt/api/v1alpha"
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/tests/testutils"
+	"github.com/godbus/dbus"
 	"golang.org/x/net/context"
 )
 
@@ -586,7 +588,13 @@ func NewAPIServiceCgroupTest() testutils.Test {
 						}
 					}
 					if allRunning {
-						t.Logf("Pods are running")
+						t.Logf("Pods are running; waiting for cgroups to be registered too")
+
+						for _, p := range resp.Pods {
+							if err := waitForMachinedRegistration(p.Id); err != nil {
+								t.Fatalf("expected machined registration: %v", err)
+							}
+						}
 						close(done)
 						return
 					}
@@ -595,6 +603,12 @@ func NewAPIServiceCgroupTest() testutils.Test {
 				time.Sleep(time.Second)
 			}
 		}()
+
+		// Request the pods once more now that they're all running and registered
+		resp, err = c.ListPods(context.Background(), &v1alpha.ListPodsRequest{})
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
 
 		testutils.WaitOrTimeout(t, time.Second*60, done)
 
@@ -668,4 +682,23 @@ func NewAPIServiceCgroupTest() testutils.Test {
 			t.Errorf("Unexpected cgroup returned by pods: %v", cgroups)
 		}
 	})
+}
+
+func waitForMachinedRegistration(uuid string) error {
+	conn, err := dbus.SystemBus()
+	if err != nil {
+		return err
+	}
+	machined := conn.Object("org.freedesktop.machine1", "/org/freedesktop/machine1")
+	machineName := "rkt-" + uuid
+
+	var o dbus.ObjectPath
+	for i := 0; i < 10; i++ {
+		if err := machined.Call("org.freedesktop.machine1.Manager.GetMachine", 0, machineName).Store(&o); err == nil {
+			return nil
+		}
+		time.Sleep(time.Millisecond * 50)
+	}
+
+	return errors.New("pod not found")
 }
