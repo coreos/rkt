@@ -617,6 +617,7 @@ func NewAPIServiceCgroupTest() testutils.Test {
 		}
 
 		// ListPods(detail=true). Filter according to the cgroup.
+		t.Logf("Calling ListPods with cgroup filter %v", cgroups)
 		resp, err = c.ListPods(context.Background(), &v1alpha.ListPodsRequest{
 			Detail:  true,
 			Filters: []*v1alpha.PodFilter{{Cgroups: cgroups}},
@@ -633,6 +634,7 @@ func NewAPIServiceCgroupTest() testutils.Test {
 			checkPodDetails(t, ctx, p)
 		}
 
+		t.Logf("Calling ListPods with subcgroup filter %v", subcgroups)
 		resp, err = c.ListPods(context.Background(), &v1alpha.ListPodsRequest{
 			Detail:  true,
 			Filters: []*v1alpha.PodFilter{{PodSubCgroups: subcgroups}},

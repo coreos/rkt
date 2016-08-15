@@ -35,7 +35,6 @@ import (
 	"github.com/coreos/rkt/pkg/set"
 	"github.com/coreos/rkt/store/imagestore"
 	"github.com/coreos/rkt/version"
-	"github.com/godbus/dbus"
 	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/golang-lru"
 	"github.com/spf13/cobra"
@@ -333,6 +332,57 @@ func (s *v1AlphaAPIServer) getPodManifest(p *pod) (*schema.PodManifest, []byte, 
 	return &manifest, data, nil
 }
 
+// getPodCgroup gets the cgroup path for a pod. This can be done in one of a couple ways:
+//
+// 1) stage1-coreos
+//
+// This one can be tricky because after machined registration, the cgroup might change.
+// For these flavors, the cgroup it will end up in after machined moves it is
+// written to a file named `subcgroup`, so we use that instead.
+//
+// 2) All others
+//
+// Assume that we can simply get the cgroup of the pod's init PID, and use that.
+func getPodCgroup(p *pod, pid int) (string, error) {
+	// Note, this file should always exist if the pid is known since it is
+	// written before the pid file
+	// The contents are of the form:
+	// machined-registration (whether it has happened or not, but if stage1 plans to do so):
+	//   'machine.slice/machine-rkt\x2dbfb67ff1\x2dc745\x2d4aec\x2db1e1\x2d7ce85a1fd42b.scope'
+	// no registration, ran as systemd-unit 'foo.service':
+	//   'system.slice/foo.service'
+	// stage1-fly: file does not exist
+	data, err := p.readFile("subcgroup")
+	// normalize cgroup to include a leading '/'
+	if err == nil {
+		strCgroup := string(data)
+		if strings.HasPrefix(strCgroup, "/") {
+			return strCgroup, nil
+		}
+		return "/" + strCgroup, nil
+	}
+
+	if !os.IsNotExist(err) {
+		return "", err
+	}
+	// if it is an "isNotExist", assume this is a stage1 flavor that won't change
+	// cgroups. Just give the systemd cgroup of its pid
+	// Get cgroup for the "name=systemd" controller; we assume the api-server is
+	// running on a system using systemd for returning cgroups, and will just not
+	// set it otherwise.
+	cgroup, err := cgroup.GetCgroupPathByPid(pid, "name=systemd")
+	if err != nil {
+		return "", err
+	}
+	// If the stage1 systemd > v226, it will put the PID1 into "init.scope"
+	// implicit scope unit in the root slice.
+	// See https://github.com/coreos/rkt/pull/2331#issuecomment-203540543
+	//
+	// TODO(yifan): Revisit this when using unified cgroup hierarchy.
+	cgroup = strings.TrimSuffix(cgroup, "/init.scope")
+	return cgroup, nil
+}
+
 // getApplist returns a list of apps in the pod.
 func getApplist(manifest *schema.PodManifest) []*v1alpha.App {
 	var apps []*v1alpha.App
@@ -470,26 +520,6 @@ func (s *v1AlphaAPIServer) getBasicPod(p *pod) *v1alpha.Pod {
 	return copyPod(cacheItem.pod)
 }
 
-func waitForMachinedRegistration(uuid string) error {
-	conn, err := dbus.SystemBus()
-	if err != nil {
-		return err
-	}
-	machined := conn.Object("org.freedesktop.machine1", "/org/freedesktop/machine1")
-	machineName := "rkt-" + uuid
-
-	var machinedErr error
-	var o dbus.ObjectPath
-	for i := 0; i < 10; i++ {
-		if machinedErr = machined.Call("org.freedesktop.machine1.Manager.GetMachine", 0, machineName).Store(&o); machinedErr == nil {
-			return nil
-		}
-		time.Sleep(time.Millisecond * 50)
-	}
-
-	return fmt.Errorf("pod %v not found in machined: %v", uuid, machinedErr)
-}
-
 // fillPodDetails fills the v1pod's dynamic info in place, e.g. the pod's state,
 // the pod's network info, the apps' state, etc. Such information can change
 // during the lifecycle of the pod, so we need to read it in every request.
@@ -552,26 +582,15 @@ func fillPodDetails(store *imagestore.Store, p *pod, v1pod *v1alpha.Pod) {
 	}
 
 	if v1pod.State == v1alpha.PodState_POD_STATE_RUNNING {
-		if err := waitForMachinedRegistration(v1pod.Id); err != nil {
-			// If there's an error, it means we're not registered to machined
-			// in a reasonable time. Just output the cgroup we're in.
-			stderr.PrintE("checking for machined registration failed: ", err)
-		}
-		// Get cgroup for the "name=systemd" controller.
 		pid, err := p.getContainerPID1()
 		if err != nil {
 			stderr.PrintE(fmt.Sprintf("failed to get the container PID1 for pod %q", p.uuid), err)
 		} else {
-			cgroup, err := cgroup.GetCgroupPathByPid(pid, "name=systemd")
+			cgroup, err := getPodCgroup(p, pid)
 			if err != nil {
 				stderr.PrintE(fmt.Sprintf("failed to get the cgroup path for pod %q", p.uuid), err)
 			} else {
-				// If the stage1 systemd > v226, it will put the PID1 into "init.scope"
-				// implicit scope unit in the root slice.
-				// See https://github.com/coreos/rkt/pull/2331#issuecomment-203540543
-				//
-				// TODO(yifan): Revisit this when using unified cgroup hierarchy.
-				v1pod.Cgroup = strings.TrimSuffix(cgroup, "/init.scope")
+				v1pod.Cgroup = cgroup
 			}
 		}
 	}
