@@ -4,6 +4,7 @@
 [![Build Status (Travis)](https://travis-ci.org/coreos/rkt.svg?branch=master)](https://travis-ci.org/coreos/rkt)
 [![Build Status (SemaphoreCI)](https://semaphoreci.com/api/v1/projects/28468e19-4fd0-483e-9c29-6c8368661333/395211/badge.svg)](https://semaphoreci.com/coreos/rkt)
 [![Build Status (Jenkins)](https://jenkins-rkt-public.prod.coreos.systems/job/rkt-master-periodic/badge/icon)](https://jenkins-rkt-public.prod.coreos.systems/view/rkt/job/rkt-master-periodic/)
+[![GoReportCard](https://goreportcard.com/badge/coreos/rkt)](https://goreportcard.com/report/github.com/coreos/rkt)
 
 ![rkt Logo](logos/rkt-horizontal-color.png)
 
