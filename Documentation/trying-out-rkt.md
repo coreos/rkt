@@ -121,7 +121,7 @@ UUID		APP	IMAGE NAME					STATE	CREATED		STARTED		NETWORKS
 0c3ab969	nginx	registry-1.docker.io/library/nginx:latest	running	2 minutes ago	2 minutes ago	default:ip4=172.16.28.2
 ```
 
-The nginx container is now accessible on the host under http://172.16.28.2.
+The nginx container is now accessible on the host under http://172.16.28.3.
 
 Success! The rest of the guide can now be followed normally.
 
