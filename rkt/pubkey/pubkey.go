@@ -238,18 +238,12 @@ func getClient(skipTLSCheck bool) *http.Client {
 	if !skipTLSCheck {
 		return http.DefaultClient
 	}
-	client := *http.DefaultClient
-	// Default transport is hidden behind the RoundTripper
-	// interface, so we can't easily make a copy of it. If this
-	// ever panics, we will have to adapt.
-	realTransport := http.DefaultTransport.(*http.Transport)
-	tr := *realTransport
-	if tr.TLSClientConfig == nil {
-		tr.TLSClientConfig = &tls.Config{}
+
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
-	tr.TLSClientConfig.InsecureSkipVerify = true
-	client.Transport = &tr
-	return &client
+
+	return &http.Client{Transport: tr}
 }
 
 // displayKey shows the key summary
