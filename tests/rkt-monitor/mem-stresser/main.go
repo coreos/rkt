@@ -15,10 +15,12 @@
 package main
 
 import (
+	"fmt"
 	"time"
 )
 
 func main() {
+	fmt.Print("APP-STARTED!\n")
 	var counter uint64
 	var numbers []uint64
 	for {

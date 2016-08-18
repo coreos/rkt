@@ -14,7 +14,10 @@
 
 package main
 
+import "fmt"
+
 func main() {
+	fmt.Print("APP-STARTED!\n")
 	for {
 		var x uint64
 		for i := 0; i < 1000000000; i++ {

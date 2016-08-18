@@ -15,15 +15,16 @@
 package main
 
 import (
+	"bufio"
 	"encoding/csv"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/appc/spec/schema"
@@ -39,6 +40,7 @@ type ProcessStatus struct {
 	VMS  uint64  // Virtual memory size
 	RSS  uint64  // Resident set size
 	Swap uint64  // Swap size
+	ID   string  // Container ID
 }
 
 var (
@@ -111,14 +113,19 @@ func runRktMonitor(cmd *cobra.Command, args []string) {
 		podManifest = true
 	}
 
-	var flavorType string
+	var flavorType, testImage string
 	if flagStage1Path == "" {
 		flavorType = "stage1-coreos.aci"
 	} else {
+		if !fileExist(flagStage1Path) {
+			fmt.Fprintln(os.Stderr, "Given stage1 file path doesn't exist")
+			os.Exit(1)
+		}
 		_, flavorType = filepath.Split(flagStage1Path)
 	}
 
-	var execCmd *exec.Cmd
+	var containerId string
+	var stopCmd, execCmd, gcCmd *exec.Cmd
 	var loadAvg *load.AvgStat
 	var containerStarting, containerStarted, containerStopping, containerStopped time.Time
 
@@ -127,16 +134,18 @@ func runRktMonitor(cmd *cobra.Command, args []string) {
 
 	var rktBinary string
 	if flagRktDir != "" {
-		rktBinary = flagRktDir + "/rkt"
+		rktBinary = filepath.Join(flagRktDir, "rkt")
+		if !fileExist(rktBinary) {
+			fmt.Fprintln(os.Stderr, "rkt binary not found!")
+			os.Exit(1)
+		}
 	} else {
 		rktBinary = "rkt"
 	}
 
 	for i := 0; i < flagRepetitionNumber; i++ {
-		containerStarting = time.Now()
-
 		// build argument list for execCmd
-		argv := []string{"run"}
+		argv := []string{"run", "--debug"}
 
 		if flagStage1Path != "" {
 			argv = append(argv, fmt.Sprintf("--stage1-path=%v", flagStage1Path))
@@ -152,28 +161,47 @@ func runRktMonitor(cmd *cobra.Command, args []string) {
 		execCmd = exec.Command(rktBinary, argv...)
 
 		if flagShowOutput {
-			execCmd.Stdout = os.Stdout
 			execCmd.Stderr = os.Stderr
 		}
 
+		cmdReader, err := execCmd.StdoutPipe()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Error creating StdoutPipe for execCmd", err)
+			os.Exit(1)
+		}
+
+		execCmdScanner := bufio.NewScanner(cmdReader)
+
+		startConfirmation := make(chan string, 1)
+		go func() {
+			var containerId string
+			for execCmdScanner.Scan() {
+				if flagShowOutput {
+					fmt.Println(execCmdScanner.Text())
+				}
+				if strings.Contains(execCmdScanner.Text(), "APP-STARTED!") {
+					startConfirmation <- containerId
+				} else if strings.Contains(execCmdScanner.Text(), "Set hostname to") {
+					sl := strings.SplitAfter(execCmdScanner.Text(), "<rkt-")
+					containerId = sl[len(sl)-1]
+					containerId = containerId[:len(containerId)-2]
+				}
+			}
+		}()
+		containerStarting = time.Now()
 		err = execCmd.Start()
-		containerStarted = time.Now()
+		containerId = <-startConfirmation
+		containerStarted = time.Now() //here we are sure - container is running (issue: #3019)
+		close(startConfirmation)
+
+		if flagShowOutput {
+			execCmd.Stdout = os.Stdout
+		}
+
 		if err != nil {
 			fmt.Printf("%v\n", err)
 			os.Exit(1)
 		}
-
-		c := make(chan os.Signal, 1)
-		signal.Notify(c, os.Interrupt)
-		go func() {
-			for range c {
-				err := killAllChildren(int32(execCmd.Process.Pid))
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "cleanup failed: %v\n", err)
-				}
-				os.Exit(1)
-			}
-		}()
 
 		usages := make(map[int32][]*ProcessStatus)
 
@@ -211,12 +239,40 @@ func runRktMonitor(cmd *cobra.Command, args []string) {
 			fmt.Fprintf(os.Stderr, "measure load avg failed: %v\n", err)
 		}
 
-		containerStopping = time.Now()
-		err = killAllChildren(int32(execCmd.Process.Pid))
-		containerStopped = time.Now()
+		stopCmd = exec.Command(rktBinary, "stop", containerId)
+
+		cmdStopReader, err := stopCmd.StdoutPipe()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "cleanup failed: %v\n", err)
+			fmt.Fprintln(os.Stderr, "Error creating StdoutPipe for stopCmd", err)
+			os.Exit(1)
 		}
+		cmdStopScanner := bufio.NewScanner(cmdStopReader)
+
+		containerStopping = time.Now()
+		stopConfirmation := make(chan bool, 1)
+		go func() {
+			for cmdStopScanner.Scan() {
+				if strings.Contains(cmdStopScanner.Text(), containerId) {
+					stopConfirmation <- true
+					return
+				}
+			}
+			stopConfirmation <- false
+		}()
+		err = stopCmd.Start()
+		if !<-stopConfirmation {
+			fmt.Println("WARNING: There was a problem stopping the container! (Container already stopped?)")
+		}
+		containerStopped = time.Now()
+		close(stopConfirmation)
+
+		if err != nil {
+			fmt.Printf("%v\n", err)
+			os.Exit(1)
+		}
+
+		gcCmd = exec.Command(rktBinary, "gc", "--grace-period=0")
+		gcCmd.Start()
 
 		for _, processHistory := range usages {
 			var avgCPU float64
@@ -244,56 +300,35 @@ func runRktMonitor(cmd *cobra.Command, args []string) {
 				strconv.FormatFloat(loadAvg.Load1, 'g', 3, 64),
 				strconv.FormatFloat(loadAvg.Load5, 'g', 3, 64),
 				strconv.FormatFloat(loadAvg.Load15, 'g', 3, 64),
-				strconv.FormatInt(containerStarted.Sub(containerStarting).Nanoseconds(), 10),
-				strconv.FormatInt(containerStopped.Sub(containerStopping).Nanoseconds(), 10)})
+				strconv.FormatFloat(float64(containerStarted.Sub(containerStarting).Nanoseconds())/float64(time.Millisecond), 'g', -1, 64),
+				strconv.FormatFloat(float64(containerStopped.Sub(containerStopping).Nanoseconds())/float64(time.Millisecond), 'g', -1, 64)})
 		}
 
 		fmt.Printf("load average: Load1: %f Load5: %f Load15: %f\n", loadAvg.Load1, loadAvg.Load5, loadAvg.Load15)
-		fmt.Printf("container start time: %dns\n", containerStarted.Sub(containerStarting).Nanoseconds())
-		fmt.Printf("container stop time: %dns\n", containerStopped.Sub(containerStopping).Nanoseconds())
+		fmt.Printf("container start time: %sms\n", strconv.FormatFloat(float64(containerStarted.Sub(containerStarting).Nanoseconds())/float64(time.Millisecond), 'g', -1, 64))
+		fmt.Printf("container stop time: %sms\n", strconv.FormatFloat(float64(containerStopped.Sub(containerStopping).Nanoseconds())/float64(time.Millisecond), 'g', -1, 64))
 	}
 
 	t := time.Now()
-	prefix := fmt.Sprintf("%d-%02d-%02d_%02d-%02d_%s_", t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), flavorType)
+	_, testImage = filepath.Split(args[0])
+	prefix := fmt.Sprintf("%d-%02d-%02d_%02d-%02d_%s_%s", t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), flavorType, testImage)
 	if flagSaveToCsv {
-		err = saveRecords(records, flagCsvDir, prefix+"rkt_benchmark_interval.csv")
+		err = saveRecords(records, flagCsvDir, prefix+"_rkt_benchmark_interval.csv")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Can't write to a file: %v\n", err)
 		}
-		err = saveRecords(summaryRecords, flagCsvDir, prefix+"rkt_benchmark_summary.csv")
+		err = saveRecords(summaryRecords, flagCsvDir, prefix+"_rkt_benchmark_summary.csv")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Can't write to a summary file: %v\n", err)
 		}
 	}
 }
 
-func killAllChildren(pid int32) error {
-	p, err := process.NewProcess(pid)
-	if err != nil {
-		return err
+func fileExist(filename string) bool {
+	if _, err := os.Stat(filename); err == nil {
+		return true
 	}
-	processes := []*process.Process{p}
-	for i := 0; i < len(processes); i++ {
-		children, err := processes[i].Children()
-		if err != nil && err != process.ErrorNoChildren {
-			return err
-		}
-		processes = append(processes, children...)
-	}
-	for _, p := range processes {
-		osProcess, err := os.FindProcess(int(p.Pid))
-		if err != nil {
-			if err.Error() == "os: process already finished" {
-				continue
-			}
-			return err
-		}
-		err = osProcess.Kill()
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	return false
 }
 
 func getUsage(pid int32) ([]*ProcessStatus, error) {
@@ -379,7 +414,7 @@ func printUsage(statuses []*ProcessStatus) {
 
 func addRecords(statuses []*ProcessStatus, records [][]string) [][]string {
 	for _, s := range statuses {
-		records = append(records, []string{time.Now().String(), s.Name, strconv.Itoa(int(s.Pid)), formatSize(s.RSS), strconv.FormatFloat(s.CPU, 'g', 1, 64)})
+		records = append(records, []string{time.Now().String(), s.Name, strconv.Itoa(int(s.Pid)), formatSize(s.RSS), strconv.FormatFloat(s.CPU, 'g', -1, 64)})
 	}
 	return records
 }

@@ -31,21 +31,46 @@ attempt to eat up resources in different ways.
 An example usage:
 
 ```
-$ ./tests/rkt-monitor/build-stresser.sh log
+$ ./tests/rkt-monitor/build-stresser.sh all
 Building worker...
 Beginning build with an empty ACI
+Setting name of ACI to appc.io/rkt-cpu-stresser
+Copying host:build-rkt-1.13.0+git/target/bin/cpu-stresser to aci:/worker
+Setting exec command [/worker]
+Writing ACI to cpu-stresser.aci
+Ending the build
+Beginning build with an empty ACI
+Setting name of ACI to appc.io/rkt-mem-stresser
+Copying host:build-rkt-1.13.0+git/target/bin/mem-stresser to aci:/worker
+Setting exec command [/worker]
+Writing ACI to mem-stresser.aci
+Ending the build
+Beginning build with an empty ACI
 Setting name of ACI to appc.io/rkt-log-stresser
-Copying host:worker-binary to aci:/worker
+Copying host:build-rkt-1.13.0+git/target/bin/log-stresser to aci:/worker
 Setting exec command [/worker]
 Writing ACI to log-stresser.aci
 Ending the build
-$ sudo ./build-rkt-1.10.0+git/target/bin/rkt-monitor log-stresser.aci 
-[sudo] password for derek: 
-rkt(13261): seconds alive: 10  avg CPU: 33.113897%  avg Mem: 4 kB  peak Mem: 4 kB
-systemd(13302): seconds alive: 9  avg CPU: 0.000000%  avg Mem: 4 mB  peak Mem: 4 mB
-systemd-journal(13303): seconds alive: 9  avg CPU: 68.004584%  avg Mem: 7 mB  peak Mem: 7 mB
-worker(13307): seconds alive: 9  avg CPU: 13.004088%  avg Mem: 1 mB  peak Mem: 1 mB
-load average in a container: Load1: 0.280000 Load5: 0.250000 Load15: 0.200000
-container start time: 315621ns
-container stop time: 17280555ns
+$ sudo ./build-rkt-1.13.0+git/target/bin/rkt-monitor log-stresser.aci -r 3 -d 10s
+ld-linux-x86-64(29641): seconds alive: 10  avg CPU: 28.948348%  avg Mem: 3 mB  peak Mem: 3 mB
+systemd(29698): seconds alive: 10  avg CPU: 0.000000%  avg Mem: 4 mB  peak Mem: 4 mB
+systemd-journal(29700): seconds alive: 10  avg CPU: 89.878237%  avg Mem: 7 mB  peak Mem: 7 mB
+worker(29705): seconds alive: 10  avg CPU: 8.703743%  avg Mem: 5 mB  peak Mem: 6 mB
+load average: Load1: 2.430000 Load5: 1.560000 Load15: 1.100000
+container start time: 2539.947085ms
+container stop time: 14.724007ms
+systemd-journal(29984): seconds alive: 10  avg CPU: 88.553202%  avg Mem: 7 mB  peak Mem: 7 mB
+worker(29989): seconds alive: 10  avg CPU: 8.415344%  avg Mem: 5 mB  peak Mem: 6 mB
+ld-linux-x86-64(29890): seconds alive: 10  avg CPU: 28.863746%  avg Mem: 3 mB  peak Mem: 3 mB
+systemd(29982): seconds alive: 10  avg CPU: 0.000000%  avg Mem: 4 mB  peak Mem: 4 mB
+load average: Load1: 2.410000 Load5: 1.600000 Load15: 1.120000
+container start time: 2771.857209ms
+container stop time: 15.30096ms
+systemd(30270): seconds alive: 10  avg CPU: 0.000000%  avg Mem: 4 mB  peak Mem: 4 mB
+systemd-journal(30272): seconds alive: 10  avg CPU: 88.863170%  avg Mem: 7 mB  peak Mem: 7 mB
+worker(30277): seconds alive: 10  avg CPU: 8.503793%  avg Mem: 5 mB  peak Mem: 6 mB
+ld-linux-x86-64(30155): seconds alive: 10  avg CPU: 29.522864%  avg Mem: 3 mB  peak Mem: 3 mB
+load average: Load1: 2.270000 Load5: 1.600000 Load15: 1.120000
+container start time: 2641.468717ms
+container stop time: 14.610641ms
 ```

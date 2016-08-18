@@ -15,10 +15,12 @@
 package main
 
 import (
+	"fmt"
 	"time"
 )
 
 func main() {
+	fmt.Print("APP-STARTED!\n")
 	for {
 		time.Sleep(time.Hour)
 	}
