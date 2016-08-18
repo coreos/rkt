@@ -50,7 +50,6 @@ $ gpg --batch --gen-key gpg-batch
 ```
 $ gpg --no-default-keyring \
 --secret-keyring ./rkt.sec --keyring ./rkt.pub --list-keys
-./rkt.pub
 ------------
 pub   2048R/26EF7A14 2015-01-09
 uid       [ unknown] Carly Container (ACI signing key) <carly@example.com>
