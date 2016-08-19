@@ -212,8 +212,7 @@ func generatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 				ID:     img,
 				Labels: am.Labels,
 			},
-			Annotations: am.Annotations,
-			Mounts:      MergeMounts(cfg.Apps.Mounts, app.Mounts),
+			Mounts: MergeMounts(cfg.Apps.Mounts, app.Mounts),
 		}
 
 		if execOverride := app.Exec; execOverride != "" {
