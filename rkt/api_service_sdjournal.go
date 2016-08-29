@@ -29,7 +29,7 @@ import (
 	"github.com/coreos/rkt/common"
 )
 
-func (s *v1AlphaAPIServer) constrainedGetLogs(request *v1alpha.GetLogsRequest, server v1alpha.PublicAPI_GetLogsServer) error {
+func (s *v1alphaReadOnlyAPIServer) constrainedGetLogs(request *v1alpha.GetLogsRequest, stream v1alpha.PublicAPI_GetLogsServer) error {
 	uuid, err := types.NewUUID(request.PodId)
 	if err != nil {
 		return err
@@ -80,7 +80,7 @@ func (s *v1AlphaAPIServer) constrainedGetLogs(request *v1alpha.GetLogsRequest, s
 	defer jr.Close()
 
 	if request.Follow {
-		return jr.Follow(nil, LogsStreamWriter{server: server})
+		return jr.Follow(nil, LogsStreamWriter{stream: stream})
 	}
 
 	data, err := ioutil.ReadAll(jr)
@@ -88,5 +88,5 @@ func (s *v1AlphaAPIServer) constrainedGetLogs(request *v1alpha.GetLogsRequest, s
 		return err
 	}
 
-	return server.Send(&v1alpha.GetLogsResponse{Lines: common.RemoveEmptyLines(string(data))})
+	return stream.Send(&v1alpha.GetLogsResponse{Lines: common.RemoveEmptyLines(string(data))})
 }

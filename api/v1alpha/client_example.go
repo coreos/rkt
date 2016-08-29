@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"time"
 
@@ -100,7 +101,9 @@ func main() {
 	followFlag := flag.Bool("follow", false, "enable 'follow' option on GetLogs")
 	flag.Parse()
 
-	conn, err := grpc.Dial("localhost:15441", grpc.WithInsecure())
+	conn, err := grpc.Dial("/tmp/rkt.socket", grpc.WithInsecure(), grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
+		return net.DialTimeout("unix", addr, timeout)
+	}))
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -150,5 +153,28 @@ func main() {
 
 	for _, im := range imgResp.Images {
 		fmt.Printf("Found image %q\n", im.Name)
+	}
+
+	// Writable API.
+	wrClient := v1alpha.NewPublicWriteOnlyAPIClient(conn)
+
+	// Fetch images.
+	fetchResp, err := wrClient.FetchImages(context.Background(), &v1alpha.FetchImagesRequest{
+		Names:          []string{"coreos.com/etcd:v2.0.8"},
+		InsecureOption: v1alpha.InsecureOption_INSECURE_OPTION_IMAGE,
+		DiscoverOption: v1alpha.DiscoverOption_DISCOVER_OPTION_NO_STORE,
+	})
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	fmt.Println("Fetched image ID:", fetchResp.Ids[0])
+
+	// Remove Images.
+	if _, err := wrClient.RemoveImages(context.Background(), &v1alpha.RemoveImagesRequest{
+		Ids: fetchResp.Ids,
+	}); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 }

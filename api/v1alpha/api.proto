@@ -37,6 +37,24 @@ enum ImageType {
         IMAGE_TYPE_OCI       = 3;
 }
 
+// InsecureOption defines the insecure option flags to be used.
+enum InsecureOption {
+        INSECURE_OPTION_NONE    = 0;
+        INSECURE_OPTION_ALL     = 1;
+        INSECURE_OPTION_IMAGE   = 2;
+        INSECURE_OPTION_TLS     = 4;
+        INSECURE_OPTION_ON_DISK = 8;
+        INSECURE_OPTION_HTTP    = 16;
+        INSECURE_OPTION_PUBKEY  = 32;
+}
+
+// FetchOption defines the options to be used for fetching.
+enum FetchOption {
+        FETCH_OPTION_NONE       = 0;
+        FETCH_OPTION_NO_STORE   = 1;
+        FETCH_OPTION_ONLY_STORE = 2;
+}
+
 // ImageFormat defines the format of the image.
 message ImageFormat {
         // Type of the image, required.
@@ -456,7 +474,7 @@ message GetLogsResponse {
 }
 
 // PublicAPI defines the read-only APIs that will be supported.
-// These will be handled over TCP sockets.
+// These will be handled over UNIX or TCP sockets.
 service PublicAPI {
         // GetInfo gets the rkt's information on the machine.
         rpc GetInfo (GetInfoRequest) returns (GetInfoResponse) {}
@@ -484,4 +502,60 @@ service PublicAPI {
         // will not be closed after the first response, the future logs will be sent via
         // the stream.
         rpc GetLogs(GetLogsRequest) returns (stream GetLogsResponse) {}
+}
+
+// FetchImagesRequest defines the request for FetchImages.
+message FetchImagesRequest {
+        // Resolvable names of the image, it's expected to be a distribution string.
+        // The format is 'cimd:DISTRIBUTION_TYPE:v=uint32(VERSION):string', e.g. 'cimd:docker:v=0:[REGISTRY_HOST[:REGISTRY_PORT]/]NAME[:TAG]'.
+        repeated string names = 1;
+
+        // Insecure options for fetch, it's a bitflag.
+        InsecureOption insecure_option = 2;
+
+        // Whether to fetch from the store, or skip the store.
+        FetchOption fetch_option = 3;
+
+        // Wether to trust keys from https connection.
+        bool trust_keys_from_https = 4;
+
+        // Whether to fetch the depedencies.
+        bool with_deps = 5;
+
+        // Serialized credential config file, used for fetching.
+        // The format is documented at:
+        // https://github.com/coreos/rkt/blob/master/Documentation/configuration.md#rktkind-auth
+        bytes credential_config = 6;
+}
+
+// FetchImagesResponse defines the response for FetchImages.
+message FetchImagesResponse {
+        // IDs of the fetched images, which can be used to uniquely identify the images.
+        // The order of the IDs corresponds to the names in the request.
+        repeated string ids = 1;
+}
+
+// RemoveImagesRequest defines the request for RemoveImages.
+message RemoveImagesRequest {
+        // IDs of the images to remove, when specified, the images with these IDs
+        // will be removed.
+        repeated string ids = 1;
+
+        // Names of the images to remove, when specified, the images with these
+        // names will be removed. If any image name is shared by multiple images,
+        // all of them will be removed.
+        repeated string names = 2;
+}
+
+// RemoveImagesResponse defines the response for RemoveImages.
+message RemoveImagesResponse {}
+
+// PublicWriteOnlyAPI defines the write-only APIs that will be supported.
+// These will be only handled over UNIX sockets.
+service PublicWriteOnlyAPI {
+        // FetchImages fetches a container image into the image store.
+        rpc FetchImages (FetchImagesRequest) returns (FetchImagesResponse) {}
+
+        // RemoveImages removes a container image from the image store.
+        rpc RemoveImages (RemoveImagesRequest) returns (RemoveImagesResponse) {}
 }
