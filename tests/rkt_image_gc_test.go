@@ -84,7 +84,7 @@ func TestImageGCTreeStore(t *testing.T) {
 
 func getTreeStoreIDs(ctx *testutils.RktRunCtx) (map[string]struct{}, error) {
 	treeStoreIDs := map[string]struct{}{}
-	ls, err := ioutil.ReadDir(filepath.Join(ctx.DataDir(), "cas", "tree"))
+	ls, err := ioutil.ReadDir(filepath.Join(ctx.DataDir(), "treestore", "tree"))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return treeStoreIDs, nil

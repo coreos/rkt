@@ -19,7 +19,7 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/casref/rwcasref"
 	"github.com/hashicorp/errwrap"
 )
 
@@ -44,7 +44,7 @@ type remoteAscFetcher struct {
 	// F is a function that actually does the fetching
 	F func(*url.URL, *os.File) error
 	// S is a store - used for getting a temporary file
-	S *imagestore.Store
+	S *rwcasref.Store
 }
 
 func (f *remoteAscFetcher) Get(location string) (readSeekCloser, error) {

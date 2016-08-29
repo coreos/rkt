@@ -22,8 +22,7 @@ import (
 
 	"github.com/coreos/rkt/pkg/fileutil"
 	"github.com/coreos/rkt/pkg/user"
-	"github.com/coreos/rkt/store/imagestore"
-	"github.com/coreos/rkt/store/treestore"
+	"github.com/coreos/rkt/store/casref/rwcasref"
 
 	"github.com/spf13/cobra"
 )
@@ -32,7 +31,7 @@ var (
 	cmdImageRender = &cobra.Command{
 		Use:   "render IMAGE OUTPUT_DIR",
 		Short: "Render a stored image to a directory with all its dependencies",
-		Long: `IMAGE should be a string referencing an image: either a hash or an image name.
+		Long: `IMAGE should be a string referencing an image: either a digest or a reference.
 
 This differs from extract in that the rendered image is in the state the app
 would see when running in rkt, dependencies and all.
@@ -58,25 +57,31 @@ func runImageRender(cmd *cobra.Command, args []string) (exit int) {
 	}
 	outputDir := args[1]
 
-	s, err := imagestore.NewStore(storeDir())
+	s, err := rwcasref.NewStore(storeDir())
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
 		return 1
 	}
 
-	ts, err := treestore.NewStore(treeStoreDir(), s)
+	ts, err := newTreeStore(s)
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
 		return
 	}
 
-	key, err := getStoreKeyFromAppOrHash(s, args[0])
+	mc, err := newACIManifestCache(s)
+	if err != nil {
+		stderr.PrintE("cannot open manifestcache", err)
+		return 1
+	}
+
+	digest, err := getDigestFromRefOrDigest(s, args[0])
 	if err != nil {
 		stderr.Error(err)
 		return 1
 	}
 
-	id, _, err := ts.Render(key, false)
+	id, err := ts.Render(digest, false)
 	if err != nil {
 		stderr.PrintE("error rendering ACI", err)
 		return 1
@@ -84,7 +89,7 @@ func runImageRender(cmd *cobra.Command, args []string) (exit int) {
 	if _, err := ts.Check(id); err != nil {
 		stderr.Print("warning: tree cache is in a bad state. Rebuilding...")
 		var err error
-		if id, _, err = ts.Render(key, true); err != nil {
+		if id, err = ts.Render(digest, true); err != nil {
 			stderr.PrintE("error rendering ACI", err)
 			return 1
 		}
@@ -115,7 +120,7 @@ func runImageRender(cmd *cobra.Command, args []string) (exit int) {
 		}
 		rootfsOutDir = filepath.Join(rootfsOutDir, "rootfs")
 
-		manifest, err := s.GetImageManifest(key)
+		manifest, err := mc.GetManifest(digest)
 		if err != nil {
 			stderr.PrintE("error getting manifest", err)
 			return 1

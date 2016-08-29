@@ -19,7 +19,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/casref/rwcasref"
 
 	"github.com/spf13/cobra"
 )
@@ -28,7 +28,7 @@ var (
 	cmdImageExport = &cobra.Command{
 		Use:   "export IMAGE OUTPUT_ACI_FILE",
 		Short: "Export a stored image to an ACI file",
-		Long: `IMAGE should be a string referencing an image: either a hash or an image name.
+		Long: `IMAGE should be a string referencing an image: either a digest or a reference.
 
 Note that images must be fetched prior to running export and that this command
 always returns uncompressed ACIs`,
@@ -48,19 +48,19 @@ func runImageExport(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	s, err := imagestore.NewStore(storeDir())
+	s, err := rwcasref.NewStore(storeDir())
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
 		return 1
 	}
 
-	key, err := getStoreKeyFromAppOrHash(s, args[0])
+	digest, err := getDigestFromRefOrDigest(s, args[0])
 	if err != nil {
 		stderr.Error(err)
 		return 1
 	}
 
-	aci, err := s.ReadStream(key)
+	aci, err := s.ReadBlob(digest)
 	if err != nil {
 		stderr.PrintE("error reading image", err)
 		return 1

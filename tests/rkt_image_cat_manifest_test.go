@@ -33,9 +33,9 @@ const (
 )
 
 // TestImageCatManifest tests 'rkt image cat-manifest', it will:
-// Read some existing image manifest via the image name, and verify the result.
+// Read some existing image manifest via the image reference (file URL), and verify the result.
 // Read some existing image manifest via the image hash, and verify the result.
-// Read some non-existing image manifest via the image name, and verify nothing is found.
+// Read some non-existing image manifest via the image reference, and verify nothing is found.
 // Read some non-existing image manifest via the image hash, and verify nothing is found.
 func TestImageCatManifest(t *testing.T) {
 	testImageName := "coreos.com/rkt-image-cat-manifest-test"
@@ -66,7 +66,7 @@ func TestImageCatManifest(t *testing.T) {
 		expect     string
 	}{
 		{
-			testImageName,
+			testImage,
 			true,
 			expectManifest,
 		},

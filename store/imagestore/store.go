@@ -120,14 +120,6 @@ func (s *Store) updateSize(key string, newSize int64) error {
 	})
 }
 
-// TODO(sgotti) remove this when the treestore will save its images' sizes by itself
-func (s *Store) UpdateTreeStoreSize(key string, newSize int64) error {
-	return s.db.Do(func(tx *sql.Tx) error {
-		_, err := tx.Exec("UPDATE aciinfo SET treestoresize = $1 WHERE blobkey == $2", newSize, key)
-		return err
-	})
-}
-
 func (s *Store) populateSize() error {
 	var ais []*ACIInfo
 	err := s.db.Do(func(tx *sql.Tx) error {

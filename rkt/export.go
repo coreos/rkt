@@ -32,8 +32,7 @@ import (
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/common/overlay"
 	"github.com/coreos/rkt/pkg/user"
-	"github.com/coreos/rkt/store/imagestore"
-	"github.com/coreos/rkt/store/treestore"
+	"github.com/coreos/rkt/store/casref/rwcasref"
 	"github.com/hashicorp/errwrap"
 	"github.com/spf13/cobra"
 )
@@ -229,12 +228,12 @@ func mountOverlay(pod *pod, app *schema.RuntimeApp, dest string) error {
 		return err
 	}
 
-	s, err := imagestore.NewStore(getDataDir())
+	s, err := rwcasref.NewStore(getDataDir())
 	if err != nil {
 		return errwrap.Wrap(errors.New("cannot open store"), err)
 	}
 
-	ts, err := treestore.NewStore(treeStoreDir(), s)
+	ts, err := newTreeStore(s)
 	if err != nil {
 		return errwrap.Wrap(errors.New("cannot open treestore"), err)
 	}

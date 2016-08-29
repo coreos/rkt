@@ -30,7 +30,6 @@ import (
 // that the exported /inspect hash matches the original inspect binary hash
 func TestImageExtract(t *testing.T) {
 	testImage := getInspectImagePath()
-	testImageName := "coreos.com/rkt-inspect"
 
 	inspectFile := testutils.GetValueFromEnvOrPanic("INSPECT_BINARY")
 	inspectHash := getHashOrPanic(inspectFile)
@@ -52,7 +51,7 @@ func TestImageExtract(t *testing.T) {
 		expectedHash string
 	}{
 		{
-			testImageName,
+			testImage,
 			true,
 			inspectHash,
 		},

@@ -15,6 +15,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -23,7 +24,7 @@ import (
 	"github.com/coreos/rkt/pkg/fileutil"
 	"github.com/coreos/rkt/pkg/tar"
 	"github.com/coreos/rkt/pkg/user"
-	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/casref/rwcasref"
 
 	"github.com/spf13/cobra"
 )
@@ -32,7 +33,7 @@ var (
 	cmdImageExtract = &cobra.Command{
 		Use:   "extract IMAGE OUTPUT_DIR",
 		Short: "Extract a stored image to a directory",
-		Long: `IMAGE should be a string referencing an image: either a hash or an image name.
+		Long: `IMAGE should be a string referencing an image: either a digest or a reference.
 
 Note that in order to make cleaning up easy (just rm -rf), extract does not use
 overlayfs or any other mechanism.`,
@@ -55,19 +56,20 @@ func runImageExtract(cmd *cobra.Command, args []string) (exit int) {
 	}
 	outputDir := args[1]
 
-	s, err := imagestore.NewStore(storeDir())
+	s, err := rwcasref.NewStore(storeDir())
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
 		return 1
 	}
 
-	key, err := getStoreKeyFromAppOrHash(s, args[0])
+	digest, err := getDigestFromRefOrDigest(s, args[0])
 	if err != nil {
 		stderr.Error(err)
 		return 1
 	}
+	fmt.Printf("digest: %s\n", digest)
 
-	aci, err := s.ReadStream(key)
+	aci, err := s.ReadBlob(digest)
 	if err != nil {
 		stderr.PrintE("error reading ACI from the store", err)
 		return 1

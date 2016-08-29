@@ -18,9 +18,7 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -96,23 +94,6 @@ func TestImageSize(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 	imageRenderCmd := fmt.Sprintf("%s image render --overwrite %s %s", ctx.Cmd(), imageHash, tmpDir)
 	spawnAndWaitOrFail(t, imageRenderCmd, 0)
-	/*
-		recreate the tree store directory contents to get an accurate size:
-		- hash file
-		- image file
-		- rendered file
-		NOTE: if/when we add new files to the tree store directory, this test
-		will fail and will need an update.
-	*/
-	if err := ioutil.WriteFile(filepath.Join(tmpDir, "hash"), []byte(imageHash), 0600); err != nil {
-		t.Fatalf(`error writing "hash" file: %v`, err)
-	}
-	if err := ioutil.WriteFile(filepath.Join(tmpDir, "image"), []byte(imageHash), 0600); err != nil {
-		t.Fatalf(`error writing "image" file: %v`, err)
-	}
-	if err := ioutil.WriteFile(filepath.Join(tmpDir, "rendered"), []byte{}, 0600); err != nil {
-		t.Fatalf(`error writing "rendered" file: %v`, err)
-	}
 	tsSize, err := fileutil.DirSize(tmpDir)
 	if err != nil {
 		t.Fatalf("error calculating rendered size: %v", err)

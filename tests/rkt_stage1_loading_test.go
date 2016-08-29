@@ -308,8 +308,8 @@ func TestStage1LoadingFromFlags(t *testing.T) {
 		// --stage1-path with a relative path
 		{
 			flag:              fmt.Sprintf("--stage1-path=%q", setup.getLocation(stubStage1PathRel)),
-			expectedFirstRun:  fmt.Sprintf("image: using image from file %s", setup.getLocation(stubStage1PathRel)),
-			expectedSecondRun: fmt.Sprintf("image: using image from file %s", setup.getLocation(stubStage1PathRel)),
+			expectedFirstRun:  fmt.Sprintf("image: using image from file %s", setup.getLocation(stubStage1PathAbs)),
+			expectedSecondRun: fmt.Sprintf("image: using image from file %s", setup.getLocation(stubStage1PathAbs)),
 		},
 
 		// --stage1-path with an absolute path

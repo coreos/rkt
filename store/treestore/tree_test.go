@@ -21,16 +21,18 @@ import (
 	"path/filepath"
 	"testing"
 
+	aciimage "github.com/coreos/rkt/common/image/aci"
 	"github.com/coreos/rkt/pkg/aci"
 	"github.com/coreos/rkt/pkg/sys"
-	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/casref/rwcasref"
+	"github.com/coreos/rkt/store/manifestcache"
 )
 
 const tstprefix = "treestore-test"
 
 // TODO(sgotti) when the TreeStore will use an interface, change it to a
 // test implementation without relying on store/imagestore
-func testStoreWriteACI(dir string, s *imagestore.Store) (string, error) {
+func testStoreWriteACI(dir string, s *rwcasref.Store) (string, error) {
 	imj := `
 		{
 		    "acKind": "ImageManifest",
@@ -88,11 +90,11 @@ func testStoreWriteACI(dir string, s *imagestore.Store) (string, error) {
 	}
 
 	// Import the new ACI
-	key, err := s.WriteACI(aci, imagestore.ACIFetchInfo{Latest: false})
+	digest, err := aciimage.WriteACI(s, aci)
 	if err != nil {
 		return "", err
 	}
-	return key, nil
+	return digest, nil
 }
 
 func TestTreeStoreRender(t *testing.T) {
@@ -106,24 +108,29 @@ func TestTreeStoreRender(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	s, err := imagestore.NewStore(dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	ts, err := NewStore(dir, s)
+	s, err := rwcasref.NewStore(filepath.Join(dir, "casref"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	key, err := testStoreWriteACI(dir, s)
+	mc, err := manifestcache.NewACIManifestCache(filepath.Join(dir, "manifestcache"), s)
+	if err != nil {
+		t.Fatalf("cannot open manifestcache: %v", err)
+	}
+
+	ts, err := NewStore(dir, s, mc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	digest, err := testStoreWriteACI(dir, s)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	id := "treestoreid01"
 
-	_, err = ts.render(id, key)
-	if err != nil {
+	if err := ts.render(id, digest); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -145,16 +152,23 @@ func TestTreeStoreRemove(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	s, err := imagestore.NewStore(dir)
+	s, err := rwcasref.NewStore(dir)
 	if err != nil {
+
 		t.Fatalf("unexpected error: %v", err)
 	}
-	ts, err := NewStore(dir, s)
+
+	mc, err := manifestcache.NewACIManifestCache(filepath.Join(dir, "manifestcache"), s)
+	if err != nil {
+		t.Fatalf("cannot open manifestcache: %v", err)
+	}
+
+	ts, err := NewStore(dir, s, mc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	key, err := testStoreWriteACI(dir, s)
+	digest, err := testStoreWriteACI(dir, s)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -168,8 +182,7 @@ func TestTreeStoreRemove(t *testing.T) {
 	}
 
 	// Test rendered tree
-	_, err = ts.render(id, key)
-	if err != nil {
+	if err = ts.render(id, digest); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -190,11 +203,17 @@ func TestTreeStore(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	s, err := imagestore.NewStore(dir)
+	s, err := rwcasref.NewStore(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	ts, err := NewStore(dir, s)
+
+	mc, err := manifestcache.NewACIManifestCache(filepath.Join(dir, "manifestcache"), s)
+	if err != nil {
+		t.Fatalf("cannot open manifestcache: %v", err)
+	}
+
+	ts, err := NewStore(dir, s, mc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -256,13 +275,13 @@ func TestTreeStore(t *testing.T) {
 	}
 
 	// Import the new ACI
-	key, err := s.WriteACI(aci, imagestore.ACIFetchInfo{Latest: false})
+	digest, err := aciimage.WriteACI(s, aci)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	// Ask the store to render the treestore
-	id, _, err := ts.Render(key, false)
+	id, err := ts.Render(digest, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -288,7 +307,7 @@ func TestTreeStore(t *testing.T) {
 
 	// rebuild the tree
 	prevID := id
-	id, _, err = ts.Render(key, true)
+	id, err = ts.Render(digest, true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -21,12 +21,12 @@ import (
 
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/common"
+	"github.com/coreos/rkt/common/image/aci"
 	"github.com/coreos/rkt/pkg/lock"
 	"github.com/coreos/rkt/pkg/user"
 	"github.com/coreos/rkt/rkt/image"
 	"github.com/coreos/rkt/stage0"
-	"github.com/coreos/rkt/store/imagestore"
-	"github.com/coreos/rkt/store/treestore"
+	"github.com/coreos/rkt/store/casref/rwcasref"
 	"github.com/spf13/cobra"
 )
 
@@ -125,17 +125,25 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	s, err := imagestore.NewStore(storeDir())
+	s, err := rwcasref.NewStore(storeDir())
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
 		return 1
 	}
 
-	ts, err := treestore.NewStore(treeStoreDir(), s)
+	ts, err := newTreeStore(s)
 	if err != nil {
 		stderr.PrintE("cannot open treestore", err)
 		return 1
 	}
+
+	mc, err := newACIManifestCache(s)
+	if err != nil {
+		stderr.PrintE("cannot open manifestcache", err)
+		return 1
+	}
+
+	ar := aci.NewACIRegistry(s, mc)
 
 	config, err := getConfig()
 	if err != nil {
@@ -152,6 +160,7 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 	fn := &image.Finder{
 		S:                  s,
 		Ts:                 ts,
+		Mc:                 mc,
 		Ks:                 getKeystore(),
 		Headers:            config.AuthPerHost,
 		DockerAuth:         config.DockerCredentialsPerRegistry,
@@ -175,11 +184,13 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 	}
 
 	cfg := stage0.CommonConfig{
-		Store:       s,
-		TreeStore:   ts,
-		Stage1Image: *s1img,
-		UUID:        p.uuid,
-		Debug:       globalFlags.Debug,
+		Store:         s,
+		TreeStore:     ts,
+		ManifestCache: mc,
+		ACIRegistry:   ar,
+		Stage1Image:   *s1img,
+		UUID:          p.uuid,
+		Debug:         globalFlags.Debug,
 	}
 
 	pcfg := stage0.PrepareConfig{

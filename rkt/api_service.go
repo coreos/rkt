@@ -32,8 +32,11 @@ import (
 	"github.com/coreos/rkt/api/v1alpha"
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/common/cgroup"
+	aciimage "github.com/coreos/rkt/common/image/aci"
 	"github.com/coreos/rkt/pkg/set"
-	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/casref/rwcasref"
+	"github.com/coreos/rkt/store/manifestcache"
+	"github.com/coreos/rkt/store/treestore"
 	"github.com/coreos/rkt/version"
 	"github.com/godbus/dbus"
 	"github.com/hashicorp/errwrap"
@@ -119,15 +122,27 @@ func copyImage(img *v1alpha.Image) *v1alpha.Image {
 
 // v1AlphaAPIServer implements v1Alpha.APIServer interface.
 type v1AlphaAPIServer struct {
-	store    *imagestore.Store
-	podCache *lru.Cache
-	imgCache *lru.Cache
+	store     *rwcasref.Store
+	mc        *manifestcache.ACIManifestCache
+	treeStore *treestore.Store
+	podCache  *lru.Cache
+	imgCache  *lru.Cache
 }
 
 var _ v1alpha.PublicAPIServer = &v1AlphaAPIServer{}
 
 func newV1AlphaAPIServer() (*v1AlphaAPIServer, error) {
-	s, err := imagestore.NewStore(storeDir())
+	s, err := rwcasref.NewStore(storeDir())
+	if err != nil {
+		return nil, err
+	}
+
+	mc, err := newACIManifestCache(s)
+	if err != nil {
+		return nil, err
+	}
+
+	ts, err := newTreeStore(s)
 	if err != nil {
 		return nil, err
 	}
@@ -143,9 +158,11 @@ func newV1AlphaAPIServer() (*v1AlphaAPIServer, error) {
 	}
 
 	return &v1AlphaAPIServer{
-		store:    s,
-		podCache: podCache,
-		imgCache: imgCache,
+		store:     s,
+		mc:        mc,
+		treeStore: ts,
+		podCache:  podCache,
+		imgCache:  imgCache,
 	}, nil
 }
 
@@ -383,7 +400,7 @@ func (e errs) Error() string {
 
 // fillStaticAppInfo will modify the 'v1pod' in place with the infomation retrived with 'pod'.
 // Today, these information are static and will not change during the pod's lifecycle.
-func fillStaticAppInfo(store *imagestore.Store, pod *pod, v1pod *v1alpha.Pod) error {
+func fillStaticAppInfo(store *rwcasref.Store, pod *pod, v1pod *v1alpha.Pod) error {
 	var errlist []error
 
 	// Fill static app image info.
@@ -493,7 +510,7 @@ func waitForMachinedRegistration(uuid string) error {
 // fillPodDetails fills the v1pod's dynamic info in place, e.g. the pod's state,
 // the pod's network info, the apps' state, etc. Such information can change
 // during the lifecycle of the pod, so we need to read it in every request.
-func fillPodDetails(store *imagestore.Store, p *pod, v1pod *v1alpha.Pod) {
+func fillPodDetails(store *rwcasref.Store, p *pod, v1pod *v1alpha.Pod) {
 	v1pod.Pid = -1
 
 	switch p.getState() {
@@ -651,8 +668,8 @@ func (s *v1AlphaAPIServer) InspectPod(ctx context.Context, request *v1alpha.Insp
 }
 
 // aciInfoToV1AlphaAPIImage takes an aciInfo object and construct the v1alpha.Image object.
-func aciInfoToV1AlphaAPIImage(store *imagestore.Store, aciInfo *imagestore.ACIInfo) (*v1alpha.Image, error) {
-	manifest, err := store.GetImageManifestJSON(aciInfo.BlobKey)
+func aciInfoToV1AlphaAPIImage(store *rwcasref.Store, treeStore *treestore.Store, mc *manifestcache.ACIManifestCache, aciInfo *aciimage.FullACIInfo) (*v1alpha.Image, error) {
+	manifest, err := mc.GetManifestJSON(aciInfo.Digest)
 	if err != nil {
 		stderr.PrintE("failed to read the image manifest", err)
 		return nil, err
@@ -669,6 +686,15 @@ func aciInfoToV1AlphaAPIImage(store *imagestore.Store, aciInfo *imagestore.ACIIn
 		version = "latest"
 	}
 
+	infos, err := treeStore.GetInfosByImageDigest(aciInfo.Digest)
+	if err != nil {
+		return nil, err
+	}
+	var treeStoreSize int64
+	for _, i := range infos {
+		treeStoreSize += i.Size
+	}
+
 	return &v1alpha.Image{
 		BaseFormat: &v1alpha.ImageFormat{
 			// Only support appc image now. If it's a docker image, then it
@@ -676,12 +702,12 @@ func aciInfoToV1AlphaAPIImage(store *imagestore.Store, aciInfo *imagestore.ACIIn
 			Type:    v1alpha.ImageType_IMAGE_TYPE_APPC,
 			Version: schema.AppContainerVersion.String(),
 		},
-		Id:              aciInfo.BlobKey,
+		Id:              aciInfo.Digest,
 		Name:            im.Name.String(),
 		Version:         version,
 		ImportTimestamp: aciInfo.ImportTime.Unix(),
 		Manifest:        manifest,
-		Size:            aciInfo.Size + aciInfo.TreeStoreSize,
+		Size:            aciInfo.Size + treeStoreSize,
 		Annotations:     convertAnnotationsToKeyValue(im.Annotations),
 		Labels:          convertLabelsToKeyValue(im.Labels),
 	}, nil
@@ -799,7 +825,7 @@ func satisfiesAnyImageFilters(image *v1alpha.Image, filters []*v1alpha.ImageFilt
 }
 
 func (s *v1AlphaAPIServer) ListImages(ctx context.Context, request *v1alpha.ListImagesRequest) (*v1alpha.ListImagesResponse, error) {
-	aciInfos, err := s.store.GetAllACIInfos(nil, false)
+	aciInfos, err := aciimage.GetAllACIInfos(s.store)
 	if err != nil {
 		stderr.PrintE("failed to get all ACI infos", err)
 		return nil, err
@@ -807,7 +833,7 @@ func (s *v1AlphaAPIServer) ListImages(ctx context.Context, request *v1alpha.List
 
 	var images []*v1alpha.Image
 	for _, aciInfo := range aciInfos {
-		image, err := s.getImageInfo(aciInfo.BlobKey)
+		image, err := s.getImageInfo(aciInfo.Digest)
 		if err != nil {
 			continue
 		}
@@ -834,7 +860,10 @@ func (s *v1AlphaAPIServer) getImageInfo(imageID string) (*v1alpha.Image, error) 
 		image := item.(*imageCacheItem).image
 
 		// Check if the image has been removed.
-		if found := s.store.HasFullKey(image.Id); !found {
+		if _, err := s.store.ResolveDigest(image.Id); err != nil {
+			if err != rwcasref.ErrDigestNotFound {
+				return nil, fmt.Errorf("no such image with ID %q", imageID)
+			}
 			s.imgCache.Remove(imageID)
 			return nil, fmt.Errorf("no such image with ID %q", imageID)
 		}
@@ -852,14 +881,14 @@ func (s *v1AlphaAPIServer) getImageInfo(imageID string) (*v1alpha.Image, error) 
 }
 
 // getImageInfoFromDisk for a given image ID, returns the *v1alpha.Image object.
-func (s *v1AlphaAPIServer) getImageInfoFromDisk(store *imagestore.Store, imageID string) (*v1alpha.Image, error) {
-	aciInfo, err := store.GetACIInfoWithBlobKey(imageID)
+func (s *v1AlphaAPIServer) getImageInfoFromDisk(store *rwcasref.Store, imageID string) (*v1alpha.Image, error) {
+	aciInfo, err := aciimage.GetFullACIInfo(store, imageID)
 	if err != nil {
 		stderr.PrintE(fmt.Sprintf("failed to get ACI info for image %q", imageID), err)
 		return nil, err
 	}
 
-	image, err := aciInfoToV1AlphaAPIImage(store, aciInfo)
+	image, err := aciInfoToV1AlphaAPIImage(store, s.treeStore, s.mc, aciInfo)
 	if err != nil {
 		stderr.PrintE(fmt.Sprintf("failed to convert ACI to v1alphaAPIImage for image %q", imageID), err)
 		return nil, err

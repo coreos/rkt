@@ -885,8 +885,8 @@ func TestPodManifest(t *testing.T) {
 			// Multiple apps (with same images) in the pod. The first app will read out the content
 			// written by the second app.
 			[]imagePatch{
-				{"rkt-test-run-pod-manifest-app.aci", []string{"--name=aci1"}},
-				{"rkt-test-run-pod-manifest-app.aci", []string{"--name=aci2"}},
+				{"rkt-test-run-pod-manifest-app.aci", []string{}},
+				{"rkt-test-run-pod-manifest-app.aci", []string{}},
 			},
 			&schema.PodManifest{
 				Apps: []schema.RuntimeApp{
@@ -1171,13 +1171,13 @@ func TestPodManifest(t *testing.T) {
 			continue
 		}
 
-		var hashesToRemove []string
+		hashesToRemove := map[string]struct{}{}
 		for j, v := range tt.images {
 			hash, err := patchImportAndFetchHash(v.name, v.patches, t, ctx)
 			if err != nil {
 				t.Fatalf("%v", err)
 			}
-			hashesToRemove = append(hashesToRemove, hash)
+			hashesToRemove[hash] = struct{}{}
 			imgName := types.MustACIdentifier(v.name)
 			imgID, err := types.NewHash(hash)
 			if err != nil {
@@ -1231,7 +1231,7 @@ func TestPodManifest(t *testing.T) {
 		// we run the garbage collector and remove the imported images to save
 		// space
 		runGC(t, ctx)
-		for _, h := range hashesToRemove {
+		for h := range hashesToRemove {
 			removeFromCas(t, ctx, h)
 		}
 	}

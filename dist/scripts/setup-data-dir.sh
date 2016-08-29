@@ -84,4 +84,27 @@ make_directory "${datadir}/pods/run" 2750 "rkt"
 make_directory "${datadir}/pods/exited-garbage" 2750 "rkt"
 make_directory "${datadir}/pods/garbage" 2750 "rkt"
 
+make_rkt_directory "${datadir}/casref" 2770
+make_rkt_directory "${datadir}/casref/blobdb" 2770
+create_rkt_file "${datadir}/casref/blobdb/db" 0660
+make_rkt_directory "${datadir}/casref/refdb" 2770
+create_rkt_file "${datadir}/casref/refdb/db" 0660
+make_rkt_directory "${datadir}/casref/blob" 2770
+make_rkt_directory "${datadir}/casref/bloblocks" 2770
+make_rkt_directory "${datadir}/casref/tmp" 2770
+make_rkt_directory "${datadir}/treestore" 2770
+make_rkt_directory "${datadir}/treestore/db" 2770
+create_rkt_file "${datadir}/treestore/db/db" 0660
+make_rkt_directory "${datadir}/treestore/tree" 2700
+make_rkt_directory "${datadir}/treestore/locks" 2700
+make_rkt_directory "${datadir}/locks" 2750
+
+make_rkt_directory "${datadir}/pods" 2750
+make_rkt_directory "${datadir}/pods/embryo" 2750
+make_rkt_directory "${datadir}/pods/prepare" 2750
+make_rkt_directory "${datadir}/pods/prepared" 2750
+make_rkt_directory "${datadir}/pods/run" 2750
+make_rkt_directory "${datadir}/pods/exited-garbage" 2750
+make_rkt_directory "${datadir}/pods/garbage" 2750
+
 make_directory "/etc/rkt" 2775 "rkt-admin"

@@ -15,87 +15,73 @@
 package image
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/url"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/coreos/rkt/common/apps"
+	dist "github.com/coreos/rkt/common/distribution"
 )
 
-func TestGuessImageType(t *testing.T) {
+func TestGuessAppcOrPath(t *testing.T) {
 	tests := []struct {
 		image        string
-		expectedType apps.AppImageType
+		expectedType imageStringType
 	}{
-		// guess obvious hash as a hash
-		{
-			image:        "sha512-a8d0943eb94eb9da4a6dddfa51e5e3de84375de77271d26c41ac1ce6f588b618",
-			expectedType: apps.AppImageHash,
-		},
-		// guess obvious URL as a URL
-		{
-			image:        "http://example.com/image.aci",
-			expectedType: apps.AppImageURL,
-		},
 		// guess obvious absolute path as a path
 		{
 			image:        "/usr/libexec/rkt/stage1.aci",
-			expectedType: apps.AppImagePath,
+			expectedType: imageStringPath,
 		},
 		// guess stuff with colon as a name
 		{
 			image:        "example.com/stage1:1.2.3",
-			expectedType: apps.AppImageName,
+			expectedType: imageStringName,
 		},
 		// guess stuff with ./ as a path
 		{
 			image:        "some/relative/../path/with/dots/file",
-			expectedType: apps.AppImagePath,
+			expectedType: imageStringPath,
 		},
 		// the same
 		{
 			image:        "./another/obviously/relative/path",
-			expectedType: apps.AppImagePath,
+			expectedType: imageStringPath,
 		},
 		// guess stuff ending with .aci as a path
 		{
 			image:        "some/relative/path/with/aci/extension.aci",
-			expectedType: apps.AppImagePath,
+			expectedType: imageStringPath,
 		},
 		// guess stuff without .aci, ./ and : as a name
 		{
 			image:        "example.com/stage1",
-			expectedType: apps.AppImageName,
+			expectedType: imageStringName,
 		},
 		// another try
 		{
 			image:        "example.com/stage1,version=1.2.3,foo=bar",
-			expectedType: apps.AppImageName,
+			expectedType: imageStringName,
 		},
 	}
 	for _, tt := range tests {
-		guessed := guessImageType(tt.image)
+		guessed := guessAppcOrPath(tt.image, []string{".aci"})
 		if tt.expectedType != guessed {
 			t.Errorf("expected %q to be guessed as %q, but got %q", tt.image, imageTypeToString(tt.expectedType), imageTypeToString(guessed))
 		}
 	}
 }
 
-func imageTypeToString(imType apps.AppImageType) string {
+func imageTypeToString(imType imageStringType) string {
 	switch imType {
-	case apps.AppImageGuess:
-		return "to-be-guessed"
-	case apps.AppImageHash:
-		return "hash"
-	case apps.AppImageURL:
-		return "URL"
-	case apps.AppImagePath:
-		return "path"
-	case apps.AppImageName:
+	case imageStringName:
 		return "name"
+	case imageStringPath:
+		return "path"
 	default:
 		return "unknown"
 	}
@@ -227,4 +213,258 @@ func TestIsReallyNil(t *testing.T) {
 			t.Errorf("expected isReallyNil(%#v) to return %v, but got %v", tt.iface, tt.isNil, got)
 		}
 	}
+}
+
+func TestDistFromImageString(t *testing.T) {
+	relPath1 := "some/relative/../path/with/dots/file.aci"
+	absPath1, err := filepath.Abs(relPath1)
+	if err != nil {
+
+		t.Fatalf("unexpected error: %v", err)
+	}
+	relPath2 := "some/relative/../path/with/dots/file"
+	absPath2, err := filepath.Abs(relPath2)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	tests := []struct {
+		in         string
+		distString string
+		err        error
+	}{
+		// Appc
+		{
+			"example.com/app01",
+			"cimd:appc:v=0:example.com/app01",
+			nil,
+		},
+		{
+			"example.com/app01:v1.0.0",
+			"cimd:appc:v=0:example.com/app01?version=v1.0.0",
+			nil,
+		},
+		{
+			"example.com/app01:v1.0.0,label01=?&*/",
+			"cimd:appc:v=0:example.com/app01?label01=%3F%26%2A%2F&version=v1.0.0",
+			nil,
+		},
+		// ACIArchive
+		{
+			"file:///absolute/path/to/file.aci",
+			"cimd:aci-archive:v=0:file%3A%2F%2F%2Fabsolute%2Fpath%2Fto%2Ffile.aci",
+			nil,
+		},
+		{
+			"/absolute/path/to/file.aci",
+			"cimd:aci-archive:v=0:file%3A%2F%2F%2Fabsolute%2Fpath%2Fto%2Ffile.aci",
+			nil,
+		},
+		{
+			relPath1,
+			"cimd:aci-archive:v=0:" + url.QueryEscape("file://"+absPath1),
+			nil,
+		},
+		{
+			"https://example.com/app.aci",
+			"cimd:aci-archive:v=0:https%3A%2F%2Fexample.com%2Fapp.aci",
+			nil,
+		},
+		// Path with no extension
+		{
+			"/absolute/path/to/file",
+			"",
+			fmt.Errorf("bad image string %q", "file:///absolute/path/to/file"),
+		},
+		{
+			relPath2,
+			"",
+			fmt.Errorf("bad image string %q", "file://"+absPath2),
+		},
+		// Docker
+		{
+			"docker:busybox",
+			"cimd:docker:v=0:registry-1.docker.io/library/busybox:latest",
+			nil,
+		},
+		{
+			"docker://busybox",
+			"cimd:docker:v=0:registry-1.docker.io/library/busybox:latest",
+			nil,
+		},
+		{
+			"docker:busybox:latest",
+			"cimd:docker:v=0:registry-1.docker.io/library/busybox:latest",
+			nil,
+		},
+		{
+			"docker://busybox:latest",
+			"cimd:docker:v=0:registry-1.docker.io/library/busybox:latest",
+			nil,
+		},
+		{
+			"docker:busybox:1.0",
+			"cimd:docker:v=0:registry-1.docker.io/library/busybox:1.0",
+			nil,
+		},
+		{
+			"docker:busybox@sha256:a59906e33509d14c036c8678d687bd4eec81ed7c4b8ce907b888c607f6a1e0e6",
+			"cimd:docker:v=0:registry-1.docker.io/library/busybox@sha256:a59906e33509d14c036c8678d687bd4eec81ed7c4b8ce907b888c607f6a1e0e6",
+			nil,
+		},
+		{
+			"docker:myregistry.example.com:4000/busybox",
+			"cimd:docker:v=0:myregistry.example.com:4000/busybox:latest",
+			nil,
+		},
+		{
+			"docker:myregistry.example.com:4000/busybox",
+			"cimd:docker:v=0:myregistry.example.com:4000/busybox:latest",
+			nil,
+		},
+		{
+			"docker:myregistry.example.com:4000/busybox:1.0",
+			"cimd:docker:v=0:myregistry.example.com:4000/busybox:1.0",
+			nil,
+		},
+	}
+
+	for _, tt := range tests {
+		d, err := DistFromImageString(tt.in)
+		if err != nil {
+			if tt.err == nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.err.Error() != err.Error() {
+				t.Fatalf("expected error %v, but got error %v", tt.err, err)
+			}
+			continue
+		} else {
+			if tt.err != nil {
+				t.Fatalf("expected error %v, but got nil error", tt.err)
+			}
+		}
+		if tt.distString != d.ComparableURIString() {
+			t.Fatalf("expected %q, but got %q", tt.distString, d.ComparableURIString())
+		}
+	}
+
+}
+func TestAppcSimpleString(t *testing.T) {
+	tests := []struct {
+		in           string
+		simpleString string
+	}{
+		{
+			"cimd:appc:v=0:example.com/app01",
+			"example.com/app01",
+		},
+		{
+			"cimd:appc:v=0:example.com/app01?version=v1.0.0",
+			"example.com/app01:v1.0.0",
+		},
+		{
+			"cimd:appc:v=0:example.com/app01?version=v1.0.0&label01=%3F%26%2A%2F",
+			"example.com/app01:v1.0.0,label01=?&*/",
+		},
+	}
+
+	for _, tt := range tests {
+		appc, err := dist.NewAppc(tt.in)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		simpleString := AppcSimpleString(appc)
+		if tt.simpleString != simpleString {
+			t.Fatalf("expected %q, but got %q", tt.simpleString, simpleString)
+		}
+	}
+
+}
+
+func TestDistSimpleString(t *testing.T) {
+	tests := []struct {
+		in           string
+		simpleString string
+	}{
+		// Appc
+		{
+			"cimd:appc:v=0:example.com/app01",
+			"example.com/app01",
+		},
+		{
+			"cimd:appc:v=0:example.com/app01?version=v1.0.0",
+			"example.com/app01:v1.0.0",
+		},
+		{
+			"cimd:appc:v=0:example.com/app01?version=v1.0.0&label01=%3F%26%2A%2F",
+			"example.com/app01:v1.0.0,label01=?&*/",
+		},
+		// ACIArchive
+		{
+			"cimd:aci-archive:v=0:file%3A%2F%2F%2Fabsolute%2Fpath%2Fto%2Ffile.aci",
+			"file:///absolute/path/to/file.aci",
+		},
+		{
+			"cimd:aci-archive:v=0:https%3A%2F%2Fexample.com%2Fapp.aci",
+			"https://example.com/app.aci",
+		},
+		// Docker
+		{
+			"cimd:docker:v=0:registry-1.docker.io/library/busybox:latest",
+			"docker:busybox",
+		},
+		{
+			"cimd:docker:v=0:registry-1.docker.io/library/busybox:latest",
+			"docker:busybox",
+		},
+		{
+			"cimd:docker:v=0:registry-1.docker.io/library/busybox:latest",
+			"docker:busybox",
+		},
+		{
+			"cimd:docker:v=0:registry-1.docker.io/library/busybox:1.0",
+			"docker:busybox:1.0",
+		},
+		{
+			"cimd:docker:v=0:registry-1.docker.io/repo/image:latest",
+			"docker:repo/image",
+		},
+		{
+			"cimd:docker:v=0:registry-1.docker.io/repo/image:latest",
+			"docker:repo/image",
+		},
+		{
+			"cimd:docker:v=0:registry-1.docker.io/repo/image:1.0",
+			"docker:repo/image:1.0",
+		},
+		{
+			"cimd:docker:v=0:registry-1.docker.io/library/busybox@sha256:a59906e33509d14c036c8678d687bd4eec81ed7c4b8ce907b888c607f6a1e0e6",
+			"docker:busybox@sha256:a59906e33509d14c036c8678d687bd4eec81ed7c4b8ce907b888c607f6a1e0e6",
+		},
+		{
+			"cimd:docker:v=0:myregistry.example.com:4000/busybox:latest",
+			"docker:myregistry.example.com:4000/busybox",
+		},
+		{
+			"cimd:docker:v=0:myregistry.example.com:4000/busybox:latest",
+			"docker:myregistry.example.com:4000/busybox",
+		},
+		{
+			"cimd:docker:v=0:myregistry.example.com:4000/busybox:1.0",
+			"docker:myregistry.example.com:4000/busybox:1.0",
+		},
+	}
+
+	for _, tt := range tests {
+		d, err := dist.NewDistribution(tt.in)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		simpleString := DistSimpleString(d)
+		if tt.simpleString != simpleString {
+			t.Fatalf("expected %q, but got %q", tt.simpleString, simpleString)
+		}
+	}
+
 }

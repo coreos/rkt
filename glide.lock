@@ -44,6 +44,8 @@ imports:
   - aws/request
   - private/protocol/rest
   - private/signer/v4
+- name: github.com/boltdb/bolt
+  version: dfb21201d9270c1082d5fb0f07f500311ff72f18
 - name: github.com/containernetworking/cni
   version: 5c3c17164270150467498a32c71436c7cd5501be
   subpackages:

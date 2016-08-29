@@ -16,28 +16,31 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"strings"
 
+	dist "github.com/coreos/rkt/common/distribution"
+	"github.com/coreos/rkt/common/mediatype"
 	rktflag "github.com/coreos/rkt/rkt/flag"
-	"github.com/coreos/rkt/store/imagestore"
-	"github.com/dustin/go-humanize"
+	"github.com/coreos/rkt/rkt/image"
+	"github.com/coreos/rkt/store/casref/rwcasref"
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/lastditch"
+
+	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 )
 
 const (
 	defaultTimeLayout = "2006-01-02 15:04:05.999 -0700 MST"
 
-	id         = "id"
-	name       = "name"
+	ref        = "ref"
+	digest     = "digest"
+	imageType  = "image type"
 	importTime = "import time"
 	lastUsed   = "last used"
 	size       = "size"
-	latest     = "latest"
 )
 
 // Convenience methods for formatting fields
@@ -51,27 +54,26 @@ func u(s string) string {
 var (
 	// map of valid fields and related header name
 	ImagesFieldHeaderMap = map[string]string{
-		l(id):         u(id),
-		l(name):       u(name),
+		l(ref):        u(ref),
+		l(digest):     u(digest),
+		l(imageType):  u(imageType),
 		l(importTime): u(importTime),
 		l(lastUsed):   u(lastUsed),
-		l(latest):     u(latest),
 		l(size):       u(size),
 	}
 
 	// map of valid sort fields containing the mapping between the provided field name
 	// and the related aciinfo's field name.
 	ImagesFieldAciInfoMap = map[string]string{
-		l(id):         "blobkey",
-		l(name):       l(name),
+		l(ref):        "reference",
+		l(digest):     l(digest),
+		l(imageType):  l(imageType),
 		l(importTime): l(importTime),
 		l(lastUsed):   l(lastUsed),
-		l(latest):     l(latest),
 		l(size):       l(size),
 	}
 
 	ImagesSortableFields = map[string]struct{}{
-		l(name):       {},
 		l(importTime): {},
 		l(lastUsed):   {},
 		l(size):       {},
@@ -116,9 +118,9 @@ var (
 )
 
 func init() {
-	sortFields := []string{l(name), l(importTime), l(lastUsed), l(size)}
+	sortFields := []string{l(importTime), l(lastUsed), l(size)}
 
-	fields := []string{l(id), l(name), l(size), l(importTime), l(lastUsed)}
+	fields := []string{l(ref), l(digest), l(imageType), l(size)}
 
 	// Set defaults
 	var err error
@@ -155,91 +157,117 @@ func runImages(cmd *cobra.Command, args []string) int {
 		fmt.Fprintf(tabOut, "%s\n", strings.Join(headerFields, "\t"))
 	}
 
-	s, err := imagestore.NewStore(storeDir())
+	s, err := rwcasref.NewStore(storeDir())
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
 		return 1
 	}
 
-	remotes, err := s.GetAllRemotes()
+	ts, err := newTreeStore(s)
 	if err != nil {
-		stderr.PrintE("unable to get remotes", err)
+		stderr.PrintE("cannot open tree store", err)
 		return 1
-	}
-
-	remoteMap := make(map[string]*imagestore.Remote)
-	for _, r := range remotes {
-		remoteMap[r.BlobKey] = r
 	}
 
 	var sortAciinfoFields []string
 	for _, f := range flagImagesSortFields.Options {
 		sortAciinfoFields = append(sortAciinfoFields, ImagesFieldAciInfoMap[f])
 	}
-	aciInfos, err := s.GetAllACIInfos(sortAciinfoFields, bool(flagImagesSortAsc))
+
+	// Get all blob infos for MediaTypeACI
+	blobInfos, err := s.GetBlobsInfosByMediaType(string(mediatype.ACI))
+	if err != nil {
+		stderr.PrintE("cannot get ACI blob infos", err)
+		return 1
+	}
+
+	tsSizes := map[string]int64{}
+	for _, blobInfo := range blobInfos {
+		infos, err := ts.GetInfosByImageDigest(blobInfo.Digest)
+		if err != nil {
+			stderr.Error(err)
+			return 1
+		}
+		var treeStoreSize int64
+		for _, i := range infos {
+			treeStoreSize += i.Size
+		}
+		tsSizes[blobInfo.Digest] = treeStoreSize
+	}
+
+	refs, err := s.GetAllRefs()
 	if err != nil {
 		stderr.PrintE("unable to get aci infos", err)
 		return 1
 	}
-
-	for _, aciInfo := range aciInfos {
-		imj, err := s.GetImageManifestJSON(aciInfo.BlobKey)
+	digestRefsMap := map[string][]string{}
+	for _, ref := range refs {
+		curRefs := digestRefsMap[string(ref.Digest)]
+		dist, err := dist.NewDistribution(ref.ID)
 		if err != nil {
-			// ignore aciInfo with missing image manifest as it can be deleted in the meantime
+			errors = append(errors, fmt.Errorf("ref %q cannot be converted to a distribution", ref.ID))
 			continue
 		}
-		var im *schema.ImageManifest
-		if err = json.Unmarshal(imj, &im); err != nil {
-			errors = append(errors, newImgListLoadError(err, imj, aciInfo.BlobKey))
-			continue
-		}
-		version, ok := im.Labels.Get("version")
+		digestRefsMap[string(ref.Digest)] = append(curRefs, image.DistSimpleString(dist))
+	}
+
+	for _, blobInfo := range blobInfos {
 		var fieldValues []string
+		showRefs := false
+		fieldPos := 0
+		refPos := 0
+
 		for _, f := range flagImagesFields.Options {
 			fieldValue := ""
 			switch f {
-			case l(id):
-				hashKey := aciInfo.BlobKey
+			case l(ref):
+				// TODO(sgotti) ellipsize long refs? how?
+				fieldValue = "<none>"
+				if _, ok := digestRefsMap[blobInfo.Digest]; ok {
+					showRefs = true
+					refPos = fieldPos
+				}
+			case l(digest):
+				digest := blobInfo.Digest
 				if !flagFullOutput {
 					// The short hash form is [HASH_ALGO]-[FIRST 12 CHAR]
 					// For example, sha512-123456789012
-					pos := strings.Index(hashKey, "-")
+					pos := strings.Index(digest, "-")
 					trimLength := pos + 13
-					if pos > 0 && trimLength < len(hashKey) {
-						hashKey = hashKey[:trimLength]
+					if pos > 0 && trimLength < len(digest) {
+						digest = digest[:trimLength]
 					}
 				}
-				fieldValue = hashKey
-			case l(name):
-				fieldValue = aciInfo.Name
-				if ok {
-					fieldValue = fmt.Sprintf("%s:%s", fieldValue, version)
-				}
-			case l(importTime):
-				if flagFullOutput {
-					fieldValue = aciInfo.ImportTime.Format(defaultTimeLayout)
-				} else {
-					fieldValue = humanize.Time(aciInfo.ImportTime)
-				}
-			case l(lastUsed):
-				if flagFullOutput {
-					fieldValue = aciInfo.LastUsed.Format(defaultTimeLayout)
-				} else {
-					fieldValue = humanize.Time(aciInfo.LastUsed)
+				fieldValue = digest
+			case l(imageType):
+				switch blobInfo.MediaType {
+				case string(mediatype.ACI):
+					fieldValue = "ACI"
+				case string(mediatype.OCIManifest):
+					fieldValue = "OCI"
+				default:
+					fieldValue = "<unknown>"
 				}
 			case l(size):
-				totalSize := aciInfo.Size + aciInfo.TreeStoreSize
+				totalSize := blobInfo.Size + tsSizes[blobInfo.Digest]
 				if flagFullOutput {
 					fieldValue = fmt.Sprintf("%d", totalSize)
 				} else {
 					fieldValue = humanize.IBytes(uint64(totalSize))
 				}
-			case l(latest):
-				fieldValue = fmt.Sprintf("%t", aciInfo.Latest)
 			}
 			fieldValues = append(fieldValues, fieldValue)
+			fieldPos++
 		}
-		fmt.Fprintf(tabOut, "%s\n", strings.Join(fieldValues, "\t"))
+
+		if showRefs {
+			for _, ref := range digestRefsMap[blobInfo.Digest] {
+				fieldValues[refPos] = ref
+				fmt.Fprintf(tabOut, "%s\n", strings.Join(fieldValues, "\t"))
+			}
+		} else {
+			fmt.Fprintf(tabOut, "%s\n", strings.Join(fieldValues, "\t"))
+		}
 	}
 
 	if len(errors) > 0 {

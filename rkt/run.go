@@ -25,13 +25,13 @@ import (
 
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/common"
+	"github.com/coreos/rkt/common/image/aci"
 	"github.com/coreos/rkt/pkg/label"
 	"github.com/coreos/rkt/pkg/lock"
 	"github.com/coreos/rkt/pkg/user"
 	"github.com/coreos/rkt/rkt/image"
 	"github.com/coreos/rkt/stage0"
-	"github.com/coreos/rkt/store/imagestore"
-	"github.com/coreos/rkt/store/treestore"
+	"github.com/coreos/rkt/store/casref/rwcasref"
 	"github.com/hashicorp/errwrap"
 	"github.com/spf13/cobra"
 )
@@ -40,7 +40,7 @@ var (
 	cmdRun = &cobra.Command{
 		Use:   "run [--volume=name,kind=host,...] [--mount volume=VOL,target=PATH] IMAGE [-- image-args...[---]]...",
 		Short: "Run image(s) in a pod in rkt",
-		Long: `IMAGE should be a string referencing an image; either a hash, local file on
+		Long: `IMAGE should be a string referencing an image; either a digest, local file on
 disk, or URL. They will be checked in that order and the first match will be
 used.
 
@@ -181,17 +181,25 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	s, err := imagestore.NewStore(storeDir())
+	s, err := rwcasref.NewStore(storeDir())
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
 		return 1
 	}
 
-	ts, err := treestore.NewStore(treeStoreDir(), s)
+	ts, err := newTreeStore(s)
 	if err != nil {
 		stderr.PrintE("cannot open treestore", err)
 		return 1
 	}
+
+	mc, err := newACIManifestCache(s)
+	if err != nil {
+		stderr.PrintE("cannot open manifestcache", err)
+		return 1
+	}
+
+	ar := aci.NewACIRegistry(s, mc)
 
 	config, err := getConfig()
 	if err != nil {
@@ -208,6 +216,7 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 	fn := &image.Finder{
 		S:                  s,
 		Ts:                 ts,
+		Mc:                 mc,
 		Ks:                 getKeystore(),
 		Headers:            config.AuthPerHost,
 		DockerAuth:         config.DockerCredentialsPerRegistry,
@@ -248,13 +257,15 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 	p.mountLabel = mountLabel
 
 	cfg := stage0.CommonConfig{
-		MountLabel:   mountLabel,
-		ProcessLabel: processLabel,
-		Store:        s,
-		TreeStore:    ts,
-		Stage1Image:  *s1img,
-		UUID:         p.uuid,
-		Debug:        globalFlags.Debug,
+		MountLabel:    mountLabel,
+		ProcessLabel:  processLabel,
+		Store:         s,
+		TreeStore:     ts,
+		ManifestCache: mc,
+		ACIRegistry:   ar,
+		Stage1Image:   *s1img,
+		UUID:          p.uuid,
+		Debug:         globalFlags.Debug,
 	}
 
 	pcfg := stage0.PrepareConfig{

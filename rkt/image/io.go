@@ -15,7 +15,6 @@
 package image
 
 import (
-	"crypto/sha512"
 	"errors"
 	"fmt"
 	"io"
@@ -23,8 +22,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/coreos/rkt/pkg/digest"
 	"github.com/coreos/rkt/pkg/lock"
-	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/casref/rwcasref"
 	"github.com/hashicorp/errwrap"
 
 	"github.com/coreos/ioprogress"
@@ -106,10 +106,11 @@ func (f *removeOnClose) Close() error {
 // getTmpROC returns a removeOnClose instance wrapping a temporary
 // file provided by the passed store. The actual file name is based on
 // a hash of the passed path.
-func getTmpROC(s *imagestore.Store, path string) (*removeOnClose, error) {
-	h := sha512.New()
+func getTmpROC(s *rwcasref.Store, path string) (*removeOnClose, error) {
+	d := digest.NewDigester(digest.SHA512)
+	h := d.Hash()
 	h.Write([]byte(path))
-	pathHash := s.HashToKey(h)
+	pathHash := d.Digest()
 
 	tmp, err := s.TmpNamedFile(pathHash)
 	if err != nil {

@@ -22,11 +22,11 @@ import (
 	"os"
 	"path"
 	"strings"
-	"time"
 
+	"github.com/coreos/rkt/common/image/aci"
 	"github.com/coreos/rkt/rkt/config"
 	rktflag "github.com/coreos/rkt/rkt/flag"
-	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/casref/rwcasref"
 	"github.com/hashicorp/errwrap"
 
 	docker2aci "github.com/appc/docker2aci/lib"
@@ -42,7 +42,7 @@ type dockerFetcher struct {
 	// be enabled. No image verification must be true for now.
 	InsecureFlags *rktflag.SecFlags
 	DockerAuth    map[string]config.BasicCredentials
-	S             *imagestore.Store
+	S             *rwcasref.Store
 	Debug         bool
 }
 
@@ -75,23 +75,21 @@ func (f *dockerFetcher) fetchImageFrom(u *url.URL, latest bool) (string, error) 
 	// alive, because we have an fd to it opened.
 	defer aciFile.Close()
 
-	key, err := f.S.WriteACI(aciFile, imagestore.ACIFetchInfo{
-		Latest: latest,
-	})
+	digest, err := aci.WriteACI(f.S, aciFile)
 	if err != nil {
 		return "", err
 	}
 
 	// docker images don't have signature URL
-	newRem := imagestore.NewRemote(u.String(), "")
-	newRem.BlobKey = key
-	newRem.DownloadTime = time.Now()
-	err = f.S.WriteRemote(newRem)
-	if err != nil {
-		return "", err
-	}
+	//newRem := imagestore.NewRemote(u.String(), "")
+	//newRem.BlobKey = key
+	//newRem.DownloadTime = time.Now()
+	//err = f.S.WriteRemote(newRem)
+	//if err != nil {
+	//	return "", err
+	//}
 
-	return key, nil
+	return digest, nil
 }
 
 func (f *dockerFetcher) fetch(u *url.URL) (*os.File, error) {

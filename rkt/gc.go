@@ -26,7 +26,7 @@ import (
 
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/stage0"
-	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/casref/rwcasref"
 	"github.com/coreos/rkt/store/treestore"
 	"github.com/hashicorp/errwrap"
 	"github.com/spf13/cobra"
@@ -230,14 +230,14 @@ func deletePod(p *pod) {
 	}
 
 	if p.isExitedGarbage {
-		s, err := imagestore.NewStore(storeDir())
+		s, err := rwcasref.NewStore(storeDir())
 		if err != nil {
 			stderr.PrintE("cannot open store", err)
 			return
 		}
 		defer s.Close()
 
-		ts, err := treestore.NewStore(treeStoreDir(), s)
+		ts, err := newTreeStore(s)
 		if err != nil {
 			stderr.PrintE("cannot open store", err)
 			return

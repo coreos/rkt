@@ -17,15 +17,14 @@ package main
 import (
 	"fmt"
 
-	"github.com/appc/spec/schema/types"
-	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/casref/rwcasref"
 	"github.com/spf13/cobra"
 )
 
 var (
 	cmdImageRm = &cobra.Command{
 		Use:   "rm IMAGE...",
-		Short: "Remove image(s) with the given ID(s) or name(s) from the local store",
+		Short: "Remove image(s) with the given digest(s) from the local store",
 		Long:  `Unlike image gc, image rm allows users to remove specific images.`,
 		Run:   runWrapper(runRmImage),
 	}
@@ -35,53 +34,26 @@ func init() {
 	cmdImage.AddCommand(cmdImageRm)
 }
 
-func rmImages(s *imagestore.Store, images []string) error {
+func rmImages(s *rwcasref.Store, images []string) error {
 	done := 0
 	errors := 0
 	staleErrors := 0
-	imageMap := make(map[string]string)
+	imageMap := make(map[string]struct{})
 	imageCounter := make(map[string]int)
 
-	for _, pkey := range images {
+	for _, pdigest := range images {
 		errors++
-		h, err := types.NewHash(pkey)
-		if err != nil {
-			var found bool
-			keys, found, err := s.ResolveName(pkey)
-			if len(keys) > 0 {
-				errors += len(keys) - 1
-			}
-			if err != nil {
-				stderr.Error(err)
-				continue
-			}
-			if !found {
-				stderr.Printf("image name %q not found", pkey)
-				continue
-			}
-			for _, key := range keys {
-				imageMap[key] = pkey
-				imageCounter[key]++
-			}
-		} else {
-			key, err := s.ResolveKey(h.String())
-			if err != nil {
-				stderr.PrintE(fmt.Sprintf("image ID %q not valid", pkey), err)
-				continue
-			}
-			if key == "" {
-				stderr.Printf("image ID %q doesn't exist", pkey)
-				continue
-			}
-
-			aciinfo, err := s.GetACIInfoWithBlobKey(key)
-			if err != nil {
-				stderr.PrintE(fmt.Sprintf("error retrieving aci infos for image %q", key), err)
-				continue
-			}
-			imageMap[key] = aciinfo.Name
-			imageCounter[key]++
+		digest, err := s.ResolveDigest(pdigest)
+		if err != nil && err == rwcasref.ErrDigestNotFound {
+			stderr.Printf("digest %q doesn't exist", pdigest)
+			continue
 		}
+		if err != nil {
+			stderr.PrintE(fmt.Sprintf("digest %q not valid", pdigest), err)
+			continue
+		}
+		imageMap[digest] = struct{}{}
+		imageCounter[digest]++
 	}
 
 	// Adjust the error count by subtracting duplicate IDs from it,
@@ -92,17 +64,17 @@ func rmImages(s *imagestore.Store, images []string) error {
 		}
 	}
 
-	for key, name := range imageMap {
-		if err := s.RemoveACI(key); err != nil {
-			if serr, ok := err.(*imagestore.StoreRemovalError); ok {
+	for digest := range imageMap {
+		if err := s.RemoveBlob(digest, true); err != nil {
+			if err == rwcasref.ErrStaleData {
 				staleErrors++
-				stderr.PrintE(fmt.Sprintf("some files cannot be removed for image %q (%q)", key, name), serr)
+				stderr.PrintE(fmt.Sprintf("some files cannot be removed for blob %q", digest), err)
 			} else {
-				stderr.PrintE(fmt.Sprintf("error removing aci for image %q (%q)", key, name), err)
+				stderr.PrintE(fmt.Sprintf("error removing blob %q", digest), err)
 				continue
 			}
 		}
-		stdout.Printf("successfully removed aci for image: %q", key)
+		stdout.Printf("successfully removed aci for image: %q", digest)
 		errors--
 		done++
 	}
@@ -131,7 +103,7 @@ func runRmImage(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	s, err := imagestore.NewStore(storeDir())
+	s, err := rwcasref.NewStore(storeDir())
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
 		return 1

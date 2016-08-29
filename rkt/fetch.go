@@ -20,8 +20,7 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/common/apps"
 	"github.com/coreos/rkt/rkt/image"
-	"github.com/coreos/rkt/store/imagestore"
-	"github.com/coreos/rkt/store/treestore"
+	"github.com/coreos/rkt/store/casref/rwcasref"
 
 	"github.com/spf13/cobra"
 )
@@ -79,15 +78,21 @@ func runFetch(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	s, err := imagestore.NewStore(storeDir())
+	s, err := rwcasref.NewStore(storeDir())
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
 		return 1
 	}
 
-	ts, err := treestore.NewStore(treeStoreDir(), s)
+	ts, err := newTreeStore(s)
 	if err != nil {
 		stderr.PrintE("cannot open treestore", err)
+		return 1
+	}
+
+	mc, err := newACIManifestCache(s)
+	if err != nil {
+		stderr.PrintE("cannot open manifestcache", err)
 		return 1
 	}
 
@@ -100,6 +105,7 @@ func runFetch(cmd *cobra.Command, args []string) (exit int) {
 	ft := &image.Fetcher{
 		S:                  s,
 		Ts:                 ts,
+		Mc:                 mc,
 		Ks:                 ks,
 		Headers:            config.AuthPerHost,
 		DockerAuth:         config.DockerCredentialsPerRegistry,
@@ -112,11 +118,13 @@ func runFetch(cmd *cobra.Command, args []string) (exit int) {
 		WithDeps:  true,
 	}
 
+	err = ft.FetchImages(&rktApps)
+	if err != nil {
+		stderr.Error(err)
+		return 1
+	}
 	err = rktApps.Walk(func(app *apps.App) error {
-		hash, err := ft.FetchImage(app.Image, app.Asc, app.ImType)
-		if err != nil {
-			return err
-		}
+		hash := app.ImageID.String()
 		if !flagFullHash {
 			hash = types.ShortHash(hash)
 		}

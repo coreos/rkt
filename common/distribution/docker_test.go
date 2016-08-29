@@ -1,0 +1,114 @@
+// Copyright 2016 The rkt Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package distribution
+
+import "testing"
+
+func TestDocker(t *testing.T) {
+	tests := []struct {
+		inDs      string
+		compStr   string
+		simpleStr string
+		err       error
+	}{
+		{
+			"busybox",
+			"cimd:docker:v=0:registry-1.docker.io/library/busybox:latest",
+			"busybox",
+			nil,
+		},
+		{
+			"busybox:latest",
+			"cimd:docker:v=0:registry-1.docker.io/library/busybox:latest",
+			"busybox",
+			nil,
+		},
+		{
+			"registry-1.docker.io/library/busybox:latest",
+			"cimd:docker:v=0:registry-1.docker.io/library/busybox:latest",
+			"busybox",
+			nil,
+		},
+		{
+			"busybox:1.0",
+			"cimd:docker:v=0:registry-1.docker.io/library/busybox:1.0",
+			"busybox:1.0",
+			nil,
+		},
+		{
+			"repo/image",
+			"cimd:docker:v=0:registry-1.docker.io/repo/image:latest",
+			"repo/image",
+			nil,
+		},
+		{
+			"repo/image:latest",
+			"cimd:docker:v=0:registry-1.docker.io/repo/image:latest",
+			"repo/image",
+			nil,
+		},
+		{
+			"repo/image:1.0",
+			"cimd:docker:v=0:registry-1.docker.io/repo/image:1.0",
+			"repo/image:1.0",
+			nil,
+		},
+		{
+			"busybox@sha256:a59906e33509d14c036c8678d687bd4eec81ed7c4b8ce907b888c607f6a1e0e6",
+			"cimd:docker:v=0:registry-1.docker.io/library/busybox@sha256:a59906e33509d14c036c8678d687bd4eec81ed7c4b8ce907b888c607f6a1e0e6",
+			"busybox@sha256:a59906e33509d14c036c8678d687bd4eec81ed7c4b8ce907b888c607f6a1e0e6",
+			nil,
+		},
+		{
+			"myregistry.example.com:4000/busybox",
+			"cimd:docker:v=0:myregistry.example.com:4000/busybox:latest",
+			"myregistry.example.com:4000/busybox",
+			nil,
+		},
+		{
+			"myregistry.example.com:4000/busybox:latest",
+			"cimd:docker:v=0:myregistry.example.com:4000/busybox:latest",
+			"myregistry.example.com:4000/busybox",
+			nil,
+		},
+		{
+			"myregistry.example.com:4000/busybox:1.0",
+			"cimd:docker:v=0:myregistry.example.com:4000/busybox:1.0",
+			"myregistry.example.com:4000/busybox:1.0",
+			nil,
+		},
+	}
+
+	for _, tt := range tests {
+		d, err := NewDockerFromDockerString(tt.inDs)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		outDs := d.DockerString()
+		if tt.inDs != outDs {
+			t.Fatalf("expected url %q, but got %q", tt.inDs, outDs)
+		}
+		compStr := d.ComparableURIString()
+		if tt.compStr != compStr {
+			t.Fatalf("expected comparable string %q, but got %q", tt.compStr, compStr)
+		}
+		simpleStr := d.SimpleDockerString()
+		if tt.simpleStr != simpleStr {
+			t.Fatalf("expected simple string %q, but got %q", tt.simpleStr, simpleStr)
+		}
+	}
+
+}

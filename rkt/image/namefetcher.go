@@ -20,13 +20,13 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"time"
 
+	"github.com/coreos/rkt/common/image/aci"
 	"github.com/coreos/rkt/pkg/keystore"
 	"github.com/coreos/rkt/rkt/config"
 	rktflag "github.com/coreos/rkt/rkt/flag"
 	"github.com/coreos/rkt/rkt/pubkey"
-	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/casref/rwcasref"
 	"github.com/hashicorp/errwrap"
 
 	"github.com/appc/spec/discovery"
@@ -36,7 +36,7 @@ import (
 // nameFetcher is used to download images via discovery
 type nameFetcher struct {
 	InsecureFlags      *rktflag.SecFlags
-	S                  *imagestore.Store
+	S                  *rwcasref.Store
 	Ks                 *keystore.Keystore
 	NoCache            bool
 	Debug              bool
@@ -103,52 +103,16 @@ func (f *nameFetcher) fetchImageFromSingleEndpoint(app *discovery.App, aciURL st
 		log.Printf("fetching image from %s", aciURL)
 	}
 
-	u, err := url.Parse(aciURL)
-	if err != nil {
-		return "", errwrap.Wrap(fmt.Errorf("failed to parse URL %q", aciURL), err)
-	}
-	rem, err := remoteForURL(f.S, u)
+	aciFile, _, err := f.fetch(app, aciURL, a, "")
 	if err != nil {
 		return "", err
 	}
-	if !f.NoCache && rem != nil {
-		if useCached(rem.DownloadTime, rem.CacheMaxAge) {
-			if f.Debug {
-				log.Printf("image for %s isn't expired, not fetching.", aciURL)
-			}
-			return rem.BlobKey, nil
-		}
-	}
-
-	aciFile, cd, err := f.fetch(app, aciURL, a, eTag(rem))
-	if err != nil {
-		return "", err
-	}
-	defer func() { maybeClose(aciFile) }()
-
-	if key := maybeUseCached(rem, cd); key != "" {
-		return key, nil
-	}
-	key, err := f.S.WriteACI(aciFile, imagestore.ACIFetchInfo{
-		Latest: latest,
-	})
+	digest, err := aci.WriteACI(f.S, aciFile)
 	if err != nil {
 		return "", err
 	}
 
-	newRem := imagestore.NewRemote(aciURL, a.Location)
-	newRem.BlobKey = key
-	newRem.DownloadTime = time.Now()
-	if cd != nil {
-		newRem.ETag = cd.ETag
-		newRem.CacheMaxAge = cd.MaxAge
-	}
-	err = f.S.WriteRemote(newRem)
-	if err != nil {
-		return "", err
-	}
-
-	return key, nil
+	return digest, nil
 }
 
 func (f *nameFetcher) fetch(app *discovery.App, aciURL string, a *asc, etag string) (readSeekCloser, *cacheData, error) {

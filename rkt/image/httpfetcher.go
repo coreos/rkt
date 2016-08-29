@@ -18,21 +18,20 @@ import (
 	"errors"
 	"io"
 	"net/url"
-	"time"
 
+	"github.com/coreos/rkt/common/image/aci"
 	"github.com/coreos/rkt/pkg/keystore"
 	"github.com/coreos/rkt/rkt/config"
 	rktflag "github.com/coreos/rkt/rkt/flag"
-	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/casref/rwcasref"
 	"github.com/hashicorp/errwrap"
 )
 
 // httpFetcher is used to download images from http or https URLs.
 type httpFetcher struct {
 	InsecureFlags *rktflag.SecFlags
-	S             *imagestore.Store
+	S             *rwcasref.Store
 	Ks            *keystore.Keystore
-	Rem           *imagestore.Remote
 	NoCache       bool
 	Debug         bool
 	Headers       map[string]config.Headerer
@@ -44,55 +43,36 @@ func (f *httpFetcher) Hash(u *url.URL, a *asc) (string, error) {
 	ensureLogger(f.Debug)
 	urlStr := u.String()
 
-	if !f.NoCache && f.Rem != nil {
-		if useCached(f.Rem.DownloadTime, f.Rem.CacheMaxAge) {
-			if f.Debug {
-				log.Printf("image for %s isn't expired, not fetching.", urlStr)
-			}
-			return f.Rem.BlobKey, nil
-		}
-	}
+	//if !f.NoCache && f.Rem != nil {
+	//	if useCached(f.Rem.DownloadTime, f.Rem.CacheMaxAge) {
+	//		if f.Debug {
+	//			log.Printf("image for %s isn't expired, not fetching.", urlStr)
+	//		}
+	//		return f.Rem.BlobKey, nil
+	//	}
+	//}
 
 	if f.Debug {
 		log.Printf("fetching image from %s", urlStr)
 	}
 
-	aciFile, cd, err := f.fetchURL(u, a, eTag(f.Rem))
+	aciFile, _, err := f.fetchURL(u, a, "")
 	if err != nil {
 		return "", err
 	}
 	defer func() { maybeClose(aciFile) }()
-
-	if key := maybeUseCached(f.Rem, cd); key != "" {
-		// TODO(krnowak): that does not update the store with
-		// the new CacheMaxAge and Download Time, so it will
-		// query the server every time after initial
-		// CacheMaxAge is exceeded
-		return key, nil
-	}
-	key, err := f.S.WriteACI(aciFile, imagestore.ACIFetchInfo{
-		Latest: false,
-	})
+	//if key := f.maybeUseCached(cd); key != "" {
+	//	// TODO(krnowak): that does not update the store with
+	//	// the new CacheMaxAge and Download Time, so it will
+	//	// query the server every time after initial
+	//	// CacheMaxAge is exceeded
+	//	return key, nil
+	//}
+	digest, err := aci.WriteACI(f.S, aciFile)
 	if err != nil {
 		return "", err
 	}
-
-	// TODO(krnowak): What's the point of the second parameter?
-	// The SigURL field in imagestore.Remote seems to be completely
-	// unused.
-	newRem := imagestore.NewRemote(urlStr, a.Location)
-	newRem.BlobKey = key
-	newRem.DownloadTime = time.Now()
-	if cd != nil {
-		newRem.ETag = cd.ETag
-		newRem.CacheMaxAge = cd.MaxAge
-	}
-	err = f.S.WriteRemote(newRem)
-	if err != nil {
-		return "", err
-	}
-
-	return key, nil
+	return digest, nil
 }
 
 func (f *httpFetcher) fetchURL(u *url.URL, a *asc, etag string) (readSeekCloser, *cacheData, error) {

@@ -20,16 +20,18 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/coreos/rkt/common/image/aci"
 	"github.com/coreos/rkt/pkg/keystore"
 	rktflag "github.com/coreos/rkt/rkt/flag"
-	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/casref/rwcasref"
+
 	"github.com/hashicorp/errwrap"
 )
 
 // fileFetcher is used to fetch files from a local filesystem
 type fileFetcher struct {
 	InsecureFlags *rktflag.SecFlags
-	S             *imagestore.Store
+	S             *rwcasref.Store
 	Ks            *keystore.Keystore
 	Debug         bool
 }
@@ -50,14 +52,17 @@ func (f *fileFetcher) Hash(aciPath string, a *asc) (string, error) {
 	}
 	defer aciFile.Close()
 
-	key, err := f.S.WriteACI(aciFile, imagestore.ACIFetchInfo{
-		Latest: false,
-	})
+	digest, err := aci.WriteACI(f.S, aciFile)
 	if err != nil {
 		return "", err
 	}
 
-	return key, nil
+	//ascLocation := ""
+	//if a != nil {
+	//	ascLocation = "file://" + a.Location
+	//}
+
+	return digest, nil
 }
 
 func (f *fileFetcher) getFile(aciPath string, a *asc) (*os.File, error) {
