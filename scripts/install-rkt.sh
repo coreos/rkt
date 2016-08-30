@@ -29,6 +29,9 @@ tar xvzf rkt-v"${version}".tar.gz
 cat <<EOF >install-pak
 #!/bin/bash
 
+# abort/fail on any error
+set -e
+
 # fix mkdir issues with checkinstall and fstrans
 for dir in /usr/lib/rkt/stage1-images/\\
         /usr/share/man/man1/\\
