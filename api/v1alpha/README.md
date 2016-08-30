@@ -10,6 +10,7 @@ For more information, see:
 - #1468
 - [API Service Subcommand](../../Documentation/subcommands/api-service.md)
 - [API Python example](API_PY_PB_DOC.md)
+
 ## Protobuf
 
 The rkt gRPC API uses Protocol Buffers for its services.
