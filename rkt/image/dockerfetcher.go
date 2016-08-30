@@ -26,7 +26,7 @@ import (
 
 	"github.com/coreos/rkt/rkt/config"
 	rktflag "github.com/coreos/rkt/rkt/flag"
-	"github.com/coreos/rkt/store"
+	"github.com/coreos/rkt/store/imagestore"
 	"github.com/hashicorp/errwrap"
 
 	docker2aci "github.com/appc/docker2aci/lib"
@@ -42,13 +42,13 @@ type dockerFetcher struct {
 	// be enabled. No image verification must be true for now.
 	InsecureFlags *rktflag.SecFlags
 	DockerAuth    map[string]config.BasicCredentials
-	S             *store.Store
+	S             *imagestore.Store
 	Debug         bool
 }
 
-// GetHash uses docker2aci to download the image and convert it to
+// Hash uses docker2aci to download the image and convert it to
 // ACI, then stores it in the store and returns the hash.
-func (f *dockerFetcher) GetHash(u *url.URL) (string, error) {
+func (f *dockerFetcher) Hash(u *url.URL) (string, error) {
 	ensureLogger(f.Debug)
 	dockerURL, err := d2acommon.ParseDockerURL(path.Join(u.Host, u.Path))
 	if err != nil {
@@ -75,15 +75,15 @@ func (f *dockerFetcher) fetchImageFrom(u *url.URL, latest bool) (string, error) 
 	// alive, because we have an fd to it opened.
 	defer aciFile.Close()
 
-	key, err := f.S.WriteACI(aciFile, latest)
+	key, err := f.S.WriteACI(aciFile, imagestore.ACIFetchInfo{
+		Latest: latest,
+	})
 	if err != nil {
 		return "", err
 	}
 
-	// TODO(krnowak): Consider dropping the signature URL part
-	// from store.Remote. It is not used anywhere and the data
-	// stored here is useless.
-	newRem := store.NewRemote(u.String(), ascURLFromImgURL(u).String())
+	// docker images don't have signature URL
+	newRem := imagestore.NewRemote(u.String(), "")
 	newRem.BlobKey = key
 	newRem.DownloadTime = time.Now()
 	err = f.S.WriteRemote(newRem)
@@ -106,7 +106,10 @@ func (f *dockerFetcher) fetch(u *url.URL) (*os.File, error) {
 	config := docker2aci.RemoteConfig{
 		Username: user,
 		Password: password,
-		Insecure: f.InsecureFlags.AllowHTTP(),
+		Insecure: d2acommon.InsecureConfig{
+			SkipVerify: f.InsecureFlags.SkipTLSCheck(),
+			AllowHTTP:  f.InsecureFlags.AllowHTTP(),
+		},
 		CommonConfig: docker2aci.CommonConfig{
 			Squash:      true,
 			OutputDir:   tmpDir,

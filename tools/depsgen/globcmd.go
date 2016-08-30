@@ -31,7 +31,7 @@ const (
 	// given set of wildcards. See globMakeWildcard.
 	globMakeFunction = `$(strip \
         $(eval _DEPS_GEN_FG_ := $(strip !!!WILDCARDS!!!)) \
-        $(if $(_DEPS_GEN_FG_),$(shell stat --format "%n: %F" $(_DEPS_GEN_FG_) | grep -e 'regular file$$' | cut -f1 -d:)))
+        $(if $(_DEPS_GEN_FG_),$(shell LC_ALL=C stat --format "%n: %F" $(_DEPS_GEN_FG_) | grep -e 'regular file$$' | cut -f1 -d:)))
 `
 	// globMakeWildcard is a template for call wildcard function
 	// for in a given directory with a given suffix. This wildcard

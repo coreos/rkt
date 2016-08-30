@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// +build host coreos src kvm
+
 package main
 
 import (
@@ -26,7 +28,7 @@ import (
 )
 
 const (
-	manifestRenderTemplate = `{"acKind":"ImageManifest","acVersion":"0.7.4","name":"IMG_NAME","labels":[{"name":"version","value":"1.2.1"},{"name":"arch","value":"amd64"},{"name":"os","value":"linux"}],"dependencies":[{"imageName":"coreos.com/rkt-inspect"}],"app":{"exec":["/inspect"],"user":"0","group":"0","workingDirectory":"/","environment":[{"name":"VAR_FROM_MANIFEST","value":"manifest"}]}}`
+	manifestRenderTemplate = `{"acKind":"ImageManifest","acVersion":"0.8.7","name":"IMG_NAME","labels":[{"name":"version","value":"1.13.0"},{"name":"arch","value":"amd64"},{"name":"os","value":"linux"}],"dependencies":[{"imageName":"coreos.com/rkt-inspect"}],"app":{"exec":["/inspect"],"user":"0","group":"0","workingDirectory":"/","environment":[{"name":"VAR_FROM_MANIFEST","value":"manifest"}]}}`
 )
 
 // TestImageRender tests 'rkt image render', it will import some existing empty
@@ -61,8 +63,14 @@ func TestImageRender(t *testing.T) {
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
 
-	_ = importImageAndFetchHash(t, ctx, "", baseImage)
-	testImageShortHash := importImageAndFetchHash(t, ctx, "", testImage)
+	_, err = importImageAndFetchHash(t, ctx, "", baseImage)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	testImageShortHash, err := importImageAndFetchHash(t, ctx, "", testImage)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
 
 	tests := []struct {
 		image        string

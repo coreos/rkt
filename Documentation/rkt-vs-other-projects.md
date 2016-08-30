@@ -6,6 +6,7 @@ This document describes how rkt compares to various other projects in the contai
   * [Process Model](#process-model)
   * [Privilege Separation](#privilege-separation)
 * [rkt vs runC](#rkt-vs-runc)
+* [rkt vs containerd](#rkt-vs-containerd)
 * [rkt vs LXC/LXD](#rkt-vs-lxclxd)
 * [rkt vs OpenVZ](#rkt-vs-openvz)
 * [rkt vs systemd-nspawn](#rkt-vs-systemd-nspawn)
@@ -14,7 +15,7 @@ This document describes how rkt compares to various other projects in the contai
 
 ## rkt vs Docker
 
-The Docker Engine is an application container runtime implemented as a central monolithic API daemon.
+The Docker Engine is an application container runtime implemented as a central API daemon.
 Docker can resolve a ["Docker Image"](https://github.com/docker/docker/blob/master/image/spec/v1.md) name, such as `quay.io/coreos/etcd`, and download, execute, and monitor the application container.
 Functionally, this is all similar to rkt; however, along with "Docker Images", rkt can also download and run "App Container Images" (ACIs) specified by the [App Container Specification](https://github.com/appc/spec) (appc).
 
@@ -22,13 +23,20 @@ Besides also supporting ACIs, rkt has a substantially different architecture tha
 
 #### Process Model
 
-At the time of writing, the Docker Engine daemon downloads container images, launches container processes, exposes a remote API, and acts as a log collection daemon, all in a centralized process running as root.
-While such a centralized architecture is convenient for deployment, it does not follow best practices for Unix process and privilege separation; further, it makes Docker difficult to properly integrate with Linux init systems such as upstart and systemd.
-Since running a Docker container from the command line (i.e. using `docker run`) just talks to the Docker daemon API, which is in turn responsible for creating the container, init systems are unable to directly track the life of the actual container process.
+Prior to Docker version 1.11, the Docker Engine daemon downloaded container images, launched container processes, exposed a remote API, and acted as a log collection daemon, all in a centralized process running as root.
 
-rkt has no centralized "init" daemon, instead launching containers directly from client commands, making it compatible with init systems such as systemd, upstart, and others.
+While such a centralized architecture is convenient for deployment, it does not follow best practices for Unix process and privilege separation; further, it makes Docker difficult to properly integrate with Linux init systems such as upstart and systemd.
+
+Since version 1.11, the Docker daemon no longer handles the execution of containers itself.
+Instead, this is now handled by [containerd][containerd-github].
+More precisely, the Docker daemon prepares the image as an [Open Container Image](https://www.opencontainers.org/) (OCI) bundle and makes an API call to containerd to start the OCI bundle.
+containerd then starts the container using [runC][runc-github].
 
 ![rkt-vs-docker-process-model](rkt-vs-docker-process-model.png)
+
+Since running a Docker container from the command line (i.e. using `docker run`) just talks to the Docker daemon API, which is in turn directly or indirectly — via containerd — responsible for creating the container, init systems are unable to directly track the life of the actual container process.
+
+rkt has no centralized "init" daemon, instead launching containers directly from client commands, making it compatible with init systems such as systemd, upstart, and others.
 
 #### Privilege Separation
 
@@ -50,6 +58,18 @@ As rkt does not have a centralized daemon it can also be easily integrated with 
 
 [runc-github]: https://github.com/opencontainers/runc
 [oci-spec-github]: https://github.com/opencontainers/specs
+
+## rkt vs containerd
+
+[containerd][containerd-github] is a daemon to control runC.
+It has a command-line tool called `ctr` which is used to interact with the containerd daemon.
+This makes the containerd process model similar to that of the Docker process model, illustrated above.
+
+Unlike the Docker daemon it has a reduced feature set; not supporting image download, for example.
+
+rkt has no centralized daemon to manage containers, instead launching containers directly from client commands, making it compatible with init systems such as systemd, upstart, and others.
+
+[containerd-github]: https://github.com/docker/containerd
 
 ## rkt vs LXC/LXD
 

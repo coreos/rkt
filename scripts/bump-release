@@ -34,14 +34,14 @@ function replace_stuff() {
 }
 
 function replace_all() {
-	replace_stuff $1 $2 $(git ls-files | grep -Ev "(CHANGELOG.md|Godeps|manifest\.d)")
+	replace_stuff $1 $2 $(git ls-files | grep -Ev "(CHANGELOG.md|vendor|manifest\.d|glide.lock|glide.yaml)")
 }
 
 function replace_version() {
-	replace_stuff $1 $2 configure.ac scripts/build-rir.sh scripts/acbuild-rkt-builder.sh
+	replace_stuff $1 $2 configure.ac scripts/build-rir.sh tests/rkt-monitor/build-stresser.sh
 }
 
-NEXT=${1:1} 	        # 0.2.3
+NEXT=${1:1}             # 0.2.3
 NEXTGIT="${NEXT}+git"   # 0.2.3+git
 
 PREVGIT=$(grep -Po 'AC_INIT\(\[rkt\], \[\K[^\]]*(?=])' configure.ac) # 0.1.2+git

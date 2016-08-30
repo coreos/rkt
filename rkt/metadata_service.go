@@ -309,12 +309,17 @@ func appGet(h func(http.ResponseWriter, *http.Request, *schema.PodManifest, *sch
 func handlePodAnnotations(w http.ResponseWriter, r *http.Request, pm *schema.PodManifest) {
 	defer r.Body.Close()
 
-	w.Header().Add("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusOK)
-
-	for k := range pm.Annotations {
-		fmt.Fprintln(w, k)
+	out, err := pm.Annotations.MarshalJSON()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "invalid annotations: %v", err)
+		return
 	}
+
+	w.Header().Add("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(out)
+
 }
 
 func handlePodAnnotation(w http.ResponseWriter, r *http.Request, pm *schema.PodManifest) {
@@ -335,7 +340,7 @@ func handlePodAnnotation(w http.ResponseWriter, r *http.Request, pm *schema.PodM
 		return
 	}
 
-	w.Header().Add("Content-Type", "text/plain")
+	w.Header().Add("Content-Type", "text/plain; charset=us-ascii")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(v))
 }
@@ -343,12 +348,17 @@ func handlePodAnnotation(w http.ResponseWriter, r *http.Request, pm *schema.PodM
 func handlePodManifest(w http.ResponseWriter, r *http.Request, pm *schema.PodManifest) {
 	defer r.Body.Close()
 
+	out, err := json.Marshal(pm)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "JSON encoding error: %v", err)
+		return
+	}
+
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	if err := json.NewEncoder(w).Encode(pm); err != nil {
-		stderr.Error(err)
-	}
+	w.Write(out)
 }
 
 func handlePodUUID(w http.ResponseWriter, r *http.Request) {
@@ -363,7 +373,7 @@ func handlePodUUID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Add("Content-Type", "text/plain")
+	w.Header().Add("Content-Type", "text/plain; charset=us-ascii")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(uuid.String()))
 }
@@ -395,12 +405,19 @@ func handleAppAnnotations(w http.ResponseWriter, r *http.Request, pm *schema.Pod
 		return
 	}
 
-	w.Header().Add("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusOK)
+	anno := mergeAppAnnotations(im, pm, an)
+	out, err := anno.MarshalJSON()
 
-	for _, annot := range mergeAppAnnotations(im, pm, an) {
-		fmt.Fprintln(w, string(annot.Name))
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, err.Error())
+		return
 	}
+
+	w.Header().Add("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(out)
+
 }
 
 func handleAppAnnotation(w http.ResponseWriter, r *http.Request, pm *schema.PodManifest, im *schema.ImageManifest) {
@@ -431,7 +448,7 @@ func handleAppAnnotation(w http.ResponseWriter, r *http.Request, pm *schema.PodM
 		return
 	}
 
-	w.Header().Add("Content-Type", "text/plain")
+	w.Header().Add("Content-Type", "text/plain; charset=us-ascii")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(v))
 }
@@ -442,9 +459,14 @@ func handleImageManifest(w http.ResponseWriter, r *http.Request, _ *schema.PodMa
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	if err := json.NewEncoder(w).Encode(*im); err != nil {
-		stderr.Error(err)
+	out, err := json.Marshal(im)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, err.Error())
+		return
 	}
+	w.Write(out)
+
 }
 
 func handleAppID(w http.ResponseWriter, r *http.Request, pm *schema.PodManifest, im *schema.ImageManifest) {
@@ -458,7 +480,7 @@ func handleAppID(w http.ResponseWriter, r *http.Request, pm *schema.PodManifest,
 		return
 	}
 
-	w.Header().Add("Content-Type", "text/plain")
+	w.Header().Add("Content-Type", "text/plain; charset=us-ascii")
 	w.WriteHeader(http.StatusOK)
 	app := pm.Apps.Get(*an)
 	if app == nil {
@@ -501,7 +523,7 @@ func handlePodSign(w http.ResponseWriter, r *http.Request) {
 	h.Write([]byte(content))
 
 	// Send back HMAC as the signature
-	w.Header().Add("Content-Type", "text/plain")
+	w.Header().Add("Content-Type", "text/plain; charset=us-ascii")
 	w.WriteHeader(http.StatusOK)
 	enc := base64.NewEncoder(base64.StdEncoding, w)
 	enc.Write(h.Sum(nil))
@@ -511,6 +533,7 @@ func handlePodSign(w http.ResponseWriter, r *http.Request) {
 func handlePodVerify(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
+	w.Header().Add("Content-Type", "text/plain; charset=us-ascii")
 	uuid, err := types.NewUUID(r.FormValue("uuid"))
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -614,12 +637,12 @@ func runPublicServer(l net.Listener) {
 
 	mr := r.Methods("GET").Subrouter()
 
-	mr.HandleFunc("/pod/annotations/", logReq(podGet(handlePodAnnotations)))
+	mr.HandleFunc("/pod/annotations", logReq(podGet(handlePodAnnotations)))
 	mr.HandleFunc("/pod/annotations/{name:.*}", logReq(podGet(handlePodAnnotation)))
 	mr.HandleFunc("/pod/manifest", logReq(podGet(handlePodManifest)))
 	mr.HandleFunc("/pod/uuid", logReq(handlePodUUID))
 
-	mr.HandleFunc("/apps/{app:.*}/annotations/", logReq(appGet(handleAppAnnotations)))
+	mr.HandleFunc("/apps/{app:.*}/annotations", logReq(appGet(handleAppAnnotations)))
 	mr.HandleFunc("/apps/{app:.*}/annotations/{name:.*}", logReq(appGet(handleAppAnnotation)))
 	mr.HandleFunc("/apps/{app:.*}/image/manifest", logReq(appGet(handleImageManifest)))
 	mr.HandleFunc("/apps/{app:.*}/image/id", logReq(appGet(handleAppID)))

@@ -29,19 +29,22 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/coreos/rkt/common"
+
 	"github.com/appc/spec/schema/types"
 	"github.com/hashicorp/errwrap"
 )
 
 // GC enters the pod by fork/exec()ing the stage1's /gc similar to /init.
 // /gc can expect to have its CWD set to the pod root.
-// stage1Path is the path of the stage1 rootfs
-func GC(pdir string, uuid *types.UUID, stage1Path string) error {
+func GC(pdir string, uuid *types.UUID) error {
 	err := unregisterPod(pdir, uuid)
 	if err != nil {
 		// Probably not worth abandoning the rest
 		log.PrintE("warning: could not unregister pod with metadata service", err)
 	}
+
+	stage1Path := common.Stage1RootfsPath(pdir)
 
 	ep, err := getStage1Entrypoint(pdir, gcEntrypoint)
 	if err != nil {
@@ -80,7 +83,7 @@ func (m mounts) getMountDepth(i int) int {
 		found = false
 		for _, mnt := range m {
 			if mnt.id == current.parentID {
-				ancestorCount += 1
+				ancestorCount++
 				current = mnt
 				found = true
 				break
@@ -186,7 +189,7 @@ func MountGC(path, uuid string) error {
 		return errwrap.Wrap(fmt.Errorf("error getting mounts for pod %s from mountinfo", uuid), err)
 	}
 
-	for i := len(mnts) - 1; i >= 0; i -= 1 {
+	for i := len(mnts) - 1; i >= 0; i-- {
 		mnt := mnts[i]
 		if needsRemountPrivate(mnt) {
 			if err := syscall.Mount("", mnt.mountPoint, "", syscall.MS_PRIVATE, ""); err != nil {

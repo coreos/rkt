@@ -21,8 +21,9 @@ import (
 	"path/filepath"
 
 	"github.com/coreos/rkt/pkg/fileutil"
-	"github.com/coreos/rkt/pkg/uid"
-	"github.com/coreos/rkt/store"
+	"github.com/coreos/rkt/pkg/user"
+	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/treestore"
 
 	"github.com/spf13/cobra"
 )
@@ -57,10 +58,16 @@ func runImageRender(cmd *cobra.Command, args []string) (exit int) {
 	}
 	outputDir := args[1]
 
-	s, err := store.NewStore(getDataDir())
+	s, err := imagestore.NewStore(storeDir())
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
 		return 1
+	}
+
+	ts, err := treestore.NewStore(treeStoreDir(), s)
+	if err != nil {
+		stderr.PrintE("cannot open store", err)
+		return
 	}
 
 	key, err := getStoreKeyFromAppOrHash(s, args[0])
@@ -69,15 +76,15 @@ func runImageRender(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	id, _, err := s.RenderTreeStore(key, false)
+	id, _, err := ts.Render(key, false)
 	if err != nil {
 		stderr.PrintE("error rendering ACI", err)
 		return 1
 	}
-	if _, err := s.CheckTreeStore(id); err != nil {
+	if _, err := ts.Check(id); err != nil {
 		stderr.Print("warning: tree cache is in a bad state. Rebuilding...")
 		var err error
-		if id, _, err = s.RenderTreeStore(key, true); err != nil {
+		if id, _, err = ts.Render(key, true); err != nil {
 			stderr.PrintE("error rendering ACI", err)
 			return 1
 		}
@@ -126,8 +133,8 @@ func runImageRender(cmd *cobra.Command, args []string) (exit int) {
 		}
 	}
 
-	cachedTreePath := s.GetTreeStoreRootFS(id)
-	if err := fileutil.CopyTree(cachedTreePath, rootfsOutDir, uid.NewBlankUidRange()); err != nil {
+	cachedTreePath := ts.GetRootFS(id)
+	if err := fileutil.CopyTree(cachedTreePath, rootfsOutDir, user.NewBlankUidRange()); err != nil {
 		stderr.PrintE("error copying ACI rootfs", err)
 		return 1
 	}

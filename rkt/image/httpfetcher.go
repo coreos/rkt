@@ -23,51 +23,64 @@ import (
 	"github.com/coreos/rkt/pkg/keystore"
 	"github.com/coreos/rkt/rkt/config"
 	rktflag "github.com/coreos/rkt/rkt/flag"
-	"github.com/coreos/rkt/store"
+	"github.com/coreos/rkt/store/imagestore"
 	"github.com/hashicorp/errwrap"
 )
 
 // httpFetcher is used to download images from http or https URLs.
 type httpFetcher struct {
 	InsecureFlags *rktflag.SecFlags
-	S             *store.Store
+	S             *imagestore.Store
 	Ks            *keystore.Keystore
-	Rem           *store.Remote
+	Rem           *imagestore.Remote
+	NoCache       bool
 	Debug         bool
 	Headers       map[string]config.Headerer
 }
 
-// GetHash fetches the URL, optionally verifies it against passed asc,
+// Hash fetches the URL, optionally verifies it against passed asc,
 // stores it in the store and returns the hash.
-func (f *httpFetcher) GetHash(u *url.URL, a *asc) (string, error) {
+func (f *httpFetcher) Hash(u *url.URL, a *asc) (string, error) {
 	ensureLogger(f.Debug)
 	urlStr := u.String()
+
+	if !f.NoCache && f.Rem != nil {
+		if useCached(f.Rem.DownloadTime, f.Rem.CacheMaxAge) {
+			if f.Debug {
+				log.Printf("image for %s isn't expired, not fetching.", urlStr)
+			}
+			return f.Rem.BlobKey, nil
+		}
+	}
 
 	if f.Debug {
 		log.Printf("fetching image from %s", urlStr)
 	}
 
-	aciFile, cd, err := f.fetchURL(u, a, f.getETag())
+	aciFile, cd, err := f.fetchURL(u, a, eTag(f.Rem))
 	if err != nil {
 		return "", err
 	}
 	defer func() { maybeClose(aciFile) }()
-	if key := f.maybeUseCached(cd); key != "" {
+
+	if key := maybeUseCached(f.Rem, cd); key != "" {
 		// TODO(krnowak): that does not update the store with
 		// the new CacheMaxAge and Download Time, so it will
 		// query the server every time after initial
 		// CacheMaxAge is exceeded
 		return key, nil
 	}
-	key, err := f.S.WriteACI(aciFile, false)
+	key, err := f.S.WriteACI(aciFile, imagestore.ACIFetchInfo{
+		Latest: false,
+	})
 	if err != nil {
 		return "", err
 	}
 
 	// TODO(krnowak): What's the point of the second parameter?
-	// The SigURL field in store.Remote seems to be completely
+	// The SigURL field in imagestore.Remote seems to be completely
 	// unused.
-	newRem := store.NewRemote(urlStr, a.Location)
+	newRem := imagestore.NewRemote(urlStr, a.Location)
 	newRem.BlobKey = key
 	newRem.DownloadTime = time.Now()
 	if cd != nil {
@@ -82,19 +95,6 @@ func (f *httpFetcher) GetHash(u *url.URL, a *asc) (string, error) {
 	return key, nil
 }
 
-func (f *httpFetcher) maybeUseCached(cd *cacheData) string {
-	if f.Rem == nil || cd == nil {
-		return ""
-	}
-	if cd.UseCached {
-		return f.Rem.BlobKey
-	}
-	if useCached(f.Rem.DownloadTime, cd.MaxAge) {
-		return f.Rem.BlobKey
-	}
-	return ""
-}
-
 func (f *httpFetcher) fetchURL(u *url.URL, a *asc, etag string) (readSeekCloser, *cacheData, error) {
 	if f.InsecureFlags.SkipTLSCheck() && f.Ks != nil {
 		log.Printf("warning: TLS verification has been disabled")
@@ -104,7 +104,7 @@ func (f *httpFetcher) fetchURL(u *url.URL, a *asc, etag string) (readSeekCloser,
 	}
 
 	if f.InsecureFlags.SkipImageCheck() || f.Ks == nil {
-		o := f.getHTTPOps()
+		o := f.httpOps()
 		aciFile, cd, err := o.DownloadImageWithETag(u, etag)
 		if err != nil {
 			return nil, nil, err
@@ -116,7 +116,7 @@ func (f *httpFetcher) fetchURL(u *url.URL, a *asc, etag string) (readSeekCloser,
 }
 
 func (f *httpFetcher) fetchVerifiedURL(u *url.URL, a *asc, etag string) (readSeekCloser, *cacheData, error) {
-	o := f.getHTTPOps()
+	o := f.httpOps()
 	f.maybeOverrideAscFetcherWithRemote(o, u, a)
 	ascFile, retry, err := o.DownloadSignature(a)
 	if err != nil {
@@ -148,7 +148,7 @@ func (f *httpFetcher) fetchVerifiedURL(u *url.URL, a *asc, etag string) (readSee
 	return retAciFile, cd, nil
 }
 
-func (f *httpFetcher) getHTTPOps() *httpOps {
+func (f *httpFetcher) httpOps() *httpOps {
 	return &httpOps{
 		InsecureSkipTLSVerify: f.InsecureFlags.SkipTLSCheck(),
 		S:       f.S,
@@ -174,18 +174,11 @@ func (f *httpFetcher) validate(aciFile, ascFile io.ReadSeeker) error {
 	return nil
 }
 
-func (f *httpFetcher) getETag() string {
-	if f.Rem != nil {
-		return f.Rem.ETag
-	}
-	return ""
-}
-
 func (f *httpFetcher) maybeOverrideAscFetcherWithRemote(o *httpOps, u *url.URL, a *asc) {
 	if a.Fetcher != nil {
 		return
 	}
 	u2 := ascURLFromImgURL(u)
 	a.Location = u2.String()
-	a.Fetcher = o.GetAscRemoteFetcher()
+	a.Fetcher = o.AscRemoteFetcher()
 }

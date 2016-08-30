@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"syscall"
 )
 
@@ -62,7 +63,7 @@ func Add(name string, fn commandFn) Entrypoint {
 // exit with an exit status of 1, otherwise it will exit with a 0 exit
 // status.
 func MaybeExec() {
-	name := os.Args[0]
+	name := path.Base(os.Args[0])
 	if fn, ok := commands[name]; ok {
 		if err := fn(); err != nil {
 			fmt.Fprintln(os.Stderr, err)

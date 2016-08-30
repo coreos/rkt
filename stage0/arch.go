@@ -14,6 +14,7 @@
 
 package stage0
 
+// ValidOSArch contains the supported ACI image OS/architecture combinations.
 var ValidOSArch = map[string][]string{
-	"linux": []string{"amd64", "i386", "aarch64", "aarch64_be", "armv6l", "armv7l", "armv7b"},
+	"linux": {"amd64", "i386", "aarch64", "aarch64_be", "armv6l", "armv7l", "armv7b"},
 }

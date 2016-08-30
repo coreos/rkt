@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// +build host coreos src kvm
+
 package main
 
 import (
@@ -30,12 +32,13 @@ const (
 	CPUQuota       = 800              // milli-cores
 )
 
+// We need CAP_SYS_PTRACE to escape the chroot
 var memoryTest = struct {
 	testName     string
 	aciBuildArgs []string
 }{
 	`Check memory isolator`,
-	[]string{"--exec=/inspect --print-memorylimit"},
+	[]string{"--exec=/inspect --print-memorylimit", "--capability=CAP_SYS_PTRACE"},
 }
 
 var cpuTest = struct {
@@ -43,7 +46,7 @@ var cpuTest = struct {
 	aciBuildArgs []string
 }{
 	`Check CPU quota`,
-	[]string{"--exec=/inspect --print-cpuquota"},
+	[]string{"--exec=/inspect --print-cpuquota", "--capability=CAP_SYS_PTRACE"},
 }
 
 var cgroupsTest = struct {
@@ -51,7 +54,7 @@ var cgroupsTest = struct {
 	aciBuildArgs []string
 }{
 	`Check cgroup mounts`,
-	[]string{"--exec=/inspect --check-cgroups"},
+	[]string{"--exec=/inspect --check-cgroups", "--capability=CAP_SYS_PTRACE"},
 }
 
 func TestAppIsolatorMemory(t *testing.T) {
@@ -97,19 +100,5 @@ func TestAppIsolatorCPU(t *testing.T) {
 
 	rktCmd = fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s --cpu 900m", ctx.Cmd(), aciFileName)
 	expectedLine = "CPU Quota: " + strconv.Itoa(900)
-	runRktAndCheckOutput(t, rktCmd, expectedLine, false)
-}
-
-func TestCgroups(t *testing.T) {
-	ctx := testutils.NewRktRunCtx()
-	defer ctx.Cleanup()
-
-	t.Logf("Running test: %v", cgroupsTest.testName)
-
-	aciFileName := patchTestACI("rkt-inspect-isolators.aci", cgroupsTest.aciBuildArgs...)
-	defer os.Remove(aciFileName)
-
-	rktCmd := fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s", ctx.Cmd(), aciFileName)
-	expectedLine := "check-cgroups: SUCCESS"
 	runRktAndCheckOutput(t, rktCmd, expectedLine, false)
 }

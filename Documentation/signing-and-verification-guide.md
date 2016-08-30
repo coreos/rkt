@@ -143,7 +143,7 @@ pubkeys.gpg
 
 ## Distributing Images via Meta Discovery
 
-Host an HTML page with the following meta tags:
+Host `example.com/hello` with the following HTML contents and meta tags:
 
 ```html
 <!DOCTYPE html>
@@ -152,8 +152,8 @@ Host an HTML page with the following meta tags:
     <meta charset="utf-8">
     <meta name="ac-discovery" content="example.com/hello https://example.com/images/{name}-{version}-{os}-{arch}.{ext}">
     <meta name="ac-discovery-pubkeys" content="example.com/hello https://example.com/pubkeys.gpg">
-  <head>
-<html>
+  </head>
+</html>
 ```
 
 Serve the following files at the locations described in the meta tags:

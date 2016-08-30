@@ -22,7 +22,7 @@ import (
 	"os"
 
 	"github.com/coreos/rkt/rkt/config"
-	"github.com/coreos/rkt/store"
+	"github.com/coreos/rkt/store/imagestore"
 	"github.com/hashicorp/errwrap"
 )
 
@@ -32,7 +32,7 @@ import (
 // remote fetcher for asc.
 type httpOps struct {
 	InsecureSkipTLSVerify bool
-	S                     *store.Store
+	S                     *imagestore.Store
 	Headers               map[string]config.Headerer
 	Debug                 bool
 }
@@ -106,8 +106,8 @@ func (o *httpOps) DownloadImageWithETag(u *url.URL, etag string) (readSeekCloser
 	return retAciFile, session.Cd, nil
 }
 
-// GetAscRemoteFetcher provides a remoteAscFetcher for asc.
-func (o *httpOps) GetAscRemoteFetcher() *remoteAscFetcher {
+// AscRemoteFetcher provides a remoteAscFetcher for asc.
+func (o *httpOps) AscRemoteFetcher() *remoteAscFetcher {
 	ensureLogger(o.Debug)
 	f := func(u *url.URL, file *os.File) error {
 		switch u.Scheme {
@@ -137,6 +137,7 @@ func (o *httpOps) getSession(u *url.URL, file *os.File, label, etag string) *res
 	return &resumableSession{
 		InsecureSkipTLSVerify: o.InsecureSkipTLSVerify,
 		Headers:               o.getHeaders(u, etag),
+		Headerers:             o.Headers,
 		File:                  file,
 		ETagFilePath:          eTagFilePath,
 		Label:                 label,
@@ -150,22 +151,13 @@ func (o *httpOps) getDownloader(session downloadSession) *downloader {
 }
 
 func (o *httpOps) getHeaders(u *url.URL, etag string) http.Header {
-	options := o.getHeadersForURL(u)
+	options := o.getHeadersForURL(u, etag)
 	if etag != "" {
 		options.Add("If-None-Match", etag)
 	}
 	return options
 }
 
-func (o *httpOps) getHeadersForURL(u *url.URL) http.Header {
-	// Send credentials only over secure channel
-	// TODO(krnowak): This could be controlled with another
-	// insecure flag.
-	if u.Scheme == "https" {
-		if hostOpts, ok := o.Headers[u.Host]; ok {
-			return hostOpts.Header()
-		}
-	}
-
+func (o *httpOps) getHeadersForURL(u *url.URL, etag string) http.Header {
 	return make(http.Header)
 }

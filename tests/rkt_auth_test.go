@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// +build host coreos src kvm
+
 package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -89,9 +90,9 @@ func testAuthGeneric(t *testing.T, auth taas.AuthType, tests []genericAuthTest) 
 		case authConfDirNone:
 			// no config to write
 		case authConfDirLocal:
-			writeConfig(t, ctx.LocalDir(), "test.json", server.Conf)
+			writeConfig(t, authDir(ctx.LocalDir()), "test.json", server.Conf)
 		case authConfDirSystem:
-			writeConfig(t, ctx.SystemDir(), "test.json", server.Conf)
+			writeConfig(t, authDir(ctx.SystemDir()), "test.json", server.Conf)
 		default:
 			panic("Wrong config directory")
 		}
@@ -105,6 +106,7 @@ func TestAuthOverride(t *testing.T) {
 	defer ctx.Cleanup()
 	server, image := runAuthServer(t, taas.AuthOauth)
 	defer authCleanup(server, image)
+	hash := "sha512-" + getHashOrPanic(image)
 	tests := []struct {
 		systemConfig         string
 		localConfig          string
@@ -116,9 +118,15 @@ func TestAuthOverride(t *testing.T) {
 		{getInvalidOAuthConfig(server.Conf), server.Conf, "invalid-system-valid-local", authFailedDownload, authSuccessfulDownload},
 	}
 	for _, tt := range tests {
-		writeConfig(t, ctx.SystemDir(), "test.json", tt.systemConfig)
+		writeConfig(t, authDir(ctx.SystemDir()), "test.json", tt.systemConfig)
 		expectedRunRkt(ctx, t, server.URL, tt.name+"-1", tt.resultBeforeOverride)
-		writeConfig(t, ctx.LocalDir(), "test.json", tt.localConfig)
+		if tt.resultBeforeOverride == authSuccessfulDownload {
+			// Remove the image from the store since it was fetched in the
+			// previous run and the test aci-server returns a
+			// Cache-Control max-age header
+			removeFromCas(t, ctx, hash)
+		}
+		writeConfig(t, authDir(ctx.LocalDir()), "test.json", tt.localConfig)
 		expectedRunRkt(ctx, t, server.URL, tt.name+"-2", tt.resultAfterOverride)
 		ctx.Reset()
 	}
@@ -134,10 +142,10 @@ func TestAuthIgnore(t *testing.T) {
 func testAuthIgnoreBogusFiles(t *testing.T, server *taas.Server) {
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
-	writeConfig(t, ctx.SystemDir(), "README", "This is system config")
-	writeConfig(t, ctx.LocalDir(), "README", "This is local config")
-	writeConfig(t, ctx.SystemDir(), "test.notjson", server.Conf)
-	writeConfig(t, ctx.LocalDir(), "test.notjson", server.Conf)
+	writeConfig(t, authDir(ctx.SystemDir()), "README", "This is system config")
+	writeConfig(t, authDir(ctx.LocalDir()), "README", "This is local config")
+	writeConfig(t, authDir(ctx.SystemDir()), "test.notjson", server.Conf)
+	writeConfig(t, authDir(ctx.LocalDir()), "test.notjson", server.Conf)
 	expectedRunRkt(ctx, t, server.URL, "oauth-bogus-files", authFailedDownload)
 }
 
@@ -146,8 +154,8 @@ func testAuthIgnoreSubdirectories(t *testing.T, server *taas.Server) {
 	defer ctx.Cleanup()
 	localSubdir := filepath.Join(ctx.LocalDir(), "subdir")
 	systemSubdir := filepath.Join(ctx.SystemDir(), "subdir")
-	writeConfig(t, localSubdir, "test.json", server.Conf)
-	writeConfig(t, systemSubdir, "test.json", server.Conf)
+	writeConfig(t, authDir(localSubdir), "test.json", server.Conf)
+	writeConfig(t, authDir(systemSubdir), "test.json", server.Conf)
 	expectedRunRkt(ctx, t, server.URL, "oauth-subdirectories", authFailedDownload)
 }
 
@@ -190,22 +198,6 @@ func expectedRunRkt(ctx *testutils.RktRunCtx, t *testing.T, host, testName, line
 	if err := expectWithOutput(child, line); err != nil {
 		t.Fatalf("Didn't receive expected output %q: %v", line, err)
 	}
-}
-
-func writeConfig(t *testing.T, baseDir, filename, contents string) {
-	dir := authDir(baseDir)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		t.Fatalf("Failed to create config directory %q: %v", dir, err)
-	}
-	path := filepath.Join(dir, filename)
-	os.Remove(path)
-	if err := ioutil.WriteFile(path, []byte(contents), 0644); err != nil {
-		t.Fatalf("Failed to write file %q: %v", path, err)
-	}
-}
-
-func authDir(confDir string) string {
-	return filepath.Join(confDir, "auth.d")
 }
 
 func getInvalidOAuthConfig(conf string) string {

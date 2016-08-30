@@ -22,24 +22,23 @@ import (
 	"net"
 	"path/filepath"
 
-	"github.com/appc/cni/pkg/types"
+	"github.com/containernetworking/cni/pkg/types"
 	"github.com/coreos/go-systemd/unit"
 	"github.com/coreos/rkt/networking"
 	"github.com/hashicorp/errwrap"
 )
 
-// GetNetworkDescriptions explicitly convert slice of activeNets to slice of netDescribers
-// which is slice required by GetKVMNetArgs
-func GetNetworkDescriptions(n *networking.Networking) []netDescriber {
-	var nds []netDescriber
+// GetNetworkDescriptions converts activeNets to netDescribers
+func GetNetworkDescriptions(n *networking.Networking) []NetDescriber {
+	var nds []NetDescriber
 	for _, an := range n.GetActiveNetworks() {
 		nds = append(nds, an)
 	}
 	return nds
 }
 
-// netDescriber is something that describes network configuration
-type netDescriber interface {
+// NetDescriber is the interface that describes a network configuration
+type NetDescriber interface {
 	GuestIP() net.IP
 	Mask() net.IP
 	IfName() string
@@ -53,7 +52,7 @@ type netDescriber interface {
 // to lkvm tool to configure networks properly.
 // Logic is based on Network configuration extracted from Networking struct
 // and essentially from activeNets that expose netDescriber behavior
-func GetKVMNetArgs(nds []netDescriber) ([]string, error) {
+func GetKVMNetArgs(nds []NetDescriber) ([]string, error) {
 
 	var lkvmArgs []string
 
@@ -103,8 +102,7 @@ func upInterfaceCommand(ifName string) string {
 	return fmt.Sprintf("/bin/ip link set dev %s up", ifName)
 }
 
-func GenerateNetworkInterfaceUnits(unitsPath string, netDescriptions []netDescriber) error {
-
+func GenerateNetworkInterfaceUnits(unitsPath string, netDescriptions []NetDescriber) error {
 	for i, netDescription := range netDescriptions {
 		ifName := fmt.Sprintf(networking.IfNamePattern, i)
 		netAddress := net.IPNet{
@@ -158,7 +156,7 @@ func GenerateNetworkInterfaceUnits(unitsPath string, netDescriptions []netDescri
 			return errwrap.Wrap(fmt.Errorf("failed to create network unit file %q", unitName), err)
 		}
 
-		rlog.Printf("network unit created: %q in %q (iface=%q, addr=%q)", unitName, unitsPath, ifName, address)
+		diag.Printf("network unit created: %q in %q (iface=%q, addr=%q)", unitName, unitsPath, ifName, address)
 	}
 	return nil
 }

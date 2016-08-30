@@ -37,8 +37,8 @@ func TestParseAppArgs(t *testing.T) {
 			[]string{"example.com/foo", "example.com/bar", "example.com/baz"},
 			[][]string{
 				nil,
-				[]string{"--help"},
-				[]string{"--verbose"},
+				{"--help"},
+				{"--verbose"},
 			},
 			false,
 		},

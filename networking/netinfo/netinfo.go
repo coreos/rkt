@@ -21,7 +21,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/appc/cni/pkg/types"
+	"github.com/containernetworking/cni/pkg/types"
 )
 
 const filename = "net-info.json"

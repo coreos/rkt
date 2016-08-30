@@ -17,7 +17,9 @@
 package apps
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
@@ -29,6 +31,11 @@ import (
 // actual type (one of the last four).
 type AppImageType int
 
+var (
+	ErrInvalidSeccompMode     = errors.New("invalid seccomp mode command-line override")
+	ErrInvalidSeccompOverride = errors.New("invalid seccomp command-line override")
+)
+
 const (
 	AppImageGuess AppImageType = iota // image type to be guessed
 	AppImageHash                      // image hash
@@ -38,14 +45,18 @@ const (
 )
 
 type App struct {
-	Image       string                // the image reference as supplied by the user on the cli
-	ImType      AppImageType          // the type of the image reference (to be guessed, url, path or hash)
-	Args        []string              // any arguments the user supplied for this app
-	Asc         string                // signature file override for image verification (if fetching occurs)
-	Exec        string                // exec override for image
-	Mounts      []schema.Mount        // mounts for this app (superseding any mounts in rktApps.mounts of same MountPoint)
-	MemoryLimit *types.ResourceMemory // memory isolator override
-	CPULimit    *types.ResourceCPU    // cpu isolator override
+	Image         string                            // the image reference as supplied by the user on the cli
+	ImType        AppImageType                      // the type of the image reference (to be guessed, url, path or hash)
+	Args          []string                          // any arguments the user supplied for this app
+	Asc           string                            // signature file override for image verification (if fetching occurs)
+	Exec          string                            // exec override for image
+	Mounts        []schema.Mount                    // mounts for this app (superseding any mounts in rktApps.mounts of same MountPoint)
+	MemoryLimit   *types.ResourceMemory             // memory isolator override
+	CPULimit      *types.ResourceCPU                // cpu isolator override
+	User, Group   string                            // user, group overrides
+	CapsRetain    *types.LinuxCapabilitiesRetainSet // os/linux/capabilities-retain-set overrides
+	CapsRemove    *types.LinuxCapabilitiesRevokeSet // os/linux/capabilities-remove-set overrides
+	SeccompFilter string                            // seccomp CLI overrides
 
 	// TODO(jonboulle): These images are partially-populated hashes, this should be clarified.
 	ImageID types.Hash // resolved image identifier
@@ -55,6 +66,33 @@ type Apps struct {
 	apps    []App
 	Mounts  []schema.Mount // global mounts applied to all apps
 	Volumes []types.Volume // volumes available to all apps
+}
+
+// SeccompFilter returns type, filter set and optional errno
+// for a seccomp filter override specified via CLI
+func (a *App) SeccompOverride() (mode string, errno string, set []string, e error) {
+	if a.SeccompFilter == "" {
+		return
+	}
+	for _, i := range strings.Split(a.SeccompFilter, ",") {
+		kv := strings.Split(i, "=")
+		if len(kv) == 2 {
+			switch kv[0] {
+			case "mode":
+				if kv[1] != "remove" && kv[1] != "retain" {
+					e = ErrInvalidSeccompMode
+				}
+				mode = kv[1]
+			case "errno":
+				errno = kv[1]
+			default:
+				e = ErrInvalidSeccompOverride
+			}
+		} else {
+			set = append(set, i)
+		}
+	}
+	return
 }
 
 // Reset creates a new slice for al.apps, needed by tests
@@ -111,7 +149,7 @@ func (al *Apps) Validate() error {
 // Walk iterates on al.apps calling f for each app
 // walking stops if f returns an error, the error is simply returned
 func (al *Apps) Walk(f func(*App) error) error {
-	for i, _ := range al.apps {
+	for i := range al.apps {
 		// XXX(vc): note we supply f() with a pointer to the app instance in al.apps to enable modification by f()
 		if err := f(&al.apps[i]); err != nil {
 			return err
@@ -141,14 +179,4 @@ func (al *Apps) GetArgs() [][]string {
 		aal = append(aal, a.Args)
 	}
 	return aal
-}
-
-// GetImageIDs returns a list of the imageIDs in al, one per app.
-// The order reflects the app order in al.
-func (al *Apps) GetImageIDs() []types.Hash {
-	var hl []types.Hash
-	for _, a := range al.apps {
-		hl = append(hl, a.ImageID)
-	}
-	return hl
 }

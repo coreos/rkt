@@ -19,9 +19,12 @@ package main
 import (
 	"errors"
 	"flag"
+	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"syscall"
 
@@ -29,12 +32,18 @@ import (
 	"github.com/hashicorp/errwrap"
 
 	"github.com/coreos/rkt/common"
+	"github.com/coreos/rkt/common/cgroup"
 	"github.com/coreos/rkt/networking"
 	rktlog "github.com/coreos/rkt/pkg/log"
 )
 
+const (
+	cgroupFsPath = "/sys/fs/cgroup"
+)
+
 var (
 	debug bool
+	log   *rktlog.Logger = rktlog.New(os.Stderr, "stage1 gc", debug)
 )
 
 func init() {
@@ -49,8 +58,6 @@ func init() {
 func main() {
 	flag.Parse()
 
-	log := rktlog.New(os.Stderr, "stage1 gc", debug)
-
 	podID, err := types.NewUUID(flag.Arg(0))
 	if err != nil {
 		log.Fatal("UUID is missing or malformed")
@@ -58,6 +65,10 @@ func main() {
 
 	if err := removeJournalLink(podID); err != nil {
 		log.PrintE("error removing journal link", err)
+	}
+
+	if err := cleanupCgroups(); err != nil {
+		log.PrintE("error cleaning up cgroups", err)
 	}
 
 	if err := gcNetworking(podID); err != nil {
@@ -103,4 +114,70 @@ func removeJournalLink(uuid *types.UUID) error {
 		err = nil
 	}
 	return err
+}
+
+type dirsByLength []string
+
+func (c dirsByLength) Len() int           { return len(c) }
+func (c dirsByLength) Less(i, j int) bool { return len(c[i]) < len(c[j]) }
+func (c dirsByLength) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
+
+func cleanupCgroups() error {
+	b, err := ioutil.ReadFile("subcgroup")
+	if err != nil {
+		return errwrap.Wrap(errors.New("error reading subcgroup file"), err)
+	}
+	subcgroup := string(b)
+
+	// if we're trying to clean up our own cgroup it means we're running in the
+	// same unit file as the rkt pod. We don't have to do anything, systemd
+	// will do the cleanup for us
+	ourCgroupPath, err := cgroup.GetOwnCgroupPath("name=systemd")
+	if err == nil {
+		if strings.HasPrefix(ourCgroupPath, "/"+subcgroup) {
+			return nil
+		}
+	}
+
+	f, err := os.Open(cgroupFsPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	ns, err := f.Readdirnames(0)
+	if err != nil {
+		return err
+	}
+	var cgroupDirs []string
+	for _, c := range ns {
+		scPath := filepath.Join(cgroupFsPath, c, subcgroup)
+		walkCgroupDirs := func(path string, info os.FileInfo, err error) error {
+			// if the subcgroup is already removed, we're fine
+			if os.IsNotExist(err) {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			mode := info.Mode()
+			if mode.IsDir() {
+				cgroupDirs = append(cgroupDirs, path)
+			}
+			return nil
+		}
+		if err := filepath.Walk(scPath, walkCgroupDirs); err != nil {
+			log.PrintE(fmt.Sprintf("error walking subcgroup %q", scPath), err)
+			continue
+		}
+	}
+
+	// remove descendants before ancestors
+	sort.Sort(sort.Reverse(dirsByLength(cgroupDirs)))
+	for _, d := range cgroupDirs {
+		if err := os.RemoveAll(d); err != nil {
+			log.PrintE(fmt.Sprintf("error removing subcgroup %q", d), err)
+		}
+	}
+
+	return nil
 }

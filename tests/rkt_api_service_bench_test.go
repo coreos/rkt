@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// +build host coreos src kvm
+
 package main
 
 import (
@@ -94,7 +96,10 @@ func fetchImages(ctx *testutils.RktRunCtx, numOfImages int) {
 	wg.Add(numOfImages)
 	for i := 0; i < numOfImages; i++ {
 		go func(i int) {
-			patchImportAndFetchHash(fmt.Sprintf("rkt-inspect-sleep-%d.aci", i), []string{"--exec=/inspect"}, t, ctx)
+			_, err := patchImportAndFetchHash(fmt.Sprintf("rkt-inspect-sleep-%d.aci", i), []string{"--exec=/inspect"}, t, ctx)
+			if err != nil {
+				t.Fatalf("%v", err)
+			}
 			wg.Done()
 		}(i)
 	}

@@ -4,18 +4,19 @@ REPO_PATH := $(ORG_PATH)/rkt
 
 override BUILDDIR := $(abspath $(BUILDDIR))
 
-MAKETOOLSDIR := $(MK_TOPLEVEL_SRCDIR)/tools
 STAMPSDIR := $(BUILDDIR)/stamps
 TOOLSDIR := $(BUILDDIR)/tools
-BINDIR := $(BUILDDIR)/bin
+TARGETDIR := $(BUILDDIR)/target
+TARGET_BINDIR := $(BUILDDIR)/target/bin
+TARGET_TOOLSDIR := $(BUILDDIR)/target/tools
 GOPATH_TO_CREATE := $(BUILDDIR)/gopath
-GOPATH := $(GOPATH_TO_CREATE)/src/github.com/coreos/rkt/Godeps/_workspace:$(GOPATH_TO_CREATE)
+GOPATH := $(GOPATH_TO_CREATE)
 DEPSDIR := $(BUILDDIR)/deps
 FILELISTDIR := $(BUILDDIR)/filelists
 MAINTEMPDIR := $(BUILDDIR)/tmp
 CLEANDIR := $(BUILDDIR)/clean
 
-ACTOOL := $(BINDIR)/actool
+ACTOOL := $(TOOLSDIR)/actool
 DEPSGENTOOL := $(TOOLSDIR)/depsgen
 FILELISTGENTOOL := $(TOOLSDIR)/filelistgen
 CLEANGENTOOL := $(TOOLSDIR)/cleangen
@@ -25,13 +26,23 @@ QUICKRMTOOL := $(TOOLSDIR)/quickrm
 GO_TEST_PACKAGES ?= ./...
 GO_TEST_FUNC_ARGS ?=
 
-GO_ENV := $(strip GOPATH="$(GOPATH)" $(if $(strip $(GOROOT)),GOROOT=$(strip $(GOROOT))))
+GO_ENV := $(strip \
+	GO15VENDOREXPERIMENT=1 \
+	GOARCH="$(GOARCH)" \
+	$(if $(GOARM),GOARM="$(GOARM)") \
+	CGO_ENABLED=1 \
+	CC="$(CC)" \
+	CXX="$(CXX)" \
+	GOPATH="$(GOPATH)" \
+	$(if $(strip $(GOROOT)),GOROOT="$(strip $(GOROOT))"))
 
 CREATE_DIRS += \
 	$(BUILDDIR) \
 	$(STAMPSDIR) \
 	$(TOOLSDIR) \
-	$(BINDIR) \
+	$(TARGETDIR) \
+	$(TARGET_BINDIR) \
+	$(TARGET_TOOLSDIR) \
 	$(GOPATH_TO_CREATE) \
 	$(DEPSDIR) \
 	$(FILELISTDIR) \

@@ -15,13 +15,21 @@
 package kvm
 
 import (
+	"io/ioutil"
 	"os"
 
 	rktlog "github.com/coreos/rkt/pkg/log"
 )
 
-var rlog *rktlog.Logger
+var diag *rktlog.Logger
 
 func init() {
-	rlog = rktlog.New(os.Stderr, "kvm", false)
+	diag = rktlog.New(os.Stderr, "kvm", false)
+}
+
+func InitDebug(debug bool) {
+	diag.SetDebug(debug)
+	if !debug {
+		diag.SetOutput(ioutil.Discard)
+	}
 }

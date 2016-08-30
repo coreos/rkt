@@ -61,7 +61,7 @@ type pod struct {
 	mountLabel       string // Label to use for container image
 }
 
-// Exported state. See Documentation/container-lifecycle.md for some explanation
+// Exported state. See Documentation/devel/pod-lifecycle.md for some explanation
 const (
 	Embryo         = "embryo"
 	Preparing      = "preparing"
@@ -478,7 +478,7 @@ func (p *pod) xToExitedGarbage() error {
 	return nil
 }
 
-// xToGarbage transitions a pod from prepared -> garbage or prepared -> garbage
+// xToGarbage transitions a pod from abortedPrepared -> garbage or prepared -> garbage
 func (p *pod) xToGarbage() error {
 	if !p.isAbortedPrepare && !p.isPrepared {
 		return fmt.Errorf("bug: only failed prepare or prepared pods may transition to garbage")
@@ -676,6 +676,7 @@ func (p *pod) refreshState() error {
 
 // waitExited waits for a pod to (run and) exit.
 func (p *pod) waitExited() error {
+	// isExited implies isExitedGarbage.
 	for !p.isExited && !p.isAbortedPrepare && !p.isGarbage && !p.isGone {
 		if err := p.SharedLock(); err != nil {
 			return err
@@ -764,6 +765,7 @@ func (p *pod) getModTime(path string) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
+	defer f.Close()
 
 	fi, err := f.Stat()
 	if err != nil {
@@ -803,6 +805,29 @@ func (p *pod) getStartTime() (time.Time, error) {
 		}
 	}
 	return t, err
+}
+
+func (p *pod) getGCMarkedTime() (time.Time, error) {
+	if !p.isGarbage && !p.isExitedGarbage {
+		return time.Time{}, nil
+	}
+
+	// At this point, the pod is in either exited-garbage dir, garbage dir or gone already.
+	podPath := p.path()
+	if podPath == "" {
+		// Pod is gone.
+		return time.Time{}, nil
+	}
+
+	st := &syscall.Stat_t{}
+	if err := syscall.Lstat(podPath, st); err != nil {
+		if err == syscall.ENOENT {
+			// Pod is gone.
+			err = nil
+		}
+		return time.Time{}, err
+	}
+	return time.Unix(st.Ctim.Unix()), nil
 }
 
 type ErrChildNotReady struct {
@@ -848,6 +873,10 @@ func getChildPID(ppid int) (int, error) {
 		if err != nil {
 			return -1, err
 		}
+		if len(fi) == 0 {
+			// See https://github.com/coreos/rkt/issues/3109#issuecomment-242209246
+			continue
+		}
 		var pid64 int64
 		if pid64, err = strconv.ParseInt(fi[0].Name(), 10, 0); err != nil {
 			continue
@@ -872,17 +901,21 @@ func getChildPID(ppid int) (int, error) {
 
 // getPID returns the pid of the stage1 process that started the pod.
 func (p *pod) getPID() (int, error) {
-	pid, err := p.readIntFromFile("ppid")
-	if err != nil {
-		return -1, err
+	if pid, err := p.readIntFromFile("pid"); err == nil {
+		return pid, nil
 	}
-	return pid, nil
+	if pid, err := p.readIntFromFile("ppid"); err != nil {
+		return -1, err
+	} else {
+		return pid, nil
+	}
 }
 
 // getContainerPID1 returns the pid of the process with pid 1 in the pod.
 func (p *pod) getContainerPID1() (pid int, err error) {
-	// rkt supports two methods to find the container's PID 1:
-	// the pid file and the ppid file.
+	// rkt supports two methods to find the container's PID 1: the pid
+	// file and the ppid file.
+	// The ordering is not important and only one of them must be supplied.
 	// See Documentation/devel/stage1-implementors-guide.md
 	for {
 		var ppid int
@@ -893,14 +926,15 @@ func (p *pod) getContainerPID1() (pid int, err error) {
 		}
 
 		ppid, err = p.readIntFromFile("ppid")
+		if err != nil && !os.IsNotExist(err) {
+			return -1, err
+		}
 		if err == nil {
 			pid, err = getChildPID(ppid)
 			if err == nil {
 				return pid, nil
 			}
-			if _, ok := err.(ErrChildNotReady); ok {
-				err = nil
-			} else {
+			if _, ok := err.(ErrChildNotReady); !ok {
 				return -1, err
 			}
 		}
@@ -914,8 +948,8 @@ func (p *pod) getContainerPID1() (pid int, err error) {
 			return -1, err
 		}
 
-		if !os.IsNotExist(err) || !p.isRunning() {
-			return -1, err
+		if !p.isRunning() {
+			return -1, fmt.Errorf("pod %v is not running anymore", p.uuid)
 		}
 	}
 }
@@ -930,8 +964,25 @@ func (p *pod) getStage1TreeStoreID() (string, error) {
 	return string(s1IDb), nil
 }
 
-// getAppTreeStoreIDs returns the treeStoreIDs of the apps images used in
-// this pod
+// getAppTreeStoreID returns the treeStoreID of the provided app.
+func (p *pod) getAppTreeStoreID(app types.ACName) (string, error) {
+	path, err := filepath.Rel("/", common.AppTreeStoreIDPath("", app))
+	if err != nil {
+		return "", err
+	}
+	treeStoreID, err := p.readFile(path)
+	if err != nil {
+		// When not using overlayfs, apps don't have a treeStoreID file. In
+		// other cases we've got a problem.
+		if !(os.IsNotExist(err) && !p.usesOverlay()) {
+			return "", errwrap.Wrap(fmt.Errorf("no treeStoreID found for app %s", app), err)
+		}
+	}
+	return string(treeStoreID), nil
+}
+
+// getAppsTreeStoreIDs returns the treeStoreIDs of the apps images used in
+// this pod.
 func (p *pod) getAppsTreeStoreIDs() ([]string, error) {
 	var treeStoreIDs []string
 	apps, err := p.getApps()
@@ -939,19 +990,13 @@ func (p *pod) getAppsTreeStoreIDs() ([]string, error) {
 		return nil, err
 	}
 	for _, a := range apps {
-		path, err := filepath.Rel("/", common.AppTreeStoreIDPath("", a.Name))
+		id, err := p.getAppTreeStoreID(a.Name)
 		if err != nil {
 			return nil, err
 		}
-		treeStoreID, err := p.readFile(path)
-		if err != nil {
-			// When not using overlayfs, apps don't have a treeStoreID file
-			if os.IsNotExist(err) {
-				continue
-			}
-			return nil, err
+		if id != "" {
+			treeStoreIDs = append(treeStoreIDs, id)
 		}
-		treeStoreIDs = append(treeStoreIDs, string(treeStoreID))
 	}
 	return treeStoreIDs, nil
 }
@@ -1031,7 +1076,8 @@ func (p *pod) getDirNames(path string) ([]string, error) {
 }
 
 func (p *pod) usesOverlay() bool {
-	_, err := p.openFile(common.OverlayPreparedFilename, syscall.O_RDONLY)
+	f, err := p.openFile(common.OverlayPreparedFilename, syscall.O_RDONLY)
+	defer f.Close()
 	return err == nil
 }
 
@@ -1087,4 +1133,18 @@ func (p *pod) sync() error {
 		return errwrap.Wrap(fmt.Errorf("failed to sync pod %v data", p.uuid.String()), err)
 	}
 	return nil
+}
+
+// overlayPrepared returns true if the given pod was prepared using overlay else false.
+// It returns an error if the operation failed.
+func (p *pod) overlayPrepared() (bool, error) {
+	_, err := os.Stat(filepath.Join(p.path(), common.OverlayPreparedFilename))
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }

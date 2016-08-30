@@ -16,14 +16,17 @@ package pubkey
 
 import (
 	"bufio"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/coreos/rkt/pkg/keystore"
 	rktlog "github.com/coreos/rkt/pkg/log"
@@ -36,11 +39,12 @@ import (
 )
 
 type Manager struct {
-	AuthPerHost        map[string]config.Headerer
-	InsecureAllowHTTP  bool
-	TrustKeysFromHTTPS bool
-	Ks                 *keystore.Keystore
-	Debug              bool
+	AuthPerHost          map[string]config.Headerer
+	InsecureAllowHTTP    bool
+	InsecureSkipTLSCheck bool
+	TrustKeysFromHTTPS   bool
+	Ks                   *keystore.Keystore
+	Debug                bool
 }
 
 type AcceptOption int
@@ -50,8 +54,13 @@ const (
 	AcceptAsk
 )
 
-var log *rktlog.Logger
-var stdout *rktlog.Logger = rktlog.New(os.Stdout, "", false)
+var (
+	log    *rktlog.Logger
+	stdout *rktlog.Logger = rktlog.New(os.Stdout, "", false)
+
+	secureClient   = newClient(false)
+	insecureClient = newClient(true)
+)
 
 func ensureLogger(debug bool) {
 	if log == nil {
@@ -154,10 +163,14 @@ func (m *Manager) metaDiscoverPubKeyLocations(prefix string) ([]string, error) {
 
 	hostHeaders := config.ResolveAuthPerHost(m.AuthPerHost)
 	insecure := discovery.InsecureNone
+
 	if m.InsecureAllowHTTP {
-		insecure = insecure | discovery.InsecureHttp
+		insecure = insecure | discovery.InsecureHTTP
 	}
-	ep, attempts, err := discovery.DiscoverPublicKeys(*app, hostHeaders, insecure)
+	if m.InsecureSkipTLSCheck {
+		insecure = insecure | discovery.InsecureTLS
+	}
+	keys, attempts, err := discovery.DiscoverPublicKeys(*app, hostHeaders, insecure, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +181,7 @@ func (m *Manager) metaDiscoverPubKeyLocations(prefix string) ([]string, error) {
 		}
 	}
 
-	return ep.Keys, nil
+	return keys, nil
 }
 
 // getPubKey retrieves a public key (if remote), and verifies it's a gpg key
@@ -182,14 +195,14 @@ func (m *Manager) getPubKey(u *url.URL) (*os.File, error) {
 		}
 		fallthrough
 	case "https":
-		return downloadKey(u)
+		return downloadKey(u, m.InsecureSkipTLSCheck)
 	}
 
 	return nil, fmt.Errorf("only local files and http or https URLs supported")
 }
 
 // downloadKey retrieves the file, storing it in a deleted tempfile
-func downloadKey(u *url.URL) (*os.File, error) {
+func downloadKey(u *url.URL, skipTLSCheck bool) (*os.File, error) {
 	tf, err := ioutil.TempFile("", "")
 	if err != nil {
 		return nil, errwrap.Wrap(errors.New("error creating tempfile"), err)
@@ -204,7 +217,14 @@ func downloadKey(u *url.URL) (*os.File, error) {
 
 	// TODO(krnowak): we should probably apply credential headers
 	// from config here
-	res, err := http.Get(u.String())
+	var client *http.Client
+	if skipTLSCheck {
+		client = insecureClient
+	} else {
+		client = secureClient
+	}
+
+	res, err := client.Get(u.String())
 	if err != nil {
 		return nil, errwrap.Wrap(errors.New("error getting key"), err)
 	}
@@ -227,6 +247,34 @@ func downloadKey(u *url.URL) (*os.File, error) {
 	return retTf, nil
 }
 
+func newClient(skipTLSCheck bool) *http.Client {
+	dialer := &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+	} // values taken from stdlib v1.5.3
+
+	tr := &http.Transport{
+		Proxy:               http.ProxyFromEnvironment,
+		Dial:                dialer.Dial,
+		TLSHandshakeTimeout: 10 * time.Second,
+	} // values taken from stdlib v1.5.3
+
+	if skipTLSCheck {
+		tr.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
+	}
+
+	return &http.Client{
+		Transport: tr,
+
+		// keys are rather small, long download times are not expected, hence setting a client timeout.
+		// firefox uses a 30s read timeout, being pessimistic bump to 2 minutes.
+		// Note that this includes connection, and tls handshake times, see https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/#clienttimeouts
+		Timeout: 2 * time.Minute,
+	}
+}
+
 // displayKey shows the key summary
 func displayKey(prefix, location string, key *os.File) error {
 	defer key.Seek(0, os.SEEK_SET)
@@ -242,10 +290,12 @@ func displayKey(prefix, location string, key *os.File) error {
 		for _, sk := range k.Subkeys {
 			stdout.Printf("    Subkey fingerprint: %s", fingerToString(sk.PublicKey.Fingerprint))
 		}
-		for n, _ := range k.Identities {
+
+		for n := range k.Identities {
 			stdout.Printf("\t%s", n)
 		}
 	}
+
 	return nil
 }
 

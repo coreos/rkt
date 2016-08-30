@@ -18,14 +18,14 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/coreos/rkt/store"
+	"github.com/coreos/rkt/store/imagestore"
 	"github.com/hashicorp/errwrap"
 
 	"github.com/appc/spec/discovery"
 	"github.com/appc/spec/schema/types"
 )
 
-func getStoreKeyFromApp(s *store.Store, img string) (string, error) {
+func getStoreKeyFromApp(s *imagestore.Store, img string) (string, error) {
 	app, err := discovery.NewAppFromString(img)
 	if err != nil {
 		return "", errwrap.Wrap(fmt.Errorf("cannot parse the image name %q", img), err)
@@ -37,7 +37,7 @@ func getStoreKeyFromApp(s *store.Store, img string) (string, error) {
 	key, err := s.GetACI(app.Name, labels)
 	if err != nil {
 		switch err.(type) {
-		case store.ACINotFoundError:
+		case imagestore.ACINotFoundError:
 			return "", err
 		default:
 			return "", errwrap.Wrap(fmt.Errorf("cannot find image %q", img), err)
@@ -46,7 +46,7 @@ func getStoreKeyFromApp(s *store.Store, img string) (string, error) {
 	return key, nil
 }
 
-func getStoreKeyFromAppOrHash(s *store.Store, input string) (string, error) {
+func getStoreKeyFromAppOrHash(s *imagestore.Store, input string) (string, error) {
 	var key string
 	if _, err := types.NewHash(input); err == nil {
 		key, err = s.ResolveKey(input)

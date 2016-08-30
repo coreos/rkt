@@ -130,10 +130,10 @@ define vsp
 $(subst $(MK_TOPLEVEL_ABS_SRCDIR)/,,$1)
 endef
 
-# This shortens the paths by removing the Godeps workspace part. So it
+# This shortens the paths by removing the vendor part. So it
 # truncates
-# github.com/coreos/rkt/Godeps/_workspace/src/github.com/appc/spec/schema
-# to <Godeps>/github.com/appc/spec/schema.
+# github.com/coreos/rkt/vendor/github.com/appc/spec/schema
+# to <VENDOR>/github.com/appc/spec/schema.
 define vsg
-$(subst $(REPO_PATH)/Godeps/_workspace/src,<Godeps>,$1)
+$(subst $(REPO_PATH)/vendor,<VENDOR>,$1)
 endef

@@ -100,15 +100,15 @@ func main() {
 
 func getItems() []items {
 	kinds := []*kindData{
-		&kindData{
+		{
 			option: "files",
 			proc:   &fileProcessor{},
 		},
-		&kindData{
+		{
 			option: "symlinks",
 			proc:   &symlinkProcessor{},
 		},
-		&kindData{
+		{
 			option: "dirs",
 			proc:   &dirProcessor{},
 		},

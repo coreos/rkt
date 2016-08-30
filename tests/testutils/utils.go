@@ -17,6 +17,8 @@ package testutils
 import (
 	"fmt"
 	"os"
+	"testing"
+	"time"
 )
 
 func GetValueFromEnvOrPanic(envVar string) string {
@@ -25,4 +27,12 @@ func GetValueFromEnvOrPanic(envVar string) string {
 		panic(fmt.Sprintf("Empty %v environment variable\n", envVar))
 	}
 	return path
+}
+
+func WaitOrTimeout(t *testing.T, timeout time.Duration, notify chan struct{}) {
+	select {
+	case <-time.After(timeout):
+		t.Fatalf("Timeout after %v", timeout)
+	case <-notify:
+	}
 }

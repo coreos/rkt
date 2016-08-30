@@ -48,19 +48,11 @@ c9fad0e6    etcd    coreos.com/etcd prepared
 | `--dns` |  `` | IP Address | Name server to write in `/etc/resolv.conf`. It can be specified several times |
 | `--dns-opt` |  `` | Option as described in the options section in resolv.conf(5) | DNS option to write in `/etc/resolv.conf`. It can be specified several times |
 | `--dns-search` |  `` | Domain name | DNS search domain to write in `/etc/resolv.conf`. It can be specified several times |
-| `--hostname` |  `` | A host name | Pod's hostname. If empty, it will be "rkt-$PODUUID" |
+| `--hostname` | "rkt-$PODUUID" | A host name | Set pod's host name. |
 | `--interactive` |  `false` | `true` or `false` | Run pod interactively. If true, only one image may be supplied |
 | `--mds-register` |  `false` | `true` or `false` | Register pod with metadata service. It needs network connectivity to the host (`--net=(default|default-restricted|host)` |
 | `--net` |  `default` | A comma-separated list of networks. Syntax: `--net[=n[:args], ...]` | Configure the pod's networking. Optionally, pass a list of user-configured networks to load and set arguments to pass to each network, respectively |
 
 ## Global options
 
-| Flag | Default | Options | Description |
-| --- | --- | --- | --- |
-| `--debug` |  `false` | `true` or `false` | Prints out more debug information to `stderr` |
-| `--dir` | `/var/lib/rkt` | A directory path | Path to the `rkt` data directory |
-| `--insecure-options` |  none | **none**: All security features are enabled<br/>**http**: Allow HTTP connections. Be warned that this will send any credentials as clear text.<br/>**image**: Disables verifying image signatures<br/>**tls**: Accept any certificate from the server and any host name in that certificate<br/>**ondisk**: Disables verifying the integrity of the on-disk, rendered image before running. This significantly speeds up start time.<br/>**all**: Disables all security checks | Comma-separated list of security features to disable |
-| `--local-config` |  `/etc/rkt` | A directory path | Path to the local configuration directory |
-| `--system-config` |  `/usr/lib/rkt` | A directory path | Path to the system configuration directory |
-| `--trust-keys-from-https` |  `false` | `true` or `false` | Automatically trust gpg keys fetched from https |
-| `--user-config` |  `` | A directory path | Path to the user configuration directory |
+See the table with [global options in general commands documentation](../commands.md#global-options).

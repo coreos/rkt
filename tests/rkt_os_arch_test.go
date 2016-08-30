@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// +build host coreos src kvm
+
 package main
 
 import (
@@ -25,7 +27,7 @@ import (
 )
 
 const (
-	manifestOSArchTemplate = `{"acKind":"ImageManifest","acVersion":"0.7.4","name":"IMG_NAME","labels":[{"name":"version","value":"1.2.1"}ARCH_OS],"app":{"exec":["/inspect", "--print-msg=HelloWorld"],"user":"0","group":"0","workingDirectory":"/"}}`
+	manifestOSArchTemplate = `{"acKind":"ImageManifest","acVersion":"0.8.7","name":"IMG_NAME","labels":[{"name":"version","value":"1.13.0"}ARCH_OS],"app":{"exec":["/inspect", "--print-msg=HelloWorld"],"user":"0","group":"0","workingDirectory":"/"}}`
 )
 
 type osArchTest struct {
@@ -152,7 +154,10 @@ func TestMissingOrInvalidOSArchFetchRun(t *testing.T) {
 	defer osArchTestRemoveImages(tests)
 
 	for i, tt := range tests {
-		imgHash := importImageAndFetchHash(t, ctx, "", tt.image)
+		imgHash, err := importImageAndFetchHash(t, ctx, "", tt.image)
+		if err != nil {
+			t.Fatalf("%v", err)
+		}
 		rktCmd := fmt.Sprintf("%s run --mds-register=false %s", ctx.Cmd(), imgHash)
 		t.Logf("Running test #%v: %v", i, rktCmd)
 		runRktAndCheckOutput(t, rktCmd, tt.expectedLine, tt.expectError)

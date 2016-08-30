@@ -5,7 +5,7 @@
 package keystoretest
 
 var KeyMap = map[string]*KeyDetails{
-	"example.com": &KeyDetails{
+	"example.com": {
 		Fingerprint: `4d5b338b00c2935b90e50c16d71af6b1683451d2`,
 		ArmoredPublicKey: `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
@@ -93,7 +93,7 @@ VH9rpClNzRXrKWVqCk2JjaaXM0FEVJpZQeT74hfe+NVFKJQf
 =mdQJ
 -----END PGP PRIVATE KEY BLOCK-----`,
 	},
-	"coreos.com": &KeyDetails{
+	"coreos.com": {
 		Fingerprint: `78b3fd7a0089dd84abad6641cbf56f3df44ede02`,
 		ArmoredPublicKey: `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
@@ -181,7 +181,7 @@ nzYD7TV4jzDcRB4Zvnlqto+X76++XWM+fpVVWOZsIxkOv4TPbijQA5tXwZeiWj8U
 =Aa3W
 -----END PGP PRIVATE KEY BLOCK-----`,
 	},
-	"example.com/app": &KeyDetails{
+	"example.com/app": {
 		Fingerprint: `847157ec2524660482f8940beeafad1ea7040030`,
 		ArmoredPublicKey: `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
@@ -269,7 +269,7 @@ tvSbMuIwWPpUksGYZX38KHDEEkNuFUJ3/HLqf1n3zFQasWhxPPe4Ew==
 =iOdD
 -----END PGP PRIVATE KEY BLOCK-----`,
 	},
-	"acme.com": &KeyDetails{
+	"acme.com": {
 		Fingerprint: `0580ac91290ca2bcdebe122cfc5f8bda55abd47d`,
 		ArmoredPublicKey: `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
@@ -357,7 +357,7 @@ e+qZ6AxHGXjGKDYhVyWMVq0jAdRwgX9sLZMX0kTN
 =lHJX
 -----END PGP PRIVATE KEY BLOCK-----`,
 	},
-	"acme.com/services": &KeyDetails{
+	"acme.com/services": {
 		Fingerprint: `418d97e1f80fcc35c996249b2f13c45b30c346ea`,
 		ArmoredPublicKey: `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
@@ -445,7 +445,7 @@ coxZfgZRV90cDur+F6xLufAAsmabtSlHoejinL02/KF8NHU9prLv
 =lUpJ
 -----END PGP PRIVATE KEY BLOCK-----`,
 	},
-	"acme.com/services/web/nginx": &KeyDetails{
+	"acme.com/services/web/nginx": {
 		Fingerprint: `b555d08c15547bd283b9605578ca11a4fa553a28`,
 		ArmoredPublicKey: `-----BEGIN PGP PUBLIC KEY BLOCK-----
 

@@ -30,6 +30,10 @@ import (
 // matchUUID attempts to match the uuid specified as uuid against all pods present.
 // An array of matches is returned, which may be empty when nothing matches.
 func matchUUID(uuid string) ([]string, error) {
+	if uuid == "" {
+		return nil, types.ErrNoEmptyUUID
+	}
+
 	ls, err := listPods(includePrepareDir | includePreparedDir | includeRunDir | includeExitedGarbageDir)
 	if err != nil {
 		return nil, err
@@ -77,7 +81,7 @@ func readUUIDFromFile(path string) (*types.UUID, error) {
 	}
 	uuid = bytes.TrimSpace(uuid)
 
-	return types.NewUUID(string(uuid))
+	return resolveUUID(string(uuid))
 }
 
 func writeUUIDToFile(uuid *types.UUID, path string) error {

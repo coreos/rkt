@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#define _GNU_SOURCE
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
@@ -21,6 +22,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/vfs.h>
+#include <dirent.h>
+#include <inttypes.h>
 
 #define err_out(_fmt, _args...)						\
 		fprintf(stderr, "Error: " _fmt "\n", ##_args);
@@ -47,8 +51,14 @@ static int exit_err;
 #define lenof(_str) \
 	(sizeof(_str) - 1)
 
-#define MACHINE_ID_LEN		lenof("0123456789abcdef0123456789ab")
-#define MACHINE_NAME_LEN	lenof("rkt-01234567-89ab-cdef-0123-456789ab")
+#define MACHINE_ID_LEN		lenof("0123456789abcdef0123456789abcdef")
+#define MACHINE_NAME_LEN	lenof("rkt-01234567-89ab-cdef-0123-456789abcdef")
+
+#define UNMAPPED ((uid_t) -1)
+
+#ifndef CGROUP2_SUPER_MAGIC
+#define CGROUP2_SUPER_MAGIC 0x63677270
+#endif
 
 typedef struct _dir_op_t {
 	const char	*name;
@@ -77,7 +87,7 @@ static int get_machine_name(char *out, int out_len) {
 	pgoto_if(close(fd) != 0,
 		_fail, "Error closing \"/etc/machine-id\"");
 	goto_if(snprintf(out, out_len,
-			"rkt-%.8s-%.4s-%.4s-%.4s-%.8s",
+			"rkt-%.8s-%.4s-%.4s-%.4s-%.12s",
 			buf, buf+8, buf+12, buf+16, buf+20) >= out_len,
 		_fail, "Error constructing machine name");
 
@@ -119,6 +129,148 @@ _fail:
 	return 0;
 }
 
+static void mount_at(const char *root, const mount_point *mnt)
+{
+	char to[4096];
+	exit_if(snprintf(to, sizeof(to), "%s/%s", root, mnt->target) >= sizeof(to),
+		"Path too long: \"%s\"", to);
+	pexit_if(mount(mnt->source, to, mnt->type,
+		       mnt->flags, mnt->options) == -1,
+		 "Mounting \"%s\" on \"%s\" failed", mnt->source, to);
+}
+
+static int mount_sys_required(const char *root)
+{
+	FILE *f;
+	char *line = NULL;
+	size_t len = 0;
+	ssize_t read;
+
+	pexit_if((f = fopen("/proc/self/mountinfo", "re")) == NULL,
+		 "Unable to open /proc/self/mountinfo");
+
+	while ((read = getline(&line, &len, f)) != -1) {
+		char *sys_dir;
+		char *sys_subdir;
+		char *mountpoint;
+
+		exit_if(asprintf(&sys_dir, "%s/sys", root) == -1,
+			"Calling asprintf failed");
+		exit_if(asprintf(&sys_subdir, "%s/sys/", root) == -1,
+			"Calling asprintf failed");
+		sscanf(line, "%*s %*s %*s %*s %ms", &mountpoint);
+
+		// The mount point is exactly $ROOTFS/sys
+		if (strcmp(sys_dir, mountpoint) == 0) {
+			free(mountpoint);
+			return 0;
+		}
+		// The mount point is a subdirectory of $ROOTFS/sys
+		if (strncmp(sys_subdir, mountpoint, strlen(sys_subdir)) == 0) {
+			free(mountpoint);
+			return 0;
+		}
+
+		free(mountpoint);
+	}
+
+	pexit_if(fclose(f) != 0, "Unable to close /proc/self/mountinfo");
+
+	return 1;
+}
+static void mount_sys(const char *root)
+{
+	struct statfs fs;
+	const mount_point sys_bind_rec = { "/sys", "sys", "bind", NULL, MS_BIND|MS_REC };
+	const mount_point sys_bind = { "/sys", "sys", "bind", NULL, MS_BIND };
+
+	pexit_if(statfs("/sys/fs/cgroup", &fs) != 0,
+	         "Cannot statfs /sys/fs/cgroup");
+	if (fs.f_type == (typeof(fs.f_type)) CGROUP2_SUPER_MAGIC) {
+		/* With the unified cgroup hierarchy, recursive bind mounts
+		 * are fine. */
+		mount_at(root, &sys_bind_rec);
+		return;
+	}
+
+	// For security reasons recent Linux kernels do not allow to bind-mount non-recursively
+	// if it would give read-write access to other subdirectories mounted as read-only.
+	// Hence we have to check if we are in a user namespaced environment and bind mount recursively instead.
+	if (access("/proc/1/uid_map", F_OK) == 0) {
+		FILE *f;
+		int k;
+		uid_t uid_base, uid_shift, uid_range;
+
+		pexit_if((f = fopen("/proc/1/uid_map", "re")) == NULL,
+			 "Unable to open /proc/1/uid_map");
+
+		if (sizeof(uid_t) == 4) {
+			k = fscanf(f, "%"PRIu32" %"PRIu32" %"PRIu32,
+				   &uid_base, &uid_shift, &uid_range);
+		} else {
+			k = fscanf(f, "%"PRIu16" %"PRIu16" %"PRIu16,
+				   &uid_base, &uid_shift, &uid_range);
+		}
+		pexit_if(fclose(f) != 0, "Unable to close /proc/1/uid_map");
+		pexit_if(k != 3, "Invalid uid_map format");
+
+		// do a recursive bind mount if we are in a user namespace having a parent namespace set,
+		// i.e. either one of uid base, shift, or the range is set, see user_namespaces(7).
+		if (uid_base != 0 || uid_shift != 0 || uid_range != UNMAPPED) {
+			mount_at(root, &sys_bind_rec);
+			return;
+		}
+	}
+
+	/* With cgroup-v1, rkt and systemd-nspawn add more cgroup
+	 * bind-mounts to control which files are read-only. To avoid
+	 * a quadratic progression, prepare-app does not bind mount
+	 * /sys recursively. See:
+	 * https://github.com/coreos/rkt/issues/2351 */
+	mount_at(root, &sys_bind);
+}
+
+static void copy_volume_symlinks()
+{
+	DIR *volumes_dir;
+	struct dirent *de;
+	const char *rkt_volume_links_path = "/rkt/volumes";
+	const char *dev_rkt_path = "/dev/.rkt";
+
+	pexit_if(mkdir(dev_rkt_path, 0700) == -1 && errno != EEXIST,
+		"Failed to create directory \"%s\"", dev_rkt_path);
+
+	pexit_if((volumes_dir = opendir(rkt_volume_links_path)) == NULL && errno != ENOENT,
+                 "Failed to open directory \"%s\"", rkt_volume_links_path);
+	while (volumes_dir) {
+		errno = 0;
+		if ((de = readdir(volumes_dir)) != NULL) {
+			char *link_path;
+			char *new_link;
+			char target[4096] = {0,};
+
+			if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, ".."))
+			  continue;
+
+			exit_if(asprintf(&link_path, "%s/%s", rkt_volume_links_path, de->d_name) == -1,
+				"Calling asprintf failed");
+			exit_if(asprintf(&new_link, "%s/%s", dev_rkt_path, de->d_name) == -1,
+				"Calling asprintf failed");
+
+			pexit_if(readlink(link_path, target, sizeof(target)) == -1,
+				 "Error reading \"%s\" link", link_path);
+			pexit_if(symlink(target, new_link) == -1 && errno != EEXIST,
+				"Failed to create volume symlink \"%s\"", new_link);
+		} else {
+			pexit_if(errno != 0,
+				"Error reading \"%s\" directory", rkt_volume_links_path);
+			pexit_if(closedir(volumes_dir),
+				 "Error closing \"%s\" directory", rkt_volume_links_path);
+			return;
+		}
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	static const char *unlink_paths[] = {
@@ -152,13 +304,14 @@ int main(int argc, char *argv[])
 	};
 	static const mount_point dirs_mount_table[] = {
 		{ "/proc", "/proc", "bind", NULL, MS_BIND|MS_REC },
-		{ "/sys", "/sys", "bind", NULL, MS_BIND|MS_REC },
 		{ "/dev/shm", "/dev/shm", "bind", NULL, MS_BIND },
 		{ "/dev/pts", "/dev/pts", "bind", NULL, MS_BIND },
 		{ "/run/systemd/journal", "/run/systemd/journal", "bind", NULL, MS_BIND },
+		/* /sys is handled separately */
 	};
 	static const mount_point files_mount_table[] = {
 		{ "/etc/rkt-resolv.conf", "/etc/resolv.conf", "bind", NULL, MS_BIND },
+		{ "/proc/sys/kernel/hostname", "/etc/hostname", "bind", NULL, MS_BIND },
 	};
 	const char *root;
 	int rootfd;
@@ -251,14 +404,12 @@ int main(int argc, char *argv[])
 
 	/* Bind mount directories */
 	for (i = 0; i < nelems(dirs_mount_table); i++) {
-		const mount_point *mnt = &dirs_mount_table[i];
-
-		exit_if(snprintf(to, sizeof(to), "%s/%s", root, mnt->target) >= sizeof(to),
-			"Path too long: \"%s\"", to);
-		pexit_if(mount(mnt->source, to, mnt->type,
-			       mnt->flags, mnt->options) == -1,
-				"Mounting \"%s\" on \"%s\" failed", mnt->source, to);
+		mount_at(root, &dirs_mount_table[i]);
 	}
+
+	/* Bind mount /sys: handled differently, depending on cgroups */
+	if (mount_sys_required(root))
+		mount_sys(root);
 
 	/* Bind mount files, if the source exists */
 	for (i = 0; i < nelems(files_mount_table); i++) {
@@ -285,6 +436,11 @@ int main(int argc, char *argv[])
 		"Path too long: \"%s\"", to);
 	pexit_if(symlink("/dev/pts/ptmx", to) == -1 && errno != EEXIST,
 		"Failed to create /dev/ptmx symlink");
+
+	/* Copy symlinks to device node volumes to "/dev/.rkt" so they can be
+	 * used in the DeviceAllow= option of the app's unit file (systemd
+	 * needs the path to start with "/dev". */
+	copy_volume_symlinks();
 
 	/* /dev/log -> /run/systemd/journal/dev-log */
 	exit_if(snprintf(to, sizeof(to), "%s/dev/log", root) >= sizeof(to),

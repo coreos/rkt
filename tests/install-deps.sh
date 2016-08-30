@@ -17,15 +17,15 @@ if [ "${CI-}" == true ] ; then
 	if [ "${SEMAPHORE-}" == true ] ; then
 		# Most dependencies are already installed on Semaphore.
 		# Here we can install any missing dependencies. Whenever
-		# Semaphore installs more dependencies on their platform,
-		# they should be removed from here to save time.
+		# Semaphore installs more dependencies on their
+		# platform, they should be removed from here to save time.
 
 		# If there is some dependency to install then
 		# uncomment the following line and add "sudo apt-get
 		# install -y <dep>" after it.
 
 		sudo apt-get update -qq || true
-		sudo apt-get install -y libacl1-dev
+		sudo apt-get install -y libacl1-dev bc libsystemd-journal-dev
 
 		# libmount: https://github.com/systemd/systemd/pull/986#issuecomment-138451264
 		sudo add-apt-repository --yes ppa:pitti/systemd-semaphore

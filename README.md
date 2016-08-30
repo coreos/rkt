@@ -3,6 +3,7 @@
 [![godoc](https://godoc.org/github.com/coreos/rkt?status.svg)](http://godoc.org/github.com/coreos/rkt)
 [![Build Status (Travis)](https://travis-ci.org/coreos/rkt.svg?branch=master)](https://travis-ci.org/coreos/rkt)
 [![Build Status (SemaphoreCI)](https://semaphoreci.com/api/v1/projects/28468e19-4fd0-483e-9c29-6c8368661333/395211/badge.svg)](https://semaphoreci.com/coreos/rkt)
+[![Build Status (Jenkins)](https://jenkins-rkt-public.prod.coreos.systems/job/rkt-master-periodic/badge/icon)](https://jenkins-rkt-public.prod.coreos.systems/view/rkt/job/rkt-master-periodic/)
 
 ![rkt Logo](logos/rkt-horizontal-color.png)
 
@@ -38,6 +39,7 @@ Check out the [roadmap](ROADMAP.md) for more details on the future of rkt.
 ## Trying out rkt
 
 To get started quickly using rkt for the first time, start with the ["trying out rkt" document](Documentation/trying-out-rkt.md).
+Also check [rkt support on your Linux distribution](Documentation/distributions.md).
 For an end-to-end example of building an application from scratch and running it with rkt, check out the [getting started guide](Documentation/getting-started-guide.md).
 
 ## Getting help with rkt
@@ -80,6 +82,8 @@ For more information, see the [CoreOS security disclosure page](https://coreos.c
 
 Due to a bug in the Linux kernel, using rkt's overlay support on top of an overlay filesystem requires Linux 4.3+ (see the [stacked overlay fix](https://github.com/torvalds/linux/commit/1c8a47d) and [#1537](https://github.com/coreos/rkt/issues/1537)).
 
-Due to a bug in the Linux kernel, rkt will not work when /var/lib/rkt is on btrfs ([#2175](https://github.com/coreos/rkt/issues/2175)).
+Due to a bug in the Linux kernel, using rkt when /var/lib/rkt is on btrfs requires Linux 4.5.2+ ([#2175](https://github.com/coreos/rkt/issues/2175)).
+
+Due to a bug in the Linux kernel, using rkt's overlay support in conjunction with SELinux requires a set of patches that are only currently available on some Linux distributions (for example, [CoreOS Linux](https://github.com/coreos/coreos-overlay/tree/master/sys-kernel/coreos-sources/files)). Work is ongoing to merge this work into the mainline Linux kernel ([#1727](https://github.com/coreos/rkt/issues/1727#issuecomment-173203129)).
 
 Linux 3.18+ is required to successfully garbage collect rkt pods when system services such as udevd are in a slave mount namespace (see [lazy umounts on unlinked files and directories](https://github.com/torvalds/linux/commit/8ed936b) and [#1922](https://github.com/coreos/rkt/issues/1922)).

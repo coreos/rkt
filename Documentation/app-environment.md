@@ -10,7 +10,7 @@ Support for /etc/hosts is optional in the App Container spec. rkt creates it.
 
 #### /etc/resolv.conf
 
-/etc/resolv.conf is automatically prepared by rkt as described in the [DNS support](Documentation/networking/dns.md).
+/etc/resolv.conf is automatically prepared by rkt as described in the [DNS support](networking/dns.md).
 
 #### /run/systemd/journal
 

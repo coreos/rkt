@@ -34,6 +34,13 @@ CBU_ROOTFS := $(CBU_TMPDIR)/rootfs
 CBU_COMPLETE_MANIFEST := $(CBU_TMPDIR)/manifest.txt
 # All manifest in the CBU_MANIFESTS_DIR
 CBU_MANIFESTS := $(wildcard $(CBU_MANIFESTS_DIR)/*)
+# A list of all files in the squashfs file without the likely
+# "squashfs-root" prefix
+CBU_SQUASHFS_FILES := $(CBU_TMPDIR)/squashfsfiles
+# A list of files that appear in both CBU_COMPLETE_MANIFEST and
+# CBU_SQUASHFS_FILES, should be the same as the list in
+# CBU_COMPLETE_MANIFEST, otherwise we get an error.
+CBU_COMMON_FILES := $(CBU_TMPDIR)/commonfiles
 
 # Stamp telling when ACI rootfs was prepared.
 $(call setup-stamp-file,CBU_ACI_ROOTFS_STAMP,$(CBU_DIFF)-acirootfs)
@@ -50,11 +57,6 @@ $(call setup-dep-file,CBU_MANIFEST_DEPMK,$(CBU_DIFF)-manifest)
 # Stamp and dep file for generating dependencies on tmp rootfs.
 $(call setup-stamp-file,CBU_TMPROOTFS_DEPMK_STAMP,$(CBU_DIFF)-tmprootfs-deps)
 $(call setup-dep-file,CBU_TMPROOTFS_DEPMK,$(CBU_DIFF)-tmprootfs)
-
-# Stamp and clean file for cleaning partially ACI rootfs and whole tmp
-# rootfs.
-$(call setup-stamp-file,CBU_ROOTFS_CLEAN_STAMP,$(CBU_DIFF)-rootfs-clean)
-$(call setup-clean-file,CBU_ROOTFSDIR_CLEANMK,$(CBU_DIFF)-rootfs)
 
 # Filelist for stuff taken from squashfs - it is more detailed when
 # compared to complete manifest.
@@ -76,11 +78,10 @@ $(call setup-dep-file,CBU_ACIROOTFS_SYMLINKS_KV_DEPMK,$(CBU_DIFF)-acirootfs-syml
 $(call setup-stamp-file,CBU_ACIROOTFS_SYSTEMD_VERSION_KV_DEPMK_STAMP,$(CBU_DIFF)-systemd-version)
 $(call setup-dep-file,CBU_ACIROOTFS_SYSTEMD_VERSION_KV_DEPMK,$(CBU_DIFF)-systemd-version-kv)
 
-# All stamps in this file that generate deps or clean files
-CBU_DEPS_AND_CLEAN_STAMPS := \
+# All stamps in this file that generate deps files
+CBU_DEPS_STAMPS := \
 	$(CBU_TMPROOTFS_DEPMK_STAMP) \
 	$(CBU_MANIFEST_DEPS_STAMP) \
-	$(CBU_ROOTFS_CLEAN_STAMP) \
 	$(CBU_ACIROOTFS_SYMLINKS_KV_DEPMK_STAMP) \
 	$(CBU_ACIROOTFS_SYSTEMD_VERSION_KV_DEPMK_STAMP)
 
@@ -94,7 +95,9 @@ CBU_SYSTEMD_VERSION_FILE := $(CBU_ACIROOTFSDIR)/systemd-version
 
 CLEAN_FILES += \
 	$(CBU_COMPLETE_MANIFEST) \
-	$(CBU_SYSTEMD_VERSION_FILE)
+	$(CBU_SYSTEMD_VERSION_FILE) \
+	$(CBU_SQUASHFS_FILES) \
+	$(CBU_COMMON_FILES)
 INSTALL_DIRS += \
 	$(CBU_ROOTFS):0755
 INSTALL_SYMLINKS += \
@@ -106,7 +109,7 @@ INSTALL_SYMLINKS += \
 
 # The main stamp - makes sure that ACI rootfs directory is prepared
 # with initial contents and all deps/clean files are generated.
-$(call generate-stamp-rule,$(CBU_STAMP),$(CBU_ACI_ROOTFS_STAMP) $(CBU_DEPS_AND_CLEAN_STAMPS))
+$(call generate-stamp-rule,$(CBU_STAMP),$(CBU_ACI_ROOTFS_STAMP) $(CBU_DEPS_STAMPS))
 
 # This stamp makes sure that ACI rootfs is fully populated - stuff is
 # copied, symlinks and systemd-version file are created.
@@ -147,13 +150,25 @@ $(call generate-kv-deps,$(CBU_ACIROOTFS_SYMLINKS_KV_DEPMK_STAMP),$(CBU_REMOVE_AC
 # temporary rootfs change.
 $(call generate-glob-deps,$(CBU_TMPROOTFS_DEPMK_STAMP),$(CBU_REMOVE_ACIROOTFSDIR_STAMP),$(CBU_TMPROOTFS_DEPMK),,$(CBU_DETAILED_FILELIST),$(CBU_ROOTFS))
 
-# This cleanmk can be generated only after the detailed filelist was
-# generated.
-$(call generate-clean-mk,$(CBU_ROOTFS_CLEAN_STAMP),$(CBU_ROOTFSDIR_CLEANMK),$(CBU_DETAILED_FILELIST),$(CBU_ACIROOTFSDIR) $(CBU_ROOTFS))
+# Generate clean file for files put in the ACI rootfs and in the
+# temporary rootfs.
+$(call generate-clean-mk-from-filelist, \
+	$(CBU_STAMP), \
+	$(CBU_DETAILED_FILELIST), \
+	$(CBU_ACIROOTFSDIR) $(CBU_ROOTFS), \
+	$(CBU_DIFF)-rootfs-cleanup)
 
 # This unpacks squashfs image to a temporary rootfs.
 $(call generate-stamp-rule,$(CBU_MKBASE_STAMP),$(CCN_SQUASHFS) $(CBU_COMPLETE_MANIFEST),$(CBU_ROOTFS), \
 	$(call vb,vt,UNSQUASHFS,$(call vsp,$(CCN_SQUASHFS)) => $(call vsp,$(CBU_ROOTFS)/usr)) \
+	CBU_SQROOT=$$$$(unsquashfs -ls "$(CCN_SQUASHFS)" --no-progress | tail --lines=1); \
+	unsquashfs -ls "$(CCN_SQUASHFS)" | grep "^$$$${CBU_SQROOT}" | sed -e "s/$$$${CBU_SQROOT}\///g" | sort >"$(CBU_SQUASHFS_FILES)"; \
+	comm -1 -2 "$(CBU_SQUASHFS_FILES)" "$(CBU_COMPLETE_MANIFEST)" >"$(CBU_COMMON_FILES)"; \
+	if ! cmp --silent "$(CBU_COMMON_FILES)" "$(CBU_COMPLETE_MANIFEST)"; \
+	then \
+		echo -e "Files listed in $(CBU_COMPLETE_MANIFEST) are missing from $(CCN_SQUASHFS):\n$$$$(comm -1 -3 "$(CBU_SQUASHFS_FILES)" "$(CBU_COMPLETE_MANIFEST)")"; \
+		exit 1; \
+	fi; \
 	unsquashfs -dest "$(CBU_ROOTFS)/usr" -ef "$(CBU_COMPLETE_MANIFEST)" "$(CCN_SQUASHFS)"$(call vl3, >/dev/null))
 
 # If either squashfs file or the concatenated manifest file changes we

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// +build host coreos src kvm
+
 package main
 
 import (
@@ -39,7 +41,10 @@ func TestImageExtract(t *testing.T) {
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
 
-	testImageShortHash := importImageAndFetchHash(t, ctx, "", testImage)
+	testImageShortHash, err := importImageAndFetchHash(t, ctx, "", testImage)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
 
 	tests := []struct {
 		image        string

@@ -1,30 +1,46 @@
 # rkt release guide
 
-How to perform a release of rkt.
-This guide is probably unnecessarily verbose, so improvements welcomed.
-Only parts of the procedure are automated; this is somewhat intentional (manual steps for sanity checking) but it can probably be further scripted, please help.
+## Release cycle
 
+This section describes the typical release cycle of rkt:
+
+1. A GitHub [milestone](https://github.com/coreos/rkt/milestones) sets the target date for a future rkt release. Releases occur approximately every two to three weeks.
+2. Issues grouped into the next release milestone are worked on in order of priority.
+3. Changes are submitted for review in the form of a GitHub Pull Request (PR). Each PR undergoes review and must pass continuous integration (CI) tests before being accepted and merged into the main line of rkt source code.
+4. The day before each release is a short code freeze during which no new code or dependencies may be merged. Instead, this period focuses on polishing the release, with tasks concerning:
+  * Documentation
+  * Usability tests
+  * Issues triaging
+  * Roadmap planning and scheduling the next release milestone
+  * Organizational and backlog review
+  * Build, distribution, and install testing by release manager
+
+## Release process
+
+This section shows how to perform a release of rkt.
+Only parts of the procedure are automated; this is somewhat intentional (manual steps for sanity checking) but it can probably be further scripted, please help.
 The following example assumes we're going from version 1.1.0 (`v1.1.0`) to 1.2.0 (`v1.2.0`).
 
 Let's get started:
 
 - Start at the relevant milestone on GitHub (e.g. https://github.com/coreos/rkt/milestones/v1.2.0): ensure all referenced issues are closed (or moved elsewhere, if they're not done). Close the milestone.
 - Update the [roadmap](https://github.com/coreos/rkt/blob/master/ROADMAP.md) to remove the release you're performing, if necessary
+- Ensure that `stage1/aci/aci-manifest.in` is the same version of appc/spec vendored with rkt. Otherwise, update it.
 - Branch from the latest master, make sure your git status is clean
 - Ensure the build is clean!
   - `git clean -ffdx && ./autogen.sh && ./configure --enable-tpm=no --enable-functional-tests && make && make check` should work
   - Integration tests on CI should be green
 - Update the [release notes](https://github.com/coreos/rkt/blob/master/CHANGELOG.md).
   Try to capture most of the salient changes since the last release, but don't go into unnecessary detail (better to link/reference the documentation wherever possible).
+  `scripts/changelog.sh` will help generating an initial list of changes. Correct/fix entries if necessary, and group them by category.
 
 The rkt version is [hardcoded in the repository](https://github.com/coreos/rkt/blob/master/configure.ac#L2), so the first thing to do is bump it:
 
 - Run `scripts/bump-release v1.2.0`.
-  This should generate two commits: a bump to the actual release (e.g. v1.2.0), and then a bump to the release+git (e.g. v1.2.0+git).
+  This should generate two commits: a bump to the actual release (e.g. v1.2.0, including CHANGELOG updates), and then a bump to the release+git (e.g. v1.2.0+git).
   The actual release version should only exist in a single commit!
 - Sanity check what the script did with `git diff HEAD^^` or similar.
   As well as changing the actual version, it also attempts to fix a bunch of references in the documentation etc.
-- Fix the commit `HEAD^` so that the version in `stage1/aci/aci-manifest.in` is the version of appc/spec vendored with rkt.
 - If the script didn't work, yell at the author and/or fix it.
   It can almost certainly be improved.
 - File a PR and get a review from another [MAINTAINER](https://github.com/coreos/rkt/blob/master/MAINTAINERS).
@@ -35,14 +51,11 @@ After merging and going back to master branch, we check out the release version 
 
 - `git checkout HEAD^` should work; sanity check configure.ac (2nd line) after doing this
 - Build rkt inside rkt (so make sure you have rkt in your $PATH), we'll use this in a minute:
-  - `git clean -ffdx && sudo ./scripts/acbuild-rkt-builder.sh`
-  - `rkt --insecure-options=image fetch ./rkt-builder.aci`
   - `export BUILDDIR=$PWD/release-build && mkdir -p $BUILDDIR && sudo BUILDDIR=$BUILDDIR ./scripts/build-rir.sh`
-  - Sanity check `release-build/bin/rkt version`
-  - Sanity check `ldd release-build/bin/rkt`: it can contain linux-vdso.so, libpthread.so, libc.so, ld-linux-x86-64.so but nothing else.
-  - Sanity check `ldd release-build/tools/init`: in addition to the previous list, it can contain libdl.so, but nothing else.
-- Add a signed tag: `git tag -s v1.2.0`.
-  (We previously used tags for release notes, but now we store them in CHANGELOG.md, so a short tag with the release name is fine).
+  - Sanity check `release-build/target/bin/rkt version`
+  - Sanity check `ldd release-build/target/bin/rkt`: it can contain linux-vdso.so, libpthread.so, libc.so, libdl.so and ld-linux-x86-64.so but nothing else.
+  - Sanity check `ldd release-build/target/tools/init`: same as above.
+- Grab the release key (see details below) and add a signed tag: `GIT_COMMITTER_NAME="CoreOS Application Signing Key" GIT_COMMITTER_EMAIL="security@coreos.com" git tag -u $RKTSUBKEYID'!' -s v1.2.0 -m "rkt v1.2.0"`
 - Push the tag to GitHub: `git push --tags`
 
 Now we switch to the GitHub web UI to conduct the release:
@@ -55,35 +68,36 @@ Now we switch to the GitHub web UI to conduct the release:
   This is a simple tarball:
 
 ```
-	export NAME="rkt-v1.2.0"
-	mkdir $NAME
-	cp release-build/bin/rkt release-build/bin/stage1-{coreos,kvm,fly}.aci $NAME/
-	cp -r dist/* $NAME/
-	sudo chown -R root:root $NAME/
-	tar czvf $NAME.tar.gz --numeric-owner $NAME/
-```
-
-- Attach the release signature; your personal GPG is okay for now:
-
-```
-	gpg --detach-sign $NAME.tar.gz
+export RKTVER="1.2.0"
+export NAME="rkt-v$RKTVER"
+mkdir $NAME
+cp release-build/target/bin/rkt release-build/target/bin/stage1-{coreos,kvm,fly}.aci $NAME/
+cp -r dist/* $NAME/
+sudo chown -R root:root $NAME/
+tar czvf $NAME.tar.gz --numeric-owner $NAME/
 ```
 
 - Attach each stage1 file individually so they can be fetched by the ACI discovery mechanism. The files must be named as follows:
 
 ```
-	cp release-build/bin/stage1-coreos.aci stage1-coreos-1.2.0-linux-amd64.aci
-	cp release-build/bin/stage1-kvm.aci stage1-kvm-1.2.0-linux-amd64.aci
-	cp release-build/bin/stage1-fly.aci stage1-fly-1.2.0-linux-amd64.aci
+cp release-build/target/bin/stage1-coreos.aci stage1-coreos-$RKTVER-linux-amd64.aci
+cp release-build/target/bin/stage1-kvm.aci stage1-kvm-$RKTVER-linux-amd64.aci
+cp release-build/target/bin/stage1-fly.aci stage1-fly-$RKTVER-linux-amd64.aci
 ```
 
-- Attach the signature of each stage1 file:
+- Sign all release artifacts.
+
+rkt project key must be used to sign the generated binaries and images.`$RKTSUBKEYID` is the key ID of rkt project Yubikey. Connect the key and run `gpg2 --card-status` to get the ID.
+The public key for GPG signing can be found at [CoreOS Application Signing Key](https://coreos.com/security/app-signing-key) and is assumed as trusted.
+
+The following commands are used for public release signing:
 
 ```
-	gpg --armor --detach-sign stage1-coreos-1.2.0-linux-amd64.aci
-	gpg --armor --detach-sign stage1-kvm-1.2.0-linux-amd64.aci
-	gpg --armor --detach-sign stage1-fly-1.2.0-linux-amd64.aci
+for i in $NAME.tar.gz stage1-*.aci; do gpg2 -u $RKTSUBKEYID'!' --armor --output ${i}.asc --detach-sign ${i}; done
+for i in $NAME.tar.gz stage1-*.aci; do gpg2 --verify ${i}.asc ${i}; done
 ```
+
+- Once signed and uploaded, double-check that all artifacts and signatures are on github. There should be 8 files in attachments (1x tar.gz, 3x ACI, 4x armored signatures).
 
 - Publish the release!
 
@@ -95,7 +109,5 @@ Use your discretion and see [previous release emails](https://groups.google.com/
 Make sure to include a list of authors that contributed since the previous release - something like the following might be handy:
 
 ```
-	git log v1.1.0..v1.2.0 --pretty=format:"%an" | sort | uniq | tr '\n' ',' | sed -e 's#,#, #g' -e 's#, $#\n#'
+git log v1.1.0..v1.2.0 --pretty=format:"%an" | sort | uniq | tr '\n' ',' | sed -e 's#,#, #g' -e 's#, $#\n#'
 ```
-
-- Prepare CHANGELOG.md for the next release: add a "vUNRELEASED" section. The CHANGELOG should be updated alongside the code as pull requests are merged into master, so that the releaser does not need to start from scratch.

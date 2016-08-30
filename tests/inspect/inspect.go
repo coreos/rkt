@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -29,6 +30,9 @@ import (
 	"time"
 	"unsafe"
 
+	"golang.org/x/sys/unix"
+
+	"github.com/appc/spec/pkg/device"
 	"github.com/coreos/rkt/common/cgroup"
 	"github.com/coreos/rkt/tests/testutils"
 	"github.com/syndtr/gocapability/capability"
@@ -39,13 +43,15 @@ var (
 	globalFlags   = struct {
 		ReadStdin          bool
 		CheckTty           bool
+		CheckPath          bool
 		PrintExec          bool
 		PrintMsg           string
+		SuffixMsg          string
 		PrintEnv           string
 		PrintCapsPid       int
 		PrintUser          bool
 		PrintGroups        bool
-		CheckCwd           string
+		PrintCwd           bool
 		ExitCode           int
 		ReadFile           bool
 		WriteFile          bool
@@ -70,15 +76,21 @@ var (
 		ServeHTTPTimeout   int
 		PrintIfaceCount    bool
 		PrintAppAnnotation string
+		SilentSigterm      bool
+		CheckMountNS       bool
+		PrintNoNewPrivs    bool
+		CheckMknod         string
 	}{}
 )
 
 func init() {
 	globalFlagset.BoolVar(&globalFlags.ReadStdin, "read-stdin", false, "Read a line from stdin")
 	globalFlagset.BoolVar(&globalFlags.CheckTty, "check-tty", false, "Check if stdin is a terminal")
+	globalFlagset.BoolVar(&globalFlags.CheckPath, "check-path", false, "Check if environment variable PATH does not contain \\n")
 	globalFlagset.BoolVar(&globalFlags.PrintExec, "print-exec", false, "Print the command we were execed as (i.e. argv[0])")
 	globalFlagset.StringVar(&globalFlags.PrintMsg, "print-msg", "", "Print the message given as parameter")
-	globalFlagset.StringVar(&globalFlags.CheckCwd, "check-cwd", "", "Check if the current working directory is the one specified")
+	globalFlagset.StringVar(&globalFlags.SuffixMsg, "suffix-msg", "", "Print this suffix after some commands")
+	globalFlagset.BoolVar(&globalFlags.PrintCwd, "print-cwd", false, "Print the current working directory")
 	globalFlagset.StringVar(&globalFlags.PrintEnv, "print-env", "", "Print the specified environment variable")
 	globalFlagset.IntVar(&globalFlags.PrintCapsPid, "print-caps-pid", -1, "Print capabilities of the specified pid (or current process if pid=0)")
 	globalFlagset.BoolVar(&globalFlags.PrintUser, "print-user", false, "Print uid and gid")
@@ -107,6 +119,10 @@ func init() {
 	globalFlagset.IntVar(&globalFlags.ServeHTTPTimeout, "serve-http-timeout", 30, "HTTP Timeout to wait for a client connection")
 	globalFlagset.BoolVar(&globalFlags.PrintIfaceCount, "print-iface-count", false, "Print the interface count")
 	globalFlagset.StringVar(&globalFlags.PrintAppAnnotation, "print-app-annotation", "", "Take an annotation name of the app, and prints its value")
+	globalFlagset.BoolVar(&globalFlags.SilentSigterm, "silent-sigterm", false, "Exit with a success exit status if we receive SIGTERM")
+	globalFlagset.BoolVar(&globalFlags.CheckMountNS, "check-mountns", false, "Check if app's mount ns is different than stage1's. Requires CAP_SYS_PTRACE")
+	globalFlagset.BoolVar(&globalFlags.PrintNoNewPrivs, "print-no-new-privs", false, "print the prctl PR_GET_NO_NEW_PRIVS value")
+	globalFlagset.StringVar(&globalFlags.CheckMknod, "check-mknod", "", "check whether mknod on restricted devices is allowed")
 }
 
 func in(list []int, el int) bool {
@@ -124,6 +140,66 @@ func main() {
 	if len(args) > 0 {
 		fmt.Fprintln(os.Stderr, "Wrong parameters")
 		os.Exit(1)
+	}
+
+	if globalFlags.PrintNoNewPrivs {
+		r1, _, err := syscall.Syscall(
+			syscall.SYS_PRCTL,
+			uintptr(unix.PR_GET_NO_NEW_PRIVS),
+			uintptr(0), uintptr(0),
+		)
+
+		fmt.Printf("no_new_privs: %v err: %v\n", r1, err)
+	}
+
+	if globalFlags.CheckMknod != "" {
+		/* format: c:5:2:name */
+		dev := strings.SplitN(globalFlags.CheckMknod, ":", 4)
+		if len(dev) < 4 {
+			fmt.Fprintln(os.Stderr, "Not enough parameters for mknod")
+			os.Exit(1)
+		}
+		typ := dev[0]
+		major, err := strconv.Atoi(dev[1])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Wrong major")
+			os.Exit(1)
+		}
+		minor, err := strconv.Atoi(dev[2])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Wrong minor")
+			os.Exit(1)
+		}
+		nodeName := dev[3]
+
+		majorMinor := device.Makedev(uint(major), uint(minor))
+		mode := uint32(0777)
+		switch typ {
+		case "c":
+			mode |= syscall.S_IFCHR
+		case "b":
+			mode |= syscall.S_IFBLK
+		default:
+			fmt.Fprintln(os.Stderr, "Wrong device node type")
+			os.Exit(1)
+		}
+
+		if err := syscall.Mknod(nodeName, mode, int(majorMinor)); err != nil {
+			fmt.Fprintf(os.Stderr, "mknod %s: fail: %v\n", nodeName, err)
+			os.Exit(1)
+		} else {
+			fmt.Printf("mknod %s: succeed\n", nodeName)
+			os.Exit(0)
+		}
+	}
+
+	if globalFlags.SilentSigterm {
+		terminateCh := make(chan os.Signal, 1)
+		signal.Notify(terminateCh, syscall.SIGTERM)
+		go func() {
+			<-terminateCh
+			os.Exit(0)
+		}()
 	}
 
 	if globalFlags.PreSleep >= 0 {
@@ -146,6 +222,32 @@ func main() {
 		} else {
 			fmt.Printf("stdin is not a terminal\n")
 		}
+	}
+
+	if globalFlags.CheckPath {
+		envBytes, err := ioutil.ReadFile("/proc/self/environ")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading environment from \"/proc/self/environ\": %v\n", err)
+			os.Exit(1)
+		}
+		for _, v := range bytes.Split(envBytes, []byte{0}) {
+			if len(v) == 0 {
+				continue
+			}
+			if strings.HasPrefix(string(v), "PATH=") {
+				if strings.Contains(string(v), "\n") {
+					fmt.Fprintf(os.Stderr, "Malformed PATH: found new line")
+					os.Exit(1)
+				} else {
+					fmt.Printf("PATH is good\n")
+					os.Exit(0)
+				}
+			} else {
+				continue
+			}
+		}
+		fmt.Fprintf(os.Stderr, "PATH not found")
+		os.Exit(1)
 	}
 
 	if globalFlags.PrintExec {
@@ -174,10 +276,10 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Cannot get caps: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Printf("Capability set: effective: %s\n", caps.StringCap(capability.EFFECTIVE))
-		fmt.Printf("Capability set: permitted: %s\n", caps.StringCap(capability.PERMITTED))
-		fmt.Printf("Capability set: inheritable: %s\n", caps.StringCap(capability.INHERITABLE))
-		fmt.Printf("Capability set: bounding: %s\n", caps.StringCap(capability.BOUNDING))
+		fmt.Printf("Capability set: effective: %s (%s)\n", caps.StringCap(capability.EFFECTIVE), globalFlags.SuffixMsg)
+		fmt.Printf("Capability set: permitted: %s (%s)\n", caps.StringCap(capability.PERMITTED), globalFlags.SuffixMsg)
+		fmt.Printf("Capability set: inheritable: %s (%s)\n", caps.StringCap(capability.INHERITABLE), globalFlags.SuffixMsg)
+		fmt.Printf("Capability set: bounding: %s (%s)\n", caps.StringCap(capability.BOUNDING), globalFlags.SuffixMsg)
 
 		if capStr := os.Getenv("CAPABILITY"); capStr != "" {
 			capInt, err := strconv.Atoi(capStr)
@@ -187,9 +289,9 @@ func main() {
 			}
 			c := capability.Cap(capInt)
 			if caps.Get(capability.BOUNDING, c) {
-				fmt.Printf("%v=enabled\n", c.String())
+				fmt.Printf("%v=enabled (%s)\n", c.String(), globalFlags.SuffixMsg)
 			} else {
-				fmt.Printf("%v=disabled\n", c.String())
+				fmt.Printf("%v=disabled (%s)\n", c.String(), globalFlags.SuffixMsg)
 			}
 		}
 	}
@@ -269,16 +371,13 @@ func main() {
 		fmt.Printf("%s: group: %v\n", fileName, fi.Sys().(*syscall.Stat_t).Gid)
 	}
 
-	if globalFlags.CheckCwd != "" {
+	if globalFlags.PrintCwd {
 		wd, err := os.Getwd()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Cannot get working directory: %v\n", err)
 			os.Exit(1)
 		}
-		if wd != globalFlags.CheckCwd {
-			fmt.Fprintf(os.Stderr, "Working directory: %q. Expected: %q.\n", wd, globalFlags.CheckCwd)
-			os.Exit(1)
-		}
+		fmt.Printf("cwd: %s\n", wd)
 	}
 
 	if globalFlags.Sleep >= 0 {
@@ -344,16 +443,16 @@ func main() {
 		testPaths := []string{rootCgroupPath}
 
 		// test a couple of controllers if they're available
-		if cgroup.IsIsolatorSupported("memory") {
+		if _, err := os.Stat(filepath.Join(rootCgroupPath, "memory")); err == nil {
 			testPaths = append(testPaths, filepath.Join(rootCgroupPath, "memory"))
 		}
-		if cgroup.IsIsolatorSupported("cpu") {
+		if _, err := os.Stat(filepath.Join(rootCgroupPath, "cpu")); err == nil {
 			testPaths = append(testPaths, filepath.Join(rootCgroupPath, "cpu"))
 		}
 
 		for _, p := range testPaths {
 			if err := syscall.Mkdir(filepath.Join(p, "test"), 0600); err == nil || err != syscall.EROFS {
-				fmt.Println("check-cgroups: FAIL")
+				fmt.Fprintf(os.Stderr, "check-cgroups: FAIL (%v)", err)
 				os.Exit(1)
 			}
 		}
@@ -375,6 +474,10 @@ func main() {
 		ips, err := testutils.GetIPsv4(iface)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
+			os.Exit(1)
+		}
+		if len(ips) == 0 {
+			fmt.Fprintf(os.Stderr, "No IPv4 found for interface %+v:\n", iface)
 			os.Exit(1)
 		}
 		fmt.Printf("%v IPv4: %s\n", iface, ips[0])
@@ -460,6 +563,25 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Printf("Annotation %s=%s\n", globalFlags.PrintAppAnnotation, body)
+	}
+
+	if globalFlags.CheckMountNS {
+		appMountNS, err := os.Readlink("/proc/self/ns/mnt")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			os.Exit(1)
+		}
+		s1MountNS, err := os.Readlink("/proc/1/ns/mnt")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			os.Exit(1)
+		}
+		if appMountNS != s1MountNS {
+			fmt.Println("check-mountns: DIFFERENT")
+		} else {
+			fmt.Println("check-mountns: IDENTICAL")
+			os.Exit(1)
+		}
 	}
 
 	os.Exit(globalFlags.ExitCode)

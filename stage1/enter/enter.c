@@ -131,15 +131,15 @@ int main(int argc, char *argv[])
 		"Unable to fork");
 
 /* some stuff make the argv->args copy less cryptic */
-#define APPEXEC_ARGV_FWD_OFFSET	8
+#define ENTEREXEC_ARGV_FWD_OFFSET	8
 
 	if(child == 0) {
 		char		root[PATH_MAX];
 		char		env[PATH_MAX];
-		char		*args[APPEXEC_ARGV_FWD_OFFSET + argc - optind + 1 /* NULL terminator */];
+		char		*args[ENTEREXEC_ARGV_FWD_OFFSET + argc - optind + 1 /* NULL terminator */];
 		int		argsind;
 
-		/* Child goes on to execute /appexec */
+		/* Child goes on to execute /enterexec */
 
 		exit_if(snprintf(root, sizeof(root),
 				 "/opt/stage2/%s/rootfs", appname) == sizeof(root),
@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
 				 "/rkt/env/%s", appname) == sizeof(env),
 			"Env path overflow");
 
-		args[0] = "/appexec";
+		args[0] = "/enterexec";
 		args[1] = root;
 		args[2] = "/";	/* TODO(vc): plumb this into app.WorkingDirectory */
 		args[3] = env;
@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
 		args[5] = "0"; /* gid */
 		args[6] = "-e"; /* entering phase */
 		args[7] = "--";
-		argsind = APPEXEC_ARGV_FWD_OFFSET;
+		argsind = ENTEREXEC_ARGV_FWD_OFFSET;
 		while (optind < argc)
 			args[argsind++] = argv[optind++];
 

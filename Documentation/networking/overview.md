@@ -1,10 +1,10 @@
 # Networking
 
-On some of rkt's subcommands *([run](subcommands/run.md), [run-prepared](subcommands/run-prepared.md))*, the `--net` flag allows you to configure the pod's network.
+On some of rkt's subcommands *([run](../subcommands/run.md), [run-prepared](../subcommands/run-prepared.md))*, the `--net` flag allows you to configure the pod's network.
 The various options can be grouped by two categories:
 
-* [host mode](#host mode)
-* [contained mode (default)](#contained mode)
+* [host mode](#host-mode)
+* [contained mode (default)](#contained-mode)
 
 This document gives a brief overview of the supported plugins.
 More examples and advanced topics are linked in the [more docs](#more-docs) section.
@@ -332,8 +332,16 @@ The pod's TCP port 80 can be mapped to an arbitrary port on the host during rkt 
 
 Now, any traffic arriving on host's TCP port 8888 will be forwarded to the pod on port 80.
 
+### Network used for forwarded ports
+
+The network that will be chosen for the port forwarding depends on the _ipMasq_ setting of the configured networks.
+If at least one of them has _ipMasq_ enabled, the forwarded traffic will be passed through the first loaded network that has IP masquerading enabled.
+If no network is masqueraded, the last loaded network will be used.
+As a reminder, the sort order of the loaded networks is detailed in the chapter about [setting up additional networks](#setting-up-additional-networks).
+
+### Socket Activation
 rkt also supports socket activation.
-This is documented in [Socket-activated service](using-rkt-with-systemd.md#socket-activated-service).
+This is documented in [Socket-activated service](../using-rkt-with-systemd.md#socket-activated-service).
 
 ## More Docs
 

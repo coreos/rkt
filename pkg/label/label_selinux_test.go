@@ -28,13 +28,13 @@ import (
 func TestInit(t *testing.T) {
 	if selinux.SelinuxEnabled() {
 		var testNull []string
-		plabel, mlabel, err := InitLabels(testNull)
+		plabel, mlabel, err := InitLabels("", testNull)
 		if err != nil {
 			t.Log("InitLabels Failed")
 			t.Fatal(err)
 		}
 		testDisabled := []string{"disable"}
-		plabel, mlabel, err = InitLabels(testDisabled)
+		plabel, mlabel, err = InitLabels("", testDisabled)
 		if err != nil {
 			t.Log("InitLabels Disabled Failed")
 			t.Fatal(err)
@@ -44,7 +44,7 @@ func TestInit(t *testing.T) {
 			t.Fatal(plabel)
 		}
 		testUser := []string{"user:user_u", "role:user_r", "type:user_t", "level:s0:c1,c15"}
-		plabel, mlabel, err = InitLabels(testUser)
+		plabel, mlabel, err = InitLabels("", testUser)
 		if err != nil {
 			t.Log("InitLabels User Failed")
 			t.Fatal(err)
@@ -56,7 +56,7 @@ func TestInit(t *testing.T) {
 		}
 
 		testBadData := []string{"user", "role:user_r", "type:user_t", "level:s0:c1,c15"}
-		plabel, mlabel, err = InitLabels(testBadData)
+		plabel, mlabel, err = InitLabels("", testBadData)
 		if err == nil {
 			t.Log("InitLabels Bad Failed")
 			t.Fatal(err)
@@ -104,7 +104,7 @@ func TestDuplicateLabel(t *testing.T) {
 	}
 }
 func TestRelabel(t *testing.T) {
-	plabel, _, err := InitLabels(nil)
+	plabel, _, err := InitLabels("", nil)
 	if err != nil {
 		t.Fatalf("InitLabels failed: %v", err)
 	}

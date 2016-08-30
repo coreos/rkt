@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// +build host coreos src kvm
+
 package main
 
 import (
@@ -32,7 +34,7 @@ func TestImageGCTreeStore(t *testing.T) {
 
 	expectedTreeStores := 2
 	// If overlayfs is not supported only the stage1 image is rendered in the treeStore
-	if !common.SupportsOverlay() {
+	if common.SupportsOverlay() != nil {
 		expectedTreeStores = 1
 	}
 

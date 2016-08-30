@@ -26,7 +26,7 @@ import (
 	"github.com/coreos/rkt/rkt/config"
 	rktflag "github.com/coreos/rkt/rkt/flag"
 	"github.com/coreos/rkt/rkt/pubkey"
-	"github.com/coreos/rkt/store"
+	"github.com/coreos/rkt/store/imagestore"
 	"github.com/hashicorp/errwrap"
 
 	"github.com/appc/spec/discovery"
@@ -36,16 +36,17 @@ import (
 // nameFetcher is used to download images via discovery
 type nameFetcher struct {
 	InsecureFlags      *rktflag.SecFlags
-	S                  *store.Store
+	S                  *imagestore.Store
 	Ks                 *keystore.Keystore
+	NoCache            bool
 	Debug              bool
 	Headers            map[string]config.Headerer
 	TrustKeysFromHTTPS bool
 }
 
-// GetHash runs the discovery, fetches the image, optionally verifies
+// Hash runs the discovery, fetches the image, optionally verifies
 // it against passed asc, stores it in the store and returns the hash.
-func (f *nameFetcher) GetHash(app *discovery.App, a *asc) (string, error) {
+func (f *nameFetcher) Hash(app *discovery.App, a *asc) (string, error) {
 	ensureLogger(f.Debug)
 	name := app.Name.String()
 	log.Printf("searching for app image %s", name)
@@ -61,16 +62,16 @@ func (f *nameFetcher) GetHash(app *discovery.App, a *asc) (string, error) {
 	return f.fetchImageFromEndpoints(app, ep, a, latest)
 }
 
-func (f *nameFetcher) discoverApp(app *discovery.App) (*discovery.Endpoints, error) {
+func (f *nameFetcher) discoverApp(app *discovery.App) (discovery.ACIEndpoints, error) {
 	insecure := discovery.InsecureNone
 	if f.InsecureFlags.SkipTLSCheck() {
-		insecure = insecure | discovery.InsecureTls
+		insecure = insecure | discovery.InsecureTLS
 	}
 	if f.InsecureFlags.AllowHTTP() {
-		insecure = insecure | discovery.InsecureHttp
+		insecure = insecure | discovery.InsecureHTTP
 	}
 	hostHeaders := config.ResolveAuthPerHost(f.Headers)
-	ep, attempts, err := discovery.DiscoverEndpoints(*app, hostHeaders, insecure)
+	ep, attempts, err := discovery.DiscoverACIEndpoints(*app, hostHeaders, insecure, 0)
 	if f.Debug {
 		for _, a := range attempts {
 			log.PrintE(fmt.Sprintf("meta tag 'ac-discovery' not found on %s", a.Prefix), a.Error)
@@ -79,19 +80,19 @@ func (f *nameFetcher) discoverApp(app *discovery.App) (*discovery.Endpoints, err
 	if err != nil {
 		return nil, err
 	}
-	if len(ep.ACIEndpoints) == 0 {
+	if len(ep) == 0 {
 		return nil, fmt.Errorf("no endpoints discovered")
 	}
 	return ep, nil
 }
 
-func (f *nameFetcher) fetchImageFromEndpoints(app *discovery.App, ep *discovery.Endpoints, a *asc, latest bool) (string, error) {
+func (f *nameFetcher) fetchImageFromEndpoints(app *discovery.App, ep discovery.ACIEndpoints, a *asc, latest bool) (string, error) {
 	ensureLogger(f.Debug)
 	// TODO(krnowak): we should probably try all the endpoints,
 	// for this we need to clone "a" and call
 	// maybeOverrideAscFetcherWithRemote on the clone
-	aciURL := ep.ACIEndpoints[0].ACI
-	ascURL := ep.ACIEndpoints[0].ASC
+	aciURL := ep[0].ACI
+	ascURL := ep[0].ASC
 	log.Printf("remote fetching from URL %q", aciURL)
 	f.maybeOverrideAscFetcherWithRemote(ascURL, a)
 	return f.fetchImageFromSingleEndpoint(app, aciURL, a, latest)
@@ -102,23 +103,47 @@ func (f *nameFetcher) fetchImageFromSingleEndpoint(app *discovery.App, aciURL st
 		log.Printf("fetching image from %s", aciURL)
 	}
 
-	aciFile, cd, err := f.fetch(app, aciURL, a)
+	u, err := url.Parse(aciURL)
+	if err != nil {
+		return "", errwrap.Wrap(fmt.Errorf("failed to parse URL %q", aciURL), err)
+	}
+	rem, err := remoteForURL(f.S, u)
 	if err != nil {
 		return "", err
 	}
-	defer aciFile.Close()
+	if !f.NoCache && rem != nil {
+		if useCached(rem.DownloadTime, rem.CacheMaxAge) {
+			if f.Debug {
+				log.Printf("image for %s isn't expired, not fetching.", aciURL)
+			}
+			return rem.BlobKey, nil
+		}
+	}
 
-	key, err := f.S.WriteACI(aciFile, latest)
+	aciFile, cd, err := f.fetch(app, aciURL, a, eTag(rem))
+	if err != nil {
+		return "", err
+	}
+	defer func() { maybeClose(aciFile) }()
+
+	if key := maybeUseCached(rem, cd); key != "" {
+		return key, nil
+	}
+	key, err := f.S.WriteACI(aciFile, imagestore.ACIFetchInfo{
+		Latest: latest,
+	})
 	if err != nil {
 		return "", err
 	}
 
-	rem := store.NewRemote(aciURL, a.Location)
-	rem.BlobKey = key
-	rem.DownloadTime = time.Now()
-	rem.ETag = cd.ETag
-	rem.CacheMaxAge = cd.MaxAge
-	err = f.S.WriteRemote(rem)
+	newRem := imagestore.NewRemote(aciURL, a.Location)
+	newRem.BlobKey = key
+	newRem.DownloadTime = time.Now()
+	if cd != nil {
+		newRem.ETag = cd.ETag
+		newRem.CacheMaxAge = cd.MaxAge
+	}
+	err = f.S.WriteRemote(newRem)
 	if err != nil {
 		return "", err
 	}
@@ -126,7 +151,7 @@ func (f *nameFetcher) fetchImageFromSingleEndpoint(app *discovery.App, aciURL st
 	return key, nil
 }
 
-func (f *nameFetcher) fetch(app *discovery.App, aciURL string, a *asc) (readSeekCloser, *cacheData, error) {
+func (f *nameFetcher) fetch(app *discovery.App, aciURL string, a *asc, etag string) (readSeekCloser, *cacheData, error) {
 	if f.InsecureFlags.SkipTLSCheck() && f.Ks != nil {
 		log.Print("warning: TLS verification has been disabled")
 	}
@@ -140,8 +165,8 @@ func (f *nameFetcher) fetch(app *discovery.App, aciURL string, a *asc) (readSeek
 	}
 
 	if f.InsecureFlags.SkipImageCheck() || f.Ks == nil {
-		o := f.getHTTPOps()
-		aciFile, cd, err := o.DownloadImage(u)
+		o := f.httpOps()
+		aciFile, cd, err := o.DownloadImageWithETag(u, etag)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -155,7 +180,7 @@ func (f *nameFetcher) fetchVerifiedURL(app *discovery.App, u *url.URL, a *asc) (
 	appName := app.Name.String()
 	f.maybeFetchPubKeys(appName)
 
-	o := f.getHTTPOps()
+	o := f.httpOps()
 	ascFile, retry, err := o.DownloadSignature(a)
 	if err != nil {
 		return nil, nil, err
@@ -181,7 +206,7 @@ func (f *nameFetcher) fetchVerifiedURL(app *discovery.App, u *url.URL, a *asc) (
 		}
 	}
 
-	if err := f.validate(appName, aciFile, ascFile); err != nil {
+	if err := f.validate(app, aciFile, ascFile); err != nil {
 		return nil, nil, err
 	}
 	retAciFile := aciFile
@@ -199,13 +224,19 @@ func (f *nameFetcher) maybeFetchPubKeys(appName string) {
 		log.Printf("keys already exist for prefix %q, not fetching again", appName)
 		return
 	}
-	if !f.InsecureFlags.SkipTLSCheck() {
+	allowHTTP := false
+	if f.InsecureFlags.ConsiderInsecurePubKeys() {
+		log.Printf("signing keys may be downloaded from an insecure connection")
+		allowHTTP = f.InsecureFlags.AllowHTTP()
+	}
+	if !f.InsecureFlags.SkipTLSCheck() || f.InsecureFlags.ConsiderInsecurePubKeys() {
 		m := &pubkey.Manager{
-			AuthPerHost:        f.Headers,
-			InsecureAllowHTTP:  false,
-			TrustKeysFromHTTPS: f.TrustKeysFromHTTPS,
-			Ks:                 f.Ks,
-			Debug:              f.Debug,
+			AuthPerHost:          f.Headers,
+			InsecureAllowHTTP:    allowHTTP,
+			InsecureSkipTLSCheck: f.InsecureFlags.SkipTLSCheck(),
+			TrustKeysFromHTTPS:   f.TrustKeysFromHTTPS,
+			Ks:                   f.Ks,
+			Debug:                f.Debug,
 		}
 		pkls, err := m.GetPubKeyLocations(appName)
 		// We do not bail out here, because if fetching the
@@ -233,7 +264,7 @@ func (f *nameFetcher) checkIdentity(appName string, ascFile io.ReadSeeker) error
 	empty := bytes.NewReader([]byte{})
 	if _, err := f.Ks.CheckSignature(appName, empty, ascFile); err != nil {
 		if err == pgperrors.ErrUnknownIssuer {
-			log.Printf("If you expected the signing key to change, try running:")
+			log.Printf("if you expected the signing key to change, try running:")
 			log.Printf("    rkt trust --prefix %q", appName)
 		}
 		if _, ok := err.(pgperrors.SignatureError); !ok {
@@ -243,13 +274,17 @@ func (f *nameFetcher) checkIdentity(appName string, ascFile io.ReadSeeker) error
 	return nil
 }
 
-func (f *nameFetcher) validate(appName string, aciFile, ascFile io.ReadSeeker) error {
+func (f *nameFetcher) validate(app *discovery.App, aciFile, ascFile io.ReadSeeker) error {
 	v, err := newValidator(aciFile)
 	if err != nil {
 		return err
 	}
 
-	if err := v.ValidateName(appName); err != nil {
+	if err := v.ValidateName(app.Name.String()); err != nil {
+		return err
+	}
+
+	if err := v.ValidateLabels(app.Labels); err != nil {
 		return err
 	}
 
@@ -271,10 +306,10 @@ func (f *nameFetcher) maybeOverrideAscFetcherWithRemote(ascURL string, a *asc) {
 		return
 	}
 	a.Location = ascURL
-	a.Fetcher = f.getHTTPOps().GetAscRemoteFetcher()
+	a.Fetcher = f.httpOps().AscRemoteFetcher()
 }
 
-func (f *nameFetcher) getHTTPOps() *httpOps {
+func (f *nameFetcher) httpOps() *httpOps {
 	return &httpOps{
 		InsecureSkipTLSVerify: f.InsecureFlags.SkipTLSCheck(),
 		S:       f.S,

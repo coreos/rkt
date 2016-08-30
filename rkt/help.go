@@ -129,8 +129,10 @@ func rktFlagUsages(flagSet *pflag.FlagSet) string {
 func getSubCommands(cmd *cobra.Command) []*cobra.Command {
 	var subCommands []*cobra.Command
 	for _, subCmd := range cmd.Commands() {
-		subCommands = append(subCommands, subCmd)
-		subCommands = append(subCommands, getSubCommands(subCmd)...)
+		if !subCmd.Hidden {
+			subCommands = append(subCommands, subCmd)
+			subCommands = append(subCommands, getSubCommands(subCmd)...)
+		}
 	}
 	return subCommands
 }

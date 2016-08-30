@@ -25,7 +25,7 @@ import (
 
 var (
 	cmdRm = &cobra.Command{
-		Use:   "rm [--uuid-file=FILE] UUID ...",
+		Use:   "rm --uuid-file=FILE | UUID ...",
 		Short: "Remove all files and resources associated with an exited pod",
 		Long:  `Unlike gc, rm allows users to remove specific pods.`,
 		Run:   ensureSuperuser(runWrapper(runRm)),
@@ -43,20 +43,23 @@ func runRm(cmd *cobra.Command, args []string) (exit int) {
 	var podUUIDs []*types.UUID
 	var err error
 
+	ret := 0
 	switch {
 	case len(args) == 0 && flagUUIDFile != "":
 		podUUID, err = readUUIDFromFile(flagUUIDFile)
 		if err != nil {
-			stderr.PrintE("unable to read UUID from file", err)
-			return 1
+			stderr.PrintE("unable to resolve UUID from file", err)
+			ret = 1
+		} else {
+			podUUIDs = append(podUUIDs, podUUID)
 		}
-		podUUIDs = append(podUUIDs, podUUID)
 
 	case len(args) > 0 && flagUUIDFile == "":
 		for _, uuid := range args {
 			podUUID, err := resolveUUID(uuid)
 			if err != nil {
 				stderr.PrintE("unable to resolve UUID", err)
+				ret = 1
 			} else {
 				podUUIDs = append(podUUIDs, podUUID)
 			}
@@ -67,7 +70,6 @@ func runRm(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	ret := 0
 	for _, podUUID = range podUUIDs {
 		p, err := getPod(podUUID)
 		if err != nil {

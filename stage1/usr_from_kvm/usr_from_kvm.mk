@@ -15,7 +15,7 @@ $(call inc-many,$(UFK_INCLUDES))
 
 # Some input variables for building the ACI rootfs from CoreOS image
 # (build-usr.mk).
-CBU_MANIFESTS_DIR := $(MK_SRCDIR)/manifest.d
+CBU_MANIFESTS_DIR := $(MK_SRCDIR)/manifest-$(RKT_STAGE1_COREOS_BOARD).d
 CBU_TMPDIR := $(UFK_CBUDIR)
 CBU_DIFF := for-usr-from-kvm-mk
 CBU_STAMP := $(UFK_CBU_STAMP)

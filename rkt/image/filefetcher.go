@@ -22,21 +22,21 @@ import (
 
 	"github.com/coreos/rkt/pkg/keystore"
 	rktflag "github.com/coreos/rkt/rkt/flag"
-	"github.com/coreos/rkt/store"
+	"github.com/coreos/rkt/store/imagestore"
 	"github.com/hashicorp/errwrap"
 )
 
 // fileFetcher is used to fetch files from a local filesystem
 type fileFetcher struct {
 	InsecureFlags *rktflag.SecFlags
-	S             *store.Store
+	S             *imagestore.Store
 	Ks            *keystore.Keystore
 	Debug         bool
 }
 
-// GetHash opens a file, optionally verifies it against passed asc,
+// Hash opens a file, optionally verifies it against passed asc,
 // stores it in the store and returns the hash.
-func (f *fileFetcher) GetHash(aciPath string, a *asc) (string, error) {
+func (f *fileFetcher) Hash(aciPath string, a *asc) (string, error) {
 	ensureLogger(f.Debug)
 	absPath, err := filepath.Abs(aciPath)
 	if err != nil {
@@ -50,7 +50,9 @@ func (f *fileFetcher) GetHash(aciPath string, a *asc) (string, error) {
 	}
 	defer aciFile.Close()
 
-	key, err := f.S.WriteACI(aciFile, false)
+	key, err := f.S.WriteACI(aciFile, imagestore.ACIFetchInfo{
+		Latest: false,
+	})
 	if err != nil {
 		return "", err
 	}
@@ -98,7 +100,7 @@ func (f *fileFetcher) getVerifiedFile(aciPath string, a *asc) (*os.File, error) 
 
 	entity, err := validator.ValidateWithSignature(f.Ks, ascFile)
 	if err != nil {
-		return nil, errwrap.Wrap(fmt.Errorf("image %q verification failed", validator.GetImageName()), err)
+		return nil, errwrap.Wrap(fmt.Errorf("image %q verification failed", validator.ImageName()), err)
 	}
 	printIdentities(entity)
 

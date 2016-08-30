@@ -33,6 +33,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/crypto/openpgp"
+
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/gexpect"
@@ -184,7 +186,7 @@ func createTempDirOrPanic(dirName string) string {
 	return tmpDir
 }
 
-func importImageAndFetchHashAsGid(t *testing.T, ctx *testutils.RktRunCtx, img string, fetchArgs string, gid int) string {
+func importImageAndFetchHashAsGid(t *testing.T, ctx *testutils.RktRunCtx, img string, fetchArgs string, gid int) (string, error) {
 	// Import the test image into store manually.
 	cmd := fmt.Sprintf("%s --insecure-options=image,tls fetch %s %s", ctx.Cmd(), fetchArgs, img)
 
@@ -210,20 +212,32 @@ func importImageAndFetchHashAsGid(t *testing.T, ctx *testutils.RktRunCtx, img st
 
 	// Read out the image hash.
 	result, out, err := expectRegexWithOutput(child, "sha512-[0-9a-f]{32,64}")
+	if exitErr := checkExitStatus(child); exitErr != nil {
+		t.Logf("%v", exitErr)
+		return "", fmt.Errorf("fetching of %q failed", img)
+	}
 	if err != nil || len(result) != 1 {
 		t.Fatalf("Error: %v\nOutput: %v", err, out)
 	}
 
-	waitOrFail(t, child, 0)
-
-	return result[0]
+	return result[0], nil
 }
 
-func importImageAndFetchHash(t *testing.T, ctx *testutils.RktRunCtx, fetchArgs string, img string) string {
+func importImageAndFetchHash(t *testing.T, ctx *testutils.RktRunCtx, fetchArgs string, img string) (string, error) {
 	return importImageAndFetchHashAsGid(t, ctx, fetchArgs, img, 0)
 }
 
-func patchImportAndFetchHash(image string, patches []string, t *testing.T, ctx *testutils.RktRunCtx) string {
+func importImageAndRun(imagePath string, t *testing.T, ctx *testutils.RktRunCtx) {
+	cmd := fmt.Sprintf("%s --insecure-options=image run %s", ctx.Cmd(), imagePath)
+	spawnAndWaitOrFail(t, cmd, 0)
+}
+
+func importImageAndPrepare(imagePath string, t *testing.T, ctx *testutils.RktRunCtx) {
+	cmd := fmt.Sprintf("%s --insecure-options=image prepare %s", ctx.Cmd(), imagePath)
+	spawnAndWaitOrFail(t, cmd, 0)
+}
+
+func patchImportAndFetchHash(image string, patches []string, t *testing.T, ctx *testutils.RktRunCtx) (string, error) {
 	imagePath := patchTestACI(image, patches...)
 	defer os.Remove(imagePath)
 
@@ -235,6 +249,14 @@ func patchImportAndRun(image string, patches []string, t *testing.T, ctx *testut
 	defer os.Remove(imagePath)
 
 	cmd := fmt.Sprintf("%s --insecure-options=image run %s", ctx.Cmd(), imagePath)
+	spawnAndWaitOrFail(t, cmd, 0)
+}
+
+func patchImportAndPrepare(image string, patches []string, t *testing.T, ctx *testutils.RktRunCtx) {
+	imagePath := patchTestACI(image, patches...)
+	defer os.Remove(imagePath)
+
+	cmd := fmt.Sprintf("%s --insecure-options=image prepare %s", ctx.Cmd(), imagePath)
 	spawnAndWaitOrFail(t, cmd, 0)
 }
 
@@ -302,6 +324,31 @@ func runRktAsUidGidAndCheckOutput(t *testing.T, rktCmd, expectedLine string, exp
 	}
 }
 
+func runRkt(t *testing.T, rktCmd string, uid, gid int) (string, int) {
+	child, err := gexpect.Command(rktCmd)
+	if err != nil {
+		t.Fatalf("cannot exec rkt: %v", err)
+	}
+	if gid != 0 {
+		child.Cmd.SysProcAttr = &syscall.SysProcAttr{}
+		child.Cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
+	}
+
+	err = child.Start()
+	if err != nil {
+		t.Fatalf("cannot start rkt: %v", err)
+	}
+
+	_, linesChan := child.AsyncInteractChannels()
+
+	var buf bytes.Buffer
+	for line := range linesChan {
+		buf.WriteString(line + "\n") // reappend newline
+	}
+
+	return buf.String(), getExitStatus(child.Wait())
+}
+
 func startRktAsGidAndCheckOutput(t *testing.T, rktCmd, expectedLine string, gid int) *gexpect.ExpectSubprocess {
 	child, err := gexpect.Command(rktCmd)
 	if err != nil {
@@ -314,6 +361,29 @@ func startRktAsGidAndCheckOutput(t *testing.T, rktCmd, expectedLine string, gid 
 
 	if err := child.Start(); err != nil {
 		t.Fatalf("cannot exec rkt: %v", err)
+	}
+
+	if expectedLine != "" {
+		if err := expectWithOutput(child, expectedLine); err != nil {
+			t.Fatalf("didn't receive expected output %q: %v", expectedLine, err)
+		}
+	}
+	return child
+}
+
+func startRktAsUidGidAndCheckOutput(t *testing.T, rktCmd, expectedLine string, expectError bool, uid, gid int) *gexpect.ExpectSubprocess {
+	child, err := gexpect.Command(rktCmd)
+	if err != nil {
+		t.Fatalf("cannot exec rkt: %v", err)
+	}
+	if gid != 0 {
+		child.Cmd.SysProcAttr = &syscall.SysProcAttr{}
+		child.Cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
+	}
+
+	err = child.Start()
+	if err != nil {
+		t.Fatalf("cannot start rkt: %v", err)
 	}
 
 	if expectedLine != "" {
@@ -402,12 +472,14 @@ type networkInfo struct {
 }
 
 type podInfo struct {
-	id       string
-	pid      int
-	state    string
-	apps     map[string]*appInfo
-	networks map[string]*networkInfo
-	manifest []byte
+	id        string
+	pid       int
+	state     string
+	apps      map[string]*appInfo
+	networks  map[string]*networkInfo
+	manifest  *schema.PodManifest
+	createdAt int64
+	startedAt int64
 }
 
 // parsePodInfo parses the 'rkt status $UUID' result into podInfo struct.
@@ -416,18 +488,24 @@ type podInfo struct {
 // networks=default:ip4=172.16.28.103
 // pid=14352
 // exited=false
+// created=2016-04-01 19:12:03.447 -0700 PDT
+// started=2016-04-01 19:12:04.279 -0700 PDT
 func parsePodInfoOutput(t *testing.T, result string, p *podInfo) {
 	lines := strings.Split(strings.TrimSuffix(result, "\n"), "\n")
 	for _, line := range lines {
 		tuples := strings.SplitN(line, "=", 2)
 		if len(tuples) != 2 {
-			t.Fatalf("Unexpected line: %v", line)
+			t.Logf("Unexpected line: %v", line)
+			continue
 		}
 
 		switch tuples[0] {
 		case "state":
 			p.state = tuples[1]
 		case "networks":
+			if tuples[1] == "" {
+				break
+			}
 			networks := strings.Split(tuples[1], ",")
 			for _, n := range networks {
 				fields := strings.Split(n, ":")
@@ -452,6 +530,18 @@ func parsePodInfoOutput(t *testing.T, result string, p *podInfo) {
 				t.Fatalf("Cannot parse the pod's pid %q: %v", tuples[1], err)
 			}
 			p.pid = pid
+		case "created":
+			createdAt, err := time.Parse(defaultTimeLayout, tuples[1])
+			if err != nil {
+				t.Fatalf("Cannot parse the pod's creation time %q: %v", tuples[1], err)
+			}
+			p.createdAt = createdAt.UnixNano()
+		case "started":
+			startedAt, err := time.Parse(defaultTimeLayout, tuples[1])
+			if err != nil {
+				t.Fatalf("Cannot parse the pod's start time %q: %v", tuples[1], err)
+			}
+			p.startedAt = startedAt.UnixNano()
 		}
 		if strings.HasPrefix(tuples[0], "app-") {
 			exitCode, err := strconv.Atoi(tuples[1])
@@ -492,6 +582,7 @@ func getPodDir(t *testing.T, ctx *testutils.RktRunCtx, podID string) string {
 func getPodInfo(t *testing.T, ctx *testutils.RktRunCtx, podID string) *podInfo {
 	p := &podInfo{
 		id:       podID,
+		pid:      -1,
 		apps:     make(map[string]*appInfo),
 		networks: make(map[string]*networkInfo),
 	}
@@ -503,14 +594,13 @@ func getPodInfo(t *testing.T, ctx *testutils.RktRunCtx, podID string) *podInfo {
 	}
 
 	// Trim the last '\n' character.
-	p.manifest = bytes.TrimSpace(output)
+	mfst := bytes.TrimSpace(output)
 
 	// Fill app infos.
-	var manifest schema.PodManifest
-	if err := json.Unmarshal(p.manifest, &manifest); err != nil {
+	if err := json.Unmarshal(mfst, &p.manifest); err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	for _, app := range manifest.Apps {
+	for _, app := range p.manifest.Apps {
 		appName := app.Name.String()
 		p.apps[appName] = &appInfo{
 			name: appName,
@@ -520,10 +610,7 @@ func getPodInfo(t *testing.T, ctx *testutils.RktRunCtx, podID string) *podInfo {
 	}
 
 	// Fill other infos.
-	output, err = exec.Command("/bin/bash", "-c", fmt.Sprintf("%s status %s", ctx.Cmd(), podID)).CombinedOutput()
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
+	output, _ = exec.Command("/bin/bash", "-c", fmt.Sprintf("%s status %s", ctx.Cmd(), podID)).CombinedOutput()
 	parsePodInfoOutput(t, string(output), p)
 
 	return p
@@ -533,18 +620,18 @@ func getPodInfo(t *testing.T, ctx *testutils.RktRunCtx, podID string) *podInfo {
 // For example, the 'result' can be:
 // 'sha512-e9b77714dbbfda12cb9e136318b103a6f0ce082004d09d0224a620d2bbf38133 nginx:latest 2015-10-16 17:42:57.741 -0700 PDT true'
 func parseImageInfoOutput(t *testing.T, result string) *imageInfo {
-	fields := regexp.MustCompile("\t+").Split(result, 6)
+	fields := regexp.MustCompile("\t+").Split(result, -1)
 	nameVersion := strings.Split(fields[1], ":")
 	if len(nameVersion) != 2 {
 		t.Fatalf("Failed to parse name version string: %q", fields[1])
 	}
-	importTime, err := time.Parse(defaultTimeLayout, fields[2])
+	importTime, err := time.Parse(defaultTimeLayout, fields[3])
 	if err != nil {
-		t.Fatalf("Failed to parse time string: %q", fields[2])
+		t.Fatalf("Failed to parse time string: %q", fields[3])
 	}
-	size, err := strconv.Atoi(fields[4])
+	size, err := strconv.Atoi(fields[2])
 	if err != nil {
-		t.Fatalf("Failed to parse image size string: %q", fields[4])
+		t.Fatalf("Failed to parse image size string: %q", fields[2])
 	}
 
 	return &imageInfo{
@@ -565,7 +652,8 @@ func getImageInfo(t *testing.T, ctx *testutils.RktRunCtx, imageID string) *image
 	imgInfo := parseImageInfoOutput(t, string(output))
 
 	// Get manifest
-	output, err = exec.Command("/bin/bash", "-c", fmt.Sprintf("%s image cat-manifest %s", ctx.Cmd(), imageID)).CombinedOutput()
+	output, err = exec.Command("/bin/bash", "-c",
+		fmt.Sprintf("%s image cat-manifest --pretty-print=false %s", ctx.Cmd(), imageID)).CombinedOutput()
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -601,10 +689,8 @@ func serverHandler(t *testing.T, server *taas.Server) {
 	}
 }
 
-func runSignImage(t *testing.T, imageFile string, keyIndex int) string {
-	ascFile := fmt.Sprintf("%s.asc", imageFile)
-
-	// keys stored in tests/secring.gpg, tests/pubring.gpg, tests/key1.gpg, tests/key2.gpg
+func runSignImage(t *testing.T, imagePath string, keyIndex int) string {
+	// keys stored in tests/secring.gpg.
 	keyFingerprint := ""
 	switch keyIndex {
 	case 1:
@@ -615,10 +701,43 @@ func runSignImage(t *testing.T, imageFile string, keyIndex int) string {
 		panic("unknown key")
 	}
 
-	cmd := fmt.Sprintf("gpg --no-default-keyring --secret-keyring ./secring.gpg --keyring ./pubring.gpg --default-key %s --output %s --detach-sig %s",
-		keyFingerprint, ascFile, imageFile)
-	spawnAndWaitOrFail(t, cmd, 0)
-	return ascFile
+	secringFile, err := os.Open("./secring.gpg")
+	if err != nil {
+		t.Fatalf("Cannot open secring.gpg file: %v", err)
+	}
+	defer secringFile.Close()
+
+	entityList, err := openpgp.ReadKeyRing(secringFile)
+	if err != nil {
+		t.Fatalf("Failed to read secring.gpg file: %v", err)
+	}
+
+	var signingEntity *openpgp.Entity
+	for _, entity := range entityList {
+		if entity.PrivateKey.KeyIdShortString() == keyFingerprint {
+			signingEntity = entity
+		}
+	}
+
+	imageFile, err := os.Open(imagePath)
+	if err != nil {
+		t.Fatalf("Cannot open image file %s: %v", imagePath, err)
+	}
+	defer imageFile.Close()
+
+	ascPath := fmt.Sprintf("%s.asc", imagePath)
+	ascFile, err := os.Create(ascPath)
+	if err != nil {
+		t.Fatalf("Cannot create asc file %s: %v", ascPath, err)
+	}
+	defer ascFile.Close()
+
+	err = openpgp.ArmoredDetachSign(ascFile, signingEntity, imageFile, nil)
+	if err != nil {
+		t.Fatalf("Cannot create armored detached signature: %v", err)
+	}
+
+	return ascPath
 }
 
 func runRktTrust(t *testing.T, ctx *testutils.RktRunCtx, prefix string, keyIndex int) {
@@ -652,9 +771,87 @@ func runRktTrust(t *testing.T, ctx *testutils.RktRunCtx, prefix string, keyIndex
 	}
 }
 
+func generatePodManifestFile(t *testing.T, manifest *schema.PodManifest) string {
+	tmpDir := testutils.GetValueFromEnvOrPanic("FUNCTIONAL_TMP")
+	f, err := ioutil.TempFile(tmpDir, "rkt-test-manifest-")
+	if err != nil {
+		t.Fatalf("Cannot create tmp pod manifest: %v", err)
+	}
+
+	data, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatalf("Cannot marshal pod manifest: %v", err)
+	}
+	if err := ioutil.WriteFile(f.Name(), data, 0600); err != nil {
+		t.Fatalf("Cannot write pod manifest file: %v", err)
+	}
+	return f.Name()
+}
+
 func checkUserNS() error {
 	// CentOS 7 pretends to support user namespaces, but does not.
 	// See https://bugzilla.redhat.com/show_bug.cgi?id=1168776#c5
 	// Check if it really works
 	return exec.Command("/bin/bash", "-c", "unshare -U true").Run()
+}
+
+func authDir(confDir string) string {
+	return filepath.Join(confDir, "auth.d")
+}
+
+func pathsDir(confDir string) string {
+	return filepath.Join(confDir, "paths.d")
+}
+
+func stage1Dir(confDir string) string {
+	return filepath.Join(confDir, "stage1.d")
+}
+
+func writeConfig(t *testing.T, dir, filename, contents string) {
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatalf("Failed to create config directory %q: %v", dir, err)
+	}
+	path := filepath.Join(dir, filename)
+	os.Remove(path)
+	if err := ioutil.WriteFile(path, []byte(contents), 0644); err != nil {
+		t.Fatalf("Failed to write file %q: %v", path, err)
+	}
+}
+
+func unmountPod(t *testing.T, ctx *testutils.RktRunCtx, uuid string, rmNetns bool) {
+	podDir := filepath.Join(ctx.DataDir(), "pods", "run", uuid)
+	stage1MntPath := filepath.Join(podDir, "stage1", "rootfs")
+	stage2MntPath := filepath.Join(stage1MntPath, "opt", "stage2", "rkt-inspect", "rootfs")
+	netnsPath := filepath.Join(podDir, "netns")
+	podNetNSPathBytes, err := ioutil.ReadFile(netnsPath)
+	if err != nil {
+		t.Fatalf(`cannot read "netns" stage1: %v`, err)
+	}
+	podNetNSPath := string(podNetNSPathBytes)
+
+	if err := syscall.Unmount(stage2MntPath, 0); err != nil {
+		t.Fatalf("cannot umount stage2: %v", err)
+	}
+
+	if err := syscall.Unmount(stage1MntPath, 0); err != nil {
+		t.Fatalf("cannot umount stage1: %v", err)
+	}
+
+	if err := syscall.Unmount(podNetNSPath, 0); err != nil {
+		t.Fatalf("cannot umount pod netns: %v", err)
+	}
+
+	if rmNetns {
+		_ = os.RemoveAll(podNetNSPath)
+	}
+}
+
+func checkExitStatus(child *gexpect.ExpectSubprocess) error {
+	err := child.Wait()
+	status := getExitStatus(err)
+	if status != 0 {
+		return fmt.Errorf("rkt terminated with unexpected status %d, expected %d\nOutput:\n%s", status, 0, child.Collect())
+	}
+
+	return nil
 }

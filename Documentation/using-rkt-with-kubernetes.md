@@ -10,17 +10,15 @@ This allows a Kubernetes cluster to leverage some of rkt's security features and
 The container runtime is configured at the _kubelet_ level.
 The kubelet is the agent that runs on each machine to manage containers.
 The kubelet provides several flags to use rkt as the container runtime:
-- `--container-runtime=rkt` chooses rkt as the runtime.
-- `--rkt-path` sets the rkt binary path.
-- `--rkt-stage1-image` sets the stage1 image path.
 
-The [getting started with rkt guide][] in the upstream Kubernetes documentation provides more detailed information about how to launch a kubernetes cluster with rkt, how to debug it, and more.
+- `--container-runtime=rkt` Sets the node's container runtime to rkt.
+- `--rkt-api-endpoint=HOST:PORT` Sets the endpoint of the rkt API service. Default to `localhost:15441`.
+- `--rkt-path=PATH_TO_RKT_BINARY` Sets the path of the rkt binary. If empty, it will search for rkt in `$PATH`.
+- `--rkt-stage1-image=STAGE1_NAME` Sets the name of the stage1 image, e.g. `coreos.com/rkt/stage1-coreos`. If not set, the default stage1 image (`coreos.com/rkt/stage1-coreos`) is used.
 
-[getting started with rkt guide]: http://kubernetes.io/docs/getting-started-guides/rkt/
+Check the [rktnetes getting started guide](http://kubernetes.io/docs/getting-started-guides/rkt/) for information about setting up and using a rktnetes cluster.
 
 ### Current Status
 
-Integration of rkt as a container runtime for Kubernetes is under active development.
-For the latest information on the progress of the integration, check out [this Google doc][rkt-k8s-checklist] which tracks the detailed status of implemented functionality.
-
-[rkt-k8s-checklist]: https://docs.google.com/document/d/1dYxInIUDTm4HEArQ9Hom_1NhYw22WrXWdglnaLjtQsI/edit
+Integration of rkt as a container runtime was officially [announced in the Kubernetes 1.3 release](http://blog.kubernetes.io/2016/07/rktnetes-brings-rkt-container-engine-to-Kubernetes.html).
+Known issues and tips for using rkt with Kubernetes can be found in the [rktnetes notes](http://kubernetes.io/docs/getting-started-guides/rkt/notes/).

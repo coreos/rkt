@@ -17,7 +17,7 @@ package main
 import (
 	"encoding/json"
 
-	"github.com/coreos/rkt/store"
+	"github.com/coreos/rkt/store/imagestore"
 
 	"github.com/spf13/cobra"
 )
@@ -34,7 +34,7 @@ var (
 
 func init() {
 	cmdImage.AddCommand(cmdImageCatManifest)
-	cmdImageCatManifest.Flags().BoolVar(&flagPrettyPrint, "pretty-print", false, "apply indent to format the output")
+	cmdImageCatManifest.Flags().BoolVar(&flagPrettyPrint, "pretty-print", true, "apply indent to format the output")
 }
 
 func runImageCatManifest(cmd *cobra.Command, args []string) (exit int) {
@@ -43,7 +43,7 @@ func runImageCatManifest(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	s, err := store.NewStore(getDataDir())
+	s, err := imagestore.NewStore(storeDir())
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
 		return 1

@@ -1,13 +1,16 @@
 *~
 
+.cache
+.vagrant
+/.config.args
 /Makefile
+/acbuild
 /autom4te.cache
+/build-rir*
+/build-rkt*
 /config.log
 /config.status
-/.config.args
 /configure
-/build-rkt*
-/build-rir*
-.vagrant
+/dist/bash_completion
+/dist/manpages
 /tags
-/acbuild

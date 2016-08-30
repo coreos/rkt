@@ -16,6 +16,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os/exec"
 	"path"
 	"path/filepath"
@@ -98,32 +99,36 @@ func goGetArgs(args []string) (string, string, string, goDepsMode) {
 // goGetPackageDeps returns a list of files that are used to build a
 // module in a given repo.
 func goGetPackageDeps(repo, module string) []string {
-	pkg := path.Join(repo, module)
-	deps := []string{pkg}
-	for _, d := range goGetDeps(pkg) {
-		if strings.HasPrefix(d, repo) {
-			deps = append(deps, d)
-		}
-	}
-	return goGetFiles(repo, deps)
+	dir, deps := goGetDeps(repo, module)
+	return goGetFiles(dir, deps)
 }
 
-// goGetDeps gets all dependencies, direct or indirect, of a given
-// package.
-func goGetDeps(pkg string) []string {
-	rawDeps := goRun(goList([]string{"Deps"}, []string{pkg}))
-	// we expect only one line
-	if len(rawDeps) != 1 {
-		return []string{}
+// goGetDeps gets the directory of a given repo and the all
+// dependencies, direct or indirect, of a given module in the repo.
+func goGetDeps(repo, module string) (string, []string) {
+	pkg := path.Join(repo, module)
+	rawTuples := goRun(goList([]string{"Dir", "Deps"}, []string{pkg}))
+	if len(rawTuples) != 1 {
+		common.Die("Expected to get only one line from go list for a single package")
 	}
-	return goSliceRawSlice(rawDeps[0])
+	tuple := goSliceRawTuple(rawTuples[0])
+	dir := tuple[0]
+	if module != "." {
+		dirsToStrip := 1 + strings.Count(module, "/")
+		for i := 0; i < dirsToStrip; i++ {
+			dir = filepath.Dir(dir)
+		}
+	}
+	dir = filepath.Clean(dir)
+	deps := goSliceRawSlice(tuple[1])
+	return dir, append([]string{pkg}, deps...)
 }
 
 // goGetFiles returns a list of files that are in given packages. File
-// paths are "relative" to passed repo.
-func goGetFiles(repo string, pkgs []string) []string {
+// paths are relative to a given directory.
+func goGetFiles(dir string, pkgs []string) []string {
 	params := []string{
-		"ImportPath",
+		"Dir",
 		"GoFiles",
 		"CgoFiles",
 	}
@@ -131,10 +136,19 @@ func goGetFiles(repo string, pkgs []string) []string {
 	rawTuples := goRun(goList(params, pkgs))
 	for _, raw := range rawTuples {
 		tuple := goSliceRawTuple(raw)
-		module := strings.TrimPrefix(tuple[0], repo+"/")
+		moduleDir := filepath.Clean(tuple[0])
+		dirSep := fmt.Sprintf("%s%c", dir, filepath.Separator)
+		moduleDirSep := fmt.Sprintf("%s%c", moduleDir, filepath.Separator)
+		if !strings.HasPrefix(moduleDirSep, dirSep) {
+			continue
+		}
+		relModuleDir, err := filepath.Rel(dir, moduleDir)
+		if err != nil {
+			common.Die("Could not make a relative path from %q to %q, even if they have the same prefix", moduleDir, dir)
+		}
 		files := append(goSliceRawSlice(tuple[1]), goSliceRawSlice(tuple[2])...)
 		for i := 0; i < len(files); i++ {
-			files[i] = filepath.Join(module, files[i])
+			files[i] = filepath.Join(relModuleDir, files[i])
 		}
 		allFiles = append(allFiles, files...)
 	}

@@ -43,8 +43,8 @@ func ServiceUnitPath(root string, appName types.ACName) string {
 	return filepath.Join(common.Stage1RootfsPath(root), UnitsDir, ServiceUnitName(appName))
 }
 
-// RelEnvFilePath returns the path to the environment file for the given app name
-// relative to the pod's root.
+// RelEnvFilePath returns the path to the environment file for the given
+// app name relative to the pod's root.
 func RelEnvFilePath(appName types.ACName) string {
 	return filepath.Join(envDir, appName.String())
 }
@@ -65,7 +65,7 @@ func ServiceWantPath(root string, appName types.ACName) string {
 func InstantiatedPrepareAppUnitName(appName types.ACName) string {
 	// Naming respecting escaping rules, see systemd.unit(5) and systemd-escape(1)
 	escapedRoot := unit.UnitNamePathEscape(common.RelAppRootfsPath(appName))
-	return "prepare-app@" + escapedRoot + ".service"
+	return "prepare-app@-" + escapedRoot + ".service"
 }
 
 // SocketUnitName returns a systemd socket unit name for the given app name.

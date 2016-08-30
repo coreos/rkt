@@ -21,13 +21,7 @@ $(call setup-stamp-file,KERNEL_BZIMAGE_STAMP,/bzimage)
 $(call setup-stamp-file,KERNEL_PATCH_STAMP,/patch_kernel)
 $(call setup-stamp-file,KERNEL_DEPS_STAMP,/deps)
 $(call setup-dep-file,KERNEL_PATCHES_DEPMK)
-$(call setup-clean-file,KERNEL_SRC_CLEANMK,/src)
-$(call setup-clean-file,KERNEL_BUILD_CLEANMK,/build)
 $(call setup-filelist-file,KERNEL_PATCHES_FILELIST,/patches)
-$(call setup-filelist-file,KERNEL_BUILD_FILELIST,/build)
-$(call setup-filelist-file,KERNEL_SRC_FILELIST,/src)
-$(call setup-stamp-file,KERNEL_SRC_CLEAN_STAMP,/src-clean)
-$(call setup-stamp-file,KERNEL_BUILD_CLEAN_STAMP,/build-clean)
 
 CREATE_DIRS += $(KERNEL_TMPDIR) $(KERNEL_BUILDDIR)
 CLEAN_DIRS += $(KERNEL_SRCDIR)
@@ -36,7 +30,7 @@ S1_RF_INSTALL_FILES += $(KERNEL_BZIMAGE):$(KERNEL_ACI_BZIMAGE):-
 S1_RF_SECONDARY_STAMPS += $(KERNEL_STAMP)
 CLEAN_FILES += $(KERNEL_TARGET_FILE)
 
-$(call generate-stamp-rule,$(KERNEL_STAMP),$(KERNEL_ACI_BZIMAGE) $(KERNEL_DEPS_STAMP) $(KERNEL_BUILD_CLEAN_STAMP) $(KERNEL_SRC_CLEAN_STAMP))
+$(call generate-stamp-rule,$(KERNEL_STAMP),$(KERNEL_ACI_BZIMAGE) $(KERNEL_DEPS_STAMP))
 
 # $(KERNEL_ACI_BZIMAGE) has a dependency on $(KERNEL_BZIMAGE), which
 # is actually provided by $(KERNEL_BZIMAGE_STAMP)
@@ -47,13 +41,14 @@ $(call generate-stamp-rule,$(KERNEL_BZIMAGE_STAMP),$(KERNEL_BUILD_CONFIG) $(KERN
 	$(call vb,vt,BUILD EXT,bzImage) \
 	$$(MAKE) $(call vl2,--silent) -C "$(KERNEL_SRCDIR)" O="$(KERNEL_BUILDDIR)" V=0 bzImage $(call vl2,>/dev/null))
 
-# Generate filelist of a builddir. Can happen only after the building
-# finished.
-$(KERNEL_BUILD_FILELIST): $(KERNEL_BZIMAGE_STAMP)
-$(call generate-deep-filelist,$(KERNEL_BUILD_FILELIST),$(KERNEL_BUILDDIR))
-
-# Generate clean.mk cleaning builddir.
-$(call generate-clean-mk,$(KERNEL_BUILD_CLEAN_STAMP),$(KERNEL_BUILD_CLEANMK),$(KERNEL_BUILD_FILELIST),$(KERNEL_BUILDDIR))
+# Generate clean file of a builddir. Can happen only after the
+# building finished.
+$(call generate-clean-mk-simple,\
+	$(KERNEL_STAMP), \
+	$(KERNEL_BUILDDIR), \
+	$(KERNEL_BUILDDIR), \
+	$(KERNEL_BZIMAGE_STAMP), \
+	builddir-cleanup)
 
 $(call generate-stamp-rule,$(KERNEL_PATCH_STAMP),$(KERNEL_MAKEFILE),, \
 	shopt -s nullglob; \
@@ -62,13 +57,14 @@ $(call generate-stamp-rule,$(KERNEL_PATCH_STAMP),$(KERNEL_MAKEFILE),, \
 		patch $(call vl3,--silent )--directory="$(KERNEL_SRCDIR)" --strip=1 --forward <"$$$${p}"; \
 	done)
 
-# Generate a filelist of srcdir. Can happen after the sources were
+# Generate clean file of a srcdir. Can happen after the sources were
 # patched.
-$(KERNEL_SRC_FILELIST): $(KERNEL_PATCH_STAMP)
-$(call generate-deep-filelist,$(KERNEL_SRC_FILELIST),$(KERNEL_SRCDIR))
-
-# Generate clean.mk cleaning the sources.
-$(call generate-clean-mk,$(KERNEL_SRC_CLEAN_STAMP),$(KERNEL_SRC_CLEANMK),$(KERNEL_SRC_FILELIST),$(KERNEL_SRCDIR))
+$(call generate-clean-mk-simple,\
+	$(KERNEL_STAMP), \
+	$(KERNEL_SRCDIR), \
+	$(KERNEL_SRCDIR), \
+	$(KERNEL_PATCH_STAMP), \
+	srcdir-cleanup)
 
 # Generate a filelist of patches. Can happen anytime.
 $(call generate-patches-filelist,$(KERNEL_PATCHES_FILELIST),$(KERNEL_PATCHESDIR))

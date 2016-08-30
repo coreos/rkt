@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/coreos/rkt/pkg/lock"
-	"github.com/coreos/rkt/store"
+	"github.com/coreos/rkt/store/imagestore"
 	"github.com/hashicorp/errwrap"
 
 	"github.com/coreos/ioprogress"
@@ -106,7 +106,7 @@ func (f *removeOnClose) Close() error {
 // getTmpROC returns a removeOnClose instance wrapping a temporary
 // file provided by the passed store. The actual file name is based on
 // a hash of the passed path.
-func getTmpROC(s *store.Store, path string) (*removeOnClose, error) {
+func getTmpROC(s *imagestore.Store, path string) (*removeOnClose, error) {
 	h := sha512.New()
 	h.Write([]byte(path))
 	pathHash := s.HashToKey(h)

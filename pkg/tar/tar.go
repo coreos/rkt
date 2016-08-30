@@ -27,8 +27,7 @@ import (
 
 	"github.com/appc/spec/pkg/device"
 	"github.com/coreos/rkt/pkg/fileutil"
-	"github.com/coreos/rkt/pkg/uid"
-	"github.com/hashicorp/errwrap"
+	"github.com/coreos/rkt/pkg/user"
 )
 
 const DEFAULT_DIR_MODE os.FileMode = 0755
@@ -41,7 +40,7 @@ type PathWhitelistMap map[string]struct{}
 
 type FilePermissionsEditor func(string, int, int, byte, os.FileInfo) error
 
-func NewUidShiftingFilePermEditor(uidRange *uid.UidRange) (FilePermissionsEditor, error) {
+func NewUidShiftingFilePermEditor(uidRange *user.UidRange) (FilePermissionsEditor, error) {
 	if os.Geteuid() != 0 {
 		return func(_ string, _, _ int, _ byte, _ os.FileInfo) error {
 			// The files are owned by the current user on creation.
@@ -94,13 +93,13 @@ Tar:
 			}
 			err = extractFile(tr, target, hdr, overwrite, editor)
 			if err != nil {
-				return errwrap.Wrap(errors.New("error extracting tarball"), err)
+				return fmt.Errorf("could not extract file %q in %q: %v", hdr.Name, target, err)
 			}
 			if hdr.Typeflag == tar.TypeDir {
 				dirhdrs = append(dirhdrs, hdr)
 			}
 		default:
-			return errwrap.Wrap(errors.New("error extracting tarball"), err)
+			return err
 		}
 	}
 
@@ -109,7 +108,7 @@ Tar:
 	for _, hdr := range dirhdrs {
 		p := filepath.Join(target, hdr.Name)
 		if err := syscall.UtimesNano(p, HdrToTimespec(hdr)); err != nil {
-			return err
+			return fmt.Errorf("UtimesNano failed on %q: %v", p, err)
 		}
 	}
 	return nil
@@ -194,6 +193,8 @@ func extractFile(tr *tar.Reader, target string, hdr *tar.Header, overwrite bool,
 		if err := syscall.Mkfifo(p, uint32(fi.Mode())); err != nil {
 			return err
 		}
+	case typ == tar.TypeXGlobalHeader:
+		return nil
 	// TODO(jonboulle): implement other modes
 	default:
 		return fmt.Errorf("unsupported type: %v", typ)
@@ -242,11 +243,11 @@ func extractFileFromTar(tr *tar.Reader, file string) ([]byte, error) {
 			}
 			buf, err := ioutil.ReadAll(tr)
 			if err != nil {
-				return nil, errwrap.Wrap(errors.New("error extracting tarball"), err)
+				return nil, err
 			}
 			return buf, nil
 		default:
-			return nil, errwrap.Wrap(errors.New("error extracting tarball"), err)
+			return nil, err
 		}
 	}
 }

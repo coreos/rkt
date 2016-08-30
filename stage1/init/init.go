@@ -29,13 +29,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"syscall"
 
 	"github.com/appc/goaci/proj2aci"
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/go-systemd/util"
+	"github.com/coreos/pkg/dlopen"
 	"github.com/godbus/dbus"
 	"github.com/godbus/dbus/introspect"
 	"github.com/hashicorp/errwrap"
@@ -50,13 +50,12 @@ import (
 	rktlog "github.com/coreos/rkt/pkg/log"
 	"github.com/coreos/rkt/pkg/sys"
 	"github.com/coreos/rkt/stage1/init/kvm"
+	"github.com/coreos/rkt/stage1/init/kvm/hypervisor"
 )
 
 const (
 	// Path to systemd-nspawn binary within the stage1 rootfs
 	nspawnBin = "/usr/bin/systemd-nspawn"
-	// Path to the interpreter within the stage1 rootfs
-	interpBin = "/usr/lib/ld-linux-x86-64.so.2"
 	// Path to the localtime file/symlink in host
 	localtimePath = "/etc/localtime"
 )
@@ -96,16 +95,20 @@ func mirrorLocalZoneInfo(root string) {
 }
 
 var (
-	debug        bool
-	netList      common.NetList
-	interactive  bool
-	privateUsers string
-	mdsToken     string
-	localhostIP  net.IP
-	localConfig  string
-	hostname     string
-	log          *rktlog.Logger
-	diag         *rktlog.Logger
+	debug               bool
+	netList             common.NetList
+	interactive         bool
+	privateUsers        string
+	mdsToken            string
+	localhostIP         net.IP
+	localConfig         string
+	hostname            string
+	log                 *rktlog.Logger
+	diag                *rktlog.Logger
+	interpBin           string // Path to the interpreter within the stage1 rootfs, set by the linker
+	disableCapabilities bool
+	disablePaths        bool
+	disableSeccomp      bool
 )
 
 func init() {
@@ -116,6 +119,10 @@ func init() {
 	flag.StringVar(&mdsToken, "mds-token", "", "MDS auth token")
 	flag.StringVar(&localConfig, "local-config", common.DefaultLocalConfigDir, "Local config path")
 	flag.StringVar(&hostname, "hostname", "", "Hostname of the pod")
+	flag.BoolVar(&disableCapabilities, "disable-capabilities-restriction", false, "Disable capability restrictions")
+	flag.BoolVar(&disablePaths, "disable-paths", false, "Disable paths restrictions")
+	flag.BoolVar(&disableSeccomp, "disable-seccomp", false, "Disable seccomp restrictions")
+
 	// this ensures that main runs only on main thread (thread group leader).
 	// since namespace ops (unshare, setns) are done for a single thread, we
 	// must ensure that the goroutine does not jump from OS thread to thread
@@ -165,6 +172,10 @@ func installAssets() error {
 	if err != nil {
 		return err
 	}
+	systemdSysusersBin, err := common.LookupPath("systemd-sysusers", os.Getenv("PATH"))
+	if err != nil {
+		return err
+	}
 	bashBin, err := common.LookupPath("bash", os.Getenv("PATH"))
 	if err != nil {
 		return err
@@ -189,6 +200,7 @@ func installAssets() error {
 	assets := []string{
 		proj2aci.GetAssetString("/usr/lib/systemd/systemd", systemdBin),
 		proj2aci.GetAssetString("/usr/bin/systemctl", systemctlBin),
+		proj2aci.GetAssetString("/usr/bin/systemd-sysusers", systemdSysusersBin),
 		proj2aci.GetAssetString("/usr/lib/systemd/systemd-journald", systemdJournaldBin),
 		proj2aci.GetAssetString("/usr/bin/bash", bashBin),
 		proj2aci.GetAssetString(fmt.Sprintf("%s/systemd-journald.service", systemdUnitsPath), fmt.Sprintf("%s/systemd-journald.service", systemdUnitsPath)),
@@ -203,8 +215,9 @@ func installAssets() error {
 	return proj2aci.PrepareAssets(assets, "./stage1/rootfs/", nil)
 }
 
-// getArgsEnv returns the nspawn or lkvm args and env according to the flavor used
-func getArgsEnv(p *stage1commontypes.Pod, flavor string, debug bool, n *networking.Networking) ([]string, []string, error) {
+// getArgsEnv returns the nspawn or lkvm args and env according to the flavor
+// as the first two return values respectively.
+func getArgsEnv(p *stage1commontypes.Pod, flavor string, canMachinedRegister bool, debug bool, n *networking.Networking, insecureOptions stage1initcommon.Stage1InsecureOptions) ([]string, []string, error) {
 	var args []string
 	env := os.Environ()
 
@@ -225,75 +238,50 @@ func getArgsEnv(p *stage1commontypes.Pod, flavor string, debug bool, n *networki
 		return nil, nil, fmt.Errorf("error writing %s, %s", hostnamePath, err)
 	}
 
+	// systemd-nspawn needs /etc/machine-id to link the container's journal
+	// to the host. Since systemd-v230, /etc/machine-id is mandatory, see
+	// https://github.com/systemd/systemd/commit/e01ff70a77e781734e1e73a2238af2e9bf7967a8
+	mPath := filepath.Join(common.Stage1RootfsPath(p.Root), "etc", "machine-id")
+	machineID := strings.Replace(p.UUID.String(), "-", "", -1)
+
 	switch flavor {
 	case "kvm":
 		if privateUsers != "" {
 			return nil, nil, fmt.Errorf("flag --private-users cannot be used with an lkvm stage1")
 		}
 
-		// kernel and lkvm are relative path, because init has /var/lib/rkt/..../uuid as its working directory
+		// kernel and hypervisor binaries are located relative to the working directory
+		// of init (/var/lib/rkt/..../uuid)
 		// TODO: move to path.go
 		kernelPath := filepath.Join(common.Stage1RootfsPath(p.Root), "bzImage")
-		lkvmPath := filepath.Join(common.Stage1RootfsPath(p.Root), "lkvm")
 		netDescriptions := kvm.GetNetworkDescriptions(n)
-		lkvmNetArgs, err := kvm.GetKVMNetArgs(netDescriptions)
-		if err != nil {
-			return nil, nil, err
-		}
 
 		cpu, mem := kvm.GetAppsResources(p.Manifest.Apps)
 
-		kernelParams := []string{
-			"console=hvc0",
-			"init=/usr/lib/systemd/systemd",
-			"no_timer_check",
-			"noreplace-smp",
-			"systemd.default_standard_error=journal+console",
-			"systemd.default_standard_output=journal+console",
-			// "systemd.default_standard_output=tty",
-			"tsc=reliable",
-			"MACHINEID=" + p.UUID.String(),
-		}
-
-		if debug {
-			kernelParams = append(kernelParams, []string{
-				"debug",
-				"systemd.log_level=debug",
-				"systemd.show_status=true",
-				// "systemd.confirm_spawn=true",
-			}...)
-		} else {
-			kernelParams = append(kernelParams, "quiet")
-		}
-
-		args = append(args, []string{
-			"./" + lkvmPath, // relative path
-			"run",
-			"--name", "rkt-" + p.UUID.String(),
-			"--no-dhcp", // speed bootup
-			"--cpu", strconv.FormatInt(cpu, 10),
-			"--mem", strconv.FormatInt(mem, 10),
-			"--console=virtio",
-			"--kernel", kernelPath,
-			"--disk", "stage1/rootfs", // relative to run/pods/uuid dir this is a place where systemd resides
-			// MACHINEID will be available as environment variable
-			"--params", strings.Join(kernelParams, " "),
-		}...,
+		hvStartCmd := hypervisor.StartCmd(
+			common.Stage1RootfsPath(p.Root),
+			p.UUID.String(),
+			kernelPath,
+			netDescriptions,
+			cpu,
+			mem,
+			debug,
 		)
-		args = append(args, lkvmNetArgs...)
 
-		if debug {
-			args = append(args, "--debug")
+		if hvStartCmd == nil {
+			return nil, nil, fmt.Errorf("no hypervisor")
 		}
 
-		// host volume sharing with 9p
-		nsargs := stage1initcommon.VolumesToKvmDiskArgs(p.Manifest.Volumes)
-		args = append(args, nsargs...)
+		args = append(args, hvStartCmd...)
 
 		// lkvm requires $HOME to be defined,
 		// see https://github.com/coreos/rkt/issues/1393
 		if os.Getenv("HOME") == "" {
 			env = append(env, "HOME=/root")
+		}
+
+		if err := linkJournal(common.Stage1RootfsPath(p.Root), machineID); err != nil {
+			return nil, nil, errwrap.Wrap(errors.New("error linking pod's journal"), err)
 		}
 
 		return args, env, nil
@@ -311,7 +299,7 @@ func getArgsEnv(p *stage1commontypes.Pod, flavor string, debug bool, n *networki
 			args = append(args, fmt.Sprintf("-L%s", context))
 		}
 
-		if machinedRegister() {
+		if canMachinedRegister {
 			args = append(args, fmt.Sprintf("--register=true"))
 		} else {
 			args = append(args, fmt.Sprintf("--register=false"))
@@ -321,6 +309,7 @@ func getArgsEnv(p *stage1commontypes.Pod, flavor string, debug bool, n *networki
 		env = append(env, "LD_LIBRARY_PATH="+filepath.Join(common.Stage1RootfsPath(p.Root), "usr/lib"))
 
 	case "src":
+		args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), interpBin))
 		args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), nspawnBin))
 		args = append(args, "--boot") // Launch systemd in the pod
 
@@ -332,11 +321,16 @@ func getArgsEnv(p *stage1commontypes.Pod, flavor string, debug bool, n *networki
 			args = append(args, fmt.Sprintf("-L%s", context))
 		}
 
-		if machinedRegister() {
+		if canMachinedRegister {
 			args = append(args, fmt.Sprintf("--register=true"))
 		} else {
 			args = append(args, fmt.Sprintf("--register=false"))
 		}
+
+		// use only dynamic libraries provided in the image
+		// from systemd v231 there's a new internal libsystemd-shared-v231.so
+		// which is present in /usr/lib/systemd
+		env = append(env, "LD_LIBRARY_PATH="+filepath.Join(common.Stage1RootfsPath(p.Root), "usr/lib/systemd"))
 
 	case "host":
 		hostNspawnBin, err := common.LookupPath("systemd-nspawn", os.Getenv("PATH"))
@@ -381,22 +375,18 @@ func getArgsEnv(p *stage1commontypes.Pod, flavor string, debug bool, n *networki
 		return nil, nil, fmt.Errorf("unrecognized stage1 flavor: %q", flavor)
 	}
 
+	machineIDBytes := append([]byte(machineID), '\n')
+	if err := ioutil.WriteFile(mPath, machineIDBytes, 0644); err != nil {
+		log.FatalE("error writing /etc/machine-id", err)
+	}
+
 	// link journal only if the host is running systemd
 	if util.IsRunningSystemd() {
-		// we write /etc/machine-id here because systemd-nspawn needs it to link
-		// the container's journal to the host
-		mPath := filepath.Join(common.Stage1RootfsPath(p.Root), "etc", "machine-id")
-		mID := strings.Replace(p.UUID.String(), "-", "", -1)
-
-		if err := ioutil.WriteFile(mPath, []byte(mID), 0644); err != nil {
-			log.FatalE("error writing /etc/machine-id", err)
-		}
-
 		args = append(args, "--link-journal=try-guest")
 
 		keepUnit, err := util.RunningFromSystemService()
 		if err != nil {
-			if err == util.ErrSoNotFound {
+			if err == dlopen.ErrSoNotFound {
 				log.Print("warning: libsystemd not found even though systemd is running. Cgroup limits set by the environment (e.g. a systemd service) won't be enforced.")
 			} else {
 				return nil, nil, errwrap.Wrap(errors.New("error determining if we're running from a system service"), err)
@@ -406,6 +396,8 @@ func getArgsEnv(p *stage1commontypes.Pod, flavor string, debug bool, n *networki
 		if keepUnit {
 			args = append(args, "--keep-unit")
 		}
+	} else {
+		args = append(args, "--link-journal=no")
 	}
 
 	if !debug {
@@ -414,12 +406,20 @@ func getArgsEnv(p *stage1commontypes.Pod, flavor string, debug bool, n *networki
 	}
 
 	env = append(env, "SYSTEMD_NSPAWN_CONTAINER_SERVICE=rkt")
+	// TODO (alepuccetti) remove this line when rkt will use cgroup namespace
+	// If the kernel has the cgroup namespace enabled, systemd v232 will use it by default.
+	// This was introduced by https://github.com/systemd/systemd/pull/3809 and it will cause
+	// problems in rkt when cgns is enabled and cgroup-v1 is used. For more information see
+	// https://github.com/systemd/systemd/pull/3589#discussion_r70277625.
+	// The following line tells systemd-nspawn not to use cgroup namespace using the environment variable
+	// introduced by https://github.com/systemd/systemd/pull/3809.
+	env = append(env, "SYSTEMD_NSPAWN_USE_CGNS=no")
 
 	if len(privateUsers) > 0 {
 		args = append(args, "--private-users="+privateUsers)
 	}
 
-	nsargs, err := stage1initcommon.PodToNspawnArgs(p)
+	nsargs, err := stage1initcommon.PodToNspawnArgs(p, insecureOptions)
 	if err != nil {
 		return nil, nil, errwrap.Wrap(errors.New("failed to generate nspawn args"), err)
 	}
@@ -507,7 +507,7 @@ func stage1() int {
 	flavor, _, err := stage1initcommon.GetFlavor(p)
 	if err != nil {
 		log.PrintE("failed to get stage1 flavor", err)
-		return 3
+		return 1
 	}
 
 	var n *networking.Networking
@@ -515,26 +515,26 @@ func stage1() int {
 		fps, err := forwardedPorts(p)
 		if err != nil {
 			log.Error(err)
-			return 6
+			return 1
 		}
 
 		n, err = networking.Setup(root, p.UUID, fps, netList, localConfig, flavor, debug)
 		if err != nil {
 			log.PrintE("failed to setup network", err)
-			return 6
+			return 1
 		}
 
 		if err = n.Save(); err != nil {
 			log.PrintE("failed to save networking state", err)
 			n.Teardown(flavor, debug)
-			return 6
+			return 1
 		}
 
 		if len(mdsToken) > 0 {
-			hostIP, err := n.GetDefaultHostIP()
+			hostIP, err := n.GetForwardableNetHostIP()
 			if err != nil {
 				log.PrintE("failed to get default Host IP", err)
-				return 6
+				return 1
 			}
 
 			p.MetadataServiceURL = common.MetadataServicePublicURL(hostIP, mdsToken)
@@ -542,7 +542,7 @@ func stage1() int {
 	} else {
 		if flavor == "kvm" {
 			log.Print("flavor kvm requires private network configuration (try --net)")
-			return 6
+			return 1
 		}
 		if len(mdsToken) > 0 {
 			p.MetadataServiceURL = common.MetadataServicePublicURL(localhostIP, mdsToken)
@@ -551,12 +551,12 @@ func stage1() int {
 
 	if err = stage1initcommon.WriteDefaultTarget(p); err != nil {
 		log.PrintE("failed to write default.target", err)
-		return 2
+		return 1
 	}
 
 	if err = stage1initcommon.WritePrepareAppTemplate(p); err != nil {
 		log.PrintE("failed to write prepare-app service template", err)
-		return 2
+		return 1
 	}
 
 	if err := stage1initcommon.SetJournalPermissions(p); err != nil {
@@ -564,21 +564,33 @@ func stage1() int {
 	}
 
 	if flavor == "kvm" {
-		if err := KvmPodToSystemd(p, n); err != nil {
+		kvm.InitDebug(debug)
+		if err := KvmNetworkingToSystemd(p, n); err != nil {
 			log.PrintE("failed to configure systemd for kvm", err)
-			return 2
+			return 1
 		}
 	}
 
-	if err = stage1initcommon.PodToSystemd(p, interactive, flavor, privateUsers); err != nil {
-		log.PrintE("failed to configure systemd", err)
-		return 2
+	insecureOptions := stage1initcommon.Stage1InsecureOptions{
+		DisablePaths:        disablePaths,
+		DisableCapabilities: disableCapabilities,
+		DisableSeccomp:      disableSeccomp,
 	}
 
-	args, env, err := getArgsEnv(p, flavor, debug, n)
+	if err = stage1initcommon.PodToSystemd(p, interactive, flavor, privateUsers, insecureOptions); err != nil {
+		log.PrintE("failed to configure systemd", err)
+		return 1
+	}
+
+	canMachinedRegister := false
+	if flavor != "kvm" {
+		// kvm doesn't register with systemd right now, see #2664.
+		canMachinedRegister = machinedRegister()
+	}
+	args, env, err := getArgsEnv(p, flavor, canMachinedRegister, debug, n, insecureOptions)
 	if err != nil {
 		log.Error(err)
-		return 3
+		return 1
 	}
 
 	// create a separate mount namespace so the cgroup filesystems
@@ -602,13 +614,12 @@ func stage1() int {
 	enabledCgroups, err := cgroup.GetEnabledCgroups()
 	if err != nil {
 		log.FatalE("error getting cgroups", err)
-		return 5
+		return 1
 	}
 
-	// mount host cgroups in the rkt mount namespace
 	if err := mountHostCgroups(enabledCgroups); err != nil {
 		log.FatalE("couldn't mount the host cgroups", err)
-		return 5
+		return 1
 	}
 
 	var serviceNames []string
@@ -617,19 +628,40 @@ func stage1() int {
 	}
 	s1Root := common.Stage1RootfsPath(p.Root)
 	machineID := stage1initcommon.GetMachineID(p)
-	subcgroup, err := getContainerSubCgroup(machineID)
+	subcgroup, err := getContainerSubCgroup(machineID, canMachinedRegister)
 	if err == nil {
+		if err := ioutil.WriteFile(filepath.Join(p.Root, "subcgroup"),
+			[]byte(fmt.Sprintf("%s", subcgroup)), 0644); err != nil {
+			log.FatalE("cannot write subcgroup file", err)
+			return 1
+		}
+
 		if err := mountContainerCgroups(s1Root, enabledCgroups, subcgroup, serviceNames); err != nil {
 			log.PrintE("couldn't mount the container cgroups", err)
-			return 5
+			return 1
 		}
 	} else {
 		log.PrintE("continuing with per-app isolators disabled", err)
 	}
 
-	if err = stage1common.WritePpid(os.Getpid()); err != nil {
+	// KVM flavor has a bit different logic in handling pid vs ppid, for details look into #2389
+	// it doesn't require the existence of a "ppid", instead it registers the current pid (which
+	// will be reused by lkvm binary) as a pod process pid used during entering
+	pid_filename := "ppid"
+	if flavor == "kvm" {
+		pid_filename = "pid"
+	}
+
+	if err = stage1common.WritePid(os.Getpid(), pid_filename); err != nil {
 		log.Error(err)
-		return 4
+		return 1
+	}
+
+	if flavor == "kvm" {
+		if err := KvmPrepareMounts(s1Root, p); err != nil {
+			log.PrintE("could not prepare mounts", err)
+			return 1
+		}
 	}
 
 	err = stage1common.WithClearedCloExec(lfd, func() error {
@@ -637,7 +669,7 @@ func stage1() int {
 	})
 	if err != nil {
 		log.PrintE(fmt.Sprintf("failed to execute %q", args[0]), err)
-		return 7
+		return 1
 	}
 
 	return 0
@@ -695,7 +727,7 @@ func mountContainerCgroups(s1Root string, enabledCgroups map[int][]string, subcg
 	return nil
 }
 
-func getContainerSubCgroup(machineID string) (string, error) {
+func getContainerSubCgroup(machineID string, canMachinedRegister bool) (string, error) {
 	var subcgroup string
 	fromUnit, err := util.RunningFromSystemService()
 	if err != nil {
@@ -714,15 +746,15 @@ func getContainerSubCgroup(machineID string) (string, error) {
 		if err != nil {
 			return "", errwrap.Wrap(errors.New("could not get unit name"), err)
 		}
-		subcgroup = filepath.Join(slicePath, unit, "system.slice")
+		subcgroup = filepath.Join(slicePath, unit)
 	} else {
 		escapedmID := strings.Replace(machineID, "-", "\\x2d", -1)
 		machineDir := "machine-" + escapedmID + ".scope"
-		if machinedRegister() {
+		if canMachinedRegister {
 			// we are not in the final cgroup yet: systemd-nspawn will move us
 			// to the correct cgroup later during registration so we can't
 			// look it up in /proc/self/cgroup
-			subcgroup = filepath.Join("machine.slice", machineDir, "system.slice")
+			subcgroup = filepath.Join("machine.slice", machineDir)
 		} else {
 			// when registration is disabled the container will be directly
 			// under the current cgroup so we can look it up in /proc/self/cgroup
@@ -733,11 +765,10 @@ func getContainerSubCgroup(machineID string) (string, error) {
 			// systemd-nspawn won't work if we are in the root cgroup. In addition,
 			// we want all rkt instances to be in distinct cgroups. Create a
 			// subcgroup and add ourselves to it.
-			ownCgroupPath = filepath.Join(ownCgroupPath, machineDir)
-			if err := cgroup.JoinSubcgroup("systemd", ownCgroupPath); err != nil {
-				return "", errwrap.Wrap(fmt.Errorf("error joining %s subcgroup", ownCgroupPath), err)
+			subcgroup = filepath.Join(ownCgroupPath, machineDir)
+			if err := cgroup.JoinSubcgroup("systemd", subcgroup); err != nil {
+				return "", errwrap.Wrap(fmt.Errorf("error joining %s subcgroup", subcgroup), err)
 			}
-			subcgroup = filepath.Join(ownCgroupPath, "system.slice")
 		}
 	}
 

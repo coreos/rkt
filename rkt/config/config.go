@@ -16,6 +16,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -31,14 +32,15 @@ import (
 // Headerer is an interface for getting additional HTTP headers to use
 // when downloading data (images, signatures).
 type Headerer interface {
-	Header() http.Header
+	GetHeader() http.Header
+	SignRequest(r *http.Request) *http.Request
 }
 
 // BasicCredentials holds typical credentials used for authentication
 // (user and password). Used for fetching docker images.
 type BasicCredentials struct {
-	User     string
-	Password string
+	User     string `json:"user"`
+	Password string `json:"password"`
 }
 
 // ConfigurablePaths holds various paths defined in the configuration.
@@ -64,6 +66,90 @@ type Config struct {
 	Stage1                       Stage1Data
 }
 
+// MarshalJSON marshals the config for user output.
+func (c *Config) MarshalJSON() ([]byte, error) {
+	stage0 := []interface{}{}
+
+	for host, auth := range c.AuthPerHost {
+		var typ string
+		var credentials interface{}
+
+		switch h := auth.(type) {
+		case *basicAuthHeaderer:
+			typ = "basic"
+			credentials = h.auth
+		case *oAuthBearerTokenHeaderer:
+			typ = "oauth"
+			credentials = h.auth
+		default:
+			return nil, errors.New("unknown headerer type")
+		}
+
+		auth := struct {
+			RktVersion  string      `json:"rktVersion"`
+			RktKind     string      `json:"rktKind"`
+			Domains     []string    `json:"domains"`
+			Type        string      `json:"type"`
+			Credentials interface{} `json:"credentials"`
+		}{
+			RktVersion:  "v1",
+			RktKind:     "auth",
+			Domains:     []string{host},
+			Type:        typ,
+			Credentials: credentials,
+		}
+
+		stage0 = append(stage0, auth)
+	}
+
+	for registry, credentials := range c.DockerCredentialsPerRegistry {
+		dockerAuth := struct {
+			RktVersion  string           `json:"rktVersion"`
+			RktKind     string           `json:"rktKind"`
+			Registries  []string         `json:"registries"`
+			Credentials BasicCredentials `json:"credentials"`
+		}{
+			RktVersion:  "v1",
+			RktKind:     "dockerAuth",
+			Registries:  []string{registry},
+			Credentials: credentials,
+		}
+
+		stage0 = append(stage0, dockerAuth)
+	}
+
+	paths := struct {
+		RktVersion   string `json:"rktVersion"`
+		RktKind      string `json:"rktKind"`
+		Data         string `json:"data"`
+		Stage1Images string `json:"stage1-images"`
+	}{
+		RktVersion:   "v1",
+		RktKind:      "paths",
+		Data:         c.Paths.DataDir,
+		Stage1Images: c.Paths.Stage1ImagesDir,
+	}
+
+	stage1 := struct {
+		RktVersion string `json:"rktVersion"`
+		RktKind    string `json:"rktKind"`
+		Name       string `json:"name"`
+		Version    string `json:"version"`
+		Location   string `json:"location"`
+	}{
+		RktVersion: "v1",
+		RktKind:    "stage1",
+		Name:       c.Stage1.Name,
+		Version:    c.Stage1.Version,
+		Location:   c.Stage1.Location,
+	}
+
+	stage0 = append(stage0, paths, stage1)
+
+	data := map[string]interface{}{"stage0": stage0}
+	return json.Marshal(data)
+}
+
 type configParser interface {
 	parse(config *Config, raw []byte) error
 }
@@ -80,7 +166,7 @@ var (
 func ResolveAuthPerHost(authPerHost map[string]Headerer) map[string]http.Header {
 	hostHeaders := make(map[string]http.Header, len(authPerHost))
 	for k, v := range authPerHost {
-		hostHeaders[k] = v.Header()
+		hostHeaders[k] = v.GetHeader()
 	}
 	return hostHeaders
 }

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// +build host coreos src kvm
+
 package main
 
 import (
@@ -76,6 +78,24 @@ var envTests = []struct {
 		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug --insecure-options=image run --mds-register=false --interactive --inherit-env=true --set-env=VAR_OTHER=setenv ^SLEEP^"`,
 		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug enter $(^RKT_BIN^ list --full|grep running|awk '{print $1}') /inspect --print-env=VAR_OTHER"`,
 	},
+	{
+		`/bin/sh -c "^RKT_BIN^ --debug --insecure-options=image run --mds-register=false --set-env=VAR_OTHER=setenv --set-env-file=env_file_test.conf ^PRINT_VAR_OTHER^"`,
+		"VAR_OTHER=setenv",
+		`/bin/sh -c "^RKT_BIN^ --debug --insecure-options=image run --mds-register=false --interactive --set-env=VAR_OTHER=setenv --set-env-file=env_file_test.conf ^SLEEP^"`,
+		`/bin/sh -c "export VAR_OTHER=host ; ^RKT_BIN^ --debug enter $(^RKT_BIN^ list --full|grep running|awk '{print $1}') /inspect --print-env=VAR_OTHER"`,
+	},
+	{
+		`/bin/sh -c "^RKT_BIN^ --debug --insecure-options=image run --mds-register=false --set-env-file=env_file_test.conf ^PRINT_VAR_OTHER^"`,
+		"VAR_OTHER=file",
+		`/bin/sh -c "^RKT_BIN^ --debug --insecure-options=image run --mds-register=false --interactive --set-env-file=env_file_test.conf ^SLEEP^"`,
+		`/bin/sh -c "^RKT_BIN^ --debug enter $(^RKT_BIN^ list --full|grep running|awk '{print $1}') /inspect --print-env=VAR_OTHER"`,
+	},
+	{
+		`/bin/sh -c "^RKT_BIN^ --debug --insecure-options=image run --mds-register=false --set-env-file=env_file_test.conf ^CHECK_PATH^"`,
+		"PATH is good",
+		`/bin/sh -c "^RKT_BIN^ --debug --insecure-options=image run --mds-register=false --interactive --set-env-file=env_file_test.conf ^SLEEP^"`,
+		`/bin/sh -c "^RKT_BIN^ --debug enter $(^RKT_BIN^ list --full|grep running|awk '{print $1}') /inspect --check-path"`,
+	},
 }
 
 func TestEnv(t *testing.T) {
@@ -85,6 +105,8 @@ func TestEnv(t *testing.T) {
 	defer os.Remove(printVarOtherImage)
 	printTermHostImage := patchTestACI("rkt-inspect-print-term-host.aci", "--exec=/inspect --print-env=TERM")
 	defer os.Remove(printTermHostImage)
+	checkPathImage := patchTestACI("rkt-inspect-check-path.aci", "--exec=/inspect --check-path")
+	defer os.Remove(checkPathImage)
 	sleepImage := patchTestACI("rkt-inspect-sleep.aci", "--exec=/inspect --read-stdin")
 	defer os.Remove(sleepImage)
 	ctx := testutils.NewRktRunCtx()
@@ -97,6 +119,7 @@ func TestEnv(t *testing.T) {
 		fixed = strings.Replace(fixed, "^PRINT_VAR_FROM_MANIFEST^", printVarFromManifestImage, -1)
 		fixed = strings.Replace(fixed, "^PRINT_VAR_OTHER^", printVarOtherImage, -1)
 		fixed = strings.Replace(fixed, "^PRINT_TERM_HOST^", printTermHostImage, -1)
+		fixed = strings.Replace(fixed, "^CHECK_PATH^", checkPathImage, -1)
 		fixed = strings.Replace(fixed, "^SLEEP^", sleepImage, -1)
 		fixed = strings.Replace(fixed, "^HOST_TERM^", term, -1)
 		return fixed

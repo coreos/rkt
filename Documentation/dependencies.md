@@ -7,7 +7,7 @@ For the most part the codebase is self-contained (e.g. all dependencies are vend
 ### Basic
 
 * GNU Make
-* Go 1.4+ (ideally 1.5.3 or later)
+* Go 1.5.3 or later
 * autoconf
 * aclocal (usually a part of automake)
 * bash
@@ -20,6 +20,8 @@ For the most part the codebase is self-contained (e.g. all dependencies are vend
 * TrouSerS (only when TPM is enabled)
   * development headers
   * the rkt binary links against the library
+* libsystemd-journal
+  * development headers
 * gpg (when running functional tests)
 
 ### Additional dependencies when building any stage1 image
@@ -37,6 +39,7 @@ For the most part the codebase is self-contained (e.g. all dependencies are vend
 ### Specific dependencies for the coreos/kvm flavor
 
 * cat
+* comm
 * cpio
 * gzip
 * md5sum
@@ -51,7 +54,10 @@ For the most part the codebase is self-contained (e.g. all dependencies are vend
 * patch
 * tar
 * xz
-* build dependencies for kernel
+* [build dependencies for kernel](https://www.kernel.org/doc/Documentation/Changes)
+  * bc
+  * binutils
+  * openssl
 * build dependencies for lkvm
 
 ### Specific dependencies for the src flavor

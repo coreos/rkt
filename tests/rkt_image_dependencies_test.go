@@ -12,15 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// +build host coreos src kvm
+
 package main
 
 import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/tests/testutils"
 	taas "github.com/coreos/rkt/tests/testutils/aci-server"
 )
@@ -29,7 +33,7 @@ const (
 	manifestDepsTemplate = `
 {
    "acKind" : "ImageManifest",
-   "acVersion" : "0.7.4",
+   "acVersion" : "0.8.7",
    "dependencies" : [
       DEPENDENCIES
    ],
@@ -62,23 +66,27 @@ const (
 `
 )
 
-// TestImageDependencies generates ACIs with a complex dependency tree and
-// fetches them via the discovery mechanism. Some dependencies are already
-// cached in the CAS, and some dependencies are fetched via the discovery
-// mechanism. This is to reproduce the scenario in explained in:
-// https://github.com/coreos/rkt/issues/1752#issue-117121841
-func TestImageDependencies(t *testing.T) {
+var topImage string = "localhost/image-a"
+
+type testImage struct {
+	shortName string
+	imageName string
+	deps      string
+	version   string
+	prefetch  bool
+
+	manifest string
+	fileName string
+}
+
+func generateComplexDependencyTree(t *testing.T, ctx *testutils.RktRunCtx) (map[string]string, []testImage) {
 	tmpDir := createTempDirOrPanic("rkt-TestImageDeps-")
 	defer os.RemoveAll(tmpDir)
 
-	ctx := testutils.NewRktRunCtx()
-	defer ctx.Cleanup()
-
-	server := runServer(t, taas.GetDefaultServerSetup())
-	defer server.Close()
-
 	baseImage := getInspectImagePath()
-	_ = importImageAndFetchHash(t, ctx, "", baseImage)
+	if _, err := importImageAndFetchHash(t, ctx, "", baseImage); err != nil {
+		t.Fatalf("%v", err)
+	}
 	emptyImage := getEmptyImagePath()
 	fileSet := make(map[string]string)
 
@@ -96,17 +104,7 @@ func TestImageDependencies(t *testing.T) {
 	// D->B
 	// D->E
 
-	topImage := "localhost/image-a"
-	imageList := []struct {
-		shortName string
-		imageName string
-		deps      string
-		version   string
-		prefetch  bool
-
-		manifest string
-		fileName string
-	}{
+	imageList := []testImage{
 		{
 			shortName: "a",
 			imageName: topImage,
@@ -140,7 +138,7 @@ func TestImageDependencies(t *testing.T) {
 		},
 	}
 
-	for i, _ := range imageList {
+	for i := range imageList {
 		// We need a reference rather than a new copy from "range"
 		// because we modify the content
 		img := &imageList[i]
@@ -161,8 +159,27 @@ func TestImageDependencies(t *testing.T) {
 
 		baseName := "image-" + img.shortName + ".aci"
 		img.fileName = patchACI(emptyImage, baseName, "--manifest", tmpManifest.Name())
-		defer os.Remove(img.fileName)
 		fileSet[baseName] = img.fileName
+	}
+
+	return fileSet, imageList
+}
+
+// TestImageDependencies generates ACIs with a complex dependency tree and
+// fetches them via the discovery mechanism. Some dependencies are already
+// cached in the CAS, and some dependencies are fetched via the discovery
+// mechanism. This is to reproduce the scenario in explained in:
+// https://github.com/coreos/rkt/issues/1752#issue-117121841
+func TestImageDependencies(t *testing.T) {
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
+
+	server := runServer(t, taas.GetDefaultServerSetup())
+	defer server.Close()
+
+	fileSet, imageList := generateComplexDependencyTree(t, ctx)
+	for _, img := range imageList {
+		defer os.Remove(img.fileName)
 	}
 
 	if err := server.UpdateFileSet(fileSet); err != nil {
@@ -173,7 +190,10 @@ func TestImageDependencies(t *testing.T) {
 		img := imageList[i]
 		if img.prefetch {
 			t.Logf("Importing image %q: %q", img.imageName, img.fileName)
-			testImageShortHash := importImageAndFetchHash(t, ctx, "", img.fileName)
+			testImageShortHash, err := importImageAndFetchHash(t, ctx, "", img.fileName)
+			if err != nil {
+				t.Fatalf("%v", err)
+			}
 			t.Logf("Imported image %q: %s", img.imageName, testImageShortHash)
 		}
 	}
@@ -194,6 +214,55 @@ func TestImageDependencies(t *testing.T) {
 		if err := expectWithOutput(child, expected); err != nil {
 			t.Fatalf("Expected %q but not found: %v", expected, err)
 		}
+	}
+
+	waitOrFail(t, child, 0)
+}
+
+func TestRenderOnFetch(t *testing.T) {
+	// If overlayfs is not supported, we don't render images on fetch
+	if err := common.SupportsOverlay(); err != nil {
+		t.Skipf("Overlay fs not supported: %v", err)
+	}
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
+
+	server := runServer(t, taas.GetDefaultServerSetup())
+	defer server.Close()
+
+	fileSet, imageList := generateComplexDependencyTree(t, ctx)
+	for _, img := range imageList {
+		defer os.Remove(img.fileName)
+	}
+
+	if err := server.UpdateFileSet(fileSet); err != nil {
+		t.Fatalf("Failed to populate a file list in test aci server: %v", err)
+	}
+
+	for i := len(imageList) - 1; i >= 0; i-- {
+		img := imageList[i]
+		if img.prefetch {
+			t.Logf("Importing image %q: %q", img.imageName, img.fileName)
+			testImageShortHash, err := importImageAndFetchHash(t, ctx, "", img.fileName)
+			if err != nil {
+				t.Fatalf("%v", err)
+			}
+			t.Logf("Imported image %q: %s", img.imageName, testImageShortHash)
+		}
+	}
+
+	fetchCmd := fmt.Sprintf("%s --debug --insecure-options=image,tls fetch %s", ctx.Cmd(), topImage)
+	child := spawnOrFail(t, fetchCmd)
+
+	treeStoreDir := filepath.Join(ctx.DataDir(), "cas", "tree")
+	trees, err := ioutil.ReadDir(treeStoreDir)
+	if err != nil {
+		panic(fmt.Sprintf("Cannot read tree store dir: %v", err))
+	}
+
+	// We expect 2 trees: stage1 and the image
+	if len(trees) != 2 {
+		t.Fatalf("Expected 2 trees but found %d", len(trees))
 	}
 
 	waitOrFail(t, child, 0)

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// +build host coreos src kvm
+
 package main
 
 import (
@@ -83,8 +85,8 @@ func TestNonRootReadInfo(t *testing.T) {
 	runRktAsGidAndCheckOutput(t, imgListCmd, "inspect-", false, gid)
 }
 
-// TestNonRootFetchRmGCImage tests that non-root users can remove images fetched by themselves but
-// cannot remove images fetched by root, or gc any images.
+// TestNonRootFetchRmGCImage tests that non-root users can remove all images but
+// cannot gc images.
 func TestNonRootFetchRmGCImage(t *testing.T) {
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
@@ -100,7 +102,10 @@ func TestNonRootFetchRmGCImage(t *testing.T) {
 
 	rootImg := patchTestACI("rkt-inspect-root-rm.aci", "--exec=/inspect --print-msg=foobar")
 	defer os.Remove(rootImg)
-	rootImgHash := importImageAndFetchHash(t, ctx, "", rootImg)
+	rootImgHash, err := importImageAndFetchHash(t, ctx, "", rootImg)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
 
 	// Launch/gc a pod so we can test non-root image gc.
 	runCmd := fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s", ctx.Cmd(), rootImg)
@@ -109,19 +114,23 @@ func TestNonRootFetchRmGCImage(t *testing.T) {
 	ctx.RunGC()
 
 	// Should not be able to do image gc.
+	// We can't touch the treestores even as members of the rkt group.
 	imgGCCmd := fmt.Sprintf("%s image gc", ctx.Cmd())
 	t.Logf("Running %s", imgGCCmd)
 	runRktAsGidAndCheckOutput(t, imgGCCmd, "permission denied", true, gid)
 
-	// Should not be able to remove the image fetched by root.
+	// Should be able to remove the image fetched by root since we're in the rkt group.
 	imgRmCmd := fmt.Sprintf("%s image rm %s", ctx.Cmd(), rootImgHash)
 	t.Logf("Running %s", imgRmCmd)
-	runRktAsGidAndCheckOutput(t, imgRmCmd, "permission denied", true, gid)
+	runRktAsGidAndCheckOutput(t, imgRmCmd, "successfully removed", false, gid)
 
 	// Should be able to remove the image fetched by ourselves.
 	nonrootImg := patchTestACI("rkt-inspect-non-root-rm.aci", "--exec=/inspect")
 	defer os.Remove(nonrootImg)
-	nonrootImgHash := importImageAndFetchHashAsGid(t, ctx, nonrootImg, "", gid)
+	nonrootImgHash, err := importImageAndFetchHashAsGid(t, ctx, nonrootImg, "", gid)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
 
 	imgRmCmd = fmt.Sprintf("%s image rm %s", ctx.Cmd(), nonrootImgHash)
 	t.Logf("Running %s", imgRmCmd)

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// +build host coreos src kvm
+
 package main
 
 import (
@@ -27,7 +29,7 @@ import (
 const (
 
 	// The expected image manifest of the 'rkt-inspect-image-cat-manifest.aci'.
-	manifestTemplate = `{"acKind":"ImageManifest","acVersion":"0.7.4","name":"IMG_NAME","labels":[{"name":"version","value":"1.2.1"},{"name":"arch","value":"amd64"},{"name":"os","value":"linux"}],"app":{"exec":["/inspect"],"user":"0","group":"0","workingDirectory":"/","environment":[{"name":"VAR_FROM_MANIFEST","value":"manifest"}]}}`
+	manifestTemplate = `{"acKind":"ImageManifest","acVersion":"0.8.7","name":"IMG_NAME","labels":[{"name":"version","value":"1.13.0"},{"name":"arch","value":"amd64"},{"name":"os","value":"linux"}],"app":{"exec":["/inspect"],"user":"0","group":"0","workingDirectory":"/","environment":[{"name":"VAR_FROM_MANIFEST","value":"manifest"}]}}`
 )
 
 // TestImageCatManifest tests 'rkt image cat-manifest', it will:
@@ -53,7 +55,10 @@ func TestImageCatManifest(t *testing.T) {
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
 
-	testImageHash := importImageAndFetchHash(t, ctx, "", testImage)
+	testImageHash, err := importImageAndFetchHash(t, ctx, "", testImage)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
 
 	tests := []struct {
 		image      string
@@ -83,7 +88,7 @@ func TestImageCatManifest(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		runCmd := fmt.Sprintf("%s image cat-manifest %s", ctx.Cmd(), tt.image)
+		runCmd := fmt.Sprintf("%s image cat-manifest --pretty-print=false %s", ctx.Cmd(), tt.image)
 		t.Logf("Running test #%d", i)
 		runRktAndCheckOutput(t, runCmd, tt.expect, !tt.shouldFind)
 	}

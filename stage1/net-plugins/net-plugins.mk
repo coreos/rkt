@@ -7,7 +7,7 @@
 
 # 1.
 
-# plugin names - taken from github.com/appc/cni/plugins
+# plugin names - taken from github.com/containernetworking/cni/plugins
 NPM_PLUGIN_NAMES := \
 	main/ptp \
 	main/bridge \
@@ -30,7 +30,7 @@ define NPM_GENERATE_BUILD_PLUGIN_RULE
 # base name of a plugin
 NPM_BASE := $$(notdir $1)
 # path to the built plugin
-NPM_PLUGIN := $$(TOOLSDIR)/$$(NPM_BASE)
+NPM_PLUGIN := $$(TARGET_TOOLSDIR)/$$(NPM_BASE)
 
 # stamp used to build a plugin
 $$(call setup-stamp-file,NPM_STAMP,$$(NPM_BASE))
@@ -38,10 +38,10 @@ $$(call setup-stamp-file,NPM_STAMP,$$(NPM_BASE))
 # variables for makelib/build_go_bin.mk
 BGB_STAMP := $$(NPM_STAMP)
 BGB_BINARY := $$(NPM_PLUGIN)
-BGB_PKG_IN_REPO := Godeps/_workspace/src/github.com/appc/cni/plugins/$1
+BGB_PKG_IN_REPO := vendor/github.com/containernetworking/cni/plugins/$1
 include makelib/build_go_bin.mk
 
-$$(NPM_PLUGIN): | $$(TOOLSDIR)
+$$(NPM_PLUGIN): | $(TARGET_TOOLSDIR)
 
 $$(call generate-stamp-rule,$$(NPM_STAMP))
 

@@ -3,9 +3,9 @@
 This directory contains a set of functional tests for rkt.
 The tests use [gexpect](https://github.com/coreos/gexpect) to spawn various `rkt run` commands and look for expected output.
 
-## Semaphore
+## Semaphore Continuous Integration System
 
-The tests run on the [Semaphore](https://semaphoreci.com/) CI system through the [`rktbot`](https://semaphoreci.com/rktbot) user, which is part of the [`coreos`](https://semaphoreci.com/coreos/) org on Semaphore.
+The tests run on the [Semaphore CI system](https://semaphoreci.com/) through the [`rktbot`](https://semaphoreci.com/rktbot) user, which is part of the [`coreos`](https://semaphoreci.com/coreos/) org on Semaphore.
 This user is authorized against the corresponding [`rktbot`](https://github.com/rktbot) GitHub account.
 The credentials for `rktbot` are currently managed by CoreOS.
 
@@ -35,15 +35,15 @@ sudo gpasswd -a runner rkt
 #### Thread 1
 
 ```
-./tests/run-build.sh none
-./tests/run-build.sh src v229
+./tests/build-and-run-tests.sh -f none -c
+./tests/build-and-run-tests.sh -f kvm -c
 ```
 
 #### Thread 2
 
 ```
-./tests/run-build.sh coreos
-./tests/run-build.sh host
+./tests/build-and-run-tests.sh -f coreos -c
+./tests/build-and-run-tests.sh -f host -c
 ```
 
 #### Post thread
@@ -58,30 +58,53 @@ The LKVM stage1 or other versions of systemd are not currently tested.
 It would be possible to add more tests with the following commands:
 
 ```
-./tests/run-build.sh src v227
-./tests/run-build.sh src master
-./tests/run-build.sh kvm
+./tests/build-and-run-tests.sh -f src -s v227 -c
+./tests/build-and-run-tests.sh -f src -s master -c
+./tests/build-and-run-tests.sh -f src -s v229 -c
 ```
+
+#### build-and-run-tests.sh parameters description
+
+The build script has the following parameters:
+- `-c` - Run cleanup. Cleanup has two phases: *after build* and *after tests*. In the *after build* phase, this script removes artifacts from external dependencies (like kernel sources in the `kvm` flavor). In the  *after tests* phase, it removes `rkt` build artifacts and (if the build is running on CI or if the `-x` flag is used) it unmounts the remaining `rkt` mountpoints, removes unused `rkt` NICs and flushes the current state of IPAM IP reservation.
+- `-d` - Run build based on current state of local rkt repository instead of commited changes.
+- `-f` - Select flavor for rkt. You can choose only one from the following list: "`coreos`, `host`, `kvm`, `none`, `src`".
+- `-j` - Build without running unit and functional tests. Artifacts are available after build.
+- `-s` - Systemd version. You can choose `master` or a tag from the [systemd GitHub repository](https://github.com/systemd/systemd).
+- `-u` - Show usage message and exit.
+- `-x` - Force after-test cleanup on a non-CI system. **WARNING: This flag can affect your system. Use with caution.**
 
 ### Platform
 
 Select `Ubuntu 14.04 LTS v1503 (beta with Docker support)`.
 The platform with *Docker support* means the tests will run in a VM.
 
-## Manually running the functional tests
+## Manually running the tests
 
-Make sure to pass `--enable-functional-tests` to the configure script, then, after building the project, you can run the tests.
+The tests can be run manually. There is a rule to run unit, functional and all tests.
+
+### Unit tests
+
+The unit tests can be run with `make unit-check` after you [built](../Documentation/hacking.md#building-rkt) the project.
+
+### Functional tests
+
+The functional tests require to pass `--enable-functional-tests` to the configure script, then, after building the project, you can run the tests.
 
 ```
+./autogen.sh
 ./configure --enable-functional-tests
 make -j4
-make check
+make functional-check
 ```
 
-For more details about the `--enable-functional-tests` parameter, see [configure script parameters documentation](build-configure.md).
-The snippet above will run both unit and functional tests.
-If you want to run only functional tests, use `make functional-check`.
-There is also a counterpart target for running unit tests only - it is named `unit-check`.
+For more details about the `--enable-functional-tests` parameter, see [configure script parameters documentation](../Documentation/build-configure.md#--enable-functional-tests).
+
+### All tests
+
+To run all tests, see [functional tests](./README.md#functional-tests) to configure and build it with functional tests enabled. Instead of `make functional-check` you have to call `make check` to run all tests.
+
+### Passing additional parameters
 
 You can use a `GO_TEST_FUNC_ARGS` variable to pass additional parameters to `go test`.
 This is mostly useful for running only the selected functional tests.

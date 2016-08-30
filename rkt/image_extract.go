@@ -22,8 +22,8 @@ import (
 
 	"github.com/coreos/rkt/pkg/fileutil"
 	"github.com/coreos/rkt/pkg/tar"
-	"github.com/coreos/rkt/pkg/uid"
-	"github.com/coreos/rkt/store"
+	"github.com/coreos/rkt/pkg/user"
+	"github.com/coreos/rkt/store/imagestore"
 
 	"github.com/spf13/cobra"
 )
@@ -55,7 +55,7 @@ func runImageExtract(cmd *cobra.Command, args []string) (exit int) {
 	}
 	outputDir := args[1]
 
-	s, err := store.NewStore(getDataDir())
+	s, err := imagestore.NewStore(storeDir())
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
 		return 1
@@ -124,7 +124,7 @@ func runImageExtract(cmd *cobra.Command, args []string) (exit int) {
 		}
 	}
 
-	if err := tar.ExtractTar(aci, extractDir, false, uid.NewBlankUidRange(), nil); err != nil {
+	if err := tar.ExtractTar(aci, extractDir, false, user.NewBlankUidRange(), nil); err != nil {
 		stderr.PrintE("error extracting ACI", err)
 		return 1
 	}
@@ -134,7 +134,7 @@ func runImageExtract(cmd *cobra.Command, args []string) (exit int) {
 		if err := os.Rename(rootfsDir, absOutputDir); err != nil {
 			if e, ok := err.(*os.LinkError); ok && e.Err == syscall.EXDEV {
 				// it's on a different device, fall back to copying
-				if err := fileutil.CopyTree(rootfsDir, absOutputDir, uid.NewBlankUidRange()); err != nil {
+				if err := fileutil.CopyTree(rootfsDir, absOutputDir, user.NewBlankUidRange()); err != nil {
 					stderr.PrintE("error copying ACI rootfs", err)
 					return 1
 				}

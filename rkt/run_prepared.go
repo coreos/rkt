@@ -19,7 +19,8 @@ package main
 import (
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/stage0"
-	"github.com/coreos/rkt/store"
+	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/treestore"
 	"github.com/spf13/cobra"
 )
 
@@ -44,7 +45,7 @@ func init() {
 	cmdRunPrepared.Flags().Var(&flagDNS, "dns", "name servers to write in /etc/resolv.conf")
 	cmdRunPrepared.Flags().Var(&flagDNSSearch, "dns-search", "DNS search domains to write in /etc/resolv.conf")
 	cmdRunPrepared.Flags().Var(&flagDNSOpt, "dns-opt", "DNS options to write in /etc/resolv.conf")
-	cmdRunPrepared.Flags().BoolVar(&flagInteractive, "interactive", false, "the pod is interactive")
+	cmdRunPrepared.Flags().BoolVar(&flagInteractive, "interactive", false, "run pod interactively")
 	cmdRunPrepared.Flags().BoolVar(&flagMDSRegister, "mds-register", false, "register pod with metadata service")
 	cmdRunPrepared.Flags().StringVar(&flagHostname, "hostname", "", `pod's hostname. If empty, it will be "rkt-$PODUUID"`)
 }
@@ -62,9 +63,15 @@ func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 	}
 	defer p.Close()
 
-	s, err := store.NewStore(getDataDir())
+	s, err := imagestore.NewStore(storeDir())
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
+		return 1
+	}
+
+	ts, err := treestore.NewStore(treeStoreDir(), s)
+	if err != nil {
+		stderr.PrintE("cannot open treestore", err)
 		return 1
 	}
 
@@ -118,22 +125,51 @@ func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 		rktgid = -1
 	}
 
+	ovlOk := true
+	if err := common.PathSupportsOverlay(getDataDir()); err != nil {
+		if oerr, ok := err.(common.ErrOverlayUnsupported); ok {
+			stderr.Printf("disabling overlay support: %q", oerr.Error())
+			ovlOk = false
+		} else {
+			stderr.PrintE("error determining overlay support", err)
+			return 1
+		}
+	}
+
+	ovlPrep, err := p.overlayPrepared()
+	if err != nil {
+		stderr.PrintE("unable to determine prepared overlay state", err)
+		return 1
+	}
+
+	// should not happen, maybe the data directory moved from an overlay-enabled fs to another location
+	// between prepare and run-prepared
+	if ovlPrep && !ovlOk {
+		stderr.Print("unable to run prepared overlay-enabled pod: overlay not supported")
+		return 1
+	}
+
 	rcfg := stage0.RunConfig{
 		CommonConfig: &stage0.CommonConfig{
-			Store: s,
-			UUID:  p.uuid,
-			Debug: globalFlags.Debug,
+			Store:     s,
+			TreeStore: ts,
+			UUID:      p.uuid,
+			Debug:     globalFlags.Debug,
 		},
-		Net:         flagNet,
-		LockFd:      lfd,
-		Interactive: flagInteractive,
-		DNS:         flagDNS,
-		DNSSearch:   flagDNSSearch,
-		DNSOpt:      flagDNSOpt,
-		MDSRegister: flagMDSRegister,
-		Apps:        apps,
-		RktGid:      rktgid,
-		Hostname:    flagHostname,
+		Net:                  flagNet,
+		LockFd:               lfd,
+		Interactive:          flagInteractive,
+		DNS:                  flagDNS,
+		DNSSearch:            flagDNSSearch,
+		DNSOpt:               flagDNSOpt,
+		MDSRegister:          flagMDSRegister,
+		Apps:                 apps,
+		RktGid:               rktgid,
+		Hostname:             flagHostname,
+		InsecureCapabilities: globalFlags.InsecureFlags.SkipCapabilities(),
+		InsecurePaths:        globalFlags.InsecureFlags.SkipPaths(),
+		InsecureSeccomp:      globalFlags.InsecureFlags.SkipSeccomp(),
+		UseOverlay:           ovlPrep && ovlOk,
 	}
 	if globalFlags.Debug {
 		stage0.InitDebug()

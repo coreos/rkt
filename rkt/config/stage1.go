@@ -33,10 +33,10 @@ type stage1V1 struct {
 
 var (
 	allowedSchemes = map[string]struct{}{
-		"file":   struct{}{},
-		"docker": struct{}{},
-		"http":   struct{}{},
-		"https":  struct{}{},
+		"file":   {},
+		"docker": {},
+		"http":   {},
+		"https":  {},
 	}
 )
 

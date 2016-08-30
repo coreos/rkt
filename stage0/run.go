@@ -20,7 +20,7 @@ package stage0
 // rkt is a reference implementation of the app container specification.
 //
 // Execution on rkt is divided into a number of stages, and the `rkt`
-// binary implements the first stage (stage 0)
+// binary implements the first stage (stage0)
 //
 
 import (
@@ -42,66 +42,63 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/common/apps"
+	"github.com/coreos/rkt/common/overlay"
 	"github.com/coreos/rkt/pkg/aci"
 	"github.com/coreos/rkt/pkg/fileutil"
 	"github.com/coreos/rkt/pkg/label"
 	"github.com/coreos/rkt/pkg/sys"
 	"github.com/coreos/rkt/pkg/tpm"
-	"github.com/coreos/rkt/pkg/uid"
-	"github.com/coreos/rkt/store"
+	"github.com/coreos/rkt/pkg/user"
+	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/treestore"
 	"github.com/coreos/rkt/version"
 	"github.com/hashicorp/errwrap"
 )
 
-const (
-	// Default perm bits for the regular files
-	// within the stage1 directory. (e.g. image manifest,
-	// pod manifest, stage1ID, etc).
-	defaultRegularFilePerm = os.FileMode(0640)
-
-	// Default perm bits for the regular directories
-	// within the stage1 directory.
-	defaultRegularDirPerm = os.FileMode(0750)
-)
-
 var debugEnabled bool
 
-// configuration parameters required by Prepare
+// PrepareConfig defines the configuration parameters required by Prepare
 type PrepareConfig struct {
 	*CommonConfig
 	Apps               *apps.Apps          // apps to prepare
 	InheritEnv         bool                // inherit parent environment into apps
 	ExplicitEnv        []string            // always set these environment variables for all the apps
+	EnvFromFile        []string            // environment variables loaded from files, set for all the apps
 	Ports              []types.ExposedPort // list of ports that rkt will expose on the host
 	UseOverlay         bool                // prepare pod with overlay fs
 	SkipTreeStoreCheck bool                // skip checking the treestore before rendering
 	PodManifest        string              // use the pod manifest specified by the user, this will ignore flags such as '--volume', '--port', etc.
-	PrivateUsers       *uid.UidRange       // User namespaces
+	PrivateUsers       *user.UidRange      // User namespaces
 }
 
-// configuration parameters needed by Run
+// RunConfig defines the configuration parameters needed by Run
 type RunConfig struct {
 	*CommonConfig
-	Net         common.NetList // pod should have its own network stack
-	LockFd      int            // lock file descriptor
-	Interactive bool           // whether the pod is interactive or not
-	MDSRegister bool           // whether to register with metadata service or not
-	Apps        schema.AppList // applications (prepare gets them via Apps)
-	LocalConfig string         // Path to local configuration
-	Hostname    string         // hostname of the pod
-	RktGid      int            // group id of the 'rkt' group, -1 if there's no rkt group.
-	DNS         []string       // DNS name servers to write in /etc/resolv.conf
-	DNSSearch   []string       // DNS search domains to write in /etc/resolv.conf
-	DNSOpt      []string       // DNS options to write in /etc/resolv.conf
+	Net                  common.NetList // pod should have its own network stack
+	LockFd               int            // lock file descriptor
+	Interactive          bool           // whether the pod is interactive or not
+	MDSRegister          bool           // whether to register with metadata service or not
+	Apps                 schema.AppList // applications (prepare gets them via Apps)
+	LocalConfig          string         // Path to local configuration
+	Hostname             string         // hostname of the pod
+	RktGid               int            // group id of the 'rkt' group, -1 if there's no rkt group.
+	DNS                  []string       // DNS name servers to write in /etc/resolv.conf
+	DNSSearch            []string       // DNS search domains to write in /etc/resolv.conf
+	DNSOpt               []string       // DNS options to write in /etc/resolv.conf
+	InsecureCapabilities bool           // Do not restrict capabilities
+	InsecurePaths        bool           // Do not restrict access to files in sysfs or procfs
+	InsecureSeccomp      bool           // Do not add seccomp restrictions
+	UseOverlay           bool           // run pod with overlay fs
 }
 
-// configuration shared by both Run and Prepare
+// CommonConfig defines the configuration shared by both Run and Prepare
 type CommonConfig struct {
-	Store        *store.Store // store containing all of the configured application images
-	Stage1Image  types.Hash   // stage1 image containing usable /init and /enter entrypoints
-	UUID         *types.UUID  // UUID of the pod
-	RootHash     string       // Hash of the root filesystem
-	ManifestData string       // The pod manifest data
+	Store        *imagestore.Store // store containing all of the configured application images
+	TreeStore    *treestore.Store  // store containing all of the configured application images
+	Stage1Image  types.Hash        // stage1 image containing usable /init and /enter entrypoints
+	UUID         *types.UUID       // UUID of the pod
+	RootHash     string            // Hash of the root filesystem
+	ManifestData string            // The pod manifest data
 	Debug        bool
 	MountLabel   string // selinux label to use for fs
 	ProcessLabel string // selinux label to use for process
@@ -114,6 +111,7 @@ func init() {
 	runtime.LockOSThread()
 }
 
+// InitDebug enables debugging
 func InitDebug() {
 	debugEnabled = true
 	log.SetDebug(true)
@@ -125,20 +123,14 @@ func debug(format string, i ...interface{}) {
 	}
 }
 
-// MergeEnvs amends appEnv setting variables in setEnv before setting anything new from os.Environ if inheritEnv = true
-// setEnv is expected to be in the os.Environ() key=value format
-func MergeEnvs(appEnv *types.Environment, inheritEnv bool, setEnv []string) {
-	for _, ev := range setEnv {
+// mergeEnvs merges environment variables from env into the current appEnv
+// if override is set to true, then variables with the same name will be set to the value in env
+// env is expected to be in the os.Environ() key=value format
+func mergeEnvs(appEnv *types.Environment, env []string, override bool) {
+	for _, ev := range env {
 		pair := strings.SplitN(ev, "=", 2)
-		appEnv.Set(pair[0], pair[1])
-	}
-
-	if inheritEnv {
-		for _, ev := range os.Environ() {
-			pair := strings.SplitN(ev, "=", 2)
-			if _, exists := appEnv.Get(pair[0]); !exists {
-				appEnv.Set(pair[0], pair[1])
-			}
+		if _, exists := appEnv.Get(pair[0]); override || !exists {
+			appEnv.Set(pair[0], pair[1])
 		}
 	}
 }
@@ -201,6 +193,7 @@ func generatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 		if err != nil {
 			return errwrap.Wrap(errors.New("error converting image name to app name"), err)
 		}
+
 		if err := prepareAppImage(cfg, *appName, img, dir, cfg.UseOverlay); err != nil {
 			return errwrap.Wrap(fmt.Errorf("error setting up image %s", img), err)
 		}
@@ -248,9 +241,82 @@ func generatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 			ra.App.Isolators = append(ra.App.Isolators, isolator)
 		}
 
-		if cfg.InheritEnv || len(cfg.ExplicitEnv) > 0 {
-			MergeEnvs(&ra.App.Environment, cfg.InheritEnv, cfg.ExplicitEnv)
+		if app.CapsRetain != nil && app.CapsRemove != nil {
+			return fmt.Errorf("error: cannot use both --caps-retain and --caps-remove on the same image")
 		}
+
+		// Delete existing caps isolators if the user wants to override
+		// them with either --caps-retain or --caps-remove
+		if app.CapsRetain != nil || app.CapsRemove != nil {
+			for i := len(ra.App.Isolators) - 1; i >= 0; i-- {
+				isolator := ra.App.Isolators[i]
+				if _, ok := isolator.Value().(types.LinuxCapabilitiesSet); ok {
+					ra.App.Isolators = append(ra.App.Isolators[:i],
+						ra.App.Isolators[i+1:]...)
+				}
+			}
+		}
+
+		if capsRetain := app.CapsRetain; capsRetain != nil {
+			isolator, err := capsRetain.AsIsolator()
+			if err != nil {
+				return err
+			}
+			ra.App.Isolators = append(ra.App.Isolators, *isolator)
+		} else if capsRemove := app.CapsRemove; capsRemove != nil {
+			isolator, err := capsRemove.AsIsolator()
+			if err != nil {
+				return err
+			}
+			ra.App.Isolators = append(ra.App.Isolators, *isolator)
+		}
+
+		// Override seccomp isolators via --seccomp CLI switch
+		if app.SeccompFilter != "" {
+			var is *types.Isolator
+			mode, errno, set, err := app.SeccompOverride()
+			if err != nil {
+				return err
+			}
+			switch mode {
+			case "retain":
+				lss, err := types.NewLinuxSeccompRetainSet(errno, set...)
+				if err != nil {
+					return err
+				}
+				if is, err = lss.AsIsolator(); err != nil {
+					return err
+				}
+			case "remove":
+				lss, err := types.NewLinuxSeccompRemoveSet(errno, set...)
+				if err != nil {
+					return err
+				}
+				if is, err = lss.AsIsolator(); err != nil {
+					return err
+				}
+			default:
+				return apps.ErrInvalidSeccompMode
+			}
+			ra.App.Isolators.ReplaceIsolatorsByName(*is, []types.ACIdentifier{types.LinuxSeccompRemoveSetName, types.LinuxSeccompRetainSetName})
+		}
+
+		if user := app.User; user != "" {
+			ra.App.User = user
+		}
+
+		if group := app.Group; group != "" {
+			ra.App.Group = group
+		}
+
+		// loading the environment from the lowest priority to highest
+		if cfg.InheritEnv {
+			// Inherit environment does not override app image environment
+			mergeEnvs(&ra.App.Environment, os.Environ(), false)
+		}
+
+		mergeEnvs(&ra.App.Environment, cfg.EnvFromFile, true)
+		mergeEnvs(&ra.App.Environment, cfg.ExplicitEnv, true)
 		pm.Apps = append(pm.Apps, ra)
 		return nil
 	}); err != nil {
@@ -310,7 +376,7 @@ func validatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 
 // Prepare sets up a pod based on the given config.
 func Prepare(cfg PrepareConfig, dir string, uuid *types.UUID) error {
-	if err := os.MkdirAll(common.AppsInfoPath(dir), defaultRegularDirPerm); err != nil {
+	if err := os.MkdirAll(common.AppsInfoPath(dir), common.DefaultRegularDirPerm); err != nil {
 		return errwrap.Wrap(errors.New("error creating apps info directory"), err)
 	}
 	debug("Preparing stage1")
@@ -333,7 +399,7 @@ func Prepare(cfg PrepareConfig, dir string, uuid *types.UUID) error {
 
 	debug("Writing pod manifest")
 	fn := common.PodManifestPath(dir)
-	if err := ioutil.WriteFile(fn, pmb, defaultRegularFilePerm); err != nil {
+	if err := ioutil.WriteFile(fn, pmb, common.DefaultRegularFilePerm); err != nil {
 		return errwrap.Wrap(errors.New("error writing pod manifest"), err)
 	}
 
@@ -350,28 +416,12 @@ func Prepare(cfg PrepareConfig, dir string, uuid *types.UUID) error {
 		// mark the pod as prepared for user namespaces
 		uidrangeBytes := cfg.PrivateUsers.Serialize()
 
-		if err := ioutil.WriteFile(filepath.Join(dir, common.PrivateUsersPreparedFilename), uidrangeBytes, defaultRegularFilePerm); err != nil {
+		if err := ioutil.WriteFile(filepath.Join(dir, common.PrivateUsersPreparedFilename), uidrangeBytes, common.DefaultRegularFilePerm); err != nil {
 			return errwrap.Wrap(errors.New("error writing userns marker file"), err)
 		}
 	}
 
 	return nil
-}
-
-func preparedWithOverlay(dir string) (bool, error) {
-	_, err := os.Stat(filepath.Join(dir, common.OverlayPreparedFilename))
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-
-	if !common.SupportsOverlay() {
-		return false, fmt.Errorf("the pod was prepared with overlay but overlay is not supported")
-	}
-
-	return true, nil
 }
 
 func preparedWithPrivateUsers(dir string) (string, error) {
@@ -407,6 +457,12 @@ func addResolvConf(cfg RunConfig, rootfs string) {
 	}
 	content += "\n"
 
+	if err := os.Mkdir(filepath.Join(rootfs, "etc"), common.DefaultRegularDirPerm); err != nil {
+		if !os.IsExist(err) {
+			log.Fatalf("error creating dir %q: %v\n", "/etc", err)
+		}
+	}
+
 	if err := ioutil.WriteFile(filepath.Join(rootfs, "etc/rkt-resolv.conf"), []byte(content), 0644); err != nil {
 		log.Fatalf("error writing /etc/rkt-resolv.conf: %v\n", err)
 	}
@@ -415,24 +471,19 @@ func addResolvConf(cfg RunConfig, rootfs string) {
 // Run mounts the right overlay filesystems and actually runs the prepared
 // pod by exec()ing the stage1 init inside the pod filesystem.
 func Run(cfg RunConfig, dir string, dataDir string) {
-	useOverlay, err := preparedWithOverlay(dir)
-	if err != nil {
-		log.FatalE("error preparing overlay", err)
-	}
-
 	privateUsers, err := preparedWithPrivateUsers(dir)
 	if err != nil {
 		log.FatalE("error preparing private users", err)
 	}
 
 	debug("Setting up stage1")
-	if err := setupStage1Image(cfg, dir, useOverlay); err != nil {
+	if err := setupStage1Image(cfg, dir, cfg.UseOverlay); err != nil {
 		log.FatalE("error setting up stage1", err)
 	}
 	debug("Wrote filesystem to %s\n", dir)
 
 	for _, app := range cfg.Apps {
-		if err := setupAppImage(cfg, app.Name, app.Image.ID, dir, useOverlay); err != nil {
+		if err := setupAppImage(cfg, app.Name, app.Image.ID, dir, cfg.UseOverlay); err != nil {
 			log.FatalE("error setting up app image", err)
 		}
 	}
@@ -505,6 +556,18 @@ func Run(cfg RunConfig, dir string, dataDir string) {
 		}
 	}
 
+	if interfaceVersionSupportsInsecureOptions(s1v) {
+		if cfg.InsecureCapabilities {
+			args = append(args, "--disable-capabilities-restriction")
+		}
+		if cfg.InsecurePaths {
+			args = append(args, "--disable-paths")
+		}
+		if cfg.InsecureSeccomp {
+			args = append(args, "--disable-seccomp")
+		}
+	}
+
 	args = append(args, cfg.UUID.String())
 
 	// make sure the lock fd stays open across exec
@@ -512,7 +575,7 @@ func Run(cfg RunConfig, dir string, dataDir string) {
 		log.Fatalf("error clearing FD_CLOEXEC on lock fd")
 	}
 
-	tpmEvent := fmt.Sprintf("rkt: Rootfs: %s Manifest: %s Stage 1 args: %s", cfg.CommonConfig.RootHash, cfg.CommonConfig.ManifestData, strings.Join(args, " "))
+	tpmEvent := fmt.Sprintf("rkt: Rootfs: %s Manifest: %s Stage1 args: %s", cfg.CommonConfig.RootHash, cfg.CommonConfig.ManifestData, strings.Join(args, " "))
 	// If there's no TPM available or there's a failure for some other
 	// reason, ignore it and continue anyway. Long term we'll want policy
 	// that enforces TPM behaviour, but we don't have any infrastructure
@@ -546,7 +609,7 @@ func prepareAppImage(cfg PrepareConfig, appName types.ACName, img types.Hash, cd
 	}
 
 	appInfoDir := common.AppInfoPath(cdir, appName)
-	if err := os.MkdirAll(appInfoDir, defaultRegularDirPerm); err != nil {
+	if err := os.MkdirAll(appInfoDir, common.DefaultRegularDirPerm); err != nil {
 		return errwrap.Wrap(errors.New("error creating apps info directory"), err)
 	}
 
@@ -554,17 +617,17 @@ func prepareAppImage(cfg PrepareConfig, appName types.ACName, img types.Hash, cd
 		if cfg.PrivateUsers.Shift > 0 {
 			return fmt.Errorf("cannot use both overlay and user namespace: not implemented yet. (Try --no-overlay)")
 		}
-		treeStoreID, _, err := cfg.Store.RenderTreeStore(img.String(), false)
+		treeStoreID, _, err := cfg.TreeStore.Render(img.String(), false)
 		if err != nil {
 			return errwrap.Wrap(errors.New("error rendering tree image"), err)
 		}
 
 		if !cfg.SkipTreeStoreCheck {
-			hash, err := cfg.Store.CheckTreeStore(treeStoreID)
+			hash, err := cfg.TreeStore.Check(treeStoreID)
 			if err != nil {
-				log.PrintE("warning: tree cache is in a bad state: %v. Rebuilding...", err)
+				log.PrintE("warning: tree cache is in a bad state.  Rebuilding...", err)
 				var err error
-				treeStoreID, hash, err = cfg.Store.RenderTreeStore(img.String(), true)
+				treeStoreID, hash, err = cfg.TreeStore.Render(img.String(), true)
 				if err != nil {
 					return errwrap.Wrap(errors.New("error rendering tree image"), err)
 				}
@@ -572,12 +635,12 @@ func prepareAppImage(cfg PrepareConfig, appName types.ACName, img types.Hash, cd
 			cfg.CommonConfig.RootHash = hash
 		}
 
-		if err := ioutil.WriteFile(common.AppTreeStoreIDPath(cdir, appName), []byte(treeStoreID), defaultRegularFilePerm); err != nil {
+		if err := ioutil.WriteFile(common.AppTreeStoreIDPath(cdir, appName), []byte(treeStoreID), common.DefaultRegularFilePerm); err != nil {
 			return errwrap.Wrap(errors.New("error writing app treeStoreID"), err)
 		}
 	} else {
 		ad := common.AppPath(cdir, appName)
-		err := os.MkdirAll(ad, defaultRegularDirPerm)
+		err := os.MkdirAll(ad, common.DefaultRegularDirPerm)
 		if err != nil {
 			return errwrap.Wrap(errors.New("error creating image directory"), err)
 		}
@@ -607,7 +670,7 @@ func prepareAppImage(cfg PrepareConfig, appName types.ACName, img types.Hash, cd
 func setupAppImage(cfg RunConfig, appName types.ACName, img types.Hash, cdir string, useOverlay bool) error {
 	ad := common.AppPath(cdir, appName)
 	if useOverlay {
-		err := os.MkdirAll(ad, defaultRegularDirPerm)
+		err := os.MkdirAll(ad, common.DefaultRegularDirPerm)
 		if err != nil {
 			return errwrap.Wrap(errors.New("error creating image directory"), err)
 		}
@@ -631,21 +694,21 @@ func setupAppImage(cfg RunConfig, appName types.ACName, img types.Hash, cdir str
 // When useOverlay is false, it attempts to render and expand the stage1.
 func prepareStage1Image(cfg PrepareConfig, img types.Hash, cdir string, useOverlay bool) error {
 	s1 := common.Stage1ImagePath(cdir)
-	if err := os.MkdirAll(s1, defaultRegularDirPerm); err != nil {
+	if err := os.MkdirAll(s1, common.DefaultRegularDirPerm); err != nil {
 		return errwrap.Wrap(errors.New("error creating stage1 directory"), err)
 	}
 
-	treeStoreID, _, err := cfg.Store.RenderTreeStore(img.String(), false)
+	treeStoreID, _, err := cfg.TreeStore.Render(img.String(), false)
 	if err != nil {
 		return errwrap.Wrap(errors.New("error rendering tree image"), err)
 	}
 
 	if !cfg.SkipTreeStoreCheck {
-		hash, err := cfg.Store.CheckTreeStore(treeStoreID)
+		hash, err := cfg.TreeStore.Check(treeStoreID)
 		if err != nil {
 			log.Printf("warning: tree cache is in a bad state: %v. Rebuilding...", err)
 			var err error
-			treeStoreID, hash, err = cfg.Store.RenderTreeStore(img.String(), true)
+			treeStoreID, hash, err = cfg.TreeStore.Render(img.String(), true)
 			if err != nil {
 				return errwrap.Wrap(errors.New("error rendering tree image"), err)
 			}
@@ -659,14 +722,14 @@ func prepareStage1Image(cfg PrepareConfig, img types.Hash, cdir string, useOverl
 
 	if !useOverlay {
 		destRootfs := filepath.Join(s1, "rootfs")
-		cachedTreePath := cfg.Store.GetTreeStoreRootFS(treeStoreID)
+		cachedTreePath := cfg.TreeStore.GetRootFS(treeStoreID)
 		if err := fileutil.CopyTree(cachedTreePath, destRootfs, cfg.PrivateUsers); err != nil {
 			return errwrap.Wrap(errors.New("error rendering ACI"), err)
 		}
 	}
 
 	fn := path.Join(cdir, common.Stage1TreeStoreIDFilename)
-	if err := ioutil.WriteFile(fn, []byte(treeStoreID), defaultRegularFilePerm); err != nil {
+	if err := ioutil.WriteFile(fn, []byte(treeStoreID), common.DefaultRegularFilePerm); err != nil {
 		return errwrap.Wrap(errors.New("error writing stage1 treeStoreID"), err)
 	}
 	return nil
@@ -707,7 +770,7 @@ func writeManifest(cfg CommonConfig, img types.Hash, dest string) error {
 	}
 
 	debug("Writing image manifest")
-	if err := ioutil.WriteFile(filepath.Join(dest, "manifest"), mb, defaultRegularFilePerm); err != nil {
+	if err := ioutil.WriteFile(filepath.Join(dest, "manifest"), mb, common.DefaultRegularFilePerm); err != nil {
 		return errwrap.Wrap(errors.New("error writing image manifest"), err)
 	}
 
@@ -727,24 +790,40 @@ func copyAppManifest(cdir string, appName types.ACName, dest string) error {
 }
 
 // overlayRender renders the image that corresponds to the given hash using the
-// overlay filesystem.
-// It mounts an overlay filesystem from the cached tree of the image as rootfs.
+// overlay filesystem. It mounts an overlay filesystem from the cached tree of
+// the image as rootfs.
 func overlayRender(cfg RunConfig, treeStoreID string, cdir string, dest string, appName string) error {
-	cachedTreePath := cfg.Store.GetTreeStoreRootFS(treeStoreID)
-	fi, err := os.Stat(cachedTreePath)
+	cachedTreePath := cfg.TreeStore.GetRootFS(treeStoreID)
+	mc, err := prepareOverlay(cachedTreePath, treeStoreID, cdir, dest, appName, cfg.MountLabel,
+		cfg.RktGid, common.DefaultRegularDirPerm)
 	if err != nil {
-		return err
+		return errwrap.Wrap(errors.New("problem preparing overlay directories"), err)
+	}
+	if err = overlay.Mount(mc); err != nil {
+		return errwrap.Wrap(errors.New("problem mounting overlay filesystem"), err)
+	}
+
+	return nil
+}
+
+// prepateOverlay sets up the needed directories, files and permissions for the
+// overlay-rendered pods
+func prepareOverlay(lower, treeStoreID, cdir, dest, appName, lbl string,
+	gid int, fm os.FileMode) (*overlay.MountCfg, error) {
+	fi, err := os.Stat(lower)
+	if err != nil {
+		return nil, err
 	}
 	imgMode := fi.Mode()
 
-	destRootfs := path.Join(dest, "rootfs")
-	if err := os.MkdirAll(destRootfs, imgMode); err != nil {
-		return err
+	dst := path.Join(dest, "rootfs")
+	if err := os.MkdirAll(dst, imgMode); err != nil {
+		return nil, err
 	}
 
 	overlayDir := path.Join(cdir, "overlay")
-	if err := os.MkdirAll(overlayDir, defaultRegularDirPerm); err != nil {
-		return err
+	if err := os.MkdirAll(overlayDir, fm); err != nil {
+		return nil, err
 	}
 
 	// Since the parent directory (rkt/pods/$STATE/$POD_UUID) has the 'S_ISGID' bit, here
@@ -752,43 +831,36 @@ func overlayRender(cfg RunConfig, treeStoreID string, cdir string, dest string, 
 	// directory so that it won't inherit the bit. Otherwise the files
 	// created by users within the pod will inherit the 'S_ISGID' bit
 	// as well.
-	if err := os.Chmod(overlayDir, defaultRegularDirPerm); err != nil {
-		return err
+	if err := os.Chmod(overlayDir, fm); err != nil {
+		return nil, err
 	}
 
 	imgDir := path.Join(overlayDir, treeStoreID)
-	if err := os.MkdirAll(imgDir, defaultRegularDirPerm); err != nil {
-		return err
+	if err := os.MkdirAll(imgDir, fm); err != nil {
+		return nil, err
 	}
-
 	// Also make 'rkt/pods/$STATE/$POD_UUID/overlay/$IMAGE_ID' to be readable by 'rkt' group
 	// As 'rkt' status will read the 'rkt/pods/$STATE/$POD_UUID/overlay/$IMAGE_ID/upper/rkt/status/$APP'
-	// to get exit status.
-	if err := os.Chown(imgDir, -1, cfg.RktGid); err != nil {
-		return err
+	// to get exgid
+	if err := os.Chown(imgDir, -1, gid); err != nil {
+		return nil, err
 	}
 
-	upperDir := path.Join(imgDir, "upper", appName)
-	if err := os.MkdirAll(upperDir, imgMode); err != nil {
-		return err
+	upper := path.Join(imgDir, "upper", appName)
+	if err := os.MkdirAll(upper, imgMode); err != nil {
+		return nil, err
 	}
-	if err := label.SetFileLabel(upperDir, cfg.MountLabel); err != nil {
-		return err
-	}
-
-	workDir := path.Join(imgDir, "work", appName)
-	if err := os.MkdirAll(workDir, defaultRegularDirPerm); err != nil {
-		return err
-	}
-	if err := label.SetFileLabel(workDir, cfg.MountLabel); err != nil {
-		return err
+	if err := label.SetFileLabel(upper, lbl); err != nil {
+		return nil, err
 	}
 
-	opts := fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s", cachedTreePath, upperDir, workDir)
-	opts = label.FormatMountLabel(opts, cfg.MountLabel)
-	if err := syscall.Mount("overlay", destRootfs, "overlay", 0, opts); err != nil {
-		return errwrap.Wrap(errors.New("error mounting"), err)
+	work := path.Join(imgDir, "work", appName)
+	if err := os.MkdirAll(work, fm); err != nil {
+		return nil, err
+	}
+	if err := label.SetFileLabel(work, lbl); err != nil {
+		return nil, err
 	}
 
-	return nil
+	return &overlay.MountCfg{lower, upper, work, dst, lbl}, nil
 }

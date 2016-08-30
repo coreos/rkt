@@ -28,7 +28,9 @@ import (
 	rktlog "github.com/coreos/rkt/pkg/log"
 	"github.com/coreos/rkt/rkt/config"
 	rktflag "github.com/coreos/rkt/rkt/flag"
-	"github.com/coreos/rkt/store"
+	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/treestore"
+	"github.com/hashicorp/errwrap"
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
@@ -37,8 +39,10 @@ import (
 
 // action is a common type for Finder and Fetcher
 type action struct {
-	// S is a store where images will be looked for or stored.
-	S *store.Store
+	// S is an aci store where images will be looked for or stored.
+	S *imagestore.Store
+	// Ts is an aci tree store.
+	Ts *treestore.Store
 	// Ks is a keystore used for verification of the image
 	Ks *keystore.Keystore
 	// Headers is a map of headers which might be used for
@@ -62,10 +66,10 @@ type action struct {
 	// local filesystem or a remote location.
 	StoreOnly bool
 	// NoStore tells whether to avoid getting images from the
-	// store. Note that the store can be still used as a cache.
+	// store. Note that transport caching (like http Etags) can be still
+	// used to avoid refetching.
 	NoStore bool
-	// NoCache tells to avoid getting images from the store
-	// completely.
+	// NoCache tells to ignore transport caching.
 	NoCache bool
 	// WithDeps tells whether image dependencies should be
 	// downloaded too.
@@ -160,7 +164,14 @@ func guessImageType(image string) apps.AppImageType {
 	// Well, at this point is basically heuristics time. The image
 	// parameter can be either a relative path or an image name.
 
-	// First, let's check if there is a colon in the image
+	// First, let's try to stat whatever file the URL would specify. If it
+	// exists, that's probably what the user wanted.
+	f, err := os.Stat(image)
+	if err == nil && f.Mode().IsRegular() {
+		return apps.AppImagePath
+	}
+
+	// Second, let's check if there is a colon in the image
 	// parameter. Colon often serves as a paths separator (like in
 	// the PATH environment variable), so if it exists, then it is
 	// highly unlikely that the image parameter is a path. Colon
@@ -170,14 +181,14 @@ func guessImageType(image string) apps.AppImageType {
 		return apps.AppImageName
 	}
 
-	// Second, let's check if there is a dot followed by a slash
+	// Third, let's check if there is a dot followed by a slash
 	// (./) - if so, it is likely that the image parameter is path
 	// like ./aci-in-this-dir or ../aci-in-parent-dir
 	if strings.Contains(image, "./") {
 		return apps.AppImagePath
 	}
 
-	// Third, let's check if the image parameter has an .aci
+	// Fourth, let's check if the image parameter has an .aci
 	// extension. If so, likely a path like "stage1-coreos.aci".
 	if filepath.Ext(image) == schema.ACIExtension {
 		return apps.AppImagePath
@@ -191,4 +202,31 @@ func guessImageType(image string) apps.AppImageType {
 	// off prepending the parameter with "./", because I'm gonna
 	// treat this as an image name otherwise.
 	return apps.AppImageName
+}
+
+func eTag(rem *imagestore.Remote) string {
+	if rem != nil {
+		return rem.ETag
+	}
+	return ""
+}
+
+func maybeUseCached(rem *imagestore.Remote, cd *cacheData) string {
+	if rem == nil || cd == nil {
+		return ""
+	}
+	if cd.UseCached {
+		return rem.BlobKey
+	}
+	return ""
+}
+
+func remoteForURL(s *imagestore.Store, u *url.URL) (*imagestore.Remote, error) {
+	urlStr := u.String()
+	if rem, ok, err := s.GetRemote(urlStr); err != nil {
+		return nil, errwrap.Wrap(fmt.Errorf("failed to fetch remote for URL %q", urlStr), err)
+	} else if ok {
+		return rem, nil
+	}
+	return nil, nil
 }

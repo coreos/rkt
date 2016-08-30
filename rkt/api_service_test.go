@@ -15,26 +15,26 @@
 package main
 
 import (
+	"io/ioutil"
+	"net"
+	"os"
 	"testing"
 
-	"github.com/appc/spec/schema"
-	"github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/api/v1alpha"
+	"github.com/coreos/rkt/pkg/log"
 )
 
 func TestFilterPod(t *testing.T) {
 	tests := []struct {
-		pod      *v1alpha.Pod
-		manifest *schema.PodManifest
-		filter   *v1alpha.PodFilter
-		result   bool
+		pod    *v1alpha.Pod
+		filter *v1alpha.PodFilter
+		result bool
 	}{
 		// Has the status.
 		{
 			&v1alpha.Pod{
 				State: v1alpha.PodState_POD_STATE_RUNNING,
 			},
-			&schema.PodManifest{},
 			&v1alpha.PodFilter{
 				States: []v1alpha.PodState{v1alpha.PodState_POD_STATE_RUNNING},
 			},
@@ -45,7 +45,6 @@ func TestFilterPod(t *testing.T) {
 			&v1alpha.Pod{
 				State: v1alpha.PodState_POD_STATE_EXITED,
 			},
-			&schema.PodManifest{},
 			&v1alpha.PodFilter{
 				States: []v1alpha.PodState{v1alpha.PodState_POD_STATE_RUNNING},
 			},
@@ -59,7 +58,6 @@ func TestFilterPod(t *testing.T) {
 					{Name: "app-bar"},
 				},
 			},
-			&schema.PodManifest{},
 			&v1alpha.PodFilter{
 				AppNames: []string{"app-foo", "app-bar"},
 			},
@@ -73,7 +71,6 @@ func TestFilterPod(t *testing.T) {
 					{Name: "app-bar"},
 				},
 			},
-			&schema.PodManifest{},
 			&v1alpha.PodFilter{
 				AppNames: []string{"app-foo", "app-bar", "app-baz"},
 			},
@@ -87,7 +84,6 @@ func TestFilterPod(t *testing.T) {
 					{Name: "network-bar"},
 				},
 			},
-			&schema.PodManifest{},
 			&v1alpha.PodFilter{
 				NetworkNames: []string{"network-foo", "network-bar"},
 			},
@@ -101,7 +97,6 @@ func TestFilterPod(t *testing.T) {
 					{Name: "network-bar"},
 				},
 			},
-			&schema.PodManifest{},
 			&v1alpha.PodFilter{
 				NetworkNames: []string{"network-foo", "network-bar", "network-baz"},
 			},
@@ -109,9 +104,8 @@ func TestFilterPod(t *testing.T) {
 		},
 		// Has all annotations.
 		{
-			&v1alpha.Pod{},
-			&schema.PodManifest{
-				Annotations: []types.Annotation{
+			&v1alpha.Pod{
+				Annotations: []*v1alpha.KeyValue{
 					{"annotation-key-foo", "annotation-value-foo"},
 					{"annotation-key-bar", "annotation-value-bar"},
 				},
@@ -126,9 +120,8 @@ func TestFilterPod(t *testing.T) {
 		},
 		// Doesn't have all annotation keys.
 		{
-			&v1alpha.Pod{},
-			&schema.PodManifest{
-				Annotations: []types.Annotation{
+			&v1alpha.Pod{
+				Annotations: []*v1alpha.KeyValue{
 					{"annotation-key-foo", "annotation-value-foo"},
 					{"annotation-key-bar", "annotation-value-bar"},
 				},
@@ -144,9 +137,8 @@ func TestFilterPod(t *testing.T) {
 		},
 		// Doesn't have all annotation values.
 		{
-			&v1alpha.Pod{},
-			&schema.PodManifest{
-				Annotations: []types.Annotation{
+			&v1alpha.Pod{
+				Annotations: []*v1alpha.KeyValue{
 					{"annotation-key-foo", "annotation-value-foo"},
 					{"annotation-key-bar", "annotation-value-bar"},
 				},
@@ -162,11 +154,9 @@ func TestFilterPod(t *testing.T) {
 		// Doesn't satisfy any filter conditions.
 		{
 			&v1alpha.Pod{
-				Apps:     []*v1alpha.App{{Name: "app-foo"}},
-				Networks: []*v1alpha.Network{{Name: "network-foo"}},
-			},
-			&schema.PodManifest{
-				Annotations: []types.Annotation{{"annotation-key-foo", "annotation-value-foo"}},
+				Apps:        []*v1alpha.App{{Name: "app-foo"}},
+				Networks:    []*v1alpha.Network{{Name: "network-foo"}},
+				Annotations: []*v1alpha.KeyValue{{"annotation-key-foo", "annotation-value-foo"}},
 			},
 			&v1alpha.PodFilter{
 				AppNames:     []string{"app-bar"},
@@ -178,11 +168,9 @@ func TestFilterPod(t *testing.T) {
 		// Satisfies some filter conditions.
 		{
 			&v1alpha.Pod{
-				Apps:     []*v1alpha.App{{Name: "app-foo"}},
-				Networks: []*v1alpha.Network{{Name: "network-foo"}},
-			},
-			&schema.PodManifest{
-				Annotations: []types.Annotation{{"annotation-key-foo", "annotation-value-foo"}},
+				Apps:        []*v1alpha.App{{Name: "app-foo"}},
+				Networks:    []*v1alpha.Network{{Name: "network-foo"}},
+				Annotations: []*v1alpha.KeyValue{{"annotation-key-foo", "annotation-value-foo"}},
 			},
 			&v1alpha.PodFilter{
 				AppNames:     []string{"app-foo", "app-bar"},
@@ -194,11 +182,9 @@ func TestFilterPod(t *testing.T) {
 		// Satisfies all filter conditions.
 		{
 			&v1alpha.Pod{
-				Apps:     []*v1alpha.App{{Name: "app-foo"}},
-				Networks: []*v1alpha.Network{{Name: "network-foo"}},
-			},
-			&schema.PodManifest{
-				Annotations: []types.Annotation{{"annotation-key-foo", "annotation-value-foo"}},
+				Apps:        []*v1alpha.App{{Name: "app-foo"}},
+				Networks:    []*v1alpha.Network{{Name: "network-foo"}},
+				Annotations: []*v1alpha.KeyValue{{"annotation-key-foo", "annotation-value-foo"}},
 			},
 			&v1alpha.PodFilter{
 				AppNames:     []string{"app-foo"},
@@ -210,7 +196,7 @@ func TestFilterPod(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		result := satisfiesPodFilter(*tt.pod, *tt.manifest, *tt.filter)
+		result := satisfiesPodFilter(*tt.pod, *tt.filter)
 		if result != tt.result {
 			t.Errorf("#%d: got %v, want %v", i, result, tt.result)
 		}
@@ -219,10 +205,9 @@ func TestFilterPod(t *testing.T) {
 
 func TestFilterPodAny(t *testing.T) {
 	tests := []struct {
-		pod      *v1alpha.Pod
-		manifest *schema.PodManifest
-		filters  []*v1alpha.PodFilter
-		result   bool
+		pod     *v1alpha.Pod
+		filters []*v1alpha.PodFilter
+		result  bool
 	}{
 		// No filters.
 		{
@@ -230,7 +215,6 @@ func TestFilterPodAny(t *testing.T) {
 				Apps:     []*v1alpha.App{{Name: "app-foo"}},
 				Networks: []*v1alpha.Network{{Name: "network-foo"}},
 			},
-			&schema.PodManifest{},
 			nil,
 			true,
 		},
@@ -240,7 +224,6 @@ func TestFilterPodAny(t *testing.T) {
 				Apps:     []*v1alpha.App{{Name: "app-foo"}},
 				Networks: []*v1alpha.Network{{Name: "network-foo"}},
 			},
-			&schema.PodManifest{},
 			[]*v1alpha.PodFilter{
 				{AppNames: []string{"app-foo"}},
 				{NetworkNames: []string{"network-foo"}},
@@ -253,7 +236,6 @@ func TestFilterPodAny(t *testing.T) {
 				Apps:     []*v1alpha.App{{Name: "app-foo"}},
 				Networks: []*v1alpha.Network{{Name: "network-foo"}},
 			},
-			&schema.PodManifest{},
 			[]*v1alpha.PodFilter{
 				{AppNames: []string{"app-foo"}},
 				{NetworkNames: []string{"network-bar"}},
@@ -266,7 +248,6 @@ func TestFilterPodAny(t *testing.T) {
 				Apps:     []*v1alpha.App{{Name: "app-foo"}},
 				Networks: []*v1alpha.Network{{Name: "network-foo"}},
 			},
-			&schema.PodManifest{},
 			[]*v1alpha.PodFilter{
 				{AppNames: []string{"app-bar"}},
 				{NetworkNames: []string{"network-bar"}},
@@ -276,7 +257,7 @@ func TestFilterPodAny(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		result := satisfiesAnyPodFilters(tt.pod, tt.manifest, tt.filters)
+		result := satisfiesAnyPodFilters(tt.pod, tt.filters)
 		if result != tt.result {
 			t.Errorf("#%d: got %v, want %v", i, result, tt.result)
 		}
@@ -285,17 +266,15 @@ func TestFilterPodAny(t *testing.T) {
 
 func TestFilterImage(t *testing.T) {
 	tests := []struct {
-		image    *v1alpha.Image
-		manifest *schema.ImageManifest
-		filter   *v1alpha.ImageFilter
-		result   bool
+		image  *v1alpha.Image
+		filter *v1alpha.ImageFilter
+		result bool
 	}{
 		// Has the id.
 		{
 			&v1alpha.Image{
 				Id: "id-foo",
 			},
-			&schema.ImageManifest{},
 			&v1alpha.ImageFilter{
 				Ids: []string{"id-first", "id-foo", "id-last"},
 			},
@@ -306,7 +285,6 @@ func TestFilterImage(t *testing.T) {
 			&v1alpha.Image{
 				Id: "id-foo",
 			},
-			&schema.ImageManifest{},
 			&v1alpha.ImageFilter{
 				Ids: []string{"id-first", "id-second", "id-last"},
 			},
@@ -317,7 +295,6 @@ func TestFilterImage(t *testing.T) {
 			&v1alpha.Image{
 				Name: "prefix-foo-foo",
 			},
-			&schema.ImageManifest{},
 			&v1alpha.ImageFilter{
 				Prefixes: []string{"prefix-first", "prefix-foo", "prefix-last"},
 			},
@@ -328,7 +305,6 @@ func TestFilterImage(t *testing.T) {
 			&v1alpha.Image{
 				Name: "prefix-foo-foo",
 			},
-			&schema.ImageManifest{},
 			&v1alpha.ImageFilter{
 				Prefixes: []string{"prefix-first", "prefix-second", "prefix-last"},
 			},
@@ -339,7 +315,6 @@ func TestFilterImage(t *testing.T) {
 			&v1alpha.Image{
 				Name: "foo/basename-foo",
 			},
-			&schema.ImageManifest{},
 			&v1alpha.ImageFilter{
 				BaseNames: []string{"basename-first", "basename-foo", "basename-last"},
 			},
@@ -350,7 +325,6 @@ func TestFilterImage(t *testing.T) {
 			&v1alpha.Image{
 				Name: "foo/basename-foo",
 			},
-			&schema.ImageManifest{},
 			&v1alpha.ImageFilter{
 				BaseNames: []string{"basename-first", "basename-second", "basename-last"},
 			},
@@ -361,7 +335,6 @@ func TestFilterImage(t *testing.T) {
 			&v1alpha.Image{
 				Name: "foo-keyword-foo-foo",
 			},
-			&schema.ImageManifest{},
 			&v1alpha.ImageFilter{
 				Keywords: []string{"keyword-first", "keyword-foo", "keyword-last"},
 			},
@@ -372,7 +345,6 @@ func TestFilterImage(t *testing.T) {
 			&v1alpha.Image{
 				Name: "foo-keyword-foo-foo",
 			},
-			&schema.ImageManifest{},
 			&v1alpha.ImageFilter{
 				Keywords: []string{"keyword-first", "keyword-second", "keyword-last"},
 			},
@@ -380,9 +352,8 @@ func TestFilterImage(t *testing.T) {
 		},
 		// Has all the labels in the manifest.
 		{
-			&v1alpha.Image{},
-			&schema.ImageManifest{
-				Labels: []types.Label{
+			&v1alpha.Image{
+				Labels: []*v1alpha.KeyValue{
 					{"label-key-foo", "label-value-foo"},
 					{"label-key-bar", "label-value-bar"},
 				},
@@ -397,9 +368,8 @@ func TestFilterImage(t *testing.T) {
 		},
 		// Doesn't have all the label keys in the manifest.
 		{
-			&v1alpha.Image{},
-			&schema.ImageManifest{
-				Labels: []types.Label{
+			&v1alpha.Image{
+				Labels: []*v1alpha.KeyValue{
 					{"label-key-foo", "label-value-foo"},
 					{"label-key-bar", "label-value-bar"},
 				},
@@ -415,9 +385,8 @@ func TestFilterImage(t *testing.T) {
 		},
 		// Doesn't have all the label values in the manifest.
 		{
-			&v1alpha.Image{},
-			&schema.ImageManifest{
-				Labels: []types.Label{
+			&v1alpha.Image{
+				Labels: []*v1alpha.KeyValue{
 					{"label-key-foo", "label-value-foo"},
 					{"label-key-bar", "label-value-bar"},
 				},
@@ -432,9 +401,8 @@ func TestFilterImage(t *testing.T) {
 		},
 		// Has all the annotation in the manifest.
 		{
-			&v1alpha.Image{},
-			&schema.ImageManifest{
-				Annotations: []types.Annotation{
+			&v1alpha.Image{
+				Annotations: []*v1alpha.KeyValue{
 					{"annotation-key-foo", "annotation-value-foo"},
 					{"annotation-key-bar", "annotation-value-bar"},
 				},
@@ -449,9 +417,8 @@ func TestFilterImage(t *testing.T) {
 		},
 		// Doesn't have all the annotation keys in the manifest.
 		{
-			&v1alpha.Image{},
-			&schema.ImageManifest{
-				Annotations: []types.Annotation{
+			&v1alpha.Image{
+				Annotations: []*v1alpha.KeyValue{
 					{"annotation-key-foo", "annotation-value-foo"},
 					{"annotation-key-bar", "annotation-value-bar"},
 				},
@@ -467,9 +434,8 @@ func TestFilterImage(t *testing.T) {
 		},
 		// Doesn't have all the annotation values in the manifest.
 		{
-			&v1alpha.Image{},
-			&schema.ImageManifest{
-				Annotations: []types.Annotation{
+			&v1alpha.Image{
+				Annotations: []*v1alpha.KeyValue{
 					{"annotation-key-foo", "annotation-value-foo"},
 					{"annotation-key-bar", "annotation-value-bar"},
 				},
@@ -485,7 +451,6 @@ func TestFilterImage(t *testing.T) {
 		// Satisfies 'imported after'.
 		{
 			&v1alpha.Image{ImportTimestamp: 1024},
-			&schema.ImageManifest{},
 			&v1alpha.ImageFilter{
 				ImportedAfter: 1023,
 			},
@@ -494,7 +459,6 @@ func TestFilterImage(t *testing.T) {
 		// Doesn't satisfy 'imported after'.
 		{
 			&v1alpha.Image{ImportTimestamp: 1024},
-			&schema.ImageManifest{},
 			&v1alpha.ImageFilter{
 				ImportedAfter: 1024,
 			},
@@ -503,7 +467,6 @@ func TestFilterImage(t *testing.T) {
 		// Satisfies 'imported before'.
 		{
 			&v1alpha.Image{ImportTimestamp: 1024},
-			&schema.ImageManifest{},
 			&v1alpha.ImageFilter{
 				ImportedBefore: 1025,
 			},
@@ -512,7 +475,6 @@ func TestFilterImage(t *testing.T) {
 		// Doesn't satisfy 'imported before'.
 		{
 			&v1alpha.Image{ImportTimestamp: 1024},
-			&schema.ImageManifest{},
 			&v1alpha.ImageFilter{
 				ImportedBefore: 1024,
 			},
@@ -521,7 +483,6 @@ func TestFilterImage(t *testing.T) {
 		// Match one of the full names.
 		{
 			&v1alpha.Image{Name: "foo/basename-foo"},
-			&schema.ImageManifest{},
 			&v1alpha.ImageFilter{
 				FullNames: []string{"foo/basename-foo", "foo/basename-bar"},
 			},
@@ -530,7 +491,6 @@ func TestFilterImage(t *testing.T) {
 		// Doesn't match any full names.
 		{
 			&v1alpha.Image{Name: "foo/basename-foo"},
-			&schema.ImageManifest{},
 			&v1alpha.ImageFilter{
 				FullNames: []string{"bar/basename-foo", "foo/basename-bar"},
 			},
@@ -543,10 +503,8 @@ func TestFilterImage(t *testing.T) {
 				Name:            "prefix-foo-keyword-foo/basename-foo",
 				Version:         "1.0",
 				ImportTimestamp: 1024,
-			},
-			&schema.ImageManifest{
-				Labels:      []types.Label{{"label-key-foo", "label-value-foo"}},
-				Annotations: []types.Annotation{{"annotation-key-foo", "annotation-value-foo"}},
+				Labels:          []*v1alpha.KeyValue{{"label-key-foo", "label-value-foo"}},
+				Annotations:     []*v1alpha.KeyValue{{"annotation-key-foo", "annotation-value-foo"}},
 			},
 			&v1alpha.ImageFilter{
 				Ids:            []string{"id-bar"},
@@ -567,10 +525,8 @@ func TestFilterImage(t *testing.T) {
 				Name:            "prefix-foo-keyword-foo/basename-foo",
 				Version:         "1.0",
 				ImportTimestamp: 1024,
-			},
-			&schema.ImageManifest{
-				Labels:      []types.Label{{"label-key-foo", "label-value-foo"}},
-				Annotations: []types.Annotation{{"annotation-key-foo", "annotation-value-foo"}},
+				Labels:          []*v1alpha.KeyValue{{"label-key-foo", "label-value-foo"}},
+				Annotations:     []*v1alpha.KeyValue{{"annotation-key-foo", "annotation-value-foo"}},
 			},
 			&v1alpha.ImageFilter{
 				Ids:            []string{"id-bar", "id-foo"},
@@ -591,10 +547,8 @@ func TestFilterImage(t *testing.T) {
 				Name:            "prefix-foo-keyword-foo/basename-foo",
 				Version:         "1.0",
 				ImportTimestamp: 1024,
-			},
-			&schema.ImageManifest{
-				Labels:      []types.Label{{"label-key-foo", "label-value-foo"}},
-				Annotations: []types.Annotation{{"annotation-key-foo", "annotation-value-foo"}},
+				Labels:          []*v1alpha.KeyValue{{"label-key-foo", "label-value-foo"}},
+				Annotations:     []*v1alpha.KeyValue{{"annotation-key-foo", "annotation-value-foo"}},
 			},
 			&v1alpha.ImageFilter{
 				Ids:            []string{"id-bar", "id-foo"},
@@ -611,7 +565,7 @@ func TestFilterImage(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		result := satisfiesImageFilter(*tt.image, *tt.manifest, *tt.filter)
+		result := satisfiesImageFilter(*tt.image, *tt.filter)
 		if result != tt.result {
 			t.Errorf("#%d: got %v, want %v", i, result, tt.result)
 		}
@@ -620,10 +574,9 @@ func TestFilterImage(t *testing.T) {
 
 func TestFilterImageAny(t *testing.T) {
 	tests := []struct {
-		image    *v1alpha.Image
-		manifest *schema.ImageManifest
-		filters  []*v1alpha.ImageFilter
-		result   bool
+		image   *v1alpha.Image
+		filters []*v1alpha.ImageFilter
+		result  bool
 	}{
 		// No filters.
 		{
@@ -631,7 +584,6 @@ func TestFilterImageAny(t *testing.T) {
 				Id:   "id-foo",
 				Name: "prefix-foo-keyword-foo/basename-foo",
 			},
-			&schema.ImageManifest{},
 			nil,
 			true,
 		},
@@ -641,7 +593,6 @@ func TestFilterImageAny(t *testing.T) {
 				Id:   "id-foo",
 				Name: "prefix-foo-keyword-foo/basename-foo",
 			},
-			&schema.ImageManifest{},
 			[]*v1alpha.ImageFilter{
 				{Ids: []string{"id-foo"}},
 				{BaseNames: []string{"basename-foo"}},
@@ -654,7 +605,6 @@ func TestFilterImageAny(t *testing.T) {
 				Id:   "id-foo",
 				Name: "prefix-foo-keyword-foo/basename-foo",
 			},
-			&schema.ImageManifest{},
 			[]*v1alpha.ImageFilter{
 				{Ids: []string{"id-foo"}},
 				{BaseNames: []string{"basename-bar"}},
@@ -667,7 +617,6 @@ func TestFilterImageAny(t *testing.T) {
 				Id:   "id-foo",
 				Name: "prefix-foo-keyword-foo/basename-foo",
 			},
-			&schema.ImageManifest{},
 			[]*v1alpha.ImageFilter{
 				{Ids: []string{"id-bar"}},
 				{BaseNames: []string{"basename-bar"}},
@@ -677,9 +626,77 @@ func TestFilterImageAny(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		result := satisfiesAnyImageFilters(tt.image, tt.manifest, tt.filters)
+		result := satisfiesAnyImageFilters(tt.image, tt.filters)
 		if result != tt.result {
 			t.Errorf("#%d: got %v, want %v", i, result, tt.result)
 		}
+	}
+}
+
+// Test that we open the correct kinds of sockets
+func TestOpenSocket(t *testing.T) {
+	stderr = log.New(os.Stderr, "TestOpenSocket", globalFlags.Debug)
+	// get a temp unix socket for us to play with
+	tempdir, err := ioutil.TempDir("", "TestOpenSocket")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempdir)
+
+	l, err := net.Listen("unix", tempdir+"/sock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	lfd, err := l.(*net.UnixListener).File()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lfd.Close()
+
+	// Mock out the systemd FD function
+	systemdFDs = func(x bool) []*os.File {
+		return []*os.File{lfd}
+	}
+
+	// Test that we will open a systemd socket when asked for
+	l1, err := openAPISockets()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(l1) != 1 {
+		t.Errorf("expected len(l1) = 1, got %d", len(l1))
+	}
+
+	// Test that we fail when --listen is passed with a systemd socket
+	flagAPIServiceListenAddr = "localhost:0"
+	_, err = openAPISockets()
+	if err == nil {
+		t.Error("openAPISockets() did not fail when passed systemd socket and --listen")
+	}
+
+	// Then, disable socket mode and ask it to open a random tcp server port
+	systemdFDs = func(x bool) []*os.File {
+		return nil
+	}
+
+	l2, err := openAPISockets()
+	if err != nil {
+		t.Fatal("failed to open socket", err)
+	}
+
+	for _, ll := range l2 {
+		defer ll.Close()
+	}
+
+	if len(l2) != 1 {
+		t.Errorf("expected len(l2) == 1, but got %d", len(l2))
+	}
+
+	switch l2[0].(type) {
+	case *net.TCPListener:
+	// ok
+	default:
+		t.Errorf("expected type=*net.TCPListener, got %T", l2[0])
 	}
 }

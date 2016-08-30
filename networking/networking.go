@@ -24,15 +24,17 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/appc/cni/pkg/ns"
-	cnitypes "github.com/appc/cni/pkg/types"
 	"github.com/appc/spec/schema/types"
+	"github.com/containernetworking/cni/pkg/ns"
+	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/hashicorp/errwrap"
 	"github.com/vishvananda/netlink"
 
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/networking/netinfo"
 	"github.com/coreos/rkt/pkg/log"
+
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -40,28 +42,20 @@ const (
 	selfNetNS     = "/proc/self/ns/net"
 )
 
-// ForwardedPort describes a port that will be
-// forwarded (mapped) from the host to the pod
-type ForwardedPort struct {
-	Protocol string
-	HostPort uint
-	PodPort  uint
-}
-
 // Networking describes the networking details of a pod.
 type Networking struct {
 	podEnv
 
-	hostNS *os.File
-	nets   []activeNet
+	nets []activeNet
 }
 
 // NetConf local struct extends cnitypes.NetConf with information about masquerading
 // similar to CNI plugins
 type NetConf struct {
 	cnitypes.NetConf
-	IPMasq bool `json:"ipMasq"`
-	MTU    int  `json:"mtu"`
+	IPMasq           bool `json:"ipMasq"`
+	MTU              int  `json:"mtu"`
+	IsDefaultGateway bool `json:"isDefaultGateway"`
 }
 
 var stderr *log.Logger
@@ -76,6 +70,12 @@ func Setup(podRoot string, podID types.UUID, fps []ForwardedPort, netList common
 		return kvmSetup(podRoot, podID, fps, netList, localConfig)
 	}
 
+	// Create namespace for Pod and write path to a file
+	podNS, err := ns.NewNS()
+	if err != nil {
+		return nil, err
+	}
+
 	// TODO(jonboulle): currently podRoot is _always_ ".", and behaviour in other
 	// circumstances is untested. This should be cleaned up.
 	n := Networking{
@@ -84,52 +84,39 @@ func Setup(podRoot string, podID types.UUID, fps []ForwardedPort, netList common
 			podID:        podID,
 			netsLoadList: netList,
 			localConfig:  localConfig,
+			podNS:        podNS,
 		},
 	}
-
-	hostNS, podNS, err := basicNetNS()
-	if err != nil {
-		return nil, err
-	}
-	// we're in podNS!
-	n.hostNS = hostNS
-
-	nspath := n.podNSPath()
-
-	if err = bindMountFile(selfNetNS, nspath); err != nil {
-		return nil, err
-	}
-
-	defer func() {
-		if err != nil {
-			if err := syscall.Unmount(nspath, 0); err != nil {
-				stderr.PrintE(fmt.Sprintf("error unmounting %q", nspath), err)
-			}
-		}
-	}()
 
 	n.nets, err = n.loadNets()
 	if err != nil {
 		return nil, errwrap.Wrap(errors.New("error loading network definitions"), err)
 	}
 
-	err = withNetNS(podNS, hostNS, func() error {
-		if err := n.setupNets(n.nets); err != nil {
-			return err
+	if err := n.setupNets(n.nets); err != nil {
+		return nil, err
+	}
+
+	if len(fps) > 0 {
+		if err = n.enableDefaultLocalnetRouting(); err != nil {
+			return nil, err
 		}
-		if len(fps) > 0 {
-			if err = n.enableDefaultLocalnetRouting(); err != nil {
-				return err
-			}
-			if err := n.forwardPorts(fps, n.GetDefaultIP()); err != nil {
-				n.unforwardPorts()
-				return err
-			}
-			return nil
+		podIP, err := n.GetForwardableNetPodIP()
+		if err != nil {
+			return nil, err
 		}
-		return nil
-	})
-	if err != nil {
+		if err := n.forwardPorts(fps, podIP); err != nil {
+			n.unforwardPorts()
+			return nil, err
+		}
+	}
+
+	// Switch to the podNS
+	if err := podNS.Set(); err != nil {
+		return nil, err
+	}
+
+	if err = loUp(); err != nil {
 		return nil, err
 	}
 
@@ -141,7 +128,7 @@ func Setup(podRoot string, podID types.UUID, fps []ForwardedPort, netList common
 func (n *Networking) enableDefaultLocalnetRouting() error {
 	routeLocalnetFormat := ""
 
-	defaultHostIP, err := n.GetDefaultHostIP()
+	defaultHostIP, err := n.GetForwardableNetHostIP()
 	if err != nil {
 		return err
 	}
@@ -198,11 +185,6 @@ func Load(podRoot string, podID *types.UUID) (*Networking, error) {
 		return nil, err
 	}
 
-	hostNS, err := os.Open(selfNetNS)
-	if err != nil {
-		return nil, err
-	}
-
 	var nets []activeNet
 	for _, ni := range nis {
 		n, err := loadNet(ni.ConfPath)
@@ -219,28 +201,21 @@ func Load(podRoot string, podID *types.UUID) (*Networking, error) {
 		nets = append(nets, *n)
 	}
 
+	p := podEnv{
+		podRoot: podRoot,
+		podID:   *podID,
+	}
+
+	podNS, err := p.podNSLoad()
+	if err != nil {
+		return nil, err
+	}
+	p.podNS = podNS
+
 	return &Networking{
-		podEnv: podEnv{
-			podRoot: podRoot,
-			podID:   *podID,
-		},
-		hostNS: hostNS,
+		podEnv: p,
 		nets:   nets,
 	}, nil
-}
-
-func (n *Networking) GetDefaultIP() net.IP {
-	if len(n.nets) == 0 {
-		return nil
-	}
-	return n.nets[len(n.nets)-1].runtime.IP
-}
-
-func (n *Networking) GetDefaultHostIP() (net.IP, error) {
-	if len(n.nets) == 0 {
-		return nil, fmt.Errorf("no networks found")
-	}
-	return n.nets[len(n.nets)-1].runtime.HostIP, nil
 }
 
 // GetIfacesByIP searches for and returns the interfaces with the given IP
@@ -294,104 +269,51 @@ func (n *Networking) Teardown(flavor string, debug bool) {
 		return
 	}
 
-	if err := n.enterHostNS(); err != nil {
-		stderr.PrintE("error switching to host netns", err)
-		return
-	}
-
 	if err := n.unforwardPorts(); err != nil {
 		stderr.PrintE("error removing forwarded ports", err)
 	}
 
-	n.teardownNets(n.nets)
-
-	if err := syscall.Unmount(n.podNSPath(), 0); err != nil {
-		// if already unmounted, umount(2) returns EINVAL
-		if !os.IsNotExist(err) && err != syscall.EINVAL {
-			stderr.PrintE(fmt.Sprintf("error unmounting %q", n.podNSPath()), err)
-		}
-	}
-}
-
-// sets up new netns with just lo
-func basicNetNS() (hostNS, podNS *os.File, err error) {
-	hostNS, podNS, err = newNetNS()
+	podNS, err := n.podNSLoad()
 	if err != nil {
-		err = errwrap.Wrap(errors.New("failed to create new netns"), err)
-		return
+		stderr.PrintE("error loading podNS", err)
 	}
-	// we're in podNS!!
+	if podNS != nil {
+		defer func() {
+			n.podNS.Close()
 
-	if err = loUp(); err != nil {
-		hostNS.Close()
-		podNS.Close()
-		return nil, nil, err
+			if err := syscall.Unmount(n.podNS.Path(), unix.MNT_DETACH); err != nil {
+				// if already unmounted, umount(2) returns EINVAL
+				if !os.IsNotExist(err) && err != syscall.EINVAL {
+					stderr.PrintE(fmt.Sprintf("error unmounting %q", n.podNS.Path()), err)
+				}
+			}
+
+			if err := os.RemoveAll(n.podNS.Path()); err != nil {
+				stderr.PrintE(fmt.Sprintf("failed to remove namespace %s", n.podNS.Path()), err)
+			}
+		}()
 	}
 
-	return
-}
-
-// enterHostNS moves into the host's network namespace.
-func (n *Networking) enterHostNS() error {
-	return ns.SetNS(n.hostNS, syscall.CLONE_NEWNET)
+	n.podNS = podNS
+	n.teardownNets(n.nets)
 }
 
 // Save writes out the info about active nets
 // for "rkt list" and friends to display
 func (e *Networking) Save() error {
+
+	if e.podNS != nil {
+		if err := e.podNSPathSave(); err != nil {
+			return err
+		}
+	}
+
 	var nis []netinfo.NetInfo
 	for _, n := range e.nets {
 		nis = append(nis, *n.runtime)
 	}
 
 	return netinfo.Save(e.podRoot, nis)
-}
-
-func newNetNS() (hostNS, childNS *os.File, err error) {
-	defer func() {
-		if err != nil {
-			if hostNS != nil {
-				hostNS.Close()
-			}
-			if childNS != nil {
-				childNS.Close()
-			}
-		}
-	}()
-
-	hostNS, err = os.Open(selfNetNS)
-	if err != nil {
-		return
-	}
-
-	if err = syscall.Unshare(syscall.CLONE_NEWNET); err != nil {
-		return
-	}
-
-	childNS, err = os.Open(selfNetNS)
-	if err != nil {
-		ns.SetNS(hostNS, syscall.CLONE_NEWNET)
-		return
-	}
-
-	return
-}
-
-// execute f() in tgtNS
-func withNetNS(curNS, tgtNS *os.File, f func() error) error {
-	if err := ns.SetNS(tgtNS, syscall.CLONE_NEWNET); err != nil {
-		return err
-	}
-
-	if err := f(); err != nil {
-		// Attempt to revert the net ns in a known state
-		if err := ns.SetNS(curNS, syscall.CLONE_NEWNET); err != nil {
-			stderr.PrintE("cannot revert the net namespace", err)
-		}
-		return err
-	}
-
-	return ns.SetNS(curNS, syscall.CLONE_NEWNET)
 }
 
 func loUp() error {
@@ -405,15 +327,4 @@ func loUp() error {
 	}
 
 	return nil
-}
-
-func bindMountFile(src, dst string) error {
-	// mount point has to be an existing file
-	f, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	f.Close()
-
-	return syscall.Mount(src, dst, "none", syscall.MS_BIND, "")
 }

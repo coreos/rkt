@@ -9,11 +9,11 @@ _CCN_INCLUDED_ := x
 $(call setup-tmp-dir,CCN_TMPDIR)
 
 # systemd version in coreos image
-CCN_SYSTEMD_VERSION := v225
+CCN_SYSTEMD_VERSION := v229
 # coreos image version
-CCN_IMG_RELEASE := 991.0.0
+CCN_IMG_RELEASE := 1097.0.0
 # coreos image URL
-CCN_IMG_URL := http://alpha.release.core-os.net/amd64-usr/$(CCN_IMG_RELEASE)/coreos_production_pxe_image.cpio.gz
+CCN_IMG_URL := https://alpha.release.core-os.net/$(RKT_STAGE1_COREOS_BOARD)/$(CCN_IMG_RELEASE)/coreos_production_pxe_image.cpio.gz
 # path to downloaded pxe image
 CCN_DOWNLOADED_PXE := $(CCN_TMPDIR)/pxe.img
 CLEAN_FILES += \

@@ -41,8 +41,9 @@ var (
 		"memory": addMemoryLimit,
 	}
 	cgroupControllerRWFiles = map[string][]string{
-		"memory": []string{"memory.limit_in_bytes"},
-		"cpu":    []string{"cpu.cfs_quota_us"},
+		"memory":  {"memory.limit_in_bytes"},
+		"cpu":     {"cpu.cfs_quota_us"},
+		"devices": {"devices.allow", "devices.deny"},
 	}
 )
 
@@ -182,8 +183,7 @@ func getControllerRWFiles(controller string) []string {
 	return nil
 }
 
-func parseOwnCgroupController(controller string) ([]string, error) {
-	cgroupPath := "/proc/self/cgroup"
+func parseCgroupController(cgroupPath, controller string) ([]string, error) {
 	cg, err := os.Open(cgroupPath)
 	if err != nil {
 		return nil, errwrap.Wrap(errors.New("error opening /proc/self/cgroup"), err)
@@ -210,7 +210,17 @@ func parseOwnCgroupController(controller string) ([]string, error) {
 // GetOwnCgroupPath returns the cgroup path of this process in controller
 // hierarchy
 func GetOwnCgroupPath(controller string) (string, error) {
-	parts, err := parseOwnCgroupController(controller)
+	parts, err := parseCgroupController("/proc/self/cgroup", controller)
+	if err != nil {
+		return "", err
+	}
+	return parts[2], nil
+}
+
+// GetCgroupPathByPid returns the cgroup path of the process with the given pid
+// and given controller.
+func GetCgroupPathByPid(pid int, controller string) (string, error) {
+	parts, err := parseCgroupController(fmt.Sprintf("/proc/%d/cgroup", pid), controller)
 	if err != nil {
 		return "", err
 	}
@@ -340,17 +350,7 @@ func CreateCgroups(root string, enabledCgroups map[int][]string, mountContext st
 	}
 
 	// Bind-mount cgroup tmpfs filesystem read-only
-	flags = syscall.MS_BIND |
-		syscall.MS_REMOUNT |
-		syscall.MS_NOSUID |
-		syscall.MS_NOEXEC |
-		syscall.MS_NODEV |
-		syscall.MS_RDONLY
-	if err := syscall.Mount(cgroupTmpfs, cgroupTmpfs, "", flags, ""); err != nil {
-		return errwrap.Wrap(fmt.Errorf("error remounting RO %q", cgroupTmpfs), err)
-	}
-
-	return nil
+	return mountFsRO(cgroupTmpfs)
 }
 
 // RemountCgroupsRO remounts the cgroup hierarchy under root read-only, leaving
@@ -361,12 +361,10 @@ func RemountCgroupsRO(root string, enabledCgroups map[int][]string, subcgroup st
 	cgroupTmpfs := filepath.Join(root, "/sys/fs/cgroup")
 	sysPath := filepath.Join(root, "/sys")
 
-	var flags uintptr
-
 	// Mount RW knobs we need to make the enabled isolators work
 	for _, c := range controllers {
 		cPath := filepath.Join(cgroupTmpfs, c)
-		subcgroupPath := filepath.Join(cPath, subcgroup)
+		subcgroupPath := filepath.Join(cPath, subcgroup, "system.slice")
 
 		// Workaround for https://github.com/coreos/rkt/issues/1210
 		if c == "cpuset" {
@@ -394,26 +392,24 @@ func RemountCgroupsRO(root string, enabledCgroups map[int][]string, subcgroup st
 		}
 
 		// Re-mount controller read-only to prevent the container modifying host controllers
-		flags = syscall.MS_BIND |
-			syscall.MS_REMOUNT |
-			syscall.MS_NOSUID |
-			syscall.MS_NOEXEC |
-			syscall.MS_NODEV |
-			syscall.MS_RDONLY
-		if err := syscall.Mount(cPath, cPath, "", flags, ""); err != nil {
-			return errwrap.Wrap(fmt.Errorf("error remounting RO %q", cPath), err)
+		if err := mountFsRO(cPath); err != nil {
+			return err
 		}
 	}
 
 	// Bind-mount sys filesystem read-only
-	flags = syscall.MS_BIND |
+	return mountFsRO(sysPath)
+}
+
+func mountFsRO(mountPoint string) error {
+	var flags uintptr = syscall.MS_BIND |
 		syscall.MS_REMOUNT |
 		syscall.MS_NOSUID |
 		syscall.MS_NOEXEC |
 		syscall.MS_NODEV |
 		syscall.MS_RDONLY
-	if err := syscall.Mount(sysPath, sysPath, "", flags, ""); err != nil {
-		return errwrap.Wrap(fmt.Errorf("error remounting RO %q", sysPath), err)
+	if err := syscall.Mount(mountPoint, mountPoint, "", flags, ""); err != nil {
+		return errwrap.Wrap(fmt.Errorf("error remounting RO %q", mountPoint), err)
 	}
 
 	return nil

@@ -53,6 +53,9 @@
 #
 # STAGE1_ENTER_CMD_$(flavor) - an enter command in stage1 to be used
 # for the "rkt enter" command.
+#
+# STAGE1_STOP_CMD_$(flavor) - a stop command in stage1 to be used
+# for the "rkt stop" command.
 
 STAGE1_FLAVORS := $(call commas-to-spaces,$(RKT_STAGE1_ALL_FLAVORS))
 STAGE1_BUILT_FLAVORS := $(call commas-to-spaces,$(RKT_STAGE1_FLAVORS))
@@ -66,12 +69,13 @@ $(foreach f,$(STAGE1_FLAVORS), \
 	$(eval STAGE1_SECONDARY_STAMPS_$f :=) \
 	$(eval STAGE1_ACIDIR_$f := $(BUILDDIR)/aci-for-$f-flavor) \
 	$(eval STAGE1_ACIROOTFSDIR_$f := $(STAGE1_ACIDIR_$f)/rootfs) \
-	$(eval STAGE1_ACI_IMAGE_$f := $(BINDIR)/stage1-$f.aci) \
+	$(eval STAGE1_ACI_IMAGE_$f := $(TARGET_BINDIR)/stage1-$f.aci) \
 	$(eval STAGE1_INSTALL_FILES_$f :=) \
 	$(eval STAGE1_INSTALL_SYMLINKS_$f :=) \
 	$(eval STAGE1_INSTALL_DIRS_$f :=) \
 	$(eval STAGE1_CREATE_DIRS_$f :=) \
-	$(eval STAGE1_ENTER_CMD_$f :=))
+	$(eval STAGE1_ENTER_CMD_$f :=) \
+	$(eval STAGE1_STOP_CMD_$f :=))
 
 # Main stamp that tells whether all the ACIs have been built.
 $(call setup-stamp-file,_STAGE1_BUILT_ACI_STAMP_,built_aci)
@@ -136,7 +140,7 @@ endif
 # above.
 $$(call forward-vars,$$(STAGE1_ACI_IMAGE_$1), \
 	ACTOOL STAGE1_ACIDIR_$1)
-$$(STAGE1_ACI_IMAGE_$1): $$(ACTOOL_STAMP) | $$(BINDIR)
+$$(STAGE1_ACI_IMAGE_$1): $$(ACTOOL_STAMP) | $$(TARGET_BINDIR)
 	$(VQ) \
 	$(call vb,vt,ACTOOL,$$(call vsp,$$@)) \
 	"$$(ACTOOL)" build --overwrite --owner-root "$$(STAGE1_ACIDIR_$1)" "$$@"

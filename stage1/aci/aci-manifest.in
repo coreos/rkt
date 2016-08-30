@@ -1,6 +1,6 @@
 {
     "acKind": "ImageManifest",
-    "acVersion": "0.7.4",
+    "acVersion": "0.8.7",
     "name": "@RKT_STAGE1_NAME@",
     "labels": [
         {
@@ -9,7 +9,7 @@
         },
         {
             "name": "arch",
-            "value": "amd64"
+            "value": "@RKT_STAGE1_ARCH@"
         },
         {
             "name": "os",
@@ -30,8 +30,12 @@
             "value": "/gc"
         },
         {
+            "name": "coreos.com/rkt/stage1/stop",
+            "value": "@RKT_STAGE1_STOP@"
+        },
+        {
             "name": "coreos.com/rkt/stage1/interface-version",
-            "value": "2"
+            "value": "3"
         }
     ]
 }

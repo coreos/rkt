@@ -25,7 +25,8 @@ import (
 	"github.com/coreos/rkt/common/apps"
 	"github.com/coreos/rkt/rkt/config"
 	"github.com/coreos/rkt/rkt/image"
-	"github.com/coreos/rkt/store"
+	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/treestore"
 	"github.com/hashicorp/errwrap"
 	"github.com/spf13/pflag"
 )
@@ -110,39 +111,39 @@ var (
 	// this holds necessary data to generate the --stage1-* flags
 	// for each location kind
 	stage1FlagsData = map[stage1ImageLocationKind]*stage1FlagData{
-		stage1ImageLocationURL: &stage1FlagData{
+		stage1ImageLocationURL: {
 			kind: stage1ImageLocationURL,
 			flag: "stage1-url",
 			name: "stage1URL",
-			help: "a URL to an image to use as stage1",
+			help: "URL to an image to use as stage1",
 		},
 
-		stage1ImageLocationPath: &stage1FlagData{
+		stage1ImageLocationPath: {
 			kind: stage1ImageLocationPath,
 			flag: "stage1-path",
 			name: "stage1Path",
-			help: "an absolute or a relative path to an image to use as stage1",
+			help: "absolute or relative path to an image to use as stage1",
 		},
 
-		stage1ImageLocationName: &stage1FlagData{
+		stage1ImageLocationName: {
 			kind: stage1ImageLocationName,
 			flag: "stage1-name",
 			name: "stage1Name",
-			help: "a name of an image to use as stage1",
+			help: "name of an image to use as stage1",
 		},
 
-		stage1ImageLocationHash: &stage1FlagData{
+		stage1ImageLocationHash: {
 			kind: stage1ImageLocationHash,
 			flag: "stage1-hash",
 			name: "stage1Hash",
-			help: "a hash of an image to use as stage1",
+			help: "hash of an image to use as stage1",
 		},
 
-		stage1ImageLocationFromDir: &stage1FlagData{
+		stage1ImageLocationFromDir: {
 			kind: stage1ImageLocationFromDir,
 			flag: "stage1-from-dir",
 			name: "stage1FromDir",
-			help: "a filename of an image in stage1 images directory to use as stage1",
+			help: "filename of an image in stage1 images directory to use as stage1",
 		},
 	}
 	// location to stage1 image overridden by one of --stage1-*
@@ -172,8 +173,25 @@ func addStage1ImageFlags(flags *pflag.FlagSet) {
 // If the user passed --stage1-url, --stage1-path, --stage1-name,
 // --stage1-hash, or --stage1-from-dir then we take what was passed
 // and try to load it. If it failed, we bail out. No second chances
-// and whatnot. The details about how each location type should be
-// handled are below.
+// and whatnot. The details about how each flag type should be handled
+// are below.
+//
+// For --stage1-url, we do discovery, and try to fetch it directly into
+// the store.
+//
+// For --stage1-path, we do no discovery and try to fetch the image
+// directly from the given file path into the store. If the file is not
+// found, then we try to fetch the file in the same directory as the
+// rkt binary itself into the store.
+//
+// For --stage1-from-dir, we do no discovery and try to fetch the image
+// from the stage1 images directory by the name.
+//
+// For --stage1-name, we do discovery and fetch the discovered image
+// into the store.
+//
+// For --stage1-hash, we do no discovery and try to fetch the image
+// from the store by the hash.
 //
 // If the user passed none of the above flags, we try to get the name,
 // the version and the location from the configuration. The name and
@@ -195,20 +213,17 @@ func addStage1ImageFlags(flags *pflag.FlagSet) {
 // have a second chance, we try to fetch the file in the same
 // directory as the rkt binary itself into the store.
 //
-// If location is a name, we do the discovery, fetch the discovered
-// image into the store.
-//
 // If location is an image hash then we make sure that it exists in
 // the store.
-func getStage1Hash(s *store.Store, c *config.Config) (*types.Hash, error) {
+func getStage1Hash(s *imagestore.Store, ts *treestore.Store, c *config.Config) (*types.Hash, error) {
 	imgDir := getStage1ImagesDirectory(c)
 	if overriddenStage1Location.kind != stage1ImageLocationUnset {
 		// we passed a --stage-{url,path,name,hash,from-dir} flag
-		return getStage1HashFromFlag(s, overriddenStage1Location, imgDir)
+		return getStage1HashFromFlag(s, ts, overriddenStage1Location, imgDir)
 	}
 
 	imgRef, imgLoc, imgFileName := getStage1DataFromConfig(c)
-	return getConfiguredStage1Hash(s, imgRef, imgLoc, imgFileName)
+	return getConfiguredStage1Hash(s, ts, imgRef, imgLoc, imgFileName)
 }
 
 func getStage1ImagesDirectory(c *config.Config) string {
@@ -218,24 +233,42 @@ func getStage1ImagesDirectory(c *config.Config) string {
 	return buildDefaultStage1ImagesDir
 }
 
-func getStage1HashFromFlag(s *store.Store, loc stage1ImageLocation, dir string) (*types.Hash, error) {
+func getStage1HashFromFlag(s *imagestore.Store, ts *treestore.Store, loc stage1ImageLocation, dir string) (*types.Hash, error) {
+	withKeystore := true
+	location := loc.location
+	if loc.kind == stage1ImageLocationFromDir {
+		location = filepath.Join(dir, loc.location)
+	}
+	trustedLocation, err := isTrustedLocation(location)
+	if err != nil {
+		return nil, err
+	}
+
 	imgType := apps.AppImageGuess
 	switch loc.kind {
 	case stage1ImageLocationURL:
 		imgType = apps.AppImageURL
+		if trustedLocation {
+			withKeystore = false
+		}
 	case stage1ImageLocationPath:
 		imgType = apps.AppImagePath
+		if trustedLocation {
+			withKeystore = false
+		}
 	case stage1ImageLocationName:
 		imgType = apps.AppImageName
 	case stage1ImageLocationHash:
 		imgType = apps.AppImageHash
 	case stage1ImageLocationFromDir:
-		loc.location = filepath.Join(dir, loc.location)
+		if trustedLocation {
+			withKeystore = false
+		}
 		imgType = apps.AppImagePath
 	}
 
-	fn := getStage1Finder(s)
-	return fn.FindImage(loc.location, "", imgType)
+	fn := getStage1Finder(s, ts, withKeystore)
+	return fn.FindImage(location, "", imgType)
 }
 
 func getStage1DataFromConfig(c *config.Config) (string, string, string) {
@@ -267,8 +300,24 @@ func getFileNameFromLocation(imgLoc string) string {
 	return filepath.Base(imgLoc)
 }
 
-func getConfiguredStage1Hash(s *store.Store, imgRef, imgLoc, imgFileName string) (*types.Hash, error) {
-	fn := getStage1Finder(s)
+func isTrustedLocation(location string) (bool, error) {
+	absLocation, err := filepath.Abs(location)
+	if err != nil {
+		return false, err
+	}
+	if absLocation == buildDefaultStage1ImageLoc ||
+		strings.HasPrefix(absLocation, fmt.Sprintf("%s%c", filepath.Clean(buildDefaultStage1ImagesDir), filepath.Separator)) {
+		return true, nil
+	}
+	return false, nil
+}
+
+func getConfiguredStage1Hash(s *imagestore.Store, ts *treestore.Store, imgRef, imgLoc, imgFileName string) (*types.Hash, error) {
+	trusted, err := isTrustedLocation(imgLoc)
+	if err != nil {
+		return nil, err
+	}
+	fn := getStage1Finder(s, ts, !trusted)
 	if !strings.HasSuffix(imgRef, "-dirty") {
 		fn.StoreOnly = true
 		if hash, err := fn.FindImage(imgRef, "", apps.AppImageName); err == nil {
@@ -287,9 +336,10 @@ func getConfiguredStage1Hash(s *store.Store, imgRef, imgLoc, imgFileName string)
 	return getStage1HashFromPath(fn, imgLoc, imgFileName)
 }
 
-func getStage1Finder(s *store.Store) *image.Finder {
-	return &image.Finder{
+func getStage1Finder(s *imagestore.Store, ts *treestore.Store, withKeystore bool) *image.Finder {
+	fn := &image.Finder{
 		S:                  s,
+		Ts:                 ts,
 		InsecureFlags:      globalFlags.InsecureFlags,
 		TrustKeysFromHTTPS: globalFlags.TrustKeysFromHTTPS,
 
@@ -297,6 +347,11 @@ func getStage1Finder(s *store.Store) *image.Finder {
 		NoStore:   false,
 		WithDeps:  false,
 	}
+
+	if withKeystore {
+		fn.Ks = getKeystore()
+	}
+	return fn
 }
 
 func getStage1HashFromPath(fn *image.Finder, imgLoc, imgFileName string) (*types.Hash, error) {
@@ -314,6 +369,8 @@ func getStage1HashFromPath(fn *image.Finder, imgLoc, imgFileName string) (*types
 		if err != nil {
 			fallbackErr = err
 		} else {
+			// using stage1 image in rkt's path, don't check the signature
+			fn.Ks = nil
 			rktDir := filepath.Dir(exePath)
 			imgPath := filepath.Join(rktDir, imgFileName)
 			hash, err := fn.FindImage(imgPath, "", apps.AppImagePath)

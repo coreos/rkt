@@ -20,7 +20,8 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/common/apps"
 	"github.com/coreos/rkt/rkt/image"
-	"github.com/coreos/rkt/store"
+	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/treestore"
 
 	"github.com/spf13/cobra"
 )
@@ -44,7 +45,6 @@ again.`,
 )
 
 func init() {
-	cmdRkt.AddCommand(cmdFetch)
 	// Disable interspersed flags to stop parsing after the first non flag
 	// argument. All the subsequent parsing will be done by parseApps.
 	// This is needed to correctly handle multiple IMAGE --signature=sigfile options
@@ -54,6 +54,13 @@ func init() {
 	cmdFetch.Flags().BoolVar(&flagStoreOnly, "store-only", false, "use only available images in the store (do not discover or download from remote URLs)")
 	cmdFetch.Flags().BoolVar(&flagNoStore, "no-store", false, "fetch images ignoring the local store")
 	cmdFetch.Flags().BoolVar(&flagFullHash, "full", false, "print the full image hash after fetching")
+
+	cmdRkt.AddCommand(cmdFetch)
+
+	// Hide image fetch option in command list
+	cmdImageFetch := *cmdFetch
+	cmdImageFetch.Hidden = true
+	cmdImage.AddCommand(&cmdImageFetch)
 }
 
 func runFetch(cmd *cobra.Command, args []string) (exit int) {
@@ -72,11 +79,18 @@ func runFetch(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	s, err := store.NewStore(getDataDir())
+	s, err := imagestore.NewStore(storeDir())
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
 		return 1
 	}
+
+	ts, err := treestore.NewStore(treeStoreDir(), s)
+	if err != nil {
+		stderr.PrintE("cannot open treestore", err)
+		return 1
+	}
+
 	ks := getKeystore()
 	config, err := getConfig()
 	if err != nil {
@@ -85,6 +99,7 @@ func runFetch(cmd *cobra.Command, args []string) (exit int) {
 	}
 	ft := &image.Fetcher{
 		S:                  s,
+		Ts:                 ts,
 		Ks:                 ks,
 		Headers:            config.AuthPerHost,
 		DockerAuth:         config.DockerCredentialsPerRegistry,

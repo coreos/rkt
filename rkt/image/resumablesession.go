@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/rkt/rkt/config"
 	"github.com/coreos/rkt/version"
 )
 
@@ -58,8 +59,10 @@ type resumableSession struct {
 	// validation should be skipped.
 	InsecureSkipTLSVerify bool
 	// Headers are HTTP headers to be added to the HTTP
-	// request. Used for authentication.
+	// request. Used for ETAG.
 	Headers http.Header
+	// Headerers used for authentication.
+	Headerers map[string]config.Headerer
 	// File possibly holds the downloaded data - it is used for
 	// resuming interrupted downloads.
 	File *os.File
@@ -81,12 +84,12 @@ type resumableSession struct {
 	byteRangeSupported bool
 }
 
-func (s *resumableSession) GetClient() (*http.Client, error) {
+func (s *resumableSession) Client() (*http.Client, error) {
 	s.ensureClient()
 	return s.client, nil
 }
 
-func (s *resumableSession) GetRequest(u *url.URL) (*http.Request, error) {
+func (s *resumableSession) Request(u *url.URL) (*http.Request, error) {
 	s.u = u
 	if err := s.maybeSetupDownloadResume(u); err != nil {
 		return nil, err
@@ -116,7 +119,7 @@ func (s *resumableSession) HandleStatus(res *http.Response) (bool, error) {
 	}
 }
 
-func (s *resumableSession) GetBodyReader(res *http.Response) (io.Reader, error) {
+func (s *resumableSession) BodyReader(res *http.Response) (io.Reader, error) {
 	reader := getIoProgressReader(s.Label, res)
 	return reader, nil
 }
@@ -285,7 +288,14 @@ func (s *resumableSession) getClient() *http.Client {
 			if len(via) >= 10 {
 				return fmt.Errorf("too many redirects")
 			}
-			s.setHTTPHeaders(req)
+			stripAuth := false
+			// don't propagate "Authorization" if the redirect is to a
+			// different host
+			previousHost := via[len(via)-1].URL.Host
+			if previousHost != req.URL.Host {
+				stripAuth = true
+			}
+			s.setHTTPHeaders(req, stripAuth)
 			return nil
 		},
 	}
@@ -302,7 +312,21 @@ func (s *resumableSession) httpRequest(method string, u *url.URL) *http.Request 
 		Host:       u.Host,
 	}
 
-	s.setHTTPHeaders(req)
+	s.setHTTPHeaders(req, false)
+
+	// Send credentials only over secure channel
+	// TODO(krnowak): This could be controlled with another
+	// insecure flag.
+	if req.URL.Scheme != "https" {
+		return req
+	}
+
+	if hostOpts, ok := s.Headerers[req.URL.Host]; ok {
+		req = hostOpts.SignRequest(req)
+		if req == nil {
+			panic("Req is nil!")
+		}
+	}
 
 	return req
 }
@@ -330,8 +354,11 @@ func (s *resumableSession) eTagOK(res *http.Response) bool {
 	return false
 }
 
-func (s *resumableSession) setHTTPHeaders(req *http.Request) {
+func (s *resumableSession) setHTTPHeaders(req *http.Request, stripAuth bool) {
 	for k, v := range s.Headers {
+		if stripAuth && k == "Authorization" {
+			continue
+		}
 		for _, e := range v {
 			req.Header.Add(k, e)
 		}

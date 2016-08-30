@@ -9,23 +9,32 @@ The version of the spec that rkt implements can be seen in the output of `rkt ve
 
 rkt's version 1.0 release marks the command line user interface and on-disk data structures as stable and reliable for external development. The (optional) API for pod inspection is not yet completely stabilized, but is quite usable.
 
-### rkt 1.3 (March)
+### rkt 1.14.0 (September)
 
-- enhanced DNS configuration [#2044](https://github.com/coreos/rkt/issues/2044)
-- app exit status propagation [#1460](https://github.com/coreos/rkt/issues/1460)
-- different shared namespace execution modes [#1433](https://github.com/coreos/rkt/issues/1433)
-- stage1 benchmarking [#1788](https://github.com/coreos/rkt/issues/1788)
-- user configuration for stage1 [#2013](https://github.com/coreos/rkt/issues/2013)
-- rkt runs on Fedora with SELinux in enforcing mode
+Full plan at https://github.com/coreos/rkt/milestone/48.
 
-### rkt 1.4 (April)
+Highlights:
+- Introduce support for systemd v231 in stage1
+- Refactor distribution/storage handling
+- Improved native support for OCI
+- Cleanup/unify cgroup detection
 
-- stable API
-- full integration with Kubernetes (aka "rktnetes")
-- full integration with `machinectl login` and `systemd-run` [#1463](https://github.com/coreos/rkt/issues/1463)
-- `rkt fly` as top-level command [#1889](https://github.com/coreos/rkt/issues/1889)
-- attach to the app's stdin/stdout [#1799](https://github.com/coreos/rkt/issues/1799)
-- IPv6 support [appc/cni#31](https://github.com/appc/cni/issues/31)
-- packaged for more distributions
-  - Debian [#1307](https://github.com/coreos/rkt/issues/1307)
-  - CentOS [#1305](https://github.com/coreos/rkt/issues/1305)
+### rkt 1.15.0 (September)
+
+Full plan at https://github.com/coreos/rkt/milestone/49.
+
+Highlights:
+- Enhanced DNS configuration
+- Further improvements for SELinux environments, especially Fedora in enforcing mode
+- Support for unified cgroups
+
+### Upcoming
+
+Full plan at https://github.com/coreos/rkt/milestone/30.
+
+Highlights:
+- `rkt fly` as top-level command
+- User configuration for stage1
+- Stable gRPC [API](https://github.com/coreos/rkt/tree/master/api/v1alpha)
+- Packaged for more distributions
+  - CentOS

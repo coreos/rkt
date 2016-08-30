@@ -12,6 +12,7 @@ FLY_ACI_MANIFEST := $(FLY_ACIDIR)/manifest
 # they can be safely used in the replacement part of sed's s///
 # command.
 FLY_ACI_VERSION := $(call sed-replacement-escape,$(RKT_VERSION))
+FLY_ACI_ARCH := $(call sed-replacement-escape,$(RKT_ACI_ARCH))
 # stamp and dep file for invalidating the generated manifest if name,
 # version or enter command changes for this flavor
 $(call setup-stamp-file,FLY_ACI_MANIFEST_KV_DEPMK_STAMP,$manifest-kv-dep)
@@ -25,18 +26,19 @@ FLY_ACI_DIRS := \
 # main stamp rule - makes sure manifest and deps files are generated
 $(call generate-stamp-rule,$(FLY_ACI_STAMP),$(FLY_ACI_MANIFEST) $(FLY_ACI_MANIFEST_KV_DEPMK_STAMP))
 
-# invalidate generated manifest if version changes
-$(call generate-kv-deps,$(FLY_ACI_MANIFEST_KV_DEPMK_STAMP),$(FLY_ACI_GEN_MANIFEST),$(FLY_ACI_MANIFEST_KV_DEPMK),FLY_ACI_VERSION)
+# invalidate generated manifest if version or arch changes
+$(call generate-kv-deps,$(FLY_ACI_MANIFEST_KV_DEPMK_STAMP),$(FLY_ACI_GEN_MANIFEST),$(FLY_ACI_MANIFEST_KV_DEPMK),FLY_ACI_VERSION FLY_ACI_ARCH)
 
 # this rule generates a manifest
 $(call forward-vars,$(FLY_ACI_GEN_MANIFEST), \
-	FLY_ACI_VERSION)
+	FLY_ACI_VERSION FLY_ACI_ARCH)
 $(FLY_ACI_GEN_MANIFEST): $(FLY_ACI_SRC_MANIFEST) | $(FLY_ACI_TMPDIR) $(FLY_ACI_DIRS) $(FLY_ACIROOTFSDIR)/flavor
 	$(VQ) \
 	set -e; \
 	$(call vb,vt,MANIFEST,fly) \
 	sed \
 		-e 's/@RKT_STAGE1_VERSION@/$(FLY_ACI_VERSION)/g' \
+		-e 's/@RKT_STAGE1_ARCH@/$(FLY_ACI_ARCH)/g' \
 	"$<" >"$@.tmp"; \
 	$(call bash-cond-rename,$@.tmp,$@)
 

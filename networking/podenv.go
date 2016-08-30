@@ -28,6 +28,8 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/hashicorp/errwrap"
 
+	"github.com/containernetworking/cni/pkg/ns"
+
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/networking/netinfo"
 )
@@ -49,6 +51,7 @@ type podEnv struct {
 	podID        types.UUID
 	netsLoadList common.NetList
 	localConfig  string
+	podNS        ns.NetNS
 }
 
 type activeNet struct {
@@ -88,11 +91,67 @@ func (e *podEnv) loadNets() ([]activeNet, error) {
 		return nil, fmt.Errorf("networks not found: %v", strings.Join(missing, ", "))
 	}
 
+	// Add the runtime args to the network instances.
+	// We don't do this earlier because we also load networks in other contexts
+	for _, n := range nets {
+		n.runtime.Args = e.netsLoadList.SpecificArgs(n.conf.Name)
+	}
 	return nets, nil
 }
 
-func (e *podEnv) podNSPath() string {
+func (e *podEnv) podNSFilePath() string {
 	return filepath.Join(e.podRoot, "netns")
+}
+
+func (e *podEnv) podNSPathLoad() (string, error) {
+	podNSPath, err := ioutil.ReadFile(e.podNSFilePath())
+	if err != nil {
+		return "", err
+	}
+
+	return string(podNSPath), nil
+}
+
+func podNSerrorOK(podNSPath string, err error) bool {
+	switch err.(type) {
+	case ns.NSPathNotExistErr:
+		return true
+	case ns.NSPathNotNSErr:
+		return true
+
+	default:
+		if os.IsNotExist(err) {
+			return true
+		}
+		return false
+	}
+}
+
+func (e *podEnv) podNSLoad() (ns.NetNS, error) {
+	podNSPath, err := e.podNSPathLoad()
+	if err != nil && !podNSerrorOK(podNSPath, err) {
+		return nil, err
+	} else {
+		podNS, err := ns.GetNS(podNSPath)
+		if err != nil && !podNSerrorOK(podNSPath, err) {
+			return nil, err
+		}
+		return podNS, nil
+	}
+}
+
+func (e *podEnv) podNSPathSave() error {
+	podNSFile, err := os.OpenFile(e.podNSFilePath(), os.O_WRONLY|os.O_CREATE, 0)
+	if err != nil {
+		return err
+	}
+	defer podNSFile.Close()
+
+	if _, err = io.WriteString(podNSFile, e.podNS.Path()); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (e *podEnv) netDir() string {
@@ -112,8 +171,6 @@ func (e *podEnv) setupNets(nets []activeNet) error {
 		}
 	}()
 
-	nspath := e.podNSPath()
-
 	n := activeNet{}
 	for i, n = range nets {
 		stderr.Printf("loading network %v with type %v", n.conf.Name, n.conf.Type)
@@ -123,7 +180,7 @@ func (e *podEnv) setupNets(nets []activeNet) error {
 			return errwrap.Wrap(fmt.Errorf("error copying %q to %q", n.runtime.ConfPath, e.netDir()), err)
 		}
 
-		n.runtime.IP, n.runtime.HostIP, err = e.netPluginAdd(&n, nspath)
+		n.runtime.IP, n.runtime.HostIP, err = e.netPluginAdd(&n, e.podNS.Path())
 		if err != nil {
 			return errwrap.Wrap(fmt.Errorf("error adding network %q", n.conf.Name), err)
 		}
@@ -132,12 +189,16 @@ func (e *podEnv) setupNets(nets []activeNet) error {
 }
 
 func (e *podEnv) teardownNets(nets []activeNet) {
-	nspath := e.podNSPath()
 
 	for i := len(nets) - 1; i >= 0; i-- {
 		stderr.Printf("teardown - executing net-plugin %v", nets[i].conf.Type)
 
-		err := e.netPluginDel(&nets[i], nspath)
+		podNSpath := ""
+		if e.podNS != nil {
+			podNSpath = e.podNS.Path()
+		}
+
+		err := e.netPluginDel(&nets[i], podNSpath)
 		if err != nil {
 			stderr.PrintE(fmt.Sprintf("error deleting %q", nets[i].conf.Name), err)
 		}
@@ -221,6 +282,9 @@ func copyFileToDir(src, dstdir string) (string, error) {
 	return dst, err
 }
 
+// loadUserNets will load all network configuration files from the user-supplied
+// configuration directory (typically /etc/rkt/net.d). Do not do any mutation here -
+// we also load networks in a few other code paths.
 func loadUserNets(localConfig string, netsLoadList common.NetList) ([]activeNet, error) {
 	if netsLoadList.None() {
 		stderr.Printf("networking namespace with loopback only")
@@ -263,8 +327,6 @@ func loadUserNets(localConfig string, netsLoadList common.NetList) ([]activeNet,
 			continue
 		}
 
-		n.runtime.Args = netsLoadList.SpecificArgs(n.conf.Name)
-
 		nets = append(nets, *n)
 	}
 
@@ -284,7 +346,7 @@ func missingNets(defined common.NetList, loaded []activeNet) []string {
 	}
 
 	var missing []string
-	for n, _ := range diff {
+	for n := range diff {
 		missing = append(missing, n)
 	}
 	return missing

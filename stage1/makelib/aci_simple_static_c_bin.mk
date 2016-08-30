@@ -2,6 +2,8 @@
 #
 # ASSCB_EXTRA_HEADERS - additional local C headers used
 #
+# ASSCB_EXTRA_SOURCES - additional local C sources used
+#
 # ASSCB_FLAVORS - which flavors want this app, set to STAGE1_FLAVORS
 # if empty
 #
@@ -24,7 +26,7 @@ _ASSCB_PATH_ := $(lastword $(MAKEFILE_LIST))
 # Name of a binary, deduced upon filename of a parent Makefile.
 _ASSCB_NAME_ := $(patsubst %.mk,%,$(MK_FILENAME))
 # Path to built binary. Not the one in the ACI rootfs.
-_ASSCB_BINARY_ := $(TOOLSDIR)/$(_ASSCB_NAME_)
+_ASSCB_BINARY_ := $(TARGET_TOOLSDIR)/$(_ASSCB_NAME_)
 
 ifeq ($(ASSCB_FLAVORS),)
 
@@ -37,14 +39,14 @@ endif
 # variables for build_static_c_bin.mk
 BSCB_BINARY := $(_ASSCB_BINARY_)
 BSCB_HEADERS := $(foreach h,$(ASSCB_EXTRA_HEADERS),$(MK_SRCDIR)/$h)
-BSCB_SOURCES := $(MK_SRCDIR)/$(_ASSCB_NAME_).c
+BSCB_SOURCES := $(MK_SRCDIR)/$(_ASSCB_NAME_).c $(foreach h,$(ASSCB_EXTRA_SOURCES),$(MK_SRCDIR)/$h)
 BSCB_ADDITIONAL_CFLAGS := -Wall -Os $(ASSCB_EXTRA_CFLAGS)
 
 CLEAN_FILES += $(_ASSCB_BINARY_)
 
 include makelib/build_static_c_bin.mk
 
-$(_ASSCB_BINARY_): $(_ASSCB_PATH_) $(MK_PATH) | $(TOOLSDIR)
+$(_ASSCB_BINARY_): $(_ASSCB_PATH_) $(MK_PATH) | $(TARGET_TOOLSDIR)
 
 # 2.
 

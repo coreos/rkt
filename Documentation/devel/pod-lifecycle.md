@@ -72,9 +72,9 @@ Any directory in `$var/prepare` in an unlocked state is considered a failed prep
 `rkt run` and `rkt run-prepared` both arrive here with the pod at `$var/run/$uuid` while holding the exclusive lock.
 
 The pod is then executed while holding this lock.
-It is required that the stage 1 `coreos.com/rkt/stage1/run` entrypoint keep the file descriptor representing the exclusive lock open for the lifetime of the pod's process.
-All this requires is that the stage 1 implementation not close the inherited file descriptor.
-This is facilitated by supplying stage 1 its number in the RKT_LOCK_FD environment variable.
+It is required that the stage1 `coreos.com/rkt/stage1/run` entrypoint keep the file descriptor representing the exclusive lock open for the lifetime of the pod's process.
+All this requires is that the stage1 implementation not close the inherited file descriptor.
+This is facilitated by supplying stage1 its number in the RKT_LOCK_FD environment variable.
 
 What follows applies equally to `rkt run` and `rkt run-prepared`.
 

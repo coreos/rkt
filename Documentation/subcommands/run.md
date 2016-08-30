@@ -25,6 +25,13 @@ rkt will automatically [fetch](fetch.md) them if they're not present in the loca
 # rkt --insecure-options=image run docker://quay.io/coreos/etcd:v2.0.0
 ```
 
+## Run multiple applications in the same pod
+
+Multiple applications can be run in a pod by passing multiple images to the run command:
+```
+# rkt run example.com/app1 example.com/app2
+```
+
 ## Overriding Executable to launch
 
 Application images include an `exec` field that specifies the executable to launch.
@@ -37,11 +44,19 @@ This executable can be overridden by rkt using the `--exec` flag:
 ## Overriding Isolators
 
 Application images can include per-app isolators and some of them can be overridden by rkt.
-The units come from [the Kubernetes resource model](http://kubernetes.io/v1.1/docs/design/resources.html).
+The units come from [the Kubernetes resource model](https://github.com/kubernetes/kubernetes/blob/release-1.2/docs/design/resources.md).
 In the following example, the CPU isolator is defined to 750 milli-cores and the memory isolator limits the memory usage to 128MB.
 
 ```
 # rkt run coreos.com/etcd:v2.0.0 --cpu=750m --memory=128M
+```
+
+## Overriding User/Group
+
+Application images must specify the username/group or the UID/GID the app is to be run as as specified in the [Image Manifest Schema](https://github.com/appc/spec/blob/master/spec/aci.md#image-manifest-schema). The user/group can be overridden by rkt using the `--user` and `--group` flags:
+
+```
+# rkt --insecure-options=image run docker://busybox --user=1000 --group=100 --exec id
 ```
 
 ## Passing Arguments
@@ -65,11 +80,13 @@ To inherit all environment variables from the parent use the `--inherit-env` fla
 
 To explicitly set individual environment variables use the `--set-env` flag.
 
+To explicitly set environment variables from a file use the `--set-env-file` flag. Variables are expected to be in the format `VAR_NAME=VALUE` separated by the new line character `\n`. Lines starting with `#` or `;` and empty ones will be ignored.
 The precedence is as follows with the last item replacing previous environment entries:
 
 - Parent environment
 - App image environment
-- Explicitly set environment
+- Explicitly set environment variables from file (`--set-env-file`)
+- Explicitly set environment variables on command line (`--set-env`)
 
 ```
 # export EXAMPLE_ENV=hello
@@ -142,7 +159,7 @@ The read-only parameter is false by default.
 Syntax:
 
 ```
----volume NAME,kind=host,source=SOURCE_PATH,readOnly=BOOL
+--volume NAME,kind=host,source=SOURCE_PATH,readOnly=BOOL
 ```
 
 In the following example, we make the host's `/srv/data` accessible to app1 on `/var/data`:
@@ -170,7 +187,7 @@ Syntax:
  In the following example, we create an empty volume for app1's `/var/data`:
 
  ```
- # rkt run --volume data,kind=empty,mode=0700,UID=0,GID=0
+ # rkt run --volume data,kind=empty,mode=0700,uid=0,gid=0
  ```
 
 ### Mounting Volumes without Mount Points
@@ -202,7 +219,7 @@ Let's say we want to read data from the host directory `/opt/tenant1/work` to po
 We'll call this app `example.com/reduce-worker`.
 
 We also want this data to be available to a backup application that runs alongside the worker (in the same pod).
-We'll call this app 'example.com/worker-backup`.
+We'll call this app `example.com/worker-backup`.
 The backup application only needs read-only access to the data.
 
 Below we show the abbreviated manifests for the respective applications (recall that the manifest is bundled into the application's ACI):
@@ -280,7 +297,7 @@ The `run` subcommand features the `--net` argument which takes options to config
 
 ### Default contained networking
 
-When the argument is not given, `--net=default` is automatically assumed and the default contained network network will be loaded.
+When the argument is not given, `--net=default` is automatically assumed and the default contained network will be loaded.
 
 ### Host networking
 
@@ -294,7 +311,7 @@ Strictly seen, this is only true when `rkt run` is invoked on the host directly,
 
 ### Other Networking Examples
 
-More details about rkt's networking options and examples can be found in the [networking documentation](https://github.com/coreos/rkt/blob/master/Documentation/networking.md)
+More details about rkt's networking options and examples can be found in the [networking documentation](../networking/overview.md)
 
 ## Run rkt as a Daemon
 
@@ -305,46 +322,71 @@ For example, if you use systemd, you can [run rkt using `systemd-run`](https://g
 
 If you don't use systemd, you can use [daemon](http://www.libslack.org/daemon/) as an alternative.
 
+## Use a Custom Stage1
+
+rkt is designed and intended to be modular, using a [staged architecture](../devel/architecture.md).
+
+You can use a custom stage1 by using the `--stage1-{url,path,name,hash,from-dir}` flags.
+
+```
+# rkt --stage1-path=/tmp/stage1.aci run coreos.com/etcd:v2.0.0
+```
+
+rkt expects stage1 images to be signed except in the following cases:
+
+* it is the default stage1 image and it's in the same directory as the rkt binary
+* `--stage1-{name,hash}` is used and the image is already in the store
+* `--stage1-{url,path,from-dir}` is used and the image is in the default directory configured at build time
+
+For more details see the [hacking documentation](../hacking.md).
+
+## Disabling overlay
+
+rkt uses overlayfs by default when running application containers. This provides immense benefits to performance and efficiency: start times for large containers are much faster, and multiple pods using the same images will consume less disk space and can share page cache entries.
+
+This feature will be disabled automatically if the underlying filesystem does not support overlay fs, see the [prepare](prepare.md) subcommand for details. This feature can also be explicitly disabled with the `--no-overlay` option:
+
+```
+# rkt run --no-overlay=true --insecure-options=image coreos.com/etcd:v2.0.0
+```
+
 ## Options
 
 | Flag | Default | Options | Description |
 | --- | --- | --- | --- |
-| `--cpu` |  `` | CPU units (example `--cpu=500m`, see the [Kubernetes resource model](http://kubernetes.io/v1.1/docs/design/resources.html)) | CPU limit for the preceding image |
-| `--dns` |  `` | IP Address | Name server to write in `/etc/resolv.conf`. It can be specified several times |
-| `--dns-opt` |  `` | Option as described in the options section in resolv.conf(5) | DNS option to write in `/etc/resolv.conf`. It can be specified several times |
-| `--dns-search` |  `` | Domain name | DNS search domain to write in `/etc/resolv.conf`. It can be specified several times |
-| `--exec` |  `` | A path | Override the exec command for the preceding image |
-| `--hostname` |  `` | A host name | Pod's hostname. If empty, it will be "rkt-$PODUUID" |
-| `--inherit-env` |  `false` | `true` or `false` | Inherit all environment variables not set by apps |
-| `--interactive` |  `false` | `true` or `false` | Run pod interactively. If true, only one image may be supplied |
-| `--mds-register` |  `false` | `true` or `false` | Register pod with metadata service. It needs network connectivity to the host (`--net=(default|default-restricted|host)` |
-| `--memory` |  `` | Memory units (example '--memory=50M', see the [Kubernetes resource model](http://kubernetes.io/v1.1/docs/design/resources.html)) | Memory limit for the preceding image |
-| `--mount` |  `` | Mount syntax (`volume=NAME,target=PATH`). See [Mounting Volumes without Mount Points](#mounting-volumes-without-mount-points) | Mount point binding a volume to a path within an app |
-| `--net` |  `default` | A comma-separated list of networks. Syntax: `--net[=n[:args], ...]` | Configure the pod's networking. Optionally, pass a list of user-configured networks to load and set arguments to pass to each network, respectively |
-| `--no-overlay` |  `false` | `true` or `false` | Disable overlay filesystem |
-| `--no-store` |  `false` | `true` or `false` | Fetch images, ignoring the local store. See [image fetching behavior](../image-fetching-behavior.md) |
-| `--pod-manifest` |  `` | A path | The path to the pod manifest. If it's non-empty, then only `--net`, `--no-overlay` and `--interactive` will have effect |
-| `--port` |  `` | A port number | Ports to expose on the host (requires [contained network](https://github.com/coreos/rkt/blob/master/Documentation/networking.md#contained-mode)). Syntax: --port=NAME:HOSTPORT |
-| `--private-users` |  `false` | `true` or `false` | Run within user namespaces (experimental) |
-| `--set-env` |  `` | An environment variable. Syntax `NAME=VALUE` | An environment variable to set for apps |
-| `--signature` |  `` | A file path | Local signature file to use in validating the preceding image |
-| `--stage1-url` |  `` | A URL to a stage1 image. HTTP/HTTPS/File/Docker URLs are supported | Image to use as stage1 |
-| `--stage1-path` |  `` | A path to a stage1 image. Absolute and relative paths are supported | Image to use as stage1 |
-| `--stage1-name` |  `` | A name of a stage1 image. Will perform a discovery if the image is not in the store | Image to use as stage1 |
-| `--stage1-hash` |  `` | A hash of a stage1 image. The image must exist in the store | Image to use as stage1 |
-| `--stage1-from-dir` |  `` | A stage1 image file inside the default stage1 images directory | Image to use as stage1 |
-| `--store-only` |  `false` | `true` or `false` | Use only available images in the store (do not discover or download from remote URLs). See [image fetching behavior](../image-fetching-behavior.md) |
-| `--uuid-file-save` |  `` | A file path | Write out the pod UUID to a file |
-| `--volume` |  `` | Volume syntax (`NAME,kind=KIND,source=PATH,readOnly=BOOL`). See [Mount Volumes into a Pod](#mount-volumes-into-a-pod) | Volumes to make available in the pod |
+| `--caps-remove` | none | capability to remove (e.g. `--caps-remove=CAP_SYS_CHROOT,CAP_MKNOD`) | Capabilities to remove from the process's capabilities bounding set; all others from the default set will be included. |
+| `--caps-retain` | none | capability to retain (e.g. `--caps-retain=CAP_SYS_ADMIN,CAP_NET_ADMIN`) | Capabilities to retain in the process's capabilities bounding set; all others will be removed. |
+| `--cpu` | none | CPU units (e.g. `--cpu=500m`) | CPU limit for the preceding image in [Kubernetes resource model](https://github.com/kubernetes/kubernetes/blob/release-1.2/docs/design/resources.md) format. |
+| `--dns` | none | IP Address | Name server to write in `/etc/resolv.conf`. It can be specified several times. |
+| `--dns-opt` | none | DNS option | DNS option from resolv.conf(5) to write in `/etc/resolv.conf`. It can be specified several times. |
+| `--dns-search` | none | Domain name | DNS search domain to write in `/etc/resolv.conf`. It can be specified several times. |
+| `--exec` | none | Path to executable | Override the exec command for the preceding image. |
+| `--group` | root | gid, groupname or file path (e.g. `--group=core`) | Group override for the preceding image. |
+| `--hostname` | `rkt-$PODUUID` | A host name | Set pod's host name. |
+| `--inherit-env` | `false` | `true` or `false` | Inherit all environment variables not set by apps. |
+| `--interactive` | `false` | `true` or `false` | Run pod interactively. If true, only one image may be supplied. |
+| `--mds-register` | `false` | `true` or `false` | Register pod with metadata service. It needs network connectivity to the host (`--net` as `default`, `default-restricted`, or `host`). |
+| `--memory` | none | Memory units (e.g. `--memory=50M`) | Memory limit for the preceding image in [Kubernetes resource model](https://github.com/kubernetes/kubernetes/blob/release-1.2/docs/design/resources.md) format. |
+| `--mount` | none | Mount syntax (e.g. `--mount volume=NAME,target=PATH`) | Mount point binding a volume to a path within an app. See [Mounting Volumes without Mount Points](#mounting-volumes-without-mount-points). |
+| `--net` | `default` | A comma-separated list of networks. (e.g. `--net[=n[:args], ...]`) | Configure the pod's networking. Optionally, pass a list of user-configured networks to load and set arguments to pass to each network, respectively. |
+| `--no-overlay` | `false` | `true` or `false` | Disable the overlay filesystem. |
+| `--no-store` | `false` | `true` or `false` | Fetch images, ignoring the local store. See [image fetching behavior](../image-fetching-behavior.md). |
+| `--pod-manifest` | none | A path | The path to the pod manifest. If it's non-empty, then only `--net`, `--no-overlay` and `--interactive` will have effect. |
+| `--port` | none | A port name and number pair | Container port name to expose through host port number. Requires [contained network](../networking/overview.md#contained-mode). Syntax: `--port=NAME:HOSTPORT` The NAME is that given in the ACI. By convention, Docker containers' EXPOSEd ports are given a name formed from the port number, a hyphen, and the protocol, e.g., `80-tcp`, giving something like `--port=80-tcp:8080`. |
+| `--private-users` | `false` | `true` or `false` | Run within user namespaces. |
+| `--set-env` | none | An environment variable (e.g. `--set-env=NAME=VALUE`) | An environment variable to set for apps. |
+| `--set-env-file` | none | Path of an environment variables file (e.g. `--set-env-file=/path/to/env/file`) | Environment variables to set for apps. |
+| `--signature` | none | A file path | Local signature file to use in validating the preceding image. |
+| `--stage1-from-dir` | none | Image name (e.g. `--stage1-name=coreos.com/rkt/stage1-coreos`) | A stage1 image file name to search for inside the default stage1 images directory. |
+| `--stage1-hash` | none | Image hash (e.g. `--stage1-hash=sha512-dedce9f5ea50`) | A hash of a stage1 image. The image must exist in the store. |
+| `--stage1-name` | none | Image name (e.g. `--stage1-name=coreos.com/rkt/stage1-coreos`) | A name of a stage1 image. Will perform a discovery if the image is not in the store. |
+| `--stage1-path` | none | Absolute or relative path | A path to a stage1 image. |
+| `--stage1-url` | none | URL with protocol | A URL to a stage1 image. HTTP/HTTPS/File/Docker URLs are supported. |
+| `--store-only` | `false` | `true` or `false` | Use only available images in the store (do not discover or download from remote URLs). See [image fetching behavior](../image-fetching-behavior.md). |
+| `--user` | none | uid, username or file path (e.g. `--user=core`) | User override for the preceding image. |
+| `--uuid-file-save` | none | A file path | Write out the pod UUID to a file. |
+| `--volume` | none | Volume syntax (e.g. `--volume NAME,kind=KIND,source=PATH,readOnly=BOOL`) | Volumes to make available in the pod. See [Mount Volumes into a Pod](#mount-volumes-into-a-pod). |
 
 ## Global options
 
-| Flag | Default | Options | Description |
-| --- | --- | --- | --- |
-| `--debug` |  `false` | `true` or `false` | Prints out more debug information to `stderr` |
-| `--dir` | `/var/lib/rkt` | A directory path | Path to the `rkt` data directory |
-| `--insecure-options` |  none | **none**: All security features are enabled<br/>**http**: Allow HTTP connections. Be warned that this will send any credentials as clear text.<br/>**image**: Disables verifying image signatures<br/>**tls**: Accept any certificate from the server and any host name in that certificate<br/>**ondisk**: Disables verifying the integrity of the on-disk, rendered image before running. This significantly speeds up start time.<br/>**all**: Disables all security checks | Comma-separated list of security features to disable |
-| `--local-config` |  `/etc/rkt` | A directory path | Path to the local configuration directory |
-| `--system-config` |  `/usr/lib/rkt` | A directory path | Path to the system configuration directory |
-| `--trust-keys-from-https` |  `false` | `true` or `false` | Automatically trust gpg keys fetched from https |
-| `--user-config` |  `` | A directory path | Path to the user configuration directory |
+See the table with [global options in the general commands documentation](../commands.md#global-options).

@@ -1,29 +1,26 @@
 $(call setup-stamp-file,TST_SHORT_TESTS_STAMP,/short-tests)
 
-TST_DIRS_WITH_GOFILES := $(call go-find-directories,$(GO_TEST_PACKAGES),GoFiles)
-TST_DIRS_WITH_TESTGOFILES := $(call go-find-directories,$(GO_TEST_PACKAGES),TestGoFiles,tests)
-
 # gofmt takes list of directories
-TST_GOFMT_DIRS := $(foreach d,$(TST_DIRS_WITH_GOFILES),./$d)
 # go vet and go test take a list of packages
-TST_GO_VET_PACKAGES := $(foreach d,$(TST_DIRS_WITH_GOFILES),$(REPO_PATH)/$d)
-TST_GO_TEST_PACKAGES := $(foreach d,$(TST_DIRS_WITH_TESTGOFILES),$(REPO_PATH)/$d)
-
 $(call forward-vars,$(TST_SHORT_TESTS_STAMP), \
-	GOFMT TST_GOFMT_DIRS GO_ENV GO TST_GO_VET_PACKAGES RKT_TAGS \
-	TST_GO_TEST_PACKAGES)
+	GOFMT GO_ENV GO RKT_TAGS)
 $(TST_SHORT_TESTS_STAMP):
+	$(eval TST_DIRS_WITH_GOFILES := $(call go-find-directories,$(GO_TEST_PACKAGES),GoFiles))
+	$(eval TST_DIRS_WITH_TESTGOFILES := $(call go-find-directories,$(GO_TEST_PACKAGES),TestGoFiles XTestGoFiles,tests))
+	$(eval TST_GOFMT_DIRS := $(foreach d,$(TST_DIRS_WITH_GOFILES),./$d))
+	$(eval TST_GO_VET_PACKAGES := $(foreach d,$(TST_DIRS_WITH_GOFILES),$(REPO_PATH)/$d))
+	$(eval TST_GO_TEST_PACKAGES := $(foreach d,$(TST_DIRS_WITH_TESTGOFILES),$(REPO_PATH)/$d))
 	$(VQ) \
 	set -e; \
 	$(call vb,vt,GOFMT,$(TST_GOFMT_DIRS)) \
-	res=$$($(GOFMT) -l $(TST_GOFMT_DIRS)); \
+	res=$$($(GOFMT) -s -l $(TST_GOFMT_DIRS)); \
 	if [ -n "$${res}" ]; then echo -e "gofmt checking failed:\n$${res}"; exit 1; fi; \
 	$(call vb,vt,GO VET,$(TST_GO_VET_PACKAGES)) \
 	res=$$($(GO_ENV) "$(GO)" vet $(TST_GO_VET_PACKAGES)); \
 	if [ -n "$${res}" ]; then echo -e "govet checking failed:\n$${res}"; exit 1; fi; \
 	$(call vb,vt,(C) CHECK) \
 	res=$$( \
-		for file in $$(find . -type f -iname '*.go' ! -path './Godeps/*'); do \
+		for file in $$(find . -type f -iname '*.go' ! -path './vendor/*'); do \
 			head -n1 "$${file}" | grep -Eq "(Copyright|generated)" || echo -e "  $${file}"; \
 		done; \
 	); \

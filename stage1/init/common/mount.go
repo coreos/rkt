@@ -18,11 +18,22 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"syscall"
+
+	"github.com/coreos/rkt/pkg/fileutil"
+	"github.com/coreos/rkt/pkg/user"
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
 	"github.com/hashicorp/errwrap"
 )
+
+// mountWrapper is a wrapper around a schema.Mount with an additional field indicating
+// whether it is an implicit empty volume converted from a Docker image.
+type mountWrapper struct {
+	schema.Mount
+	DockerImplicit bool
+}
 
 func isMPReadOnly(mountPoints []types.MountPoint, name types.ACName) bool {
 	for _, mp := range mountPoints {
@@ -45,13 +56,28 @@ func IsMountReadOnly(vol types.Volume, mountPoints []types.MountPoint) bool {
 	return isMPReadOnly(mountPoints, vol.Name)
 }
 
-// GenerateMounts maps MountPoint paths to volumes, returning a list of Mounts.
-func GenerateMounts(ra *schema.RuntimeApp, volumes map[types.ACName]types.Volume) []schema.Mount {
+func convertedFromDocker(im *schema.ImageManifest) bool {
+	ann := im.Annotations
+	_, ok := ann.Get("appc.io/docker/repository")
+	return ok
+}
+
+// GenerateMounts maps MountPoint paths to volumes, returning a list of mounts,
+// each with a parameter indicating if it's an implicit empty volume from a
+// Docker image.
+func GenerateMounts(ra *schema.RuntimeApp, volumes map[types.ACName]types.Volume, imageManifest *schema.ImageManifest) []mountWrapper {
 	app := ra.App
+
+	var genMnts []mountWrapper
 
 	mnts := make(map[string]schema.Mount)
 	for _, m := range ra.Mounts {
 		mnts[m.Path] = m
+		genMnts = append(genMnts,
+			mountWrapper{
+				Mount:          m,
+				DockerImplicit: false,
+			})
 	}
 
 	for _, mp := range app.MountPoints {
@@ -66,44 +92,87 @@ func GenerateMounts(ra *schema.RuntimeApp, volumes map[types.ACName]types.Volume
 			defaultMode := "0755"
 			defaultUID := 0
 			defaultGID := 0
+			uniqName := ra.Name + "-" + mp.Name
 			emptyVol := types.Volume{
-				Name: mp.Name,
+				Name: uniqName,
 				Kind: "empty",
 				Mode: &defaultMode,
 				UID:  &defaultUID,
 				GID:  &defaultGID,
 			}
 
+			dockerImplicit := convertedFromDocker(imageManifest)
 			log.Printf("warning: no volume specified for mount point %q, implicitly creating an \"empty\" volume. This volume will be removed when the pod is garbage-collected.", mp.Name)
+			if dockerImplicit {
+				log.Printf("Docker converted image, initializing implicit volume with data contained at the mount point %q.", mp.Name)
+			}
 
-			volumes[mp.Name] = emptyVol
-			ra.Mounts = append(ra.Mounts, schema.Mount{Volume: mp.Name, Path: mp.Path})
+			volumes[uniqName] = emptyVol
+			genMnts = append(genMnts,
+				mountWrapper{
+					Mount: schema.Mount{
+						Volume: uniqName,
+						Path:   mp.Path,
+					},
+					DockerImplicit: dockerImplicit,
+				})
 		} else {
-			ra.Mounts = append(ra.Mounts, schema.Mount{Volume: vol.Name, Path: mp.Path})
+			genMnts = append(genMnts,
+				mountWrapper{
+					Mount: schema.Mount{
+						Volume: vol.Name,
+						Path:   mp.Path,
+					},
+					DockerImplicit: false,
+				})
 		}
 	}
 
-	return ra.Mounts
+	return genMnts
 }
 
-// PrepareMountpoints creates and sets permissions for volumes.
-func PrepareMountpoints(path string, vol *types.Volume) error {
-	if vol.Kind == "empty" {
-		diag.Printf("creating an empty volume folder for sharing: %q", path)
-		err := os.MkdirAll(path, sharedVolPerm)
-		if err != nil {
-			return errwrap.Wrap(fmt.Errorf("could not create mount point for volume %q", vol.Name), err)
-		}
-		if err := os.Chown(path, *vol.UID, *vol.GID); err != nil {
-			return errwrap.Wrap(fmt.Errorf("could not change owner of %q", path), err)
-		}
-		mod, err := strconv.ParseUint(*vol.Mode, 8, 32)
-		if err != nil {
-			return errwrap.Wrap(fmt.Errorf("invalid mode %q for volume %q", *vol.Mode, vol.Name), err)
-		}
-		if err := os.Chmod(path, os.FileMode(mod)); err != nil {
-			return errwrap.Wrap(fmt.Errorf("could not change permissions of %q", path), err)
+// PrepareMountpoints creates and sets permissions for empty volumes.
+// If the mountpoint comes from a Docker image and it is an implicit empty
+// volume, we copy files from the image to the volume, see
+// https://docs.docker.com/engine/userguide/containers/dockervolumes/#data-volumes
+func PrepareMountpoints(volPath string, targetPath string, vol *types.Volume, dockerImplicit bool) error {
+	if vol.Kind != "empty" {
+		return nil
+	}
+
+	diag.Printf("creating an empty volume folder for sharing: %q", volPath)
+	m, err := strconv.ParseUint(*vol.Mode, 8, 32)
+	if err != nil {
+		return errwrap.Wrap(fmt.Errorf("invalid mode %q for volume %q", *vol.Mode, vol.Name), err)
+	}
+	mode := os.FileMode(m)
+	Uid := *vol.UID
+	Gid := *vol.GID
+
+	if dockerImplicit {
+		fi, err := os.Stat(targetPath)
+		if err == nil {
+			// the directory exists in the image, let's set the same
+			// permissions and copy files from there to the empty volume
+			mode = fi.Mode()
+			Uid = int(fi.Sys().(*syscall.Stat_t).Uid)
+			Gid = int(fi.Sys().(*syscall.Stat_t).Gid)
+
+			if err := fileutil.CopyTree(targetPath, volPath, user.NewBlankUidRange()); err != nil {
+				return errwrap.Wrap(fmt.Errorf("error copying image files to empty volume %q", volPath), err)
+			}
 		}
 	}
+
+	if err := os.MkdirAll(volPath, 0770); err != nil {
+		return errwrap.Wrap(fmt.Errorf("error creating %q", volPath), err)
+	}
+	if err := os.Chown(volPath, Uid, Gid); err != nil {
+		return errwrap.Wrap(fmt.Errorf("could not change owner of %q", volPath), err)
+	}
+	if err := os.Chmod(volPath, mode); err != nil {
+		return errwrap.Wrap(fmt.Errorf("could not change permissions of %q", volPath), err)
+	}
+
 	return nil
 }

@@ -104,11 +104,11 @@ func TestMountOrdering(t *testing.T) {
 		}
 
 		requestedRemounts := 0
-		for i := len(mnts) - 1; i >= 0; i -= 1 {
+		for i := len(mnts) - 1; i >= 0; i-- {
 			mnt := mnts[i]
 			if needsRemountPrivate(mnt) {
 				t.Logf("remounting: %+v", mnt)
-				requestedRemounts += 1
+				requestedRemounts++
 			}
 		}
 

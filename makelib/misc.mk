@@ -165,11 +165,11 @@ $(eval $(call setup-custom-dep-file,$1,$(MK_PATH)$2))
 endef
 
 # Returns all not-excluded directories inside $REPO_PATH that have
-# nonzero files matching given "go list -f {{.ITEM}}".
+# nonzero files matching given "go list -f {{.ITEM1}} {{.ITEM2}}...".
 # 1 - where to look for files (./... to look for all files inside the project)
-# 2 - a "go list -f {{.ITEM}}" item (GoFiles, TestGoFiles, etc)
+# 2 - a list of "go list -f {{.ITEM}}" items (GoFiles, TestGoFiles, etc)
 # 3 - space-separated list of excluded directories
-# Example: $(call go-find-directories,./...,TestGoFiles,tests)
+# Example: $(call go-find-directories,./...,TestGoFiles XTestGoFiles,tests)
 define go-find-directories
 $(strip \
 	$(eval _MISC_GFD_ESCAPED_SRCDIR := $(MK_TOPLEVEL_ABS_SRCDIR)) \
@@ -177,20 +177,30 @@ $(strip \
 	$(eval _MISC_GFD_ESCAPED_SRCDIR := $(subst /,\/,$(_MISC_GFD_ESCAPED_SRCDIR))) \
 	$(eval _MISC_GFD_SPACE_ :=) \
 	$(eval _MISC_GFD_SPACE_ +=) \
-	$(eval _MISC_GFD_FILES_ := $(shell $(GO_ENV) "$(GO)" list -f '{{.ImportPath}} {{.$2}}' $1 | \
-		grep --invert-match '\[\]' | \
+	$(eval _MISC_GFD_GO_LIST_ITEMS_ := $(foreach i,$2,{{.$i}})) \
+	$(eval _MISC_GFD_FILES_ := $(shell $(GO_ENV) "$(GO)" list -f '{{.ImportPath}} $(_MISC_GFD_GO_LIST_ITEMS_)' $1 | \
+		grep '\[[^]]' | \
+		grep -v '/vendor' | \
 		sed -e 's/.*$(_MISC_GFD_ESCAPED_SRCDIR)\///' -e 's/[[:space:]]*\[.*\]$$//' \
 		$(if $3,| grep --invert-match '^\($(subst $(_MISC_GFD_SPACE_),\|,$3)\)'))) \
 	$(_MISC_GFD_FILES_) \
 	$(call undefine-namespaces,_MISC_GFD))
 endef
 
+# Escapes all single quotes in $1 (by replacing all ' with '"'"')
+define sq_escape
+$(subst ','"'"',$1)
+endef
+#'
+
 # Returns 1 if both parameters are equal, otherwise returns empty
 # string.
 # Example: is_a_equal_to_b := $(if $(call equal,a,b),yes,no)
 define equal
 $(strip \
-        $(eval _MISC_EQ_TMP_ := $(shell expr '$1' = '$2')) \
+        $(eval _MISC_EQ_OP1_ := $(call sq_escape,$1)) \
+        $(eval _MISC_EQ_OP2_ := $(call sq_escape,$2)) \
+        $(eval _MISC_EQ_TMP_ := $(shell expr '$(_MISC_EQ_OP1_)' = '$(_MISC_EQ_OP2_)')) \
         $(filter $(_MISC_EQ_TMP_),1) \
         $(call undefine-namespaces,_MISC_EQ))
 endef
@@ -457,6 +467,52 @@ endef
 # 2 - a dependency (or a prerequisite in makese)
 define add-dependency
 $(eval $(call add-dependency-template,$1,$2))
+endef
+
+# 1 - stamp file, which will depend on the generated clean stamp
+# 2 - file list
+# 3 - a list of directory mappings
+# 4 - descriptor
+define generate-clean-mk-from-filelist
+$(strip \
+	$(eval _MISC_GCMFF_MAIN_STAMP_ := $(strip $1)) \
+	$(eval _MISC_GCMFF_FILELIST_ := $(strip $2)) \
+	$(eval _MISC_GCMFF_DIR_MAPS_ := $(strip $3)) \
+	$(eval _MISC_GCMFF_DESCRIPTOR_ := $(strip $4)) \
+	\
+	$(call setup-stamp-file,_MISC_GCMFF_CLEAN_STAMP_,$(_MISC_GCMFF_DESCRIPTOR_)-gcmff-generated-clean-stamp) \
+	$(call setup-clean-file,_MISC_GCMFF_CLEANMK_,$(_MISC_GCMFF_DESCRIPTOR_)-gcmff-generated-cleanmk) \
+	\
+	$(call add-dependency,$(_MISC_GCMFF_MAIN_STAMP_),$(_MISC_GCMFF_CLEAN_STAMP_)) \
+	$(call generate-clean-mk,$(_MISC_GCMFF_CLEAN_STAMP_),$(_MISC_GCMFF_CLEANMK_),$(_MISC_GCMFF_FILELIST_),$(_MISC_GCMFF_DIR_MAPS_)) \
+	\
+	$(call undefine-namespaces,_MISC_GCMFF))
+endef
+
+# 1 - stamp file, which will depend on the generated clean stamp
+# 2 - source directory
+# 3 - a list of directory mappings
+# 4 - filelist deps
+# 5 - descriptor
+define generate-clean-mk-simple
+$(strip \
+	$(eval _MISC_GCMS_MAIN_STAMP_ := $(strip $1)) \
+	$(eval _MISC_GCMS_SRCDIR_ := $(strip $2)) \
+	$(eval _MISC_GCMS_DIR_MAPS_ := $(strip $3)) \
+	$(eval _MISC_GCMS_DEPS_ := $(strip $4)) \
+	$(eval _MISC_GCMS_DESCRIPTOR_ := $(strip $5)) \
+	\
+	$(call setup-filelist-file,_MISC_GCMS_FILELIST_,$(_MISC_GCMS_DESCRIPTOR_)-gcms-generated-filelist) \
+	$(call add-dependency,$(_MISC_GCMS_FILELIST_),$(_MISC_GCMS_DEPS_)) \
+	$(call generate-deep-filelist,$(_MISC_GCMS_FILELIST_),$(_MISC_GCMS_SRCDIR_)) \
+	\
+	$(call generate-clean-mk-from-filelist, \
+		$(_MISC_GCMS_MAIN_STAMP_), \
+		$(_MISC_GCMS_FILELIST_), \
+		$(_MISC_GCMS_DIR_MAPS_), \
+		$(_MISC_GCMS_DESCRIPTOR_)) \
+	\
+	$(call undefine-namespaces,_MISC_GCMS))
 endef
 
 # Formats given lists of source and destination files for the

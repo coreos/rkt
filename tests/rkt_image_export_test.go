@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// +build host coreos src kvm
+
 package main
 
 import (
@@ -26,7 +28,7 @@ import (
 )
 
 const (
-	manifestExportTemplate = `{"acKind":"ImageManifest","acVersion":"0.7.4","name":"IMG_NAME","labels":[{"name":"version","value":"1.2.1"},{"name":"arch","value":"amd64"},{"name":"os","value":"linux"}],"app":{"exec":["/inspect"],"user":"0","group":"0","workingDirectory":"/","environment":[{"name":"VAR_FROM_MANIFEST","value":"manifest"}]}}`
+	manifestExportTemplate = `{"acKind":"ImageManifest","acVersion":"0.8.7","name":"IMG_NAME","labels":[{"name":"version","value":"1.13.0"},{"name":"arch","value":"amd64"},{"name":"os","value":"linux"}],"app":{"exec":["/inspect"],"user":"0","group":"0","workingDirectory":"/","environment":[{"name":"VAR_FROM_MANIFEST","value":"manifest"}]}}`
 )
 
 // TestImageExport tests 'rkt image export', it will import some existing
@@ -55,7 +57,10 @@ func TestImageExport(t *testing.T) {
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
 
-	testImageID := importImageAndFetchHash(t, ctx, "", testImage)
+	testImageID, err := importImageAndFetchHash(t, ctx, "", testImage)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
 
 	testImageHash, err := getHash(testImage)
 	if err != nil {

@@ -17,7 +17,7 @@ rkt supports the `CNI_ARGS` variable through the command line argument `--net`.
 ### Syntax
 
 The syntax for passing arguments to a network looks like `--net="$networkname1:$arg1=$val1;$arg2=val2"`.
-The usage of double quotes is mandatory due to the `;` being used as separator within the arguments for a single network.
+When executed from a shell, you can use double quotes to avoid `;` being interpreted as a command separator by the shell.
 To allow the passing of arguments to different networks simply append the arguments to the network name with a colon (`:`), and separate the arguments by semicolon (`;`).
 All arguments can either be given in a single instance of the `--net`, or can be spread across multiple uses of `--net`.
 *Reminder:* the separator for the networks (and their arguments) within one `--net` instance is the comma `,`.

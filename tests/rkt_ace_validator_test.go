@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// +build !fly
+
 package main
 
 import (
@@ -21,6 +23,11 @@ import (
 
 	"github.com/coreos/rkt/tests/testutils"
 )
+
+// Spin up the appc ACE validator pod and return the result.
+
+// You'll find the actual application at vendor/github.com/appc/spec/ace/validator.go,
+// the two ACIs are built from that
 
 func TestAceValidator(t *testing.T) {
 	newStringSet := func(strs ...string) map[string]struct{} {
@@ -33,9 +40,9 @@ func TestAceValidator(t *testing.T) {
 	expected := []map[string]struct{}{
 		newStringSet("prestart"),
 		newStringSet("main", "sidekick"),
-		newStringSet("poststop"),
+		// newStringSet("poststop"), // Disabled by caseyc for #2870
 	}
-	pattern := `ace-validator\[\d+\]: ([[:alpha:]]+) OK`
+	pattern := `ace-validator-(?:main|sidekick)\[\d+\]: ([[:alpha:]]+) OK`
 
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
@@ -54,16 +61,18 @@ func TestAceValidator(t *testing.T) {
 	child := spawnOrFail(t, rktCmd)
 	defer waitOrFail(t, child, 0)
 
+	out := ""
 	for _, set := range expected {
 		for len(set) > 0 {
-			results, _, err := expectRegexWithOutput(child, pattern)
+			results, o, err := expectRegexWithOutput(child, pattern)
+			out += o
 			if err != nil {
 				var keys []string
 				for k := range set {
 					keys = append(keys, fmt.Sprintf("%q", k))
 				}
 				ex := strings.Join(keys, " or ")
-				t.Fatalf("Expected %s, but not found: %v", ex, err)
+				t.Fatalf("Expected %s, but not found: %v\nOutput: %v", ex, err, out)
 			}
 			if len(results) != 2 {
 				t.Fatalf("Unexpected regex results, expected a whole match and one submatch, got %#v", results)

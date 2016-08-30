@@ -1,0 +1,10 @@
+[Unit]
+Description=rkt api service
+Documentation=http://github.com/coreos/rkt
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/rkt api-service --listen=127.0.0.1:15441
+
+[Install]
+WantedBy=multi-user.target

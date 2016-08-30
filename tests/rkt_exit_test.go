@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// +build host coreos src
+
 package main
 
 import (
@@ -44,15 +46,15 @@ func TestExitCodeSimple(t *testing.T) {
 // exit codes.
 func TestExitCodeWithSeveralApps(t *testing.T) {
 	image0File := patchTestACI("rkt-inspect-exit-0.aci", "--name=hello0",
-		"--exec=/inspect --print-msg=HelloWorld --exit-code=0")
+		"--exec=/inspect --print-msg=HelloWorld --exit-code=0 --sleep=1")
 	defer os.Remove(image0File)
 
 	image1File := patchTestACI("rkt-inspect-exit-1.aci", "--name=hello1",
-		"--exec=/inspect --print-msg=HelloWorld --exit-code=5")
+		"--exec=/inspect --print-msg=HelloWorld --exit-code=5 --sleep=1")
 	defer os.Remove(image1File)
 
 	image2File := patchTestACI("rkt-inspect-exit-2.aci", "--name=hello2",
-		"--exec=/inspect --print-msg=HelloWorld --exit-code=6 --sleep=1")
+		"--exec=/inspect --print-msg=HelloWorld --exit-code=6 --sleep=2")
 	defer os.Remove(image2File)
 
 	ctx := testutils.NewRktRunCtx()

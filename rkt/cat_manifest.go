@@ -32,7 +32,7 @@ var (
 
 func init() {
 	cmdRkt.AddCommand(cmdCatManifest)
-	cmdCatManifest.Flags().BoolVar(&flagPMPrettyPrint, "pretty-print", false, "apply indent to format the output")
+	cmdCatManifest.Flags().BoolVar(&flagPMPrettyPrint, "pretty-print", true, "apply indent to format the output")
 }
 
 func runCatManifest(cmd *cobra.Command, args []string) (exit int) {

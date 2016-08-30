@@ -21,11 +21,11 @@ import (
 	"strings"
 
 	rktflag "github.com/coreos/rkt/rkt/flag"
-	"github.com/coreos/rkt/store"
+	"github.com/coreos/rkt/store/imagestore"
+	"github.com/dustin/go-humanize"
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/lastditch"
-	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 )
 
@@ -71,10 +71,10 @@ var (
 	}
 
 	ImagesSortableFields = map[string]struct{}{
-		l(name):       struct{}{},
-		l(importTime): struct{}{},
-		l(lastUsed):   struct{}{},
-		l(size):       struct{}{},
+		l(name):       {},
+		l(importTime): {},
+		l(lastUsed):   {},
+		l(size):       {},
 	}
 )
 
@@ -117,7 +117,8 @@ var (
 
 func init() {
 	sortFields := []string{l(name), l(importTime), l(lastUsed), l(size)}
-	fields := append([]string{l(id)}, append(sortFields, l(latest))...)
+
+	fields := []string{l(id), l(name), l(size), l(importTime), l(lastUsed)}
 
 	// Set defaults
 	var err error
@@ -154,10 +155,21 @@ func runImages(cmd *cobra.Command, args []string) int {
 		fmt.Fprintf(tabOut, "%s\n", strings.Join(headerFields, "\t"))
 	}
 
-	s, err := store.NewStore(getDataDir())
+	s, err := imagestore.NewStore(storeDir())
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
 		return 1
+	}
+
+	remotes, err := s.GetAllRemotes()
+	if err != nil {
+		stderr.PrintE("unable to get remotes", err)
+		return 1
+	}
+
+	remoteMap := make(map[string]*imagestore.Remote)
+	for _, r := range remotes {
+		remoteMap[r.BlobKey] = r
 	}
 
 	var sortAciinfoFields []string
@@ -226,7 +238,6 @@ func runImages(cmd *cobra.Command, args []string) int {
 				fieldValue = fmt.Sprintf("%t", aciInfo.Latest)
 			}
 			fieldValues = append(fieldValues, fieldValue)
-
 		}
 		fmt.Fprintf(tabOut, "%s\n", strings.Join(fieldValues, "\t"))
 	}

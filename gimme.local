@@ -1,0 +1,481 @@
+#!/bin/bash
+# vim:noexpandtab:ts=2:sw=2:
+#
+#+  Usage: $(basename $0) [flags] [go-version] [version-prefix]
+#+  -
+#+  Version: ${GIMME_VERSION}
+#+  -
+#+  Install go!  There are multiple types of installations available, with 'auto' being the default.
+#+  If either 'auto' or 'binary' is specified as GIMME_TYPE, gimme will first check for an existing
+#+  go installation.  This behavior may be disabled by providing '-f/--force/force' as first positional
+#+  argument.
+#+  -
+#+  Option flags:
+#+          -h --help help - show this help text and exit
+#+    -V --version version - show the version only and exit
+#+        -f --force force - remove the existing go installation if present prior to install
+#+          -l --list list - list installed go versions and exit
+#+  -
+#+  Influential env vars:
+#+  -
+#+        GIMME_GO_VERSION - version to install (*REQUIRED*, may be given as first positional arg)
+#+    GIMME_VERSION_PREFIX - prefix for installed versions (default '${GIMME_VERSION_PREFIX}',
+#+                           may be given as second positional arg)
+#+              GIMME_ARCH - arch to install (default '${GIMME_ARCH}')
+#+        GIMME_BINARY_OSX - darwin-specific binary suffix (default '${GIMME_BINARY_OSX}')
+#+        GIMME_ENV_PREFIX - prefix for env files (default '${GIMME_ENV_PREFIX}')
+#+     GIMME_GO_GIT_REMOTE - git remote for git-based install (default '${GIMME_GO_GIT_REMOTE}')
+#+                GIMME_OS - os to install (default '${GIMME_OS}')
+#+               GIMME_TMP - temp directory (default '${GIMME_TMP}')
+#+              GIMME_TYPE - install type to perform ('auto', 'binary', 'source', or 'git')
+#+                           (default '${GIMME_TYPE}')
+#+             GIMME_DEBUG - enable tracing if non-empty
+#+      GIMME_NO_ENV_ALIAS - disable creation of env 'alias' file when os and arch match host
+#+        GIMME_SILENT_ENV - omit the 'go version' line from env file
+#+       GIMME_CGO_ENABLED - enable build of cgo support
+#+     GIMME_CC_FOR_TARGET - cross compiler for cgo support
+#+  -
+#
+# The MIT License (MIT)
+#
+# Copyright (c) 2015 Dan Buch, Tianon Gravi
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+set -e
+shopt -s nullglob
+set -o pipefail
+
+[[ ${GIMME_DEBUG} ]] && set -x
+
+GIMME_VERSION=v0.2.3
+
+# _do_curl "url" "file"
+_do_curl() {
+	mkdir -p "$(dirname "${2}")"
+
+	if command -v curl > /dev/null ; then
+		curl -sSLf "${1}" -o "${2}" 2>/dev/null
+		return
+	fi
+
+	if command -v wget > /dev/null ; then
+		wget -q "${1}" -O "${2}" 2>/dev/null
+		return
+	fi
+
+	echo >&2 'error: no curl or wget found'
+	exit 1
+}
+
+# _do_curls "file" "url" ["url"...]
+_do_curls() {
+	f="${1}"
+	shift
+	[[ ! -s "${f}" ]] || return 0
+	for url in "${@}" ; do
+		if _do_curl "${url}" "${f}" ; then
+			return
+		fi
+	done
+	rm -f "${f}"
+	return 1
+}
+
+# _binary "version" "file.tar.gz" "arch"
+_binary() {
+	local version=${1}
+	local file=${2}
+	local arch=${3}
+	urls=(
+		"https://storage.googleapis.com/golang/go${version}.${GIMME_OS}-${arch}.tar.gz"
+		"https://go.googlecode.com/files/go${version}.${GIMME_OS}-${arch}.tar.gz"
+		"https://go.googlecode.com/files/go.${version}.${GIMME_OS}-${arch}.tar.gz"
+	)
+	if [ "${GIMME_OS}" = 'darwin' -a "${GIMME_BINARY_OSX}" ] ; then
+		urls=(
+			"https://storage.googleapis.com/golang/go${version}.${GIMME_OS}-${arch}-${GIMME_BINARY_OSX}.tar.gz"
+			"${urls[@]}"
+		)
+	fi
+	if [ "${arch}" = 'arm' ] ; then
+		# attempt "armv6l" vs just "arm" first (since that's what's officially published)
+		urls=(
+			"https://storage.googleapis.com/golang/go${version}.${GIMME_OS}-${arch}v6l.tar.gz" # go1.6beta2 & go1.6rc1
+			"https://storage.googleapis.com/golang/go${version}.${GIMME_OS}-${arch}6.tar.gz" # go1.6beta1
+			"${urls[@]}"
+		)
+	fi
+	_do_curls "${file}" "${urls[@]}"
+}
+
+# _source "version" "file.src.tar.gz"
+_source() {
+	urls=(
+		"https://storage.googleapis.com/golang/go${1}.src.tar.gz"
+		"https://go.googlecode.com/files/go${1}.src.tar.gz"
+		"https://go.googlecode.com/files/go.${1}.src.tar.gz"
+	)
+	_do_curls "${2}" "${urls[@]}"
+}
+
+# _fetch "dir"
+_fetch() {
+	mkdir -p "$(dirname "${1}")"
+
+	if [[ -d "${1}/.git" ]] ; then
+		(
+			cd "${1}"
+			git remote set-url origin "${GIMME_GO_GIT_REMOTE}"
+			git fetch -q --all && git fetch -q --tags
+		)
+		return
+	fi
+
+	git clone -q "${GIMME_GO_GIT_REMOTE}" "${1}"
+}
+
+# _checkout "version" "dir"
+_checkout() {
+	_fetch "${2}"
+	( cd "${2}" && {
+		git reset -q --hard "origin/${1}" \
+		|| git reset -q --hard "origin/go${1}" \
+		|| { [ "${1}" = 'tip' ] && git reset -q --hard origin/master ; } \
+		|| git reset -q --hard "refs/tags/${1}" \
+		|| git reset -q --hard "refs/tags/go${1}"
+	} 2>/dev/null )
+}
+
+# _extract "file.tar.gz" "dir"
+_extract() {
+	mkdir -p "${2}"
+	tar -xf "${1}" -C "${2}" --strip-components 1
+}
+
+# _setup_bootstrap
+_setup_bootstrap() {
+	local versions=("1.6" "1.5" "1.4")
+
+	# try existing
+	for v in "${versions[@]}" ; do
+		for candidate in "${GIMME_ENV_PREFIX}/go${v}"*".env" ; do
+			if [ -s "$candidate" ]; then
+				export GOROOT_BOOTSTRAP="$(source "${candidate}" 2>/dev/null && go env GOROOT)"
+				return 0
+			fi
+		done
+	done
+
+	# try binary
+	for v in "${versions[@]}" ; do
+		if [ -n  "$(_try_binary ${v} "${GIMME_HOSTARCH}")" ]; then
+			export GOROOT_BOOTSTRAP="${GIMME_VERSION_PREFIX}/go${v}.${GIMME_OS}.${GIMME_HOSTARCH}"
+			return 0
+		fi
+	done
+
+	echo >&2 "Unable to setup go bootstrap from existing or binary";
+	return 1;
+}
+
+# _compile "dir"
+_compile() {
+	(
+		if grep -q GOROOT_BOOTSTRAP "${1}/src/make.bash" &> /dev/null; then
+			_setup_bootstrap || return 1
+		fi
+		cd "${1}"
+		if [[ -d .git ]] ; then
+			git clean -dfx -q
+		fi
+		cd src
+		export GOOS="${GIMME_OS}" GOARCH="${GIMME_ARCH}"
+		export CGO_ENABLED="${GIMME_CGO_ENABLED}"
+		export CC_FOR_TARGET="${GIMME_CC_FOR_TARGET}"
+
+		if [ "${GIMME_DEBUG}" = "2" ]; then
+			./make.bash 1>&2 || return 1
+		else
+			local make_log="${1}/make.${GOOS}.${GOARCH}.log"
+			./make.bash &> $make_log || return 1
+		fi
+	)
+}
+
+_can_compile() {
+	cat > "${GIMME_TMP}/test.go" <<'EOF'
+package main
+import "os"
+func main() {
+	os.Exit(0)
+}
+EOF
+	"${1}/bin/go" run "${GIMME_TMP}/test.go"
+}
+
+# _env "dir"
+_env() {
+	[ -d "${1}/bin" -a -x "${1}/bin/go" ] || return 1
+
+	# if we try to run a Darwin binary on Linux, we need to fail so 'auto' can fallback to cross-compiling from source
+	# automatically
+	GOROOT="${1}" "${1}/bin/go" version &> /dev/null || return 1
+
+	# https://twitter.com/davecheney/status/431581286918934528
+	# we have to GOROOT sometimes because we use official release binaries in unofficial locations :(
+
+	echo
+	if [[ "$(GOROOT="${1}" "${1}/bin/go" env GOHOSTOS)" = "${GIMME_OS}" ]] ; then
+		echo 'unset GOOS'
+	else
+		echo 'export GOOS="'"${GIMME_OS}"'"'
+	fi
+	if [[ "$(GOROOT="${1}" "${1}/bin/go" env GOHOSTARCH)" = "${GIMME_ARCH}" ]] ; then
+		echo 'unset GOARCH'
+	else
+		echo 'export GOARCH="'"${GIMME_ARCH}"'"'
+	fi
+	if ! _can_compile "${1}" >/dev/null 2>&1 ; then
+		# if the compile test fails without GOROOT, then we probably need GOROOT
+		echo 'export GOROOT="'"${1}"'"'
+	else
+		echo 'unset GOROOT'
+	fi
+	echo 'export PATH="'"${1}/bin"':${PATH}"'
+	if [[ -z "${GIMME_SILENT_ENV}" ]] ; then
+		echo 'go version >&2'
+	fi
+	echo
+}
+
+# _env_alias "dir" "env-file"
+_env_alias() {
+	if [[ "${GIMME_NO_ENV_ALIAS}" ]] ; then
+		echo "${2}"
+		return
+	fi
+
+	if [[ "$(GOROOT="${1}" "${1}/bin/go" env GOHOSTOS)" = "${GIMME_OS}"  && \
+		"$(GOROOT="${1}" "${1}/bin/go" env GOHOSTARCH)" = "${GIMME_ARCH}" ]] ; then
+		local dest="${GIMME_ENV_PREFIX}/go${GIMME_GO_VERSION}.env"
+		cp "${2}" "${dest}"
+		ln -sf "${dest}" "${GIMME_ENV_PREFIX}/latest.env"
+		echo "${dest}"
+	else
+		echo "${2}"
+	fi
+}
+
+_try_existing() {
+	local existing_ver="${GIMME_VERSION_PREFIX}/go${GIMME_GO_VERSION}.${GIMME_OS}.${GIMME_ARCH}"
+	local existing_env="${GIMME_ENV_PREFIX}/go${GIMME_GO_VERSION}.${GIMME_OS}.${GIMME_ARCH}.env"
+
+	if [[ -x "${existing_ver}/bin/go" &&  -s "${existing_env}" ]] ; then
+		cat "${existing_env}"
+		return
+	fi
+
+	return 1
+}
+
+# _try_binary "version" "arch"
+_try_binary() {
+	local version=${1}
+	local arch=${2}
+	local bin_tgz="${GIMME_TMP}/go${version}.${GIMME_OS}.${arch}.tar.gz"
+	local bin_dir="${GIMME_VERSION_PREFIX}/go${version}.${GIMME_OS}.${arch}"
+	local bin_env="${GIMME_ENV_PREFIX}/go${version}.${GIMME_OS}.${arch}.env"
+
+	_binary "${version}" "${bin_tgz}" "${arch}" || return 1
+	_extract "${bin_tgz}" "${bin_dir}" || return 1
+	_env "${bin_dir}" | tee "${bin_env}" || return 1
+	echo "export GIMME_ENV=\"$(_env_alias "${bin_dir}" "${bin_env}")\""
+}
+
+_try_source() {
+	local src_tgz="${GIMME_TMP}/go${GIMME_GO_VERSION}.src.tar.gz"
+	local src_dir="${GIMME_VERSION_PREFIX}/go${GIMME_GO_VERSION}.src"
+	local src_env="${GIMME_ENV_PREFIX}/go${GIMME_GO_VERSION}.${GIMME_OS}.${GIMME_ARCH}.env"
+
+	_source "${GIMME_GO_VERSION}" "${src_tgz}" || return 1
+	_extract "${src_tgz}" "${src_dir}" || return 1
+	_compile "${src_dir}" || return 1
+	_env "${src_dir}" | tee "${src_env}" || return 1
+	echo "export GIMME_ENV=\"$(_env_alias "${src_dir}" "${src_env}")\""
+}
+
+_try_git() {
+	local git_dir="${GIMME_VERSION_PREFIX}/go"
+	local git_env="${GIMME_ENV_PREFIX}/go.git.${GIMME_OS}.${GIMME_ARCH}.env"
+
+	_checkout "${GIMME_GO_VERSION}" "${git_dir}" || return 1
+	_compile "${git_dir}" || return 1
+	_env "${git_dir}" | tee "${git_env}" || return 1
+	echo "export GIMME_ENV=\"$(_env_alias "${git_dir}" "${git_env}")\""
+}
+
+_wipe_version() {
+	local env_file="${GIMME_ENV_PREFIX}/go${1}.${GIMME_OS}.${GIMME_ARCH}.env"
+
+	if [[ -s "${env_file}" ]] ; then
+		rm -rf "$(awk -F\" '/GOROOT/ { print $2 }' "${env_file}")"
+		rm -f "${env_file}"
+	fi
+}
+
+_list_versions() {
+	if [ ! -d "${GIMME_VERSION_PREFIX}" ] ; then
+		return 0
+	fi
+
+	local current_version="$(go env GOROOT 2>/dev/null)"
+	current_version="${current_version##*/go}"
+	current_version="${current_version%%.${GIMME_OS}.*}"
+
+	for d in "${GIMME_VERSION_PREFIX}/go"*".${GIMME_OS}."* ; do
+		local cleaned="${d##*/go}"
+		cleaned="${cleaned%%.${GIMME_OS}.*}"
+		echo -en "${cleaned}"
+		if [[ $cleaned = $current_version ]] ; then
+			echo -en >&2 ' <= current'
+		fi
+		echo
+	done
+}
+
+_realpath() {
+	[ -d "$1" ] && echo "$(cd "$1" && pwd)" || echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+}
+
+_assert_version_given() {
+	if [[ -z "${GIMME_GO_VERSION}" ]] ; then
+		echo >&2 'error: no GIMME_GO_VERSION supplied'
+		echo >&2 "  ex: GIMME_GO_VERSION=1.4.1 ${0} ${@}"
+		echo >&2 "  ex: ${0} 1.4.1 ${@}"
+		exit 1
+	fi
+}
+
+: ${GIMME_OS:=$(uname -s | tr '[:upper:]' '[:lower:]')}
+: ${GIMME_HOSTOS:=$(uname -s | tr '[:upper:]' '[:lower:]')}
+: ${GIMME_ARCH:=$(uname -m)}
+: ${GIMME_HOSTARCH:=$(uname -m)}
+: ${GIMME_ENV_PREFIX:=${HOME}/.gimme/envs}
+: ${GIMME_VERSION_PREFIX:=${HOME}/.gimme/versions}
+: ${GIMME_TMP:=${TMPDIR:-/tmp}/gimme}
+: ${GIMME_GO_GIT_REMOTE:=https://github.com/golang/go.git}
+: ${GIMME_TYPE:=auto} # 'auto', 'binary', 'source', or 'git'
+: ${GIMME_BINARY_OSX:=osx10.8}
+
+while [[ $# -gt 0 ]]; do
+	case "${1}" in
+		-h|--help|help|wat)
+			_old_ifs="$IFS"
+			IFS=';'
+			awk '/^#\+  / {
+				sub(/^#\+  /, "", $0) ;
+				sub(/-$/, "", $0) ;
+				print $0
+			}' "$0" | while read line ; do
+				eval "echo \"$line\""
+			done
+			IFS="$_old_ifs"
+			exit 0
+		;;
+		-V|--version|version)
+			echo "${GIMME_VERSION}"
+			exit 0
+		;;
+		-l|--list|list)
+			_list_versions
+			exit 0
+		;;
+		-f|--force|force)
+			force=1
+		;;
+		*)
+			break
+		;;
+	esac
+	shift
+done
+
+if [[ -n "${1}" ]] ; then
+	GIMME_GO_VERSION="${1}"
+fi
+if [[ -n "${2}" ]] ; then
+	GIMME_VERSION_PREFIX="${2}"
+fi
+
+case "${GIMME_ARCH}" in
+	x86_64) GIMME_ARCH=amd64 ;;
+	x86) GIMME_ARCH=386 ;;
+	arm64)
+		if [[ "${GIMME_GO_VERSION}" < "1.5" ]]; then
+			echo >&2 "error: ${GIMME_ARCH} is not supported by this go version"
+			echo >&2 "try go1.5 or newer"
+			exit 1
+		fi
+		if [[ "${GIMME_HOSTOS}" = "linux" && "${GIMME_HOSTARCH}" != "${GIMME_ARCH}" ]]; then
+			: ${GIMME_CC_FOR_TARGET:="aarch64-linux-gnu-gcc"}
+		fi
+	;;
+	arm*) GIMME_ARCH=arm ;;
+esac
+
+case "${GIMME_HOSTARCH}" in
+	x86_64) GIMME_HOSTARCH=amd64 ;;
+	x86) GIMME_HOSTARCH=386 ;;
+	arm64) ;;
+	arm*) GIMME_HOSTARCH=arm ;;
+esac
+
+_assert_version_given "$@"
+
+[ ${force} ] && _wipe_version "${GIMME_GO_VERSION}"
+
+unset GOARCH
+unset GOBIN
+unset GOOS
+unset GOPATH
+unset GOROOT
+unset CGO_ENABLED
+unset CC_FOR_TARGET
+
+mkdir -p "${GIMME_VERSION_PREFIX}" "${GIMME_ENV_PREFIX}"
+
+GIMME_VERSION_PREFIX="$(_realpath "${GIMME_VERSION_PREFIX}")"
+GIMME_ENV_PREFIX="$(_realpath "${GIMME_ENV_PREFIX}")"
+
+if ! case "${GIMME_TYPE}" in
+	binary) _try_existing || _try_binary "${GIMME_GO_VERSION}" "${GIMME_ARCH}" ;;
+	source) _try_source || _try_git ;;
+	git)    _try_git ;;
+	auto)   _try_existing || _try_binary  "${GIMME_GO_VERSION}" "${GIMME_ARCH}" || _try_source || _try_git ;;
+	*)
+		echo >&2 "I don't know how to '${GIMME_TYPE}'."
+		echo >&2 "  Try 'auto', 'binary', 'source', or 'git'."
+		exit 1
+		;;
+esac ; then
+	echo >&2 "I don't have any idea what to do with '${GIMME_GO_VERSION}'."
+	echo >&2 "  (using type '${GIMME_TYPE}')"
+	exit 1
+fi

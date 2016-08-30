@@ -41,13 +41,16 @@ ifeq ($(_DEPS_GEN_F1_),$(_DEPS_GEN_F2_))
 
 else
 
-$(info Invalidating !!!DEPS_GEN_TARGET!!!)
-$(info Prerequisites stored in deps file that are not in currently on disk: $(filter-out $(_DEPS_GEN_F2_),$(_DEPS_GEN_F1_)))
-$(info Prerequisites currently on disk that are not stored in deps file: $(filter-out $(_DEPS_GEN_F1_),$(_DEPS_GEN_F2_)))
-
-# invalidate the target
-!!!DEPS_GEN_TARGET!!!: _DEPS_GEN_INVALIDATE_
-.PHONY: _DEPS_GEN_INVALIDATE_
+$(foreach t,!!!DEPS_GEN_TARGET!!!, \
+	$(eval _DEPS_GEN_RL_INVALIDATE_ := _DEPS_GEN_RL_$(call escape-for-file,$t)_INVALIDATE_) \
+	$(call add-dependency,$t,$(_DEPS_GEN_RL_INVALIDATE_)) \
+	$(call generate-strict-rule,$(_DEPS_GEN_RL_INVALIDATE_),,, \
+		$(call vb,v2,INVALIDATE,$(call vsp,$t)) \
+		$(call v3,echo Invalidating $t;) \
+		$(call v3,echo Prerequisites stored in deps file that are not in currently on disk: $(filter-out $(_DEPS_GEN_F2_),$(_DEPS_GEN_F1_));) \
+		$(call v3,echo Prerequisites currently on disk that are not stored in deps file: $(filter-out $(_DEPS_GEN_F1_),$(_DEPS_GEN_F2_));)) \
+	$(call add-dependency,.PHONY,$(_DEPS_GEN_RL_INVALIDATE_)) \
+	$(call undefine-namespaces,_DEPS_GEN_RL))
 
 endif
 
@@ -73,15 +76,18 @@ $(foreach v,$(_DEPS_GEN_VARIABLES_), \
 
 ifeq ($(_DEPS_GEN_DO_INVALIDATE_),yes)
 
-$(info Invalidating !!!DEPS_GEN_TARGET!!!)
-$(foreach k,$(_DEPS_GEN_DIFFS_), \
-        $(info Differing key: $k) \
-        $(info Value stored in deps file: $(!!!DEPS_GEN_STORED_PREFIX!!!$k)) \
-        $(info Value currently used: $($k)))
-
-# invalidate the target
-!!!DEPS_GEN_TARGET!!!: _DEPS_GEN_INVALIDATE_
-.PHONY: _DEPS_GEN_INVALIDATE_
+$(foreach t,!!!DEPS_GEN_TARGET!!!, \
+	$(eval _DEPS_GEN_RL_INVALIDATE_ := _DEPS_GEN_RL_$(call escape-for-file,$t)_INVALIDATE_KV_) \
+	$(call add-dependency,$t,$(_DEPS_GEN_RL_INVALIDATE_)) \
+	$(call generate-strict-rule,$(_DEPS_GEN_RL_INVALIDATE_),,, \
+		$(call vb,v2,INVALIDATE,$(call vsp,$t)) \
+		$(call v3,echo Invalidating $t;) \
+		$(call v3,$(foreach k,$(_DEPS_GEN_DIFFS_), \
+			echo Differing key: $k; \
+			echo Value stored in deps file: $(!!!DEPS_GEN_STORED_PREFIX!!!$k); \
+			echo Value currently used: $($k);))) \
+	$(call add-dependency,.PHONY,$(_DEPS_GEN_RL_INVALIDATE_)) \
+	$(call undefine-namespaces,_DEPS_GEN_RL))
 
 endif
 

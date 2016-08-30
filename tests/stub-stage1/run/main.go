@@ -39,7 +39,7 @@ func run() int {
 		return 1
 	}
 
-	if err := stage1common.WritePpid(os.Getpid()); err != nil {
+	if err := stage1common.WritePid(os.Getpid(), "ppid"); err != nil {
 		fmt.Fprintf(os.Stderr, "write ppid: %v", err)
 		return 1
 	}

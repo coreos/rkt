@@ -18,7 +18,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/appc/cni/pkg/types"
+	"github.com/containernetworking/cni/pkg/types"
 )
 
 type testNetDescriber struct {
@@ -41,11 +41,11 @@ func (t testNetDescriber) Routes() []types.Route { return []types.Route{} }
 
 func TestGetKVMNetArgs(t *testing.T) {
 	tests := []struct {
-		netDescriptions []netDescriber
+		netDescriptions []NetDescriber
 		expectedLkvm    []string
 	}{
 		{ // without Masquerading - not gw passed to kernel
-			netDescriptions: []netDescriber{
+			netDescriptions: []NetDescriber{
 				testNetDescriber{
 					net.ParseIP("1.1.1.1"),
 					net.ParseIP("2.2.2.2"),
@@ -58,7 +58,7 @@ func TestGetKVMNetArgs(t *testing.T) {
 			expectedLkvm: []string{"--network", "mode=tap,tapif=fooInt,host_ip=1.1.1.1,guest_ip=2.2.2.2"},
 		},
 		{ // extra gw passed to kernel on (third position)
-			netDescriptions: []netDescriber{
+			netDescriptions: []NetDescriber{
 				testNetDescriber{
 					net.ParseIP("1.1.1.1"),
 					net.ParseIP("2.2.2.2"),
@@ -71,7 +71,7 @@ func TestGetKVMNetArgs(t *testing.T) {
 			expectedLkvm: []string{"--network", "mode=tap,tapif=barInt,host_ip=1.1.1.1,guest_ip=2.2.2.2"},
 		},
 		{ // two networks
-			netDescriptions: []netDescriber{
+			netDescriptions: []NetDescriber{
 				testNetDescriber{
 					net.ParseIP("1.1.1.1"),
 					net.ParseIP("2.2.2.2"),

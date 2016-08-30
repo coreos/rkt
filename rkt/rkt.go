@@ -19,12 +19,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime/pprof"
 	"text/tabwriter"
 
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/pkg/keystore"
 	"github.com/coreos/rkt/pkg/log"
-	"github.com/coreos/rkt/pkg/multicall"
 	"github.com/coreos/rkt/rkt/config"
 	rktflag "github.com/coreos/rkt/rkt/flag"
 	"github.com/spf13/cobra"
@@ -108,7 +108,9 @@ func (d *absDir) Set(str string) error {
 	if err != nil {
 		return err
 	}
+
 	*d = (absDir)(dir)
+
 	return nil
 }
 
@@ -127,6 +129,10 @@ var (
 		Help               bool
 		InsecureFlags      *rktflag.SecFlags
 		TrustKeysFromHTTPS bool
+
+		// Hidden flags for profiling.
+		CPUProfile string
+		MemProfile string
 	}{
 		Dir:             defaultDataDir,
 		SystemConfigDir: common.DefaultSystemConfigDir,
@@ -170,6 +176,10 @@ func init() {
 			globalFlags.InsecureFlags.PermissibleString()))
 	cmdRkt.PersistentFlags().BoolVar(&globalFlags.TrustKeysFromHTTPS, "trust-keys-from-https",
 		false, "automatically trust gpg keys fetched from https")
+	cmdRkt.PersistentFlags().StringVar(&globalFlags.CPUProfile, "cpuprofile", "", "write CPU profile to the file")
+	cmdRkt.PersistentFlags().MarkHidden("cpuprofile")
+	cmdRkt.PersistentFlags().StringVar(&globalFlags.MemProfile, "memprofile", "", "write memory profile to the file")
+	cmdRkt.PersistentFlags().MarkHidden("memprofile")
 
 	// Run this before the execution of each subcommand to set up output
 	cmdRkt.PersistentPreRun = func(cmd *cobra.Command, args []string) {
@@ -182,8 +192,38 @@ func init() {
 
 func getTabOutWithWriter(writer io.Writer) *tabwriter.Writer {
 	aTabOut := new(tabwriter.Writer)
+
 	aTabOut.Init(writer, 0, 8, 1, '\t', 0)
+
 	return aTabOut
+}
+
+func startProfile() (cpufile *os.File, memfile *os.File, err error) {
+	if globalFlags.CPUProfile != "" {
+		cpufile, err = os.Create(globalFlags.CPUProfile)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot create cpu profile file %q: %v", globalFlags.CPUProfile, err)
+		}
+		pprof.StartCPUProfile(cpufile)
+	}
+	if globalFlags.MemProfile != "" {
+		memfile, err = os.Create(globalFlags.MemProfile)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot create memory profile file %q: %v", globalFlags.MemProfile, err)
+		}
+	}
+	return cpufile, memfile, nil
+}
+
+func stopProfile(cpuprofile, memprofile *os.File) {
+	if globalFlags.CPUProfile != "" {
+		pprof.StopCPUProfile()
+		cpuprofile.Close()
+	}
+	if globalFlags.MemProfile != "" {
+		pprof.WriteHeapProfile(memprofile)
+		memprofile.Close()
+	}
 }
 
 // runWrapper returns a func(cmd *cobra.Command, args []string) that internally
@@ -191,6 +231,14 @@ func getTabOutWithWriter(writer io.Writer) *tabwriter.Writer {
 // terminator.
 func runWrapper(cf func(cmd *cobra.Command, args []string) (exit int)) func(cmd *cobra.Command, args []string) {
 	return func(cmd *cobra.Command, args []string) {
+		cpufile, memfile, err := startProfile()
+		if err != nil {
+			stderr.PrintE("cannot setup profiling", err)
+			cmdExitCode = 1
+			return
+		}
+		defer stopProfile(cpufile, memfile)
+
 		cmdExitCode = cf(cmd, args)
 	}
 }
@@ -204,6 +252,7 @@ func ensureSuperuser(cf func(cmd *cobra.Command, args []string)) func(cmd *cobra
 			cmdExitCode = 1
 			return
 		}
+
 		cf(cmd, args)
 	}
 }
@@ -212,26 +261,6 @@ func runMissingCommand(cmd *cobra.Command, args []string) {
 	stderr.Print("missing command")
 	cmd.HelpFunc()(cmd, args)
 	cmdExitCode = 2 // invalid argument
-}
-
-func main() {
-	// check if rkt is executed with a multicall command
-	multicall.MaybeExec()
-
-	cmdRkt.SetUsageFunc(usageFunc)
-
-	// Make help just show the usage
-	cmdRkt.SetHelpTemplate(`{{.UsageString}}`)
-
-	// // Uncomment to update rkt.bash
-	// stdout.Print("Generating rkt.bash")
-	// cmdRkt.GenBashCompletionFile("dist/bash_completion/rkt.bash")
-	// os.Exit(0)
-
-	if err := cmdRkt.Execute(); err != nil && cmdExitCode == 0 {
-		cmdExitCode = 2 // invalid argument
-	}
-	os.Exit(cmdExitCode)
 }
 
 // where pod directories are created and locked before moving to prepared
@@ -264,6 +293,15 @@ func garbageDir() string {
 	return filepath.Join(getDataDir(), "pods", "garbage")
 }
 
+func storeDir() string {
+	return filepath.Join(getDataDir(), "cas")
+}
+
+// TODO(sgotti) backward compatibility with the current tree store paths. Needs a migration path to better paths.
+func treeStoreDir() string {
+	return filepath.Join(getDataDir(), "cas")
+}
+
 func getKeystore() *keystore.Keystore {
 	if globalFlags.InsecureFlags.SkipImageCheck() {
 		return nil
@@ -276,50 +314,76 @@ func getDataDir() string {
 	if cachedDataDir == "" {
 		cachedDataDir = calculateDataDir()
 	}
+
 	return cachedDataDir
 }
 
 func calculateDataDir() string {
+	var dataDir string
+
 	// If --dir parameter is passed, then use this value.
-	if dirFlag := cmdRkt.PersistentFlags().Lookup("dir"); dirFlag != nil {
-		if dirFlag.Changed {
-			return globalFlags.Dir
-		}
-	} else {
+	dirFlag := cmdRkt.PersistentFlags().Lookup("dir")
+	if dirFlag == nil {
 		// should not happen
 		panic(`"--dir" flag not found`)
 	}
 
+	if dirFlag.Changed {
+		dataDir = globalFlags.Dir
+	}
+
 	// If above fails, then try to get the value from configuration.
-	if config, err := getConfig(); err != nil {
-		stderr.PrintE("cannot get configuration", err)
-		os.Exit(1)
-	} else {
+	if dataDir == "" {
+		config, err := getConfig()
+		if err != nil {
+			stderr.PrintE("cannot get configuration", err)
+			os.Exit(1)
+		}
+
 		if config.Paths.DataDir != "" {
-			return config.Paths.DataDir
+			dataDir = config.Paths.DataDir
+		} else {
+			dataDir = defaultDataDir
+		}
+	}
+
+	// Resolve symlinks
+	realDataDir, err := filepath.EvalSymlinks(dataDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			realDataDir = dataDir
+		} else {
+			stderr.PrintE(fmt.Sprintf("cannot evaluate dataDir %q real path", dataDir), err)
+			os.Exit(1)
 		}
 	}
 
 	// If above fails, then use the default.
-	return defaultDataDir
+	return realDataDir
 }
 
 func getConfig() (*config.Config, error) {
-	if cachedConfig == nil {
-		dirs := []string{
-			globalFlags.SystemConfigDir,
-			globalFlags.LocalConfigDir,
-		}
-		if globalFlags.UserConfigDir != "" {
-			dirs = append(dirs, globalFlags.UserConfigDir)
-		}
-		cfg, err := config.GetConfigFrom(dirs...)
-		if err != nil {
-			return nil, err
-		}
-		cachedConfig = cfg
+	if cachedConfig != nil {
+		return cachedConfig, nil
 	}
-	return cachedConfig, nil
+
+	dirs := []string{
+		globalFlags.SystemConfigDir,
+		globalFlags.LocalConfigDir,
+	}
+
+	if globalFlags.UserConfigDir != "" {
+		dirs = append(dirs, globalFlags.UserConfigDir)
+	}
+
+	cfg, err := config.GetConfigFrom(dirs...)
+	if err != nil {
+		return nil, err
+	}
+
+	cachedConfig = cfg
+
+	return cfg, nil
 }
 
 func lockDir() string {

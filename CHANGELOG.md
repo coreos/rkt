@@ -1,3 +1,440 @@
+## 1.13.0
+
+This release introduces support for exporting single applications out of multi-app pods. Moreover, it adds additional support to control device manipulation inside pods. Finally all runtime security features can now be optionally disabled at the pod level via new insecure options. This version also contains multiple bugfixes and supports Go 1.7.
+
+### New features and UX changes
+
+- export: name flag for exporting multi-app pods ([#3030](https://github.com/coreos/rkt/pull/3030)).
+- stage1: limit device node creation/reading/writing with DevicePolicy= and DeviceAllow= ([#3027](https://github.com/coreos/rkt/pull/3027), [#3058](https://github.com/coreos/rkt/pull/3058)).
+- rkt: implements --insecure-options={capabilities,paths,seccomp,run-all} ([#2983](https://github.com/coreos/rkt/pull/2983)).
+
+#### Bug fixes
+
+- kvm: use a properly formatted comment for iptables chains ([#3038](https://github.com/coreos/rkt/pull/3038)). rkt was using the chain name as comment, which could lead to confusion.
+- pkg/label: supply mcsdir as function argument to InitLabels() ([#3045](https://github.com/coreos/rkt/pull/3045)).
+- api_service: improve machined call error output ([#3059](https://github.com/coreos/rkt/pull/3059)).
+- general: fix old appc/spec version in various files ([#3055](https://github.com/coreos/rkt/pull/3055)).
+- rkt/pubkey: use custom http client including timeout ([#3084](https://github.com/coreos/rkt/pull/3084)).
+- dist: remove quotes from rkt-api.service ExecStart ([#3079](https://github.com/coreos/rkt/pull/3079)).
+- build: multiple fixes ([#3042](https://github.com/coreos/rkt/pull/3042), [#3041](https://github.com/coreos/rkt/pull/3041), [#3046](https://github.com/coreos/rkt/pull/3046)).
+- configure: disable tests on host flavor with systemd <227 ([#3047](https://github.com/coreos/rkt/pull/3047)).
+
+#### Other changes
+
+- travis: add go 1.7, bump go 1.5/1.6 ([#3077](https://github.com/coreos/rkt/pull/3077)).
+- api_service: Add lru cache to cache image info ([#2910](https://github.com/coreos/rkt/pull/2910)).
+- scripts: add curl as build dependency ([#3070](https://github.com/coreos/rkt/pull/3070)).
+- vendor: use appc/spec 0.8.6 and k8s.io/kubernetes v1.3.0 ([#3063](https://github.com/coreos/rkt/pull/3063)).
+- common: use fileutil.IsExecutable() ([#3023](https://github.com/coreos/rkt/pull/3023)).
+- build: Stop printing irrelevant invalidation messages ([#3050](https://github.com/coreos/rkt/pull/3050)).
+- build: Make generating clean files simpler to do ([#3057](https://github.com/coreos/rkt/pull/3057)).
+- Documentation: misc changes ([#3053](https://github.com/coreos/rkt/pull/3053), [#2911](https://github.com/coreos/rkt/pull/2911), [#3035](https://github.com/coreos/rkt/pull/3035), [#3036](https://github.com/coreos/rkt/pull/3036), [#3037](https://github.com/coreos/rkt/pull/3037), [#2945](https://github.com/coreos/rkt/pull/2945), [#3083](https://github.com/coreos/rkt/pull/3083), [#3076](https://github.com/coreos/rkt/pull/3076), [#3033](https://github.com/coreos/rkt/pull/3033), [#3064](https://github.com/coreos/rkt/pull/3064), [#2932](https://github.com/coreos/rkt/pull/2932)).
+- functional tests: misc fixes ([#3049](https://github.com/coreos/rkt/pull/3049)).
+
+## 1.12.0
+
+This release introduces support for seccomp filtering via two new seccomp isolators. It also gives a boost to api-service performance by introducing manifest caching. Finally it fixes several regressions related to Docker images handling.
+
+#### New features and UX changes
+
+- cli: rename `--cap-retain` and `--cap-remove` to `--caps-*` ([#2994](https://github.com/coreos/rkt/pull/2994)).
+- stage1: apply seccomp isolators ([#2753](https://github.com/coreos/rkt/pull/2753)). This introduces support for appc seccomp isolators.
+- scripts: add /etc/rkt owned by group rkt-admin in setup-data-dir.sh ([#2944](https://github.com/coreos/rkt/pull/2944)).
+- rkt: add `--caps-retain` and `--caps-remove` to prepare ([#3007](https://github.com/coreos/rkt/pull/3007)).
+- store: allow users in the rkt group to delete images ([#2961](https://github.com/coreos/rkt/pull/2961)).
+- api_service: cache pod manifest ([#2891](https://github.com/coreos/rkt/pull/2891)). Manifest caching considerably improves api-service performances.
+- store: tell the user to run as root on db update ([#2966](https://github.com/coreos/rkt/pull/2966)).
+- stage1: disabling cgroup namespace in systemd-nspawn ([#2989](https://github.com/coreos/rkt/pull/2989)). For more information see [systemd#3589](https://github.com/systemd/systemd/pull/3589).
+- fly: copy rkt-resolv.conf in the app ([#2982](https://github.com/coreos/rkt/pull/2982)).
+- store: decouple aci store and treestore implementations ([#2919](https://github.com/coreos/rkt/pull/2919)).
+- store: record ACI fetching information ([#2960](https://github.com/coreos/rkt/pull/2960)).
+
+#### Bug fixes
+- stage1/init: fix writing of /etc/machine-id ([#2977](https://github.com/coreos/rkt/pull/2977)).
+- rkt-monitor: multiple fixes ([#2927](https://github.com/coreos/rkt/pull/2927), [#2988](https://github.com/coreos/rkt/pull/2988)).
+- rkt: don't errwrap cli_apps errors ([#2958](https://github.com/coreos/rkt/pull/2958)).
+- pkg/tar/chroot: avoid errwrap in function called by multicall ([#2997](https://github.com/coreos/rkt/pull/2997)).
+- networking: apply CNI args to the default networks as well ([#2985](https://github.com/coreos/rkt/pull/2985)).
+- trust: provide InsecureSkipTLSCheck to pubkey manager ([#3016](https://github.com/coreos/rkt/pull/3016)).
+- api_service: update grpc version ([#3015](https://github.com/coreos/rkt/pull/3015)).
+- fetcher: httpcaching fixes ([#2965](https://github.com/coreos/rkt/pull/2965)).
+
+#### Other changes
+- build,stage1/init: set interpBin at build time for src flavor ([#2978](https://github.com/coreos/rkt/pull/2978)).
+- common: introduce RemoveEmptyLines() ([#3004](https://github.com/coreos/rkt/pull/3004)).
+- glide: update docker2aci to v0.12.3 ([#3026](https://github.com/coreos/rkt/pull/3026)). This fixes multiple bugs in layers ordering for Docker images.
+- glide: update go-systemd to v11 ([#2970](https://github.com/coreos/rkt/pull/2970)). This fixes a buggy corner-case in journal seeking (implicit seek to head).
+- docs: document capabilities overriding ([#2917](https://github.com/coreos/rkt/pull/2917), [#2991](https://github.com/coreos/rkt/pull/2991)).
+- issue template: add '\n' to the end of environment output ([#3008](https://github.com/coreos/rkt/pull/3008)).
+- functional tests: multiple fixes ([#2999](https://github.com/coreos/rkt/pull/2999), [#2979](https://github.com/coreos/rkt/pull/2979), [#3014](https://github.com/coreos/rkt/pull/3014)).
+
+## 1.11.0
+
+This release sets the ground for the new upcoming KVM qemu flavor. It adds support for exporting a pod to an ACI including all modifications. The rkt API service now also supports systemd socket activation. Finally we have diagnostics back, helping users to find out why their app failed to execute.
+
+#### New features
+- KVM: Hypervisor support for KVM flavor focusing on qemu ([#2684](https://github.com/coreos/rkt/pull/2684)). This provides a generic mechanism to use different kvm hypervisors (such as lkvm, qemu-kvm).
+- rkt: add command to export a pod to an aci ([#2889](https://github.com/coreos/rkt/pull/2889)). Adds a new `export` command to rkt which generates an ACI from a pod; saving any changes made to the pod.
+- rkt/api: detect when run as a `systemd.socket(5)` service ([#2916](https://github.com/coreos/rkt/pull/2916)). This allows rkt to run as a systemd socket-based unit.
+- rkt/stop: implement `--uuid-file` ([#2902](https://github.com/coreos/rkt/pull/2902)). So the user can use the value saved on rkt run with `--uuid-file-save`.
+
+#### Bug fixes
+- scripts/glide-update: ensure running from $GOPATH ([#2885](https://github.com/coreos/rkt/pull/2885)). glide is confused when it's not running with the rkt repository inside $GOPATH.
+- store: fix missing shared storelock acquisition on NewStore ([#2896](https://github.com/coreos/rkt/pull/2896)).
+- store,rkt: fix fd leaks ([#2906](https://github.com/coreos/rkt/pull/2906)). Close db lock on store close. If we don't do it, there's a fd leak everytime we open a new Store, even if it was closed.
+- stage1/enterexec: remove trailing `\n` in environment variables ([#2901](https://github.com/coreos/rkt/pull/2901)). Loading environment retained the new line character (`\n`), this produced an incorrect evaluation of the environment variables.
+- stage1/gc: skip cleaning our own cgroup ([#2914](https://github.com/coreos/rkt/pull/2914)).
+- api_service/log: fix file descriptor leak in GetLogs() ([#2930](https://github.com/coreos/rkt/pull/2930)).
+- protobuf: fix protoc-gen-go build with vendoring ([#2913](https://github.com/coreos/rkt/pull/2913)).
+- build: fix x86 builds ([#2926](https://github.com/coreos/rkt/pull/2926)). This PR fixes a minor issue which leads to x86 builds failing.
+- functional tests: add some more volume/mount tests ([#2903](https://github.com/coreos/rkt/pull/2903)).
+- stage1/init: link pod's journal in kvm flavor ([#2934](https://github.com/coreos/rkt/pull/2934)). In nspawn flavors, nspawn creates a symlink from `/var/log/journal/${machine-id}` to the pod's journal directory. In kvm we need to do the link ourselves.
+- build: Build system fixes ([#2938](https://github.com/coreos/rkt/pull/2938)). This should fix the `expr: syntax error` and useless rebuilds of network plugins.
+
+#### Other changes
+- stage1: diagnostic functionality for rkt run ([#2872](https://github.com/coreos/rkt/pull/2872)). If the app exits with `ExecMainStatus == 203`, the app's reaper runs the diagnostic tool and prints the output on stdout. systemd sets `ExecMainstatus` to EXIT_EXEC (203) when execve() fails.
+- build: add support for more architectures at configure time ([#2907](https://github.com/coreos/rkt/pull/2907)).
+- stage1: update coreos image to 1097.0.0 ([#2884](https://github.com/coreos/rkt/pull/2884)). This is needed for a recent enough version of libseccomp (2.3.0), with support for new syscalls (eg. getrandom).
+- api: By adding labels to the image itself, we don't need to pass the manifest to filter function ([#2909](https://github.com/coreos/rkt/pull/2909)). api: Add labels to pod and image type.
+- api: optionally build systemd-journal support ([#2868](https://github.com/coreos/rkt/pull/2868)). This introduces a 'sdjournal' tag and corresponding stubs in api_service, turning libsystemd headers into a soft-dependency.
+- store: simplify db locking and functions ([#2897](https://github.com/coreos/rkt/pull/2897)). Instead of having a file lock to handle inter process locking and a sync.Mutex to handle locking between multiple goroutines, just create, lock and close a new file lock at every db.Do function.
+- stage1/enterexec: Add entry to ASSCB_EXTRA_HEADERS ([#2924](https://github.com/coreos/rkt/pull/2924)). Added entry to ASSCB_EXTRA_HEADERS for better change tracking.
+- build: use rkt-builder ACI ([#2923](https://github.com/coreos/rkt/pull/2923)).
+- Add hidden 'image fetch' next to the existing 'fetch' option ([#2860](https://github.com/coreos/rkt/pull/2860)).
+- stage1: prepare-app: don't mount /sys if path already used ([#2888](https://github.com/coreos/rkt/pull/2888)). When users mount /sys or a sub-directory of /sys as a volume, prepare-app should not mount /sys: that would mask the volume provided by users.
+- build,stage1/init: set interpBin at build time to fix other architecture builds (e.g. x86) ([#2950](https://github.com/coreos/rkt/pull/2950)).
+- functional tests: re-purpose aws.sh for generating AMIs ([#2736](https://github.com/coreos/rkt/pull/2736)).
+- rkt: Add `--cpuprofile` `--memprofile` for profiling rkt ([#2887](https://github.com/coreos/rkt/pull/2887)). Adds two hidden global flags and documentation to enable profiling rkt.
+- functional test: check PATH variable for trailer `\n` character ([#2942](https://github.com/coreos/rkt/pull/2942)).
+- functional tests: disable TestVolumeSysfs on kvm ([#2941](https://github.com/coreos/rkt/pull/2941)).
+- Documentation updates ([#2918](https://github.com/coreos/rkt/pull/2918))
+
+#### Library updates
+
+- glide: update docker2aci to v0.12.1 ([#2873](https://github.com/coreos/rkt/pull/2873)). Includes support for the docker image format v2.2 and OCI image format and allows fetching via digest.
+
+## 1.10.1
+
+This is a minor bug fix release.
+
+#### Bug fixes
+- rkt/run: handle malformed environment files ([#2901](https://github.com/coreos/rkt/pull/2901))
+- stage1/enterexec: remove trailing `\n` in environment variables ([#2901](https://github.com/coreos/rkt/pull/2901))
+
+## v1.10.0
+This release introduces a number of important features and improvements:
+
+- ARM64 support
+- A new subcommand `rkt stop` to gracefully stop running pods
+- native Go vendoring with Glide
+- rkt is now packaged for openSUSE Tumbleweed and Leap
+
+#### New features
+- Add ARM64 support ([#2758](https://github.com/coreos/rkt/pull/2758)). This enables ARM64 cross-compliation, fly, and stage1-coreos.
+- Replace Godep with Glide, introduce native Go vendoring ([#2735](https://github.com/coreos/rkt/pull/2735)).
+- rkt: rkt stop ([#2438](https://github.com/coreos/rkt/pull/2438)). Cleanly stops a running pod. For systemd-nspawn, sends a SIGTERM. For kvm, executes `systemctl halt`.
+
+#### Bug fixes
+- stage1/fly: respect runtimeApp App's MountPoints ([#2852](https://github.com/coreos/rkt/pull/2852)). Fixes #2846.
+- run: fix sandbox-side metadata service to comply to appc v0.8.1 ([#2863](https://github.com/coreos/rkt/pull/2863)). Fixes #2621.
+
+#### Other changes
+- build directory layout change ([#2758](https://github.com/coreos/rkt/pull/2758)): The rkt binary and stage1 image files have been moved from the 'bin' sub-directory to the 'target/bin' sub-directory.
+- networking/kvm: add flannel default gateway parsing ([#2859](https://github.com/coreos/rkt/pull/2859)).
+- stage1/enterexec: environment file with '\n' as separator (systemd style) ([#2839](https://github.com/coreos/rkt/pull/2839)).
+- pkg/tar: ignore global extended headers ([#2847](https://github.com/coreos/rkt/pull/2847)).
+- pkg/tar: remove errwrap ([#2848](https://github.com/coreos/rkt/pull/2848)).
+- tests: fix abuses of appc types.Isolator ([#2840](https://github.com/coreos/rkt/pull/2840)).
+- common: remove unused GetImageIDs() ([#2834](https://github.com/coreos/rkt/pull/2834)).
+- common/cgroup: add mountFsRO() helper function ([#2829](https://github.com/coreos/rkt/pull/2829)).
+- Documentation updates ([#2732](https://github.com/coreos/rkt/pull/2732), [#2869](https://github.com/coreos/rkt/pull/2869), [#2810](https://github.com/coreos/rkt/pull/2810), [#2865](https://github.com/coreos/rkt/pull/2865), [#2825](https://github.com/coreos/rkt/pull/2825), [#2841](https://github.com/coreos/rkt/pull/2841), [#2732](https://github.com/coreos/rkt/pull/2732))
+
+#### Library updates
+- glide: bump ql to v1.0.4 ([#2875](https://github.com/coreos/rkt/pull/2875)). It fixes an occassional panic when doing GC.
+- glide: bump gopsutils to 2.1 ([#2876](https://github.com/coreos/rkt/pull/2876)). To include https://github.com/shirou/gopsutil/pull/194 (this adds ARM aarch64 support)
+- vendor: update appc/spec to 0.8.5 ([#2854](https://github.com/coreos/rkt/pull/2854)).
+
+## v1.9.1
+
+This is a minor bug fix release.
+
+#### Bug fixes
+
+- Godeps: update go-systemd ([#2837](https://github.com/coreos/rkt/pull/2837)). go-systemd v10 fixes a panic-inducing bug due to returning incorrect
+Read() length values.
+- stage1/fly: use 0755 to create mountpaths ([#2836](https://github.com/coreos/rkt/pull/2836)). This will allow any user to list the content directories. It does not
+have any effect on the permissions on the mounted files itself.
+
+## v1.9.0
+
+This release focuses on bug fixes and developer tooling and UX improvements.
+
+#### New features and UX changes
+
+- rkt/run: added --set-env-file switch and priorities for environments ([#2816](https://github.com/coreos/rkt/pull/2816)). --set-env-file gets an environment variables file path in the format "VAR=VALUE\n...".
+- run: add --cap-retain and --cap-remove ([#2771](https://github.com/coreos/rkt/pull/2771)).
+- store: print more information on rm as non-root ([#2805](https://github.com/coreos/rkt/pull/2805)).
+- Documentation/vagrant: use rkt binary for getting started ([#2808](https://github.com/coreos/rkt/pull/2808)). 
+- docs: New file in documentation - instruction for new developers in rkt ([#2639](https://github.com/coreos/rkt/pull/2639)).
+- stage0/trust: change error message if prefix/root flag missing ([#2661](https://github.com/coreos/rkt/pull/2661)).
+
+#### Bug fixes
+
+- rkt/uuid: fix match when uuid is an empty string ([#2807](https://github.com/coreos/rkt/pull/2807)).
+- rkt/api_service: fix fly pods ([#2799](https://github.com/coreos/rkt/pull/2799)).
+- api/client_example: fix panic if pod has no apps ([#2766](https://github.com/coreos/rkt/pull/2766)). Fixes the concern expressed in https://github.com/coreos/rkt/pull/2763#discussion_r66409260
+- api_service: wait until a pod regs with machined ([#2788](https://github.com/coreos/rkt/pull/2788)).
+
+#### Other changes
+
+- stage1: update coreos image to 1068.0.0 ([#2821](https://github.com/coreos/rkt/pull/2821)). 
+- KVM: Update LKVM patch to mount with mmap mode ([#2795](https://github.com/coreos/rkt/pull/2795)).
+- stage1: always write /etc/machine-id ([#2440](https://github.com/coreos/rkt/pull/2440)). Prepare rkt for systemd-v230 in stage1.
+- stage1/prepare-app: always adjust /etc/hostname ([#2761](https://github.com/coreos/rkt/pull/2761)). 
+
+## v1.8.0
+
+This release focuses on stabilizing the API service, fixing multiple issues in the logging subsystem.
+
+#### New features and UX changes
+
+- api: GetLogs: improve client example with 'Follow' ([#2747](https://github.com/coreos/rkt/pull/2747)).
+- kvm: add proxy arp support to macvtap ([#2715](https://github.com/coreos/rkt/pull/2715)).
+- stage0/config: add a CLI flag to pretty print json ([#2745](https://github.com/coreos/rkt/pull/2745)).
+- stage1: make /proc/bus/ read-only ([#2743](https://github.com/coreos/rkt/pull/2743)).
+
+#### Bug fixes
+
+- api: GetLogs: use the correct type in LogsStreamWriter ([#2744](https://github.com/coreos/rkt/pull/2744)).
+- api: fix service panic on incomplete pods ([#2739](https://github.com/coreos/rkt/pull/2739)).
+- api: Fix the GetLogs() when appname is given ([#2763](https://github.com/coreos/rkt/pull/2763)).
+- pkg/selinux: various fixes ([#2723](https://github.com/coreos/rkt/pull/2723)).
+- pkg/fileutil: don't remove the cleanSrc if it equals '.' ([#2731](https://github.com/coreos/rkt/pull/2731)).
+- stage0: remove superfluous error verbs ([#2750](https://github.com/coreos/rkt/pull/2750)).
+
+#### Other changes
+
+- Godeps: bump go-systemd ([#2754](https://github.com/coreos/rkt/pull/2754)). Fixes a panic on the api-service when calling GetLogs().
+- Documentation updates ([#2756](https://github.com/coreos/rkt/pull/2756), [#2741](https://github.com/coreos/rkt/pull/2741), [#2737](https://github.com/coreos/rkt/pull/2737), [#2742](https://github.com/coreos/rkt/pull/2742), [#2730](https://github.com/coreos/rkt/pull/2730), [#2729](https://github.com/coreos/rkt/pull/2729))
+- Test improvements ([#2726](https://github.com/coreos/rkt/pull/2726)).
+
+## v1.7.0
+
+This release introduces some new security features, including a "no-new-privileges" isolator and initial (partial) restrictions on /proc and /sys access.
+Cgroups handling has also been improved with regards to setup and cleaning. Many bugfixes and new documentation are included too.
+
+#### New features and UX changes
+
+- stage1: implement no-new-privs linux isolator ([#2677](https://github.com/coreos/rkt/pull/2677)).
+- stage0: disable OverlayFS by default when working on ZFS ([#2600](https://github.com/coreos/rkt/pull/2600)).
+- stage1: (partially) restrict access to procfs and sysfs paths ([#2683](https://github.com/coreos/rkt/pull/2683)).
+- stage1: clean up pod cgroups on GC ([#2655](https://github.com/coreos/rkt/pull/2655)).
+- stage1/prepare-app: don't mount /sys/fs/cgroup in stage2 ([#2681](https://github.com/coreos/rkt/pull/2681)).
+- stage0: complain and abort on conflicting CLI flags ([#2666](https://github.com/coreos/rkt/pull/2666)).
+- stage1: update CoreOS image signing key ([#2659](https://github.com/coreos/rkt/pull/2659)).
+- api_service: Implement GetLogs RPC request ([#2662](https://github.com/coreos/rkt/pull/2662)).
+- networking: update to CNI v0.3.0 ([#3696](https://github.com/coreos/rkt/pull/2696)).
+
+#### Bug fixes
+
+- api: fix image size reporting ([#2501](https://github.com/coreos/rkt/pull/2501)).
+- build: fix build failures on manpages/bash-completion target due to missing GOPATH ([#2646](https://github.com/coreos/rkt/pull/2646)).
+- dist: fix "other" permissions so rkt list can work without root/rkt-admin ([#2698](https://github.com/coreos/rkt/pull/2698)).
+- kvm: fix logging network plugin type ([#2635](https://github.com/coreos/rkt/pull/2635)).
+- kvm: transform flannel network to allow teardown ([#2647](https://github.com/coreos/rkt/pull/2647)).
+- rkt: fix panic on rm a non-existing pod with uuid-file ([#2679](https://github.com/coreos/rkt/pull/2679)).
+- stage1/init: work around `cgroup/SCM_CREDENTIALS` race ([#2645](https://github.com/coreos/rkt/pull/2645)).
+- gc: mount stage1 on GC ([#2704](https://github.com/coreos/rkt/pull/2704)).
+- stage1: fix network files leak on GC ([#2319](https://github.com/coreos/rkt/issues/2319)).
+
+#### Other changes
+
+- deps: remove unused dependencies ([#2703](https://github.com/coreos/rkt/pull/2703)).
+- deps: appc/spec, k8s, protobuf updates ([#2697](https://github.com/coreos/rkt/pull/2697)).
+- deps: use tagged release of github.com/shirou/gopsutil ([#2705](https://github.com/coreos/rkt/pull/2705)).
+- deps: bump docker2aci to v0.11.1 ([#2719](https://github.com/coreos/rkt/pull/2719)).
+- Documentation updates ([#2620](https://github.com/coreos/rkt/pull/2620), [#2700](https://github.com/coreos/rkt/pull/2700), [#2637](https://github.com/coreos/rkt/pull/2637), [#2591](https://github.com/coreos/rkt/pull/2591), [#2651](https://github.com/coreos/rkt/pull/2651), [#2699](https://github.com/coreos/rkt/pull/2699), [#2631](https://github.com/coreos/rkt/pull/2631)).
+- Test improvements ([#2587](https://github.com/coreos/rkt/pull/2587), [#2656](https://github.com/coreos/rkt/pull/2656), [#2676](https://github.com/coreos/rkt/pull/2676), [#2554](https://github.com/coreos/rkt/pull/2554), [#2690](https://github.com/coreos/rkt/pull/2690), [#2674](https://github.com/coreos/rkt/pull/2674), [#2665](https://github.com/coreos/rkt/pull/2665), [#2649](https://github.com/coreos/rkt/pull/2649), [#2643](https://github.com/coreos/rkt/pull/2643), [#2637](https://github.com/coreos/rkt/pull/2637), [#2633](https://github.com/coreos/rkt/pull/2633)).
+
+## v1.6.0
+
+This release focuses on security enhancements. It provides additional isolators, creating a new mount namespace per app. Also a new version of CoreOS 1032.0.0 with systemd v229 is being used in stage1.
+
+#### New features and UX changes
+
+- stage1: implement read-only rootfs ([#2624](https://github.com/coreos/rkt/pull/2624)). Using the Pod manifest readOnlyRootFS option mounts the rootfs of the app as read-only using systemd-exec unit option ReadOnlyDirectories, see [appc/spec](https://github.com/appc/spec/blob/master/spec/pods.md#pod-manifest-schema).
+- stage1: capabilities: implement both remain set and remove set ([#2589](https://github.com/coreos/rkt/pull/2589)). It follows the [Linux Isolators semantics from the App Container Executor spec](https://github.com/appc/spec/blob/master/spec/ace.md#linux-isolators), as modified by [appc/spec#600](https://github.com/appc/spec/pull/600).
+- stage1/init: create a new mount ns for each app ([#2603](https://github.com/coreos/rkt/pull/2603)). Up to this point, you could escape the app's chroot easily by using a simple program downloaded from the internet [1](http://www.unixwiz.net/techtips/chroot-practices.html). To avoid this, we now create a new mount namespace per each app.
+- api: Return the pods even when we failed getting information about them ([#2593](https://github.com/coreos/rkt/pull/2593)).
+- stage1/usr_from_coreos: use CoreOS 1032.0.0 with systemd v229 ([#2514](https://github.com/coreos/rkt/pull/2514)).
+
+#### Bug fixes
+
+- kvm: fix flannel network info ([#2625](https://github.com/coreos/rkt/pull/2625)). It wasn't saving the network information on disk.
+- stage1: Machine name wasn't being populated with the full UUID ([#2575](https://github.com/coreos/rkt/pull/2575)).
+- rkt: Some simple arg doc string fixes ([#2588](https://github.com/coreos/rkt/pull/2588)). Remove some unnecessary indefinite articles from the start of argument doc strings and fixes the arg doc string for run-prepared's --interactive flag.
+- stage1: Fix segfault in enterexec ([#2608](https://github.com/coreos/rkt/pull/2608)). This happened if rkt enter was executed without the TERM environment variable set.
+- net: fix port forwarding behavior with custom CNI ipMasq'ed networks and allow different hostPort:podPort combinations ([#2387](https://github.com/coreos/rkt/pull/2387)).
+- stage0: check and create /etc ([#2599](https://github.com/coreos/rkt/pull/2599)). Checks '/etc' before writing to '/etc/rkt-resolv.conf' and creates it with default permissions if it doesn't exist.
+
+#### Other changes
+
+- godep: update cni to v0.2.3 ([#2618](https://github.com/coreos/rkt/pull/2618)).
+- godep: update appc/spec to v0.8.1 ([#2623](https://github.com/coreos/rkt/pull/2623), [#2611](https://github.com/coreos/rkt/pull/2611)).
+- dist: Update tmpfiles to create /etc/rkt ([#2472](https://github.com/coreos/rkt/pull/2472)). By creating this directory, users can run `rkt trust` without being root, if the user is in the rkt group.
+- Invoke gofmt with simplify-code flag ([#2489](https://github.com/coreos/rkt/pull/2489)). Enables code simplification checks of gofmt.
+- Implement composable uid/gid generators ([#2510](https://github.com/coreos/rkt/pull/2510)). This cleans up the code a bit and implements uid/gid functionality for rkt fly.
+- stage1: download CoreOS over HTTPS ([#2568](https://github.com/coreos/rkt/pull/2568)). 
+- Documentation updates ([#2555](https://github.com/coreos/rkt/pull/2555), [#2609](https://github.com/coreos/rkt/pull/2609), [#2605](https://github.com/coreos/rkt/pull/2605), [#2578](https://github.com/coreos/rkt/pull/2578), [#2614](https://github.com/coreos/rkt/pull/2614), [#2579](https://github.com/coreos/rkt/pull/2579), [#2570](https://github.com/coreos/rkt/pull/2570)).
+- Test improvements ([#2613](https://github.com/coreos/rkt/pull/2613), [#2566](https://github.com/coreos/rkt/pull/2566), [#2508](https://github.com/coreos/rkt/pull/2508)).
+
+## v1.5.1
+
+This release is a minor bug fix release.
+
+#### Bug fixes
+
+- rkt: fix bug where rkt errored out if the default data directory didn't exist [#2557](https://github.com/coreos/rkt/pull/2557).
+- kvm: fix docker volume semantics ([#2558](https://github.com/coreos/rkt/pull/2558)). When a Docker image exposes a mount point that is not mounted by a host volume, Docker volume semantics expect the files in the directory to be available to the application. This was not working properly in the kvm flavor and it's fixed now.
+- kvm: fix net long names ([#2543](https://github.com/coreos/rkt/pull/2543)). Handle network names that are longer than the maximum allowed by iptables in the kvm flavor.
+
+#### Other changes
+
+- minor tests and clean-ups ([#2551](https://github.com/coreos/rkt/pull/2551)).
+
+## v1.5.0
+
+This release switches to pure systemd for running apps within a pod. This lays the foundation to implement enhanced isolation capabilities. For example, starting with v1.5.0, apps are started with more restricted capabilities. User namespace support and the KVM stage1 are not experimental anymore. Resource usage can be benchmarked using the new rkt-monitor tool.
+
+#### New features and UX changes
+
+- stage1: replace appexec with pure systemd ([#2493](https://github.com/coreos/rkt/pull/2493)). Replace functionality implemented in appexec with equivalent systemd options. This allows restricting the capabilities granted to apps in a pod and makes enabling other security features (per-app mount namespaces, seccomp filters...) easier.
+- stage1: restrict capabilities granted to apps ([#2493](https://github.com/coreos/rkt/pull/2493)). Apps in a pod receive now a [smaller set of capabilities](https://github.com/coreos/rkt/blob/v1.5.0/stage1/init/common/pod.go#L67).
+- rkt/image: render images on fetch ([#2398](https://github.com/coreos/rkt/pull/2398)). On systems with overlay fs support, rkt was delaying rendering images to the tree store until they were about to run for the first time which caused that first run to be slow for big images. When fetching as root, render the images right away so the first run is faster.
+
+#### Bug fixes
+
+- kvm: fix mounts regression ([#2530](https://github.com/coreos/rkt/pull/2530)). Cause - AppRootfsPath called with local "root" value was adding
+stage1/rootfs twice. After this change this is made properly.
+- rkt/image: strip "Authorization" on redirects to a different host ([#2465](https://github.com/coreos/rkt/pull/2465)). We now don't pass the "Authorization" header if the redirect goes to a different host, it can leak sensitive information to unexpected third parties.
+- stage1/init: interpret the string "root" as UID/GID 0 ([#2458](https://github.com/coreos/rkt/pull/2458)). This is a special case and it should work even if the image doesn't have /etc/passwd or /etc/group.
+
+#### Improved documentation
+
+- added benchmarks folder, benchmarks for v1.4.0 ([#2520](https://github.com/coreos/rkt/pull/2520)). Added the `Documentation/benchmarks` folder which includes a README that describes how rkt-monitor works and how to use it, and a file detailing the results of running rkt-monitor on each current workload with rkt v1.4.0.
+- minor documentation fixes ([#2455](https://github.com/coreos/rkt/pull/2455), [#2528](https://github.com/coreos/rkt/pull/2528), [#2511](https://github.com/coreos/rkt/pull/2511)).
+
+#### Testing
+
+- kvm: enable functional tests for kvm ([#2007](https://github.com/coreos/rkt/pull/2007)). This includes initial support for running functional tests on the `kvm` flavor.
+
+#### Other changes
+
+- benchmarks: added rkt-monitor benchmarks ([#2324](https://github.com/coreos/rkt/pull/2324)). This includes the code for a golang binary that can start rkt and watch its resource usage and bash scripts for generating a handful of test scenarios.
+- scripts: generate a Debian Sid ACI instead of using the Docker hub image ([#2471](https://github.com/coreos/rkt/pull/2471)). This is the first step to having an official release builder.
+- pkg/sys: add SYS_SYNCFS definition for ppc64/ppc64le ([#2443](https://github.com/coreos/rkt/pull/2443)). Added missing SYS_SYNCFS definition for ppc64 and ppc64le, fixing build failures on those architectures.
+- userns: not experimental anymore ([#2486](https://github.com/coreos/rkt/pull/2486)). Although it requires doing a recursive chown for each app, user namespaces work fine and shouldn't be marked as experimental.
+- kvm: not experimental anymore ([#2485](https://github.com/coreos/rkt/pull/2485)). The kvm flavor was initially introduced in rkt v0.8.0, no reason to mark it as experimental.
+
+## v1.4.0
+
+This release includes a number of new features and bugfixes like a new config subcommand, man page, and bash completion generation during build time.
+
+#### New features and UX changes
+
+- config: add config subcommand ([#2405](https://github.com/coreos/rkt/pull/2405)). This new subcommand prints the current rkt configuration. It can be used to get i.e. authentication credentials. See rkt's [config subcommand](https://github.com/coreos/rkt/blob/master/Documentation/subcommands/config.md) documentation.
+
+- run: add `--user`/`--group` app flags to `rkt run` and `rkt prepare` allowing to override the user and group specified in the image manifest ([#2419](https://github.com/coreos/rkt/pull/2419)).
+
+- gc: Add flag 'mark-only' to mark garbage pods without deleting them ([#2400](https://github.com/coreos/rkt/pull/2400), [#2402](https://github.com/coreos/rkt/pull/2402)). This new flag moves exited/aborted pods to the exited-garbage/garbage directory but does not delete them. A third party application can use `rkt gc --mark-only=true` to mark exited pods as garbage without deleting them.
+
+- kvm: Add support for app capabilities limitation ([#2222](https://github.com/coreos/rkt/pull/2222)). By default kvm flavor has got enabled every capability inside pod. This patch adds support for a restricted set of capabilities inside a kvm flavor of rkt.
+
+- stage1/init: return exit code 1 on error ([#2383](https://github.com/coreos/rkt/pull/2383)). On error, stage1/init was returning a non-zero value between 1 and 7. This change makes it return status code 1 only.
+
+- api: Add 'CreatedAt', 'StartedAt' in pod's info returned by api service. ([#2377](https://github.com/coreos/rkt/pull/2377)).
+
+#### Improved documentation
+
+- Minor documentation fixes ([#2413](https://github.com/coreos/rkt/pull/2413), [#2395](https://github.com/coreos/rkt/pull/2395), [#2231](https://github.com/coreos/rkt/pull/2231)).
+
+- functional tests: Add new test with systemd-proxyd ([#2257](https://github.com/coreos/rkt/pull/2257)). Adds a new test and documentation how to use systemd-proxyd with rkt pods.
+
+#### Bug fixes
+
+- kvm: refactor volumes support ([#2328](https://github.com/coreos/rkt/pull/2328)). This allows users to share regular files as volumes in addition to directories.
+
+- kvm: fix rkt status ([#2415](https://github.com/coreos/rkt/pull/2415)). Fixes a regression bug were `rkt status` was no longer reporting the pid of the pod when using the kvm flavor.
+
+- Build actool for the *build* architecture ([#2372](https://github.com/coreos/rkt/pull/2372)). Fixes a cross compilation issue with acbuild.
+
+- rkt: calculate real dataDir path ([#2399](https://github.com/coreos/rkt/pull/2399)). Fixes garbage collection when the data directory specified by `--dir` contains a symlink component.
+
+- stage1/init: fix docker volume semantics ([#2409](https://github.com/coreos/rkt/pull/2409)). Fixes a bug in docker volume semantics when rkt runs with the option `--pod-manifest`. When a Docker image exposes a mount point that is not mounted by a host volume, Docker volume semantics expect the files in the directory to be available to the application. This was partially fixed in rkt 1.3.0 via [#2315](https://github.com/coreos/rkt/pull/2315) but the bug remained when rkt runs with the option `--pod-manifest`. This is now fully fixed.
+
+- rkt/image: check that discovery labels match manifest labels ([#2311](https://github.com/coreos/rkt/pull/2311)).
+
+- store: fix multi process with multi goroutines race on db ([#2391](https://github.com/coreos/rkt/pull/2391)). This was a bug when multiple `rkt fetch` commands were executed concurrently.
+
+- kvm: fix pid vs ppid usage ([#2396](https://github.com/coreos/rkt/pull/2396)). Fixes a bug in `rkt enter` in the kvm flavor causing an infinite loop.
+
+- kvm: Fix connectivity issue in macvtap networks caused by macvlan NICs having incorrect names ([#2181](https://github.com/coreos/rkt/pull/2181)). 
+
+- tests: TestRktListCreatedStarted: fix timing issue causing the test to fail on slow machines ([#2366](https://github.com/coreos/rkt/pull/2366)).
+
+- rkt/image: remove redundant quotes in an error message ([#2379](https://github.com/coreos/rkt/pull/2379)).
+
+- prepare: Support 'ondisk' verification skip as documented by [the global options](https://github.com/coreos/rkt/blob/master/Documentation/commands.md#global-options) ([#2376](https://github.com/coreos/rkt/pull/2376)). Prior to this commit, rkt prepare would check the ondisk image even if the `--insecure-options=ondisk` flag was provided. This corrects that.
+
+#### Other changes
+
+- tests: skip TestSocketProxyd when systemd-socket-proxyd is not installed ([#2436](https://github.com/coreos/rkt/pull/2436)).
+
+- tests: TestDockerVolumeSemantics: more tests with symlinks ([#2394](https://github.com/coreos/rkt/pull/2394)).
+
+- rkt: Improve build shell script used in [continuous integration](https://github.com/coreos/rkt/blob/master/tests/README.md) ([#2394](https://github.com/coreos/rkt/pull/2394)).
+
+- protobuf: generate code using a script ([#2382](https://github.com/coreos/rkt/pull/2382)).
+
+- Generate manpages ([#2373](https://github.com/coreos/rkt/pull/2373)). This adds support for generating rkt man pages using `make manpages` and the bash completion file using `make bash-completion`, see the note for packagers below.
+
+- tests/aws.sh: add test for Fedora 24 ([#2340](https://github.com/coreos/rkt/pull/2340)).
+
+#### Note for packagers
+
+Files generated from sources are no longer checked-in the git repository. Instead, packagers should build them:
+
+- Bash completion file, generated by `make bash-completion`
+- Man pages, generated by `make manpages`
+
+## v1.3.0
+
+This release includes a number of new features and bugfixes like the long-awaited propagation of apps' exit status.
+
+#### New features and UX changes
+
+- Propagate exit status from apps inside the pod to rkt ([#2308](https://github.com/coreos/rkt/pull/2308)). Previously, if an app exited with a non-zero exit status, rkt's exit status would still be 0. Now, if an app fails, its exit status will be propagated to the outside. While this was partially implemented in some stage1 flavors since rkt v1.1.0, it now works in the default coreos flavor.
+- Check signatures for stage1 images by default, especially useful when stage1 images are downloaded from the Internet ([#2336](https://github.com/coreos/rkt/pull/2336)).
+ This doesn't affect the following cases:
+  - The stage1 image is already in the store
+  - The stage1 image is in the default directory configured at build time
+  - The stage1 image is the default one and it is in the same directory as the rkt binary
+- Allow downloading of insecure public keys with the `pubkey` insecure option ([#2278](https://github.com/coreos/rkt/pull/2278)).
+- Implement Docker volume semantics ([#2315](https://github.com/coreos/rkt/pull/2315)). Docker volumes are initialized with the files in the image if they exist, unless a host directory is mounted there. Implement that behavior in rkt when it runs a Docker converted image.
+
+#### API service
+
+- Return the cgroup when getting information about running pods and add a new cgroup filter ([#2331](https://github.com/coreos/rkt/pull/2331)).
+
+#### Bug fixes
+
+- Avoid configuring more CPUs than the host has in the kvm flavor ([#2321](https://github.com/coreos/rkt/pull/2321)).
+- Fix a bug where the proxy configuration wasn't forwarded to docker2aci ([docker2aci#147](https://github.com/appc/docker2aci/pull/147)).
+
+#### Notes
+
+- This release drops support for go1.4.
+
 ## v1.2.1
 
 This release fixes a couple of bugs we missed in 1.2.0.
@@ -303,7 +740,7 @@ rkt v0.10.0 is an incremental release with numerous bug fixes and a few small ne
 
 #### Improved documentation
 - [compare rkt and other projects](https://github.com/coreos/rkt/blob/master/Documentation/rkt-vs-other-projects.md) ([#1588](https://github.com/coreos/rkt/pull/1588))
-- [Stage 1 systemd Architecture](https://github.com/coreos/rkt/blob/master/Documentation/devel/architecture.md) ([#1631](https://github.com/coreos/rkt/pull/1631))
+- [Stage1 systemd Architecture](https://github.com/coreos/rkt/blob/master/Documentation/devel/architecture.md) ([#1631](https://github.com/coreos/rkt/pull/1631))
 - [packaging rkt in Linux distributions](https://github.com/coreos/rkt/blob/master/Documentation/packaging.md) ([#1511](https://github.com/coreos/rkt/pull/1511))
 
 #### Improved testing

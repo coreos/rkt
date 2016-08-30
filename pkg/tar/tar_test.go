@@ -28,7 +28,7 @@ import (
 
 	"github.com/coreos/rkt/pkg/multicall"
 	"github.com/coreos/rkt/pkg/sys"
-	"github.com/coreos/rkt/pkg/uid"
+	"github.com/coreos/rkt/pkg/user"
 )
 
 func init() {
@@ -427,7 +427,7 @@ func TestExtractTarOverwrite(t *testing.T) {
 	if !sys.HasChrootCapability() {
 		t.Skipf("chroot capability not available. Disabling test.")
 	}
-	testExtractTarOverwrite(t, extractTarHelper)
+	testExtractTarOverwrite(t, extractTarOverwriteHelper)
 }
 func TestExtractTarOverwriteInsecure(t *testing.T) {
 	testExtractTarOverwrite(t, extractTarInsecureHelper)
@@ -603,16 +603,16 @@ func testExtractTarOverwrite(t *testing.T, extractTar func(io.Reader, string) er
 	err = extractTar(containerTar2, tmpdir)
 
 	expectedFiles := []*fileInfo{
-		&fileInfo{path: "hello.txt", typeflag: tar.TypeReg, size: 8, contents: "newhello"},
-		&fileInfo{path: "linktofile", typeflag: tar.TypeReg, size: 20},
-		&fileInfo{path: "linktodir", typeflag: tar.TypeReg, size: 20},
-		&fileInfo{path: "afolder", typeflag: tar.TypeReg, size: 8},
-		&fileInfo{path: "dirsymlinked", typeflag: tar.TypeDir},
-		&fileInfo{path: "afile", typeflag: tar.TypeDir},
-		&fileInfo{path: "filesymlinked", typeflag: tar.TypeReg, size: 5},
-		&fileInfo{path: "folder01", typeflag: tar.TypeDir},
-		&fileInfo{path: "folder01/file01", typeflag: tar.TypeReg, size: 5},
-		&fileInfo{path: "folder01/file02", typeflag: tar.TypeReg, size: 5},
+		{path: "hello.txt", typeflag: tar.TypeReg, size: 8, contents: "newhello"},
+		{path: "linktofile", typeflag: tar.TypeReg, size: 20},
+		{path: "linktodir", typeflag: tar.TypeReg, size: 20},
+		{path: "afolder", typeflag: tar.TypeReg, size: 8},
+		{path: "dirsymlinked", typeflag: tar.TypeDir},
+		{path: "afile", typeflag: tar.TypeDir},
+		{path: "filesymlinked", typeflag: tar.TypeReg, size: 5},
+		{path: "folder01", typeflag: tar.TypeDir},
+		{path: "folder01/file01", typeflag: tar.TypeReg, size: 5},
+		{path: "folder01/file02", typeflag: tar.TypeReg, size: 5},
 	}
 
 	err = checkExpectedFiles(tmpdir, fileInfoSliceToMap(expectedFiles))
@@ -787,12 +787,16 @@ func testExtractTarHardLink(t *testing.T, extractTar func(io.Reader, string) err
 	}
 }
 
+func extractTarOverwriteHelper(rdr io.Reader, target string) error {
+	return ExtractTar(rdr, target, true, user.NewBlankUidRange(), nil)
+}
+
 func extractTarHelper(rdr io.Reader, target string) error {
 	return extractTarHelperPWL(rdr, target, nil)
 }
 
 func extractTarHelperPWL(rdr io.Reader, target string, pwl PathWhitelistMap) error {
-	return ExtractTar(rdr, target, false, uid.NewBlankUidRange(), pwl)
+	return ExtractTar(rdr, target, false, user.NewBlankUidRange(), pwl)
 }
 
 func extractTarInsecureHelper(rdr io.Reader, target string) error {
@@ -800,7 +804,7 @@ func extractTarInsecureHelper(rdr io.Reader, target string) error {
 }
 
 func extractTarInsecureHelperPWL(rdr io.Reader, target string, pwl PathWhitelistMap) error {
-	editor, err := NewUidShiftingFilePermEditor(uid.NewBlankUidRange())
+	editor, err := NewUidShiftingFilePermEditor(user.NewBlankUidRange())
 	if err != nil {
 		return err
 	}

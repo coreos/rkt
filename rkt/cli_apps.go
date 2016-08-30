@@ -22,7 +22,6 @@ import (
 	"strings"
 
 	"github.com/coreos/rkt/common/apps"
-	"github.com/hashicorp/errwrap"
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
@@ -173,7 +172,7 @@ func (al *appMount) Set(s string) error {
 		case "volume":
 			mv, err := types.NewACName(val[0])
 			if err != nil {
-				return errwrap.Wrap(fmt.Errorf("invalid volume name %q in --mount flag %q", val[0], s), err)
+				return fmt.Errorf("invalid volume name %q in --mount flag %q: %v", val[0], s, err)
 			}
 			mount.Volume = *mv
 		case "target":
@@ -225,7 +224,7 @@ type appsVolume apps.Apps
 func (al *appsVolume) Set(s string) error {
 	vol, err := types.VolumeFromString(s)
 	if err != nil {
-		return errwrap.Wrap(fmt.Errorf("invalid value in --volume flag %q", s), err)
+		return fmt.Errorf("invalid value in --volume flag %q: %v", s, err)
 	}
 
 	(*apps.Apps)(al).Volumes = append((*apps.Apps)(al).Volumes, *vol)
@@ -304,4 +303,140 @@ func (aml *appCPULimit) String() string {
 
 func (aml *appCPULimit) Type() string {
 	return "appCPULimit"
+}
+
+// appUser is for --user flags in the form of: --user=user
+type appUser apps.Apps
+
+func (au *appUser) Set(s string) error {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return fmt.Errorf("--user must follow an image")
+	}
+	app.User = s
+	return nil
+}
+
+func (au *appUser) String() string {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return ""
+	}
+	return app.User
+}
+
+func (au *appUser) Type() string {
+	return "appUser"
+}
+
+// appGroup is for --group flags in the form of: --group=group
+type appGroup apps.Apps
+
+func (ag *appGroup) Set(s string) error {
+	app := (*apps.Apps)(ag).Last()
+	if app == nil {
+		return fmt.Errorf("--group must follow an image")
+	}
+	app.Group = s
+	return nil
+}
+
+func (ag *appGroup) String() string {
+	app := (*apps.Apps)(ag).Last()
+	if app == nil {
+		return ""
+	}
+	return app.Group
+}
+
+func (ag *appGroup) Type() string {
+	return "appGroup"
+}
+
+// appCapsRetain is for --caps-retain flags in the form of: --caps-retain=CAP_KILL,CAP_NET_ADMIN
+type appCapsRetain apps.Apps
+
+func (au *appCapsRetain) Set(s string) error {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return fmt.Errorf("--caps-retain must follow an image")
+	}
+	capsRetain, err := types.NewLinuxCapabilitiesRetainSet(strings.Split(s, ",")...)
+	if err != nil {
+		return err
+	}
+	app.CapsRetain = capsRetain
+	return nil
+}
+
+func (au *appCapsRetain) String() string {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return ""
+	}
+	var vs []string
+	for _, v := range app.CapsRetain.Set() {
+		vs = append(vs, string(v))
+	}
+	return strings.Join(vs, ",")
+}
+
+func (au *appCapsRetain) Type() string {
+	return "appCapsRetain"
+}
+
+// appCapsRemove is for --caps-remove flags in the form of: --caps-remove=CAP_MKNOD,CAP_SYS_CHROOT
+type appCapsRemove apps.Apps
+
+func (au *appCapsRemove) Set(s string) error {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return fmt.Errorf("--caps-retain must follow an image")
+	}
+	capsRemove, err := types.NewLinuxCapabilitiesRevokeSet(strings.Split(s, ",")...)
+	if err != nil {
+		return err
+	}
+	app.CapsRemove = capsRemove
+	return nil
+}
+
+func (au *appCapsRemove) String() string {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return ""
+	}
+	var vs []string
+	for _, v := range app.CapsRemove.Set() {
+		vs = append(vs, string(v))
+	}
+	return strings.Join(vs, ",")
+}
+
+func (au *appCapsRemove) Type() string {
+	return "appCapsRemove"
+}
+
+// appSeccompFilter is for --seccomp flags in the form of: --seccomp [errno=EPERM,]mode=retain,chown,chmod[,syscalls]
+type appSeccompFilter apps.Apps
+
+func (au *appSeccompFilter) Set(s string) error {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return fmt.Errorf("--seccomp must follow an image")
+	}
+	app.SeccompFilter = s
+	return nil
+}
+
+func (au *appSeccompFilter) String() string {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return ""
+	}
+	return app.SeccompFilter
+}
+
+func (au *appSeccompFilter) Type() string {
+	return "appSeccompFilter"
 }

@@ -5,7 +5,7 @@ LKVM_BINARY := $(LKVM_SRCDIR)/lkvm-static
 LKVM_ACI_BINARY := $(S1_RF_ACIROOTFSDIR)/lkvm
 LKVM_GIT := https://kernel.googlesource.com/pub/scm/linux/kernel/git/will/kvmtool
 # just last published version (for reproducible builds), not for any other reason
-LKVM_VERSION := 3c8aec9e2b5066412390559629dabeb7816ee8f2
+LKVM_VERSION := d62653e177597251c24494a6dda60acd6d846671
 
 LKVM_STUFFDIR := $(MK_SRCDIR)/lkvm
 LKVM_PATCHESDIR := $(LKVM_STUFFDIR)/patches
@@ -14,10 +14,7 @@ LKVM_PATCHES := $(abspath $(LKVM_PATCHESDIR)/*.patch)
 $(call setup-stamp-file,LKVM_BUILD_STAMP,/build)
 $(call setup-stamp-file,LKVM_PATCH_STAMP,/patch_lkvm)
 $(call setup-stamp-file,LKVM_DEPS_STAMP,/deps)
-$(call setup-stamp-file,LKVM_DIR_CLEAN_STAMP,/dir-clean)
 $(call setup-dep-file,LKVM_PATCHES_DEPMK)
-$(call setup-clean-file,LKVM_CLEANMK,/src)
-$(call setup-filelist-file,LKVM_DIR_FILELIST,/dir)
 $(call setup-filelist-file,LKVM_PATCHES_FILELIST,/patches)
 
 S1_RF_SECONDARY_STAMPS += $(LKVM_STAMP)
@@ -26,7 +23,7 @@ INSTALL_DIRS += \
 	$(LKVM_SRCDIR):- \
 	$(LKVM_TMPDIR):-
 
-$(call generate-stamp-rule,$(LKVM_STAMP),$(LKVM_ACI_BINARY) $(LKVM_DEPS_STAMP) $(LKVM_DIR_CLEAN_STAMP))
+$(call generate-stamp-rule,$(LKVM_STAMP),$(LKVM_ACI_BINARY) $(LKVM_DEPS_STAMP))
 
 $(LKVM_BINARY): $(LKVM_BUILD_STAMP)
 
@@ -34,13 +31,14 @@ $(call generate-stamp-rule,$(LKVM_BUILD_STAMP),$(LKVM_PATCH_STAMP),, \
 	$(call vb,vt,BUILD EXT,lkvm) \
 	$$(MAKE) $(call vl2,--silent) -C "$(LKVM_SRCDIR)" V= lkvm-static $(call vl2,>/dev/null))
 
-# Generate filelist of lkvm directory (this is both srcdir and
+# Generate clean file for lkvm directory (this is both srcdir and
 # builddir). Can happen after build finished.
-$(LKVM_DIR_FILELIST): $(LKVM_BUILD_STAMP)
-$(call generate-deep-filelist,$(LKVM_DIR_FILELIST),$(LKVM_SRCDIR))
-
-# Generate clean.mk cleaning lkvm directory
-$(call generate-clean-mk,$(LKVM_DIR_CLEAN_STAMP),$(LKVM_CLEANMK),$(LKVM_DIR_FILELIST),$(LKVM_SRCDIR))
+$(call generate-clean-mk-simple, \
+	$(LKVM_STAMP), \
+	$(LKVM_SRCDIR), \
+	$(LKVM_SRCDIR), \
+	$(LKVM_BUILD_STAMP), \
+	cleanup)
 
 $(call generate-stamp-rule,$(LKVM_PATCH_STAMP),,, \
 	shopt -s nullglob; \

@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 
@@ -30,8 +31,10 @@ import (
 	"github.com/hashicorp/errwrap"
 
 	"github.com/coreos/rkt/common"
+	"github.com/coreos/rkt/pkg/fileutil"
 	rktlog "github.com/coreos/rkt/pkg/log"
 	"github.com/coreos/rkt/pkg/sys"
+	"github.com/coreos/rkt/pkg/user"
 	stage1common "github.com/coreos/rkt/stage1/common"
 	stage1commontypes "github.com/coreos/rkt/stage1/common/types"
 )
@@ -108,15 +111,24 @@ func init() {
 	flag.StringVar(&discardString, "local-config", common.DefaultLocalConfigDir, "Local config path")
 }
 
+func addMountPoints(namedVolumeMounts map[types.ACName]volumeMountTuple, mountpoints []types.MountPoint) error {
+	for _, mp := range mountpoints {
+		tuple, exists := namedVolumeMounts[mp.Name]
+		switch {
+		case exists && tuple.M.Path != mp.Path:
+			return fmt.Errorf("conflicting path information from mount and mountpoint %q", mp.Name)
+		case !exists:
+			namedVolumeMounts[mp.Name] = volumeMountTuple{M: schema.Mount{Volume: mp.Name, Path: mp.Path}}
+			diag.Printf("adding %+v", namedVolumeMounts[mp.Name])
+		}
+	}
+	return nil
+}
+
 func evaluateMounts(rfs string, app string, p *stage1commontypes.Pod) ([]flyMount, error) {
-	imApp := p.Images[app].App
 	namedVolumeMounts := map[types.ACName]volumeMountTuple{}
 
-	var manifestMPs []types.MountPoint
-	if imApp != nil {
-		manifestMPs = imApp.MountPoints
-	}
-
+	// Insert the PodManifest's first RuntimeApp's Mounts
 	for _, m := range p.Manifest.Apps[0].Mounts {
 		_, exists := namedVolumeMounts[m.Volume]
 		if exists {
@@ -127,15 +139,18 @@ func evaluateMounts(rfs string, app string, p *stage1commontypes.Pod) ([]flyMoun
 	}
 
 	// Merge command-line Mounts with ImageManifest's MountPoints
-	for _, mp := range manifestMPs {
-		tuple, exists := namedVolumeMounts[mp.Name]
-		switch {
-		case exists && tuple.M.Path != mp.Path:
-			return nil, fmt.Errorf("conflicting path information from mount and mountpoint %q", mp.Name)
-		case !exists:
-			namedVolumeMounts[mp.Name] = volumeMountTuple{M: schema.Mount{Volume: mp.Name, Path: mp.Path}}
-			diag.Printf("adding %+v", namedVolumeMounts[mp.Name])
+	var imAppManifestMPs []types.MountPoint
+	if imApp := p.Images[app].App; imApp != nil {
+		imAppManifestMPs = imApp.MountPoints
+		if err := addMountPoints(namedVolumeMounts, imAppManifestMPs); err != nil {
+			return nil, err
 		}
+	}
+
+	// Merge command-line Mounts with PodManifest's RuntimeApp's App's MountPoints
+	raApp := p.Manifest.Apps[0]
+	if err := addMountPoints(namedVolumeMounts, raApp.App.MountPoints); err != nil {
+		return nil, err
 	}
 
 	// Insert the command-line Volumes
@@ -153,7 +168,7 @@ func evaluateMounts(rfs string, app string, p *stage1commontypes.Pod) ([]flyMoun
 	}
 
 	// Merge command-line Volumes with ImageManifest's MountPoints
-	for _, mp := range manifestMPs {
+	for _, mp := range imAppManifestMPs {
 		// Check if we have a volume for this mountpoint
 		tuple, exists := namedVolumeMounts[mp.Name]
 		if !exists || tuple.V.Name == "" {
@@ -250,6 +265,11 @@ func stage1() int {
 
 	rfs := filepath.Join(common.AppPath(p.Root, ra.Name), "rootfs")
 
+	if err := copyResolv(p); err != nil {
+		log.PrintE("can't copy /etc/resolv.conf", err)
+		return 1
+	}
+
 	argFlyMounts, err := evaluateMounts(rfs, string(ra.Name), p)
 	if err != nil {
 		log.PrintE("can't evaluate mounts", err)
@@ -297,13 +317,13 @@ func stage1() int {
 		switch {
 		case targetPathInfo == nil:
 			absTargetPathParent, _ := filepath.Split(absTargetPath)
-			if err := os.MkdirAll(absTargetPathParent, 0700); err != nil {
+			if err := os.MkdirAll(absTargetPathParent, 0755); err != nil {
 				log.PrintE(fmt.Sprintf("can't create directory %q", absTargetPath), err)
 				return 1
 			}
 			switch {
 			case hostPathInfo == nil || hostPathInfo.IsDir():
-				if err := os.Mkdir(absTargetPath, 0700); err != nil {
+				if err := os.Mkdir(absTargetPath, 0755); err != nil {
 					log.PrintE(fmt.Sprintf("can't create directory %q", absTargetPath), err)
 					return 1
 				}
@@ -332,9 +352,42 @@ func stage1() int {
 		}
 	}
 
-	if err = stage1common.WritePpid(os.Getpid()); err != nil {
+	if err = stage1common.WritePid(os.Getpid(), "pid"); err != nil {
 		log.Error(err)
-		return 4
+		return 1
+	}
+
+	var uidResolver, gidResolver user.Resolver
+	var uid, gid int
+
+	uidResolver, err = user.NumericIDs(ra.App.User)
+	if err != nil {
+		uidResolver, err = user.IDsFromStat(rfs, ra.App.User, nil)
+	}
+
+	if err != nil { // give up
+		log.PrintE(fmt.Sprintf("invalid user %q", ra.App.User), err)
+		return 1
+	}
+
+	if uid, _, err = uidResolver.IDs(); err != nil {
+		log.PrintE(fmt.Sprintf("failed to configure user %q", ra.App.User), err)
+		return 1
+	}
+
+	gidResolver, err = user.NumericIDs(ra.App.Group)
+	if err != nil {
+		gidResolver, err = user.IDsFromStat(rfs, ra.App.Group, nil)
+	}
+
+	if err != nil { // give up
+		log.PrintE(fmt.Sprintf("invalid group %q", ra.App.Group), err)
+		return 1
+	}
+
+	if _, gid, err = gidResolver.IDs(); err != nil {
+		log.PrintE(fmt.Sprintf("failed to configure group %q", ra.App.Group), err)
+		return 1
 	}
 
 	diag.Printf("chroot to %q", rfs)
@@ -348,16 +401,59 @@ func stage1() int {
 		return 1
 	}
 
+	// lock the current goroutine to its current OS thread.
+	// This will force the subsequent syscalls to be executed in the same OS thread as Setresuid, and Setresgid,
+	// see https://github.com/golang/go/issues/1435#issuecomment-66054163.
+	runtime.LockOSThread()
+
+	diag.Printf("setting uid %d gid %d", uid, gid)
+
+	if err := syscall.Setresgid(gid, gid, gid); err != nil {
+		log.PrintE(fmt.Sprintf("can't set gid %d", gid), err)
+		return 1
+	}
+
+	if err := syscall.Setresuid(uid, uid, uid); err != nil {
+		log.PrintE(fmt.Sprintf("can't set uid %d", uid), err)
+		return 1
+	}
+
 	diag.Printf("execing %q in %q", args, rfs)
 	err = stage1common.WithClearedCloExec(lfd, func() error {
 		return syscall.Exec(args[0], args, env)
 	})
 	if err != nil {
 		log.PrintE(fmt.Sprintf("can't execute %q", args[0]), err)
-		return 7
+		return 1
 	}
 
 	return 0
+}
+
+func copyResolv(p *stage1commontypes.Pod) error {
+	ra := p.Manifest.Apps[0]
+
+	stage1Rootfs := common.Stage1RootfsPath(p.Root)
+	resolvPath := filepath.Join(stage1Rootfs, "etc", "rkt-resolv.conf")
+
+	appRootfs := common.AppRootfsPath(p.Root, ra.Name)
+	targetEtc := filepath.Join(appRootfs, "etc")
+	targetResolvPath := filepath.Join(targetEtc, "resolv.conf")
+
+	_, err := os.Stat(resolvPath)
+	switch {
+	case os.IsNotExist(err):
+		return nil
+	case err != nil:
+		return err
+	}
+
+	_, err = os.Stat(targetResolvPath)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	return fileutil.CopyRegularFile(resolvPath, targetResolvPath)
 }
 
 func main() {

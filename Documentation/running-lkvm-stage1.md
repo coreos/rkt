@@ -1,8 +1,8 @@
 # Running rkt with an LKVM stage1
 
-rkt has experimental support for executing pods with an [LKVM](https://kernel.googlesource.com/pub/scm/linux/kernel/git/will/kvmtool/+/master/README) [stage1](devel/architecture.md#stage-1). rkt employs this [alternative stage1](devel/stage1-implementors-guide.md) to run a pod within a virtual machine with its own operating system kernel and hypervisor isolation, rather than creating a container using Linux cgroups and namespaces.
+rkt has support for executing pods with an [LKVM](https://kernel.googlesource.com/pub/scm/linux/kernel/git/will/kvmtool/+/master/README) [stage1](devel/architecture.md#stage-1). rkt employs this [alternative stage1](devel/stage1-implementors-guide.md) to run a pod within a virtual machine with its own operating system kernel and hypervisor isolation, rather than creating a container using Linux cgroups and namespaces.
 
-The "experimental" label denotes that the LKVM stage1 does not yet implement all of the default stage1's features and semantics. While the same app container can be executed under isolation by either stage1, it may require different configuration, especially for networking. However, several deployments of the LKVM stage1 are operational outside of CoreOS, and we encourage testing of this feature and welcome your contributions.
+The LKVM stage1 does not yet implement all of the default stage1's features and semantics. While the same app container can be executed under isolation by either stage1, it may require different configuration, especially for networking. However, several deployments of the LKVM stage1 are operational outside of CoreOS, and we encourage testing of this feature and welcome your contributions.
 
 ## Getting started
 
@@ -13,7 +13,7 @@ $ ./autogen.sh && ./configure --with-stage1-flavors=kvm && make
 ```
 
 For more details about configure parameters, see [configure script parameters documentation](build-configure.md).
-This will build the rkt binary and the LKVM stage1-kvm.aci in `build-rkt-1.2.1+git/bin/`.
+This will build the rkt binary and the LKVM stage1-kvm.aci in `build-rkt-1.13.0+git/bin/`.
 
 Provided you have hardware virtualization support and the [kernel KVM module](http://www.linux-kvm.org/page/Getting_the_kvm_kernel_modules) loaded (refer to your distribution for instructions), you can then run an image like you would normally do with rkt:
 
@@ -79,33 +79,16 @@ Currently, the memory allocated to the virtual machine is a sum of memory requir
 
 ### Selecting stage1 at runtime
 
-If you want to run software that requires hypervisor isolation along with trusted software that only needs container isolation, you can [choose which stage1.aci to use at runtime](https://github.com/coreos/rkt/blob/master/Documentation/commands.md#use-a-custom-stage-1).
+If you want to run software that requires hypervisor isolation along with trusted software that only needs container isolation, you can [choose which stage1 to use at runtime](https://github.com/coreos/rkt/blob/master/Documentation/subcommands/run.md#use-a-custom-stage-1).
 
-For example, if you have a container stage1 named `stage1-coreos.aci` and a lkvm stage1 named `stage1-kvm.aci` in `/usr/local/rkt/`:
+For example, to use the official lkvm stage1:
 
 ```
-# rkt run --stage1-path=/usr/local/rkt/stage1-coreos.aci coreos.com/etcd:v2.0.9
-...
-# rkt run --stage1-path=/usr/local/rkt/stage1-kvm.aci coreos.com/etcd:v2.0.9
+# rkt run --stage1-name=coreos.com/rkt/stage1-kvm:1.13.0 coreos.com/etcd:v2.0.9
 ...
 ```
 
-These images can be installed in the default stage1 images directory.
-In this case, the stage1 image can be selected with a different flag:
-
-```
-# rkt run --stage1-from-dir=stage1-coreos.aci coreos.com/etcd:v2.0.9
-...
-# rkt run --stage1-from-dir=stage1-kvm.aci coreos.com/etcd:v2.0.9
-...
-```
-
-When the image is already in the store, the `--stage1-name` or `--stage1-hash` flags can be used instead for a faster startup:
-
-```
-# rkt run --stage1-name=coreos.com/rkt/stage1-kvm coreos.com/etcd:v2.0.9
-# rkt run --stage1-hash=<hash> coreos.com/etcd:v2.0.9
-```
+If the image is not in the store, `--stage1-name` will perform discovery and fetch the image.
 
 ## How does it work?
 

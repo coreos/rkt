@@ -22,10 +22,11 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/pkg/lock"
-	"github.com/coreos/rkt/pkg/uid"
+	"github.com/coreos/rkt/pkg/user"
 	"github.com/coreos/rkt/rkt/image"
 	"github.com/coreos/rkt/stage0"
-	"github.com/coreos/rkt/store"
+	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/treestore"
 	"github.com/spf13/cobra"
 )
 
@@ -58,8 +59,9 @@ func init() {
 	cmdPrepare.Flags().BoolVar(&flagQuiet, "quiet", false, "suppress superfluous output on stdout, print only the UUID on success")
 	cmdPrepare.Flags().BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
 	cmdPrepare.Flags().BoolVar(&flagNoOverlay, "no-overlay", false, "disable overlay filesystem")
-	cmdPrepare.Flags().BoolVar(&flagPrivateUsers, "private-users", false, "run within user namespaces (experimental).")
-	cmdPrepare.Flags().Var(&flagExplicitEnv, "set-env", "an environment variable to set for apps in the form name=value")
+	cmdPrepare.Flags().BoolVar(&flagPrivateUsers, "private-users", false, "run within user namespaces.")
+	cmdPrepare.Flags().Var(&flagExplicitEnv, "set-env", "environment variable to set for apps in the form name=value")
+	cmdPrepare.Flags().Var(&flagEnvFromFile, "set-env-file", "the path to an environment variables file")
 	cmdPrepare.Flags().BoolVar(&flagStoreOnly, "store-only", false, "use only available images in the store (do not discover or download from remote URLs)")
 	cmdPrepare.Flags().BoolVar(&flagNoStore, "no-store", false, "fetch images ignoring the local store")
 	cmdPrepare.Flags().StringVar(&flagPodManifest, "pod-manifest", "", "the path to the pod manifest. If it's non-empty, then only '--quiet' and '--no-overlay' will have effect")
@@ -69,6 +71,10 @@ func init() {
 	cmdPrepare.Flags().Var((*appExec)(&rktApps), "exec", "override the exec command for the preceding image")
 	cmdPrepare.Flags().Var((*appMount)(&rktApps), "mount", "mount point binding a volume to a path within an app")
 	cmdPrepare.Flags().Var((*appAsc)(&rktApps), "signature", "local signature file to use in validating the preceding image")
+	cmdPrepare.Flags().Var((*appUser)(&rktApps), "user", "user override for the preceding image (example: '--user=user')")
+	cmdPrepare.Flags().Var((*appGroup)(&rktApps), "group", "group override for the preceding image (example: '--group=group')")
+	cmdPrepare.Flags().Var((*appCapsRetain)(&rktApps), "cap-retain", "capability to retain (example: '--cap-retain=CAP_SYS_ADMIN')")
+	cmdPrepare.Flags().Var((*appCapsRemove)(&rktApps), "cap-remove", "capability to remove (example: '--cap-remove=CAP_MKNOD')")
 
 	// Disable interspersed flags to stop parsing after the first non flag
 	// argument. This is need to permit to correctly handle
@@ -79,7 +85,7 @@ func init() {
 func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 	var err error
 	origStdout := os.Stdout
-	privateUsers := uid.NewBlankUidRange()
+	privateUsers := user.NewBlankUidRange()
 	if flagQuiet {
 		if os.Stdout, err = os.Open("/dev/null"); err != nil {
 			stderr.PrintE("unable to open /dev/null", err)
@@ -97,7 +103,7 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 			stderr.Print("--private-users is not supported, kernel compiled without user namespace support")
 			return 1
 		}
-		privateUsers.SetRandomUidRange(uid.DefaultRangeCount)
+		privateUsers.SetRandomUidRange(user.DefaultRangeCount)
 	}
 
 	if err = parseApps(&rktApps, args, cmd.Flags(), true); err != nil {
@@ -105,7 +111,11 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	if len(flagPodManifest) > 0 && (len(flagPorts) > 0 || flagInheritEnv || !flagExplicitEnv.IsEmpty() || flagStoreOnly || flagNoStore) {
+	if len(flagPodManifest) > 0 && (len(flagPorts) > 0 || flagStoreOnly || flagNoStore ||
+		flagInheritEnv || !flagExplicitEnv.IsEmpty() || !flagEnvFromFile.IsEmpty() ||
+		(*appsVolume)(&rktApps).String() != "" || (*appMount)(&rktApps).String() != "" || (*appExec)(&rktApps).String() != "" ||
+		(*appUser)(&rktApps).String() != "" || (*appGroup)(&rktApps).String() != "" ||
+		(*appCapsRetain)(&rktApps).String() != "" || (*appCapsRemove)(&rktApps).String() != "") {
 		stderr.Print("conflicting flags set with --pod-manifest (see --help)")
 		return 1
 	}
@@ -115,9 +125,15 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	s, err := store.NewStore(getDataDir())
+	s, err := imagestore.NewStore(storeDir())
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
+		return 1
+	}
+
+	ts, err := treestore.NewStore(treeStoreDir(), s)
+	if err != nil {
+		stderr.PrintE("cannot open treestore", err)
 		return 1
 	}
 
@@ -127,7 +143,7 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	s1img, err := getStage1Hash(s, config)
+	s1img, err := getStage1Hash(s, ts, config)
 	if err != nil {
 		stderr.Error(err)
 		return 1
@@ -135,6 +151,7 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 
 	fn := &image.Finder{
 		S:                  s,
+		Ts:                 ts,
 		Ks:                 getKeystore(),
 		Headers:            config.AuthPerHost,
 		DockerAuth:         config.DockerCredentialsPerRegistry,
@@ -159,15 +176,28 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 
 	cfg := stage0.CommonConfig{
 		Store:       s,
+		TreeStore:   ts,
 		Stage1Image: *s1img,
 		UUID:        p.uuid,
 		Debug:       globalFlags.Debug,
 	}
 
+	ovlOk := true
+	if err := common.PathSupportsOverlay(getDataDir()); err != nil {
+		if oerr, ok := err.(common.ErrOverlayUnsupported); ok {
+			stderr.Printf("disabling overlay support: %q", oerr.Error())
+			ovlOk = false
+		} else {
+			stderr.PrintE("error determining overlay support", err)
+			return 1
+		}
+	}
+
 	pcfg := stage0.PrepareConfig{
-		CommonConfig: &cfg,
-		UseOverlay:   !flagNoOverlay && common.SupportsOverlay(),
-		PrivateUsers: privateUsers,
+		CommonConfig:       &cfg,
+		UseOverlay:         !flagNoOverlay && ovlOk,
+		PrivateUsers:       privateUsers,
+		SkipTreeStoreCheck: globalFlags.InsecureFlags.SkipOnDiskCheck(),
 	}
 
 	if len(flagPodManifest) > 0 {
@@ -176,6 +206,7 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 		pcfg.Ports = []types.ExposedPort(flagPorts)
 		pcfg.InheritEnv = flagInheritEnv
 		pcfg.ExplicitEnv = flagExplicitEnv.Strings()
+		pcfg.EnvFromFile = flagEnvFromFile.Strings()
 		pcfg.Apps = &rktApps
 	}
 

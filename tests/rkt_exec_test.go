@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// +build host coreos src kvm
+
 package main
 
 import (
@@ -24,7 +26,7 @@ import (
 )
 
 const (
-	noappManifestStr = `{"acKind":"ImageManifest","acVersion":"0.7.4","name":"coreos.com/rkt-inspect","labels":[{"name":"version","value":"1.2.1"},{"name":"arch","value":"amd64"},{"name":"os","value":"linux"}]}`
+	noappManifestStr = `{"acKind":"ImageManifest","acVersion":"0.8.7","name":"coreos.com/rkt-inspect","labels":[{"name":"version","value":"1.13.0"},{"name":"arch","value":"amd64"},{"name":"os","value":"linux"}]}`
 )
 
 func TestRunOverrideExec(t *testing.T) {
@@ -41,32 +43,32 @@ func TestRunOverrideExec(t *testing.T) {
 	defer ctx.Cleanup()
 
 	for _, tt := range []struct {
-		rktCmd       string
-		expectedLine string
+		rktCmd        string
+		expectedRegex string
 	}{
 		{
 			// Sanity check - make sure no --exec override prints the expected exec invocation
-			rktCmd:       fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s -- --print-exec", ctx.Cmd(), execImage),
-			expectedLine: "inspect execed as: /inspect",
+			rktCmd:        fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s -- --print-exec", ctx.Cmd(), execImage),
+			expectedRegex: "inspect execed as: /inspect",
 		},
 		{
 			// Now test overriding the entrypoint (which is a symlink to /inspect so should behave identically)
-			rktCmd:       fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s --exec /inspect-link -- --print-exec", ctx.Cmd(), execImage),
-			expectedLine: "inspect execed as: /inspect-link",
+			rktCmd:        fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s --exec /inspect-link -- --print-exec", ctx.Cmd(), execImage),
+			expectedRegex: "inspect execed as: /inspect-link",
 		},
 		{
 			// Test overriding the entrypoint with a relative path
-			rktCmd:       fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s --exec inspect-link-bin -- --print-exec", ctx.Cmd(), execImage),
-			expectedLine: "inspect execed as: inspect-link-bin",
+			rktCmd:        fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s --exec inspect-link-bin -- --print-exec", ctx.Cmd(), execImage),
+			expectedRegex: "inspect execed as: .*inspect-link-bin",
 		},
 
 		{
 			// Test overriding the entrypoint with a missing app section
-			rktCmd:       fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s --exec /inspect -- --print-exec", ctx.Cmd(), noappImage),
-			expectedLine: "inspect execed as: /inspect",
+			rktCmd:        fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s --exec /inspect -- --print-exec", ctx.Cmd(), noappImage),
+			expectedRegex: "inspect execed as: /inspect",
 		},
 	} {
-		runRktAndCheckOutput(t, tt.rktCmd, tt.expectedLine, false)
+		runRktAndCheckRegexOutput(t, tt.rktCmd, tt.expectedRegex)
 	}
 }
 

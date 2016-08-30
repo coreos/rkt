@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// +build host coreos src kvm
+
 package main
 
 import (
@@ -19,10 +21,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/user"
+	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
@@ -34,24 +40,34 @@ import (
 )
 
 func startAPIService(t *testing.T, ctx *testutils.RktRunCtx) *gexpect.ExpectSubprocess {
-	noGid := false
+	noUidGid := false
 	gid, err := common.LookupGid(common.RktGroup)
 	if err != nil {
 		t.Logf("no %q group, will run api service with root, ONLY DO THIS FOR TESTING!", common.RktGroup)
-		noGid = true
+		noUidGid = true
 	} else {
 		if err := ctx.SetupDataDir(); err != nil {
 			t.Fatalf("failed to setup data directory: %v", err)
 		}
 	}
 
+	u, err := user.Lookup("nobody")
+	if err != nil {
+		t.Logf(`no "nobody" user, will run api service with root, ONLY DO THIS FOR TESTING!`)
+		noUidGid = true
+	}
+	uid, err := strconv.Atoi(u.Uid)
+	if err != nil {
+		t.Fatalf(`failed to parse "nobody" UID: %v`, err)
+	}
+
 	t.Logf("Running rkt api service")
 	apisvcCmd := fmt.Sprintf("%s api-service", ctx.Cmd())
 
-	if noGid {
+	if noUidGid {
 		return startRktAndCheckOutput(t, apisvcCmd, "API service running")
 	}
-	return startRktAsGidAndCheckOutput(t, apisvcCmd, "API service running", gid)
+	return startRktAsUidGidAndCheckOutput(t, apisvcCmd, "API service running", false, uid, gid)
 }
 
 func stopAPIService(t *testing.T, svc *gexpect.ExpectSubprocess) {
@@ -97,23 +113,35 @@ func checkPodState(t *testing.T, rawState string, apiState v1alpha.PodState) {
 	t.Errorf("Pod state returned by api-service (%q) is not equivalent to the state returned by 'rkt status' (%q)", apiState, rawState)
 }
 
-func checkPodApps(t *testing.T, rawApps map[string]*appInfo, apiApps []*v1alpha.App, hasAppState bool) {
+func checkPodApps(t *testing.T, rawPod *podInfo, apiApps []*v1alpha.App, hasAppState bool) {
+	rawApps := rawPod.apps
 	if len(rawApps) != len(apiApps) {
 		t.Errorf("Expected %d apps, saw %d apps returned by api service %v", len(rawApps), len(apiApps), apiApps)
 	}
 
 	for _, app := range apiApps {
-		if appInfo, ok := rawApps[app.Name]; ok {
-			if hasAppState && appInfo.exitCode != int(app.ExitCode) {
-				t.Errorf("Expected %v, saw %v", appInfo.exitCode, app.ExitCode)
-			}
-			// Image hash in the pod manifest can be partial hash.
-			if !strings.HasPrefix(app.Image.Id, appInfo.image.id) {
-				t.Errorf("Expected partial hash of %q, saw %q", appInfo.image.id, app.Image.Id)
-			}
-		} else {
-			t.Errorf("Expected app (name: %q) in the app list", appInfo.name)
+		appInfo, ok := rawApps[app.Name]
+		if !ok {
+			t.Errorf("Expected app (name: %q) in the app list", app.Name)
+			continue
 		}
+
+		appACName := types.MustACName(app.Name)
+		runtimeApp := rawPod.manifest.Apps.Get(*appACName)
+		if runtimeApp == nil {
+			t.Errorf("Expected app (name: %q) in the pod manifest", app.Name)
+		}
+
+		if hasAppState && appInfo.exitCode != int(app.ExitCode) {
+			t.Errorf("Expected %v, saw %v", appInfo.exitCode, app.ExitCode)
+		}
+		// Image hash in the pod manifest can be partial hash.
+		if !strings.HasPrefix(app.Image.Id, appInfo.image.id) {
+			t.Errorf("Expected partial hash of %q, saw %q", appInfo.image.id, app.Image.Id)
+		}
+
+		// Check app annotations.
+		checkAnnotations(t, runtimeApp.Annotations, app.Annotations)
 	}
 }
 
@@ -136,42 +164,73 @@ func checkPodNetworks(t *testing.T, rawNets map[string]*networkInfo, apiNets []*
 }
 
 // Check the pod's information by 'rkt status'.
-func checkPod(t *testing.T, ctx *testutils.RktRunCtx, p *v1alpha.Pod, hasAppState, hasManifest bool) {
+func checkPod(t *testing.T, ctx *testutils.RktRunCtx, p *v1alpha.Pod, hasAppState, hasManifest bool, expectedGCTime time.Time) {
+	t.Logf("API Pod info: %v", p)
+
 	podInfo := getPodInfo(t, ctx, p.Id)
+	t.Logf("Pod info: %+v", podInfo)
+
 	if podInfo.id != p.Id {
 		t.Errorf("Expected %q, saw %q", podInfo.id, p.Id)
 	}
 	if podInfo.pid != int(p.Pid) {
 		t.Errorf("Expected %d, saw %d", podInfo.pid, p.Pid)
 	}
-	checkPodState(t, podInfo.state, p.State)
-	checkPodApps(t, podInfo.apps, p.Apps, hasAppState)
-	checkPodNetworks(t, podInfo.networks, p.Networks)
-
-	if hasManifest {
-		var mfst schema.PodManifest
-		err := json.Unmarshal(podInfo.manifest, &mfst)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if mfst.Annotations != nil {
-			checkAnnotations(t, mfst.Annotations, p.Annotations)
-		}
+	// The time accuracy returned by 'rkt status' stops at milliseconds.
+	accuracy := time.Millisecond.Nanoseconds()
+	if podInfo.createdAt/accuracy != p.CreatedAt/accuracy {
+		t.Errorf("Expected %d, saw %d", podInfo.createdAt, p.CreatedAt)
+	}
+	if podInfo.startedAt/accuracy != p.StartedAt/accuracy {
+		t.Errorf("Expected %d, saw %d", podInfo.startedAt, p.StartedAt)
 	}
 
-	if hasManifest && !bytes.Equal(podInfo.manifest, p.Manifest) {
-		t.Errorf("Expected %q, saw %q", string(podInfo.manifest), string(p.Manifest))
+	// If expectedGCTime.IsZero() == true, then p.GcMarkedAt should also be zero.
+	actualTime := time.Unix(0, p.GcMarkedAt)
+	if !compareTime(expectedGCTime, actualTime) {
+		t.Errorf("API service returned an incorrect GC marked time. Got %q, Expect: %q", actualTime, expectedGCTime)
+	}
+	checkPodState(t, podInfo.state, p.State)
+	checkPodApps(t, podInfo, p.Apps, hasAppState)
+	checkPodNetworks(t, podInfo.networks, p.Networks)
+
+	expectedCgroupSuffix := ""
+	if podInfo.state == "running" {
+		machineID := fmt.Sprintf("rkt-%s", p.Id)
+		escapedmID := strings.Replace(machineID, "-", "\\x2d", -1)
+		expectedCgroupSuffix = fmt.Sprintf("/machine-%s.scope", escapedmID)
+	}
+
+	if !strings.HasSuffix(p.Cgroup, expectedCgroupSuffix) {
+		t.Errorf("Expected the cgroup suffix to have %q, but saw %q", expectedCgroupSuffix, p.Cgroup)
+	}
+
+	if hasManifest && podInfo.manifest.Annotations != nil {
+		checkAnnotations(t, podInfo.manifest.Annotations, p.Annotations)
+	}
+
+	msft, err := json.Marshal(podInfo.manifest)
+	if err != nil {
+		t.Errorf("Cannot marshal manifest: %v", err)
+	}
+
+	if hasManifest && !bytes.Equal(msft, p.Manifest) {
+		t.Errorf("Expected %q, saw %q", string(msft), string(p.Manifest))
 	} else if !hasManifest && p.Manifest != nil {
 		t.Errorf("Expected nil manifest")
 	}
 }
 
+func checkPodBasicsWithGCTime(t *testing.T, ctx *testutils.RktRunCtx, p *v1alpha.Pod, expectedGCTime time.Time) {
+	checkPod(t, ctx, p, false, false, expectedGCTime)
+}
+
 func checkPodBasics(t *testing.T, ctx *testutils.RktRunCtx, p *v1alpha.Pod) {
-	checkPod(t, ctx, p, false, false)
+	checkPod(t, ctx, p, false, false, time.Time{})
 }
 
 func checkPodDetails(t *testing.T, ctx *testutils.RktRunCtx, p *v1alpha.Pod) {
-	checkPod(t, ctx, p, true, true)
+	checkPod(t, ctx, p, true, true, time.Time{})
 }
 
 // Check the image's information by 'rkt image list'.
@@ -258,6 +317,7 @@ func TestAPIServiceGetInfo(t *testing.T) {
 		Dir:             ctx.DataDir(),
 		SystemConfigDir: ctx.SystemDir(),
 		LocalConfigDir:  ctx.LocalDir(),
+		UserConfigDir:   ctx.UserDir(),
 		InsecureFlags:   "none",
 	}
 	if !reflect.DeepEqual(resp.Info.GlobalFlags, expectedGlobalFlags) {
@@ -265,89 +325,166 @@ func TestAPIServiceGetInfo(t *testing.T) {
 	}
 }
 
-func TestAPIServiceListInspectPods(t *testing.T) {
-	ctx := testutils.NewRktRunCtx()
-	defer ctx.Cleanup()
+func NewAPIServiceListInspectPodsTest() testutils.Test {
+	return testutils.TestFunc(func(t *testing.T) {
+		ctx := testutils.NewRktRunCtx()
+		defer ctx.Cleanup()
 
-	svc := startAPIService(t, ctx)
-	defer stopAPIService(t, svc)
+		svc := startAPIService(t, ctx)
+		defer stopAPIService(t, svc)
 
-	c, conn := newAPIClientOrFail(t, "localhost:15441")
-	defer conn.Close()
+		c, conn := newAPIClientOrFail(t, "localhost:15441")
+		defer conn.Close()
 
-	resp, err := c.ListPods(context.Background(), &v1alpha.ListPodsRequest{})
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-
-	if len(resp.Pods) != 0 {
-		t.Errorf("Unexpected result: %v, should see zero pods", resp.Pods)
-	}
-
-	patches := []string{"--exec=/inspect --print-msg=HELLO_API --exit-code=0"}
-	imageHash := patchImportAndFetchHash("rkt-inspect-print.aci", patches, t, ctx)
-	imgID, err := types.NewHash(imageHash)
-	if err != nil {
-		t.Fatalf("Cannot generate types.Hash from %v: %v", imageHash, err)
-	}
-	pm := schema.BlankPodManifest()
-	pm.Apps = []schema.RuntimeApp{
-		schema.RuntimeApp{
-			Name: types.ACName("rkt-inspect"),
-			Image: schema.RuntimeImage{
-				Name: types.MustACIdentifier("coreos.com/rkt-inspect"),
-				ID:   *imgID,
-			},
-			Annotations: []types.Annotation{types.Annotation{Name: types.ACIdentifier("app-test"), Value: "app-test"}},
-		},
-	}
-	pm.Annotations = []types.Annotation{types.Annotation{Name: types.ACIdentifier("test"), Value: "test"}}
-	manifestFile := generatePodManifestFile(t, pm)
-	defer os.Remove(manifestFile)
-
-	runCmd := fmt.Sprintf("%s run --pod-manifest=%s", ctx.Cmd(), manifestFile)
-	esp := spawnOrFail(t, runCmd)
-	waitOrFail(t, esp, 0)
-
-	// ListPods(detail=false).
-	resp, err = c.ListPods(context.Background(), &v1alpha.ListPodsRequest{})
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-
-	if len(resp.Pods) == 0 {
-		t.Errorf("Unexpected result: %v, should see non-zero pods", resp.Pods)
-	}
-
-	for _, p := range resp.Pods {
-		checkPodBasics(t, ctx, p)
-
-		// Test InspectPod().
-		inspectResp, err := c.InspectPod(context.Background(), &v1alpha.InspectPodRequest{Id: p.Id})
+		resp, err := c.ListPods(context.Background(), &v1alpha.ListPodsRequest{})
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
-		checkPodDetails(t, ctx, inspectResp.Pod)
 
-		// Test Apps.
-		for i, app := range p.Apps {
-			checkAnnotations(t, pm.Apps[i].Annotations, app.Annotations)
+		if len(resp.Pods) != 0 {
+			t.Errorf("Unexpected result: %v, should see zero pods", resp.Pods)
 		}
-	}
 
-	// ListPods(detail=true).
-	resp, err = c.ListPods(context.Background(), &v1alpha.ListPodsRequest{Detail: true})
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
+		patches := []string{"--exec=/inspect --print-msg=HELLO_API --exit-code=0"}
+		imageHash, err := patchImportAndFetchHash("rkt-inspect-print.aci", patches, t, ctx)
+		if err != nil {
+			t.Fatalf("%v", err)
+		}
+		imgID, err := types.NewHash(imageHash)
+		if err != nil {
+			t.Fatalf("Cannot generate types.Hash from %v: %v", imageHash, err)
+		}
 
-	if len(resp.Pods) == 0 {
-		t.Errorf("Unexpected result: %v, should see non-zero pods", resp.Pods)
-	}
+		podManifests := []struct {
+			mfst             schema.PodManifest
+			net              string
+			expectedExitCode int
+		}{
+			{
+				// 1, Good pod.
+				schema.PodManifest{
+					ACKind:    schema.PodManifestKind,
+					ACVersion: schema.AppContainerVersion,
+					Apps: []schema.RuntimeApp{
+						{
+							Name: types.ACName("rkt-inspect"),
+							Image: schema.RuntimeImage{
+								Name: types.MustACIdentifier("coreos.com/rkt-inspect"),
+								ID:   *imgID,
+							},
+							Annotations: []types.Annotation{{Name: types.ACIdentifier("app-test"), Value: "app-test"}},
+						},
+					},
+					Annotations: []types.Annotation{
+						{Name: types.ACIdentifier("test"), Value: "test"},
+					},
+				},
+				"default",
+				0,
+			},
+			{
+				// 2, Bad pod, won't be launched correctly.
+				schema.PodManifest{
+					ACKind:    schema.PodManifestKind,
+					ACVersion: schema.AppContainerVersion,
+					Apps: []schema.RuntimeApp{
+						{
+							Name: types.ACName("rkt-inspect"),
+							Image: schema.RuntimeImage{
+								Name: types.MustACIdentifier("coreos.com/rkt-inspect"),
+								ID:   *imgID,
+							},
+						},
+					},
+				},
+				"non-existed-network",
+				1,
+			},
+		}
 
-	for _, p := range resp.Pods {
-		checkPodDetails(t, ctx, p)
-	}
+		// Launch the pods.
+		for _, entry := range podManifests {
+			manifestFile := generatePodManifestFile(t, &entry.mfst)
+			defer os.Remove(manifestFile)
+
+			runCmd := fmt.Sprintf("%s run --net=%s --pod-manifest=%s", ctx.Cmd(), entry.net, manifestFile)
+			waitOrFail(t, spawnOrFail(t, runCmd), entry.expectedExitCode)
+		}
+
+		time.Sleep(delta)
+
+		gcCmd := fmt.Sprintf("%s gc --mark-only=true", ctx.Cmd())
+		waitOrFail(t, spawnOrFail(t, gcCmd), 0)
+
+		gcTime := time.Now()
+
+		// ListPods(detail=false).
+		resp, err = c.ListPods(context.Background(), &v1alpha.ListPodsRequest{})
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		if len(resp.Pods) != len(podManifests) {
+			t.Errorf("Unexpected result: %v, should see %v pods", len(resp.Pods), len(podManifests))
+		}
+
+		for _, p := range resp.Pods {
+			checkPodBasicsWithGCTime(t, ctx, p, gcTime)
+
+			// Test InspectPod().
+			inspectResp, err := c.InspectPod(context.Background(), &v1alpha.InspectPodRequest{Id: p.Id})
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			checkPodDetails(t, ctx, inspectResp.Pod)
+		}
+
+		// ListPods(detail=true).
+		resp, err = c.ListPods(context.Background(), &v1alpha.ListPodsRequest{Detail: true})
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		if len(resp.Pods) != len(podManifests) {
+			t.Errorf("Unexpected result: %v, should see %v pods", len(resp.Pods), len(podManifests))
+		}
+
+		for _, p := range resp.Pods {
+			checkPodDetails(t, ctx, p)
+		}
+
+		// ListPods with corrupt pod directory
+		// Note that we don't checkPodDetails here, the failure this is testing is
+		// the api server panicing, which results in a list call hanging for ages
+		// and then failing.
+		// TODO: do further validation on the partial pods returned
+		for _, p := range resp.Pods {
+			numRemoved := 0
+			podDir := getPodDir(t, ctx, p.Id)
+			filepath.Walk(filepath.Join(podDir, "appsinfo"), filepath.WalkFunc(func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+				if info.Name() == "manifest" {
+					os.Remove(path)
+					numRemoved++
+				}
+				return nil
+			}))
+			if numRemoved == 0 {
+				t.Fatalf("Expected to remove at least one app manifest for pod %v", p)
+			}
+		}
+
+		// ListPods(detail=true).
+		resp, err = c.ListPods(context.Background(), &v1alpha.ListPodsRequest{Detail: true})
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if len(resp.Pods) != len(podManifests) {
+			t.Fatalf("Expected %v pods, got %v pods", len(podManifests), len(resp.Pods))
+		}
+	})
 }
 
 func TestAPIServiceListInspectImages(t *testing.T) {
@@ -369,7 +506,10 @@ func TestAPIServiceListInspectImages(t *testing.T) {
 		t.Errorf("Unexpected result: %v, should see zero images", resp.Images)
 	}
 
-	patchImportAndFetchHash("rkt-inspect-sleep.aci", []string{"--exec=/inspect"}, t, ctx)
+	_, err = patchImportAndFetchHash("rkt-inspect-sleep.aci", []string{"--exec=/inspect"}, t, ctx)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
 
 	// ListImages(detail=false).
 	resp, err = c.ListImages(context.Background(), &v1alpha.ListImagesRequest{})
@@ -405,4 +545,127 @@ func TestAPIServiceListInspectImages(t *testing.T) {
 	for _, m := range resp.Images {
 		checkImageDetails(t, ctx, m)
 	}
+}
+
+func NewAPIServiceCgroupTest() testutils.Test {
+	return testutils.TestFunc(func(t *testing.T) {
+		ctx := testutils.NewRktRunCtx()
+		defer ctx.Cleanup()
+
+		svc := startAPIService(t, ctx)
+		defer stopAPIService(t, svc)
+
+		c, conn := newAPIClientOrFail(t, "localhost:15441")
+		defer conn.Close()
+
+		aciFileName := patchTestACI("rkt-inspect-interactive.aci", "--exec=/inspect --read-stdin")
+		defer os.Remove(aciFileName)
+
+		runCmd := fmt.Sprintf("%s --insecure-options=image run --interactive %s", ctx.Cmd(), aciFileName)
+		child := spawnOrFail(t, runCmd)
+
+		var resp *v1alpha.ListPodsResponse
+		var err error
+		done := make(chan struct{})
+
+		// Wait the pods to be running.
+		go func() {
+			for {
+				// ListPods(detail=false).
+				resp, err = c.ListPods(context.Background(), &v1alpha.ListPodsRequest{})
+				if err != nil {
+					t.Fatalf("Unexpected error: %v", err)
+				}
+
+				if len(resp.Pods) != 0 {
+					allRunning := true
+					for _, p := range resp.Pods {
+						if p.State != v1alpha.PodState_POD_STATE_RUNNING || p.Pid == -1 {
+							allRunning = false
+							break
+						}
+					}
+					if allRunning {
+						t.Logf("Pods are running")
+						close(done)
+						return
+					}
+				}
+				t.Logf("Pods are not in RUNNING state")
+				time.Sleep(time.Second)
+			}
+		}()
+
+		testutils.WaitOrTimeout(t, time.Second*60, done)
+
+		var cgroups []string
+		var subcgroups []string
+
+		for _, p := range resp.Pods {
+			checkPodBasics(t, ctx, p)
+
+			// Test InspectPod().
+			inspectResp, err := c.InspectPod(context.Background(), &v1alpha.InspectPodRequest{Id: p.Id})
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			checkPodDetails(t, ctx, inspectResp.Pod)
+			if p.Cgroup != "" {
+				cgroups = append(cgroups, p.Cgroup)
+				subcgroups = append(subcgroups, filepath.Join(p.Cgroup, "system.slice"))
+			}
+		}
+
+		// ListPods(detail=true). Filter according to the cgroup.
+		resp, err = c.ListPods(context.Background(), &v1alpha.ListPodsRequest{
+			Detail:  true,
+			Filters: []*v1alpha.PodFilter{{Cgroups: cgroups}},
+		})
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		if len(resp.Pods) == 0 {
+			t.Errorf("Unexpected result: %v, should see non-zero pods", resp.Pods)
+		}
+
+		for _, p := range resp.Pods {
+			checkPodDetails(t, ctx, p)
+		}
+
+		resp, err = c.ListPods(context.Background(), &v1alpha.ListPodsRequest{
+			Detail:  true,
+			Filters: []*v1alpha.PodFilter{{PodSubCgroups: subcgroups}},
+		})
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		if len(resp.Pods) == 0 {
+			t.Errorf("Unexpected result: %v, should see non-zero pods", resp.Pods)
+		}
+
+		for _, p := range resp.Pods {
+			checkPodDetails(t, ctx, p)
+		}
+
+		// Terminate the pod.
+		if err := child.SendLine("Good bye"); err != nil {
+			t.Fatalf("Failed to send message to the pod: %v", err)
+		}
+		waitOrFail(t, child, 0)
+
+		// Check that there's no cgroups returned for non-running pods.
+		cgroups = []string{}
+		resp, err = c.ListPods(context.Background(), &v1alpha.ListPodsRequest{})
+		for _, p := range resp.Pods {
+			checkPodBasics(t, ctx, p)
+			if p.Cgroup != "" {
+				cgroups = append(cgroups, p.Cgroup)
+			}
+		}
+		if len(cgroups) != 0 {
+			t.Errorf("Unexpected cgroup returned by pods: %v", cgroups)
+		}
+	})
 }

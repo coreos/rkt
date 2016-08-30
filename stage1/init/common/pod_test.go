@@ -153,7 +153,8 @@ func TestAppToNspawnArgsOverridesImageManifestReadOnly(t *testing.T) {
 		defer os.RemoveAll(tmpDir)
 
 		p := &stage1commontypes.Pod{Manifest: podManifest, Root: tmpDir}
-		output, err := appToNspawnArgs(p, appManifest)
+		insecureOptions := Stage1InsecureOptions{}
+		output, err := appToNspawnArgs(p, appManifest, insecureOptions)
 		if err != nil {
 			t.Errorf("#%d: unexpected error: `%v`", i, err)
 		}

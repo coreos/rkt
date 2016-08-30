@@ -28,11 +28,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/coreos/rkt/pkg/acl"
-	"github.com/coreos/rkt/pkg/group"
-	"github.com/coreos/rkt/pkg/passwd"
 	stage1commontypes "github.com/coreos/rkt/stage1/common/types"
 
 	"github.com/appc/spec/schema"
@@ -42,13 +39,14 @@ import (
 
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/common/cgroup"
-	"github.com/coreos/rkt/pkg/uid"
+	"github.com/coreos/rkt/pkg/fileutil"
+	"github.com/coreos/rkt/pkg/user"
 )
 
 const (
 	// FlavorFile names the file storing the pod's flavor
 	FlavorFile    = "flavor"
-	sharedVolPerm = os.FileMode(0755)
+	SharedVolPerm = os.FileMode(0755)
 )
 
 var (
@@ -60,6 +58,12 @@ var (
 		"HOME":    "/root",
 	}
 )
+
+type Stage1InsecureOptions struct {
+	DisablePaths        bool
+	DisableCapabilities bool
+	DisableSeccomp      bool
+}
 
 // execEscape uses Golang's string quoting for ", \, \n, and regex for special cases
 func execEscape(i int, str string) string {
@@ -86,7 +90,7 @@ func execEscape(i int, str string) string {
 // quoteExec returns an array of quoted strings appropriate for systemd execStart usage
 func quoteExec(exec []string) string {
 	if len(exec) == 0 {
-		// existing callers prefix {"/appexec", "/app/root", "/work/dir", "/env/file"} so this shouldn't occur.
+		// existing callers always include at least the binary so this shouldn't occur.
 		panic("empty exec")
 	}
 
@@ -157,7 +161,7 @@ func WritePrepareAppTemplate(p *stage1commontypes.Pod) error {
 	return nil
 }
 
-func writeAppReaper(p *stage1commontypes.Pod, appName string) error {
+func writeAppReaper(p *stage1commontypes.Pod, appName string, appRootDirectory string, binPath string) error {
 	opts := []*unit.UnitOption{
 		unit.NewUnitOption("Unit", "Description", fmt.Sprintf("%s Reaper", appName)),
 		unit.NewUnitOption("Unit", "DefaultDependencies", "false"),
@@ -168,7 +172,7 @@ func writeAppReaper(p *stage1commontypes.Pod, appName string) error {
 		unit.NewUnitOption("Unit", "Conflicts", "halt.target"),
 		unit.NewUnitOption("Unit", "Conflicts", "poweroff.target"),
 		unit.NewUnitOption("Service", "RemainAfterExit", "yes"),
-		unit.NewUnitOption("Service", "ExecStop", fmt.Sprintf("/reaper.sh %s", appName)),
+		unit.NewUnitOption("Service", "ExecStop", fmt.Sprintf("/reaper.sh \"%s\" \"%s\" \"%s\"", appName, appRootDirectory, binPath)),
 	}
 
 	unitsPath := filepath.Join(common.Stage1RootfsPath(p.Root), UnitsDir)
@@ -245,8 +249,186 @@ func findHostPort(pm schema.PodManifest, name types.ACName) uint {
 	return port
 }
 
+// generateSysusers generates systemd sysusers files for a given app so that
+// corresponding entries in /etc/passwd and /etc/group are created in stage1.
+// This is needed to use the "User=" and "Group=" options in the systemd
+// service files of apps.
+// If there're several apps defining the same UIDs/GIDs, systemd will take care
+// of only generating one /etc/{passwd,group} entry
+func generateSysusers(p *stage1commontypes.Pod, ra *schema.RuntimeApp, uid_ int, gid_ int, uidRange *user.UidRange) error {
+	var toShift []string
+
+	app := ra.App
+	appName := ra.Name
+
+	sysusersDir := path.Join(common.Stage1RootfsPath(p.Root), "usr/lib/sysusers.d")
+	toShift = append(toShift, sysusersDir)
+	if err := os.MkdirAll(sysusersDir, 0755); err != nil {
+		return err
+	}
+
+	gids := append(app.SupplementaryGIDs, gid_)
+
+	// Create the Unix user and group
+	var sysusersConf []string
+
+	for _, g := range gids {
+		groupname := "gen" + strconv.Itoa(g)
+		sysusersConf = append(sysusersConf, fmt.Sprintf("g %s %d\n", groupname, g))
+	}
+
+	username := "gen" + strconv.Itoa(uid_)
+	sysusersConf = append(sysusersConf, fmt.Sprintf("u %s %d \"%s\"\n", username, uid_, username))
+
+	sysusersFile := path.Join(common.Stage1RootfsPath(p.Root), "usr/lib/sysusers.d", ServiceUnitName(appName)+".conf")
+	toShift = append(toShift, sysusersFile)
+	if err := ioutil.WriteFile(sysusersFile, []byte(strings.Join(sysusersConf, "\n")), 0640); err != nil {
+		return err
+	}
+
+	if err := shiftFiles(toShift, uidRange); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// lookupPathInsideApp returns the path (relative to the app rootfs) of the
+// given binary. It will look up on "paths" (also relative to the app rootfs)
+// and evaluate possible symlinks to check if the resulting path is actually
+// executable.
+func lookupPathInsideApp(bin string, paths string, appRootfs string, workDir string) (string, error) {
+	pathsArr := filepath.SplitList(paths)
+	var appPathsArr []string
+	for _, p := range pathsArr {
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(workDir, p)
+		}
+		appPathsArr = append(appPathsArr, filepath.Join(appRootfs, p))
+	}
+	for _, path := range appPathsArr {
+		binPath := filepath.Join(path, bin)
+		stage2Path := strings.TrimPrefix(binPath, appRootfs)
+		binRealPath, err := EvaluateSymlinksInsideApp(appRootfs, stage2Path)
+		if err != nil {
+			return "", errwrap.Wrap(fmt.Errorf("could not evaluate path %v", stage2Path), err)
+		}
+		binRealPath = filepath.Join(appRootfs, binRealPath)
+		if fileutil.IsExecutable(binRealPath) {
+			// The real path is executable, return the path relative to the app
+			return stage2Path, nil
+		}
+	}
+	return "", fmt.Errorf("unable to find %q in %q", bin, paths)
+}
+
+// appSearchPaths returns a list of paths where we should search for
+// non-absolute exec binaries
+func appSearchPaths(p *stage1commontypes.Pod, workDir string, app types.App) []string {
+	appEnv := app.Environment
+
+	if imgPath, ok := appEnv.Get("PATH"); ok {
+		return strings.Split(imgPath, ":")
+	}
+
+	// emulate exec(3) behavior, first check working directory and then the
+	// list of directories returned by confstr(_CS_PATH). That's typically
+	// "/bin:/usr/bin" so let's use that.
+	return []string{workDir, "/bin", "/usr/bin"}
+}
+
+// findBinPath takes a binary path and returns a the absolute path of the
+// binary relative to the app rootfs. This can be passed to ExecStart on the
+// app's systemd service file directly.
+func findBinPath(p *stage1commontypes.Pod, appName types.ACName, app types.App, workDir string, bin string) (string, error) {
+	var binPath string
+	switch {
+	// absolute path, just use it
+	case filepath.IsAbs(bin):
+		binPath = bin
+	// non-absolute path containing a slash, look in the working dir
+	case strings.Contains(bin, "/"):
+		binPath = filepath.Join(workDir, bin)
+	// filename, search in the app's $PATH
+	default:
+		absRoot, err := filepath.Abs(p.Root)
+		if err != nil {
+			return "", errwrap.Wrap(errors.New("could not get pod's root absolute path"), err)
+		}
+		appRootfs := common.AppRootfsPath(absRoot, appName)
+		appPathDirs := appSearchPaths(p, workDir, app)
+		appPath := strings.Join(appPathDirs, ":")
+
+		binPath, err = lookupPathInsideApp(bin, appPath, appRootfs, workDir)
+		if err != nil {
+			return "", errwrap.Wrap(fmt.Errorf("error looking up %q", bin), err)
+		}
+	}
+
+	return binPath, nil
+}
+
+// shiftFiles shifts filesToshift by the amounts specified in uidRange
+func shiftFiles(filesToShift []string, uidRange *user.UidRange) error {
+	if uidRange.Shift != 0 && uidRange.Count != 0 {
+		for _, f := range filesToShift {
+			if err := os.Chown(f, int(uidRange.Shift), int(uidRange.Shift)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// generateDeviceAllows generates a DeviceAllow= line for an app.
+// To make it work, the path needs to start with "/dev" but the device won't
+// exist inside the container. So for a given mount, if the volume is a device
+// node, we create a symlink to its target in "/rkt/volumes". Later,
+// prepare-app will copy those to "/dev/.rkt/" so that's what we use in the
+// DeviceAllow= line.
+func generateDeviceAllows(root string, appName types.ACName, mountPoints []types.MountPoint, mounts []mountWrapper, vols map[types.ACName]types.Volume, uidRange *user.UidRange) ([]string, error) {
+	var devAllow []string
+
+	rktVolumeLinksPath := filepath.Join(root, "rkt", "volumes")
+	if err := os.MkdirAll(rktVolumeLinksPath, 0600); err != nil {
+		return nil, err
+	}
+	if err := shiftFiles([]string{rktVolumeLinksPath}, uidRange); err != nil {
+		return nil, err
+	}
+
+	for _, m := range mounts {
+		v := vols[m.Volume]
+		if v.Kind != "host" {
+			continue
+		}
+		if fileutil.IsDeviceNode(v.Source) {
+			mode := "r"
+			if !IsMountReadOnly(v, mountPoints) {
+				mode += "w"
+			}
+
+			tgt := filepath.Join(common.RelAppRootfsPath(appName), m.Path)
+			// the DeviceAllow= line needs the link path in /dev/.rkt/
+			linkRel := filepath.Join("/dev/.rkt", v.Name.String())
+			// the real link should be in /rkt/volumes for now
+			link := filepath.Join(rktVolumeLinksPath, v.Name.String())
+
+			err := os.Symlink(tgt, link)
+			// if the link already exists, we don't need to do anything
+			if err != nil && !os.IsExist(err) {
+				return nil, err
+			}
+
+			devAllow = append(devAllow, linkRel+" "+mode)
+		}
+	}
+
+	return devAllow, nil
+}
+
 // appToSystemd transforms the provided RuntimeApp+ImageManifest into systemd units
-func appToSystemd(p *stage1commontypes.Pod, ra *schema.RuntimeApp, interactive bool, flavor string, privateUsers string) error {
+func appToSystemd(p *stage1commontypes.Pod, ra *schema.RuntimeApp, interactive bool, flavor string, privateUsers string, insecureOptions Stage1InsecureOptions) error {
 	app := ra.App
 	appName := ra.Name
 	imgName := p.AppNameToImageName(appName)
@@ -267,76 +449,135 @@ func appToSystemd(p *stage1commontypes.Pod, ra *schema.RuntimeApp, interactive b
 		env.Set("AC_METADATA_URL", p.MetadataServiceURL)
 	}
 
-	if err := writeEnvFile(p, env, appName, privateUsers); err != nil {
-		return errwrap.Wrap(errors.New("unable to write environment file"), err)
-	}
+	envFilePath := EnvFilePath(p.Root, appName)
 
-	var _uid, gid int
-	var err error
-
-	uidRange := uid.NewBlankUidRange()
+	uidRange := user.NewBlankUidRange()
 	if err := uidRange.Deserialize([]byte(privateUsers)); err != nil {
-		return errwrap.Wrap(errors.New("unable to deserialize uid range"), err)
+		return err
 	}
 
-	if strings.HasPrefix(app.User, "/") {
-		var stat syscall.Stat_t
-		if err = syscall.Lstat(filepath.Join(common.AppRootfsPath(p.Root, appName),
-			app.User), &stat); err != nil {
-			return errwrap.Wrap(fmt.Errorf("unable to get uid from file %q",
-				app.User), err)
-		}
-		uidReal, _, err := uidRange.UnshiftRange(stat.Uid, 0)
-		if err != nil {
-			return errwrap.Wrap(errors.New("unable to determine real uid"), err)
-		}
-		_uid = int(uidReal)
-	} else {
-		_uid, err = strconv.Atoi(app.User)
-		if err != nil {
-			_uid, err = passwd.LookupUidFromFile(app.User,
-				filepath.Join(common.AppRootfsPath(p.Root, appName), "etc/passwd"))
-			if err != nil {
-				return errwrap.Wrap(fmt.Errorf("cannot lookup user %q", app.User), err)
-			}
-		}
+	if err := writeEnvFile(p, env, appName, uidRange, '\n', envFilePath); err != nil {
+		return errwrap.Wrap(errors.New("unable to write environment file for systemd"), err)
 	}
 
-	if strings.HasPrefix(app.Group, "/") {
-		var stat syscall.Stat_t
-		if err = syscall.Lstat(filepath.Join(common.AppRootfsPath(p.Root, appName),
-			app.Group), &stat); err != nil {
-			return errwrap.Wrap(fmt.Errorf("unable to get gid from file %q",
-				app.Group), err)
-		}
-		_, gidReal, err := uidRange.UnshiftRange(0, stat.Gid)
-		if err != nil {
-			return errwrap.Wrap(errors.New("unable to determine real gid"), err)
-		}
-		gid = int(gidReal)
-	} else {
-		gid, err = strconv.Atoi(app.Group)
-		if err != nil {
-			gid, err = group.LookupGidFromFile(app.Group,
-				filepath.Join(common.AppRootfsPath(p.Root, appName), "etc/group"))
-			if err != nil {
-				return errwrap.Wrap(fmt.Errorf("cannot lookup group %q", app.Group), err)
-			}
-		}
+	u, g, err := parseUserGroup(p, ra, uidRange)
+	if err != nil {
+		return err
 	}
 
-	execWrap := []string{"/appexec", common.RelAppRootfsPath(appName), workDir, RelEnvFilePath(appName),
-		strconv.Itoa(_uid), generateGidArg(gid, app.SupplementaryGIDs), "--"}
-	execStart := quoteExec(append(execWrap, app.Exec...))
+	if err := generateSysusers(p, ra, u, g, uidRange); err != nil {
+		return errwrap.Wrap(errors.New("unable to generate sysusers"), err)
+	}
+
+	binPath, err := findBinPath(p, appName, *app, workDir, app.Exec[0])
+	if err != nil {
+		return err
+	}
+
+	var supplementaryGroups []string
+	for _, g := range app.SupplementaryGIDs {
+		supplementaryGroups = append(supplementaryGroups, strconv.Itoa(g))
+	}
+
+	capabilitiesStr, err := getAppCapabilities(app.Isolators)
+	if err != nil {
+		return err
+	}
+
+	execStart := append([]string{binPath}, app.Exec[1:]...)
+	execStartString := quoteExec(execStart)
 	opts := []*unit.UnitOption{
 		unit.NewUnitOption("Unit", "Description", fmt.Sprintf("Application=%v Image=%v", appName, imgName)),
 		unit.NewUnitOption("Unit", "DefaultDependencies", "false"),
 		unit.NewUnitOption("Unit", "Wants", fmt.Sprintf("reaper-%s.service", appName)),
 		unit.NewUnitOption("Service", "Restart", "no"),
-		unit.NewUnitOption("Service", "ExecStart", execStart),
-		unit.NewUnitOption("Service", "User", "0"),
-		unit.NewUnitOption("Service", "Group", "0"),
+		unit.NewUnitOption("Service", "ExecStart", execStartString),
+		unit.NewUnitOption("Service", "RootDirectory", common.RelAppRootfsPath(appName)),
+		// MountFlags=shared creates a new mount namespace and (as unintuitive
+		// as it might seem) makes sure the mount is slave+shared.
+		unit.NewUnitOption("Service", "MountFlags", "shared"),
+		unit.NewUnitOption("Service", "WorkingDirectory", workDir),
+		unit.NewUnitOption("Service", "EnvironmentFile", RelEnvFilePath(appName)),
+		unit.NewUnitOption("Service", "User", strconv.Itoa(u)),
+		unit.NewUnitOption("Service", "Group", strconv.Itoa(g)),
+		unit.NewUnitOption("Service", "SupplementaryGroups", strings.Join(supplementaryGroups, " ")),
+		// This helps working around a race
+		// (https://github.com/systemd/systemd/issues/2913) that causes the
+		// systemd unit name not getting written to the journal if the unit is
+		// short-lived and runs as non-root.
+		unit.NewUnitOption("Service", "SyslogIdentifier", appName.String()),
 	}
+
+	if !insecureOptions.DisableCapabilities {
+		opts = append(opts, unit.NewUnitOption("Service", "CapabilityBoundingSet", strings.Join(capabilitiesStr, " ")))
+	}
+
+	noNewPrivileges := getAppNoNewPrivileges(app.Isolators)
+
+	// Apply seccomp isolator, if any and not opt-ing out;
+	// see https://www.freedesktop.org/software/systemd/man/systemd.exec.html#SystemCallFilter=
+	if !insecureOptions.DisableSeccomp {
+		var forceNoNewPrivileges bool
+
+		unprivileged := (u != 0)
+		opts, forceNoNewPrivileges, err = getSeccompFilter(opts, p, unprivileged, app.Isolators)
+		if err != nil {
+			return err
+		}
+
+		// Seccomp filters require NoNewPrivileges for unprivileged apps, that may override
+		// manifest annotation.
+		if forceNoNewPrivileges {
+			noNewPrivileges = true
+		}
+	}
+
+	opts = append(opts, unit.NewUnitOption("Service", "NoNewPrivileges", strconv.FormatBool(noNewPrivileges)))
+
+	if ra.ReadOnlyRootFS {
+		opts = append(opts, unit.NewUnitOption("Service", "ReadOnlyDirectories", common.RelAppRootfsPath(appName)))
+	}
+
+	// TODO(tmrts): Extract this logic into a utility function.
+	vols := make(map[types.ACName]types.Volume)
+	for _, v := range p.Manifest.Volumes {
+		vols[v.Name] = v
+	}
+
+	absRoot, err := filepath.Abs(p.Root) // Absolute path to the pod's rootfs.
+	if err != nil {
+		return err
+	}
+	appRootfs := common.AppRootfsPath(absRoot, appName)
+
+	rwDirs := []string{}
+	imageManifest := p.Images[appName.String()]
+	mounts := GenerateMounts(ra, vols, imageManifest)
+	for _, m := range mounts {
+		mntPath, err := EvaluateSymlinksInsideApp(appRootfs, m.Path)
+		if err != nil {
+			return err
+		}
+
+		if !IsMountReadOnly(vols[m.Volume], app.MountPoints) {
+			rwDirs = append(rwDirs, filepath.Join(common.RelAppRootfsPath(appName), mntPath))
+		}
+	}
+
+	// Restrict access to sensitive paths (eg. procfs) and devices
+	if !insecureOptions.DisablePaths {
+		opts = protectSystemFiles(opts, appName)
+		opts = append(opts, unit.NewUnitOption("Service", "DevicePolicy", "closed"))
+		deviceAllows, err := generateDeviceAllows(common.Stage1RootfsPath(absRoot), appName, app.MountPoints, mounts, vols, uidRange)
+		if err != nil {
+			return err
+		}
+		for _, dev := range deviceAllows {
+			opts = append(opts, unit.NewUnitOption("Service", "DeviceAllow", dev))
+		}
+	}
+
+	opts = append(opts, unit.NewUnitOption("Service", "ReadWriteDirectories", strings.Join(rwDirs, " ")))
 
 	if interactive {
 		opts = append(opts, unit.NewUnitOption("Service", "StandardInput", "tty"))
@@ -345,7 +586,6 @@ func appToSystemd(p *stage1commontypes.Pod, ra *schema.RuntimeApp, interactive b
 	} else {
 		opts = append(opts, unit.NewUnitOption("Service", "StandardOutput", "journal+console"))
 		opts = append(opts, unit.NewUnitOption("Service", "StandardError", "journal+console"))
-		opts = append(opts, unit.NewUnitOption("Service", "SyslogIdentifier", filepath.Base(app.Exec[0])))
 	}
 
 	// When an app fails, we shut down the pod
@@ -361,7 +601,7 @@ func appToSystemd(p *stage1commontypes.Pod, ra *schema.RuntimeApp, interactive b
 		default:
 			return fmt.Errorf("unrecognized eventHandler: %v", eh.Name)
 		}
-		exec := quoteExec(append(execWrap, eh.Exec...))
+		exec := quoteExec(eh.Exec)
 		opts = append(opts, unit.NewUnitOption("Service", typ, exec))
 	}
 
@@ -441,6 +681,9 @@ func appToSystemd(p *stage1commontypes.Pod, ra *schema.RuntimeApp, interactive b
 	opts = append(opts, unit.NewUnitOption("Unit", "Requires", InstantiatedPrepareAppUnitName(appName)))
 	opts = append(opts, unit.NewUnitOption("Unit", "After", InstantiatedPrepareAppUnitName(appName)))
 
+	opts = append(opts, unit.NewUnitOption("Unit", "Requires", "sysusers.service"))
+	opts = append(opts, unit.NewUnitOption("Unit", "After", "sysusers.service"))
+
 	file, err := os.OpenFile(ServiceUnitPath(p.Root, appName), os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return errwrap.Wrap(errors.New("failed to create service unit file"), err)
@@ -455,20 +698,63 @@ func appToSystemd(p *stage1commontypes.Pod, ra *schema.RuntimeApp, interactive b
 		return errwrap.Wrap(errors.New("failed to link service want"), err)
 	}
 
-	if flavor == "kvm" {
-		// bind mount all shared volumes from /mnt/volumeName (we don't use mechanism for bind-mounting given by nspawn)
-		err := AppToSystemdMountUnits(common.Stage1RootfsPath(p.Root), appName, p.Manifest.Volumes, ra, UnitsDir)
-		if err != nil {
-			return errwrap.Wrap(errors.New("failed to prepare mount units"), err)
-		}
-
-	}
-
-	if err = writeAppReaper(p, appName.String()); err != nil {
+	if err = writeAppReaper(p, appName.String(), common.RelAppRootfsPath(appName), binPath); err != nil {
 		return errwrap.Wrap(fmt.Errorf("failed to write app %q reaper service", appName), err)
 	}
 
 	return nil
+}
+
+// parseUserGroup parses the User and Group fields of an App and returns its
+// UID and GID.
+// The User and Group fields accept several formats:
+//   1. the hardcoded string "root"
+//   2. a path
+//   3. a number
+//   4. a name in reference to /etc/{group,passwd} in the image
+// See https://github.com/appc/spec/blob/master/spec/aci.md#image-manifest-schema
+func parseUserGroup(p *stage1commontypes.Pod, ra *schema.RuntimeApp, uidRange *user.UidRange) (int, int, error) {
+	var uidResolver, gidResolver user.Resolver
+	var uid, gid int
+	var err error
+
+	root := common.AppRootfsPath(p.Root, ra.Name)
+
+	uidResolver, err = user.NumericIDs(ra.App.User)
+	if err != nil {
+		uidResolver, err = user.IDsFromStat(root, ra.App.User, uidRange)
+	}
+
+	if err != nil {
+		uidResolver, err = user.IDsFromEtc(root, ra.App.User, "")
+	}
+
+	if err != nil { // give up
+		return -1, -1, errwrap.Wrap(fmt.Errorf("invalid user %q", ra.App.User), err)
+	}
+
+	if uid, _, err = uidResolver.IDs(); err != nil {
+		return -1, -1, errwrap.Wrap(fmt.Errorf("failed to configure user %q", ra.App.User), err)
+	}
+
+	gidResolver, err = user.NumericIDs(ra.App.Group)
+	if err != nil {
+		gidResolver, err = user.IDsFromStat(root, ra.App.Group, uidRange)
+	}
+
+	if err != nil {
+		gidResolver, err = user.IDsFromEtc(root, "", ra.App.Group)
+	}
+
+	if err != nil { // give up
+		return -1, -1, errwrap.Wrap(fmt.Errorf("invalid group %q", ra.App.Group), err)
+	}
+
+	if _, gid, err = gidResolver.IDs(); err != nil {
+		return -1, -1, errwrap.Wrap(fmt.Errorf("failed to configure group %q", ra.App.Group), err)
+	}
+
+	return uid, gid, nil
 }
 
 func writeShutdownService(p *stage1commontypes.Pod) error {
@@ -519,33 +805,25 @@ func writeShutdownService(p *stage1commontypes.Pod) error {
 // writeEnvFile creates an environment file for given app name, the minimum
 // required environment variables by the appc spec will be set to sensible
 // defaults here if they're not provided by env.
-func writeEnvFile(p *stage1commontypes.Pod, env types.Environment, appName types.ACName, privateUsers string) error {
+func writeEnvFile(p *stage1commontypes.Pod, env types.Environment, appName types.ACName, uidRange *user.UidRange, separator byte, envFilePath string) error {
 	ef := bytes.Buffer{}
 
 	for dk, dv := range defaultEnv {
 		if _, exists := env.Get(dk); !exists {
-			fmt.Fprintf(&ef, "%s=%s\000", dk, dv)
+			fmt.Fprintf(&ef, "%s=%s%c", dk, dv, separator)
 		}
 	}
 
 	for _, e := range env {
-		fmt.Fprintf(&ef, "%s=%s\000", e.Name, e.Value)
+		fmt.Fprintf(&ef, "%s=%s%c", e.Name, e.Value, separator)
 	}
 
-	uidRange := uid.NewBlankUidRange()
-	if err := uidRange.Deserialize([]byte(privateUsers)); err != nil {
-		return err
-	}
-
-	envFilePath := EnvFilePath(p.Root, appName)
 	if err := ioutil.WriteFile(envFilePath, ef.Bytes(), 0644); err != nil {
 		return err
 	}
 
-	if uidRange.Shift != 0 && uidRange.Count != 0 {
-		if err := os.Chown(envFilePath, int(uidRange.Shift), int(uidRange.Shift)); err != nil {
-			return err
-		}
+	if err := shiftFiles([]string{envFilePath}, uidRange); err != nil {
+		return err
 	}
 
 	return nil
@@ -553,10 +831,10 @@ func writeEnvFile(p *stage1commontypes.Pod, env types.Environment, appName types
 
 // PodToSystemd creates the appropriate systemd service unit files for
 // all the constituent apps of the Pod
-func PodToSystemd(p *stage1commontypes.Pod, interactive bool, flavor string, privateUsers string) error {
+func PodToSystemd(p *stage1commontypes.Pod, interactive bool, flavor string, privateUsers string, insecureOptions Stage1InsecureOptions) error {
 	for i := range p.Manifest.Apps {
 		ra := &p.Manifest.Apps[i]
-		if err := appToSystemd(p, ra, interactive, flavor, privateUsers); err != nil {
+		if err := appToSystemd(p, ra, interactive, flavor, privateUsers, insecureOptions); err != nil {
 			return errwrap.Wrap(fmt.Errorf("failed to transform app %q into systemd service", ra.Name), err)
 		}
 	}
@@ -568,12 +846,9 @@ func PodToSystemd(p *stage1commontypes.Pod, interactive bool, flavor string, pri
 	return nil
 }
 
-// evaluateAppMountPath tries to resolve symlinks within the path.
-// It returns the actual relative path for the given path.
-// TODO(yifan): This is a temporary fix for systemd-nspawn not handling symlink mounts well.
-// Could be removed when https://github.com/systemd/systemd/issues/2860 is resolved, and systemd
-// version is bumped.
-func evaluateAppMountPath(appRootfs, path string) (string, error) {
+// EvaluateSymlinksInsideApp tries to resolve symlinks within the path.
+// It returns the actual path relative to the app rootfs for the given path.
+func EvaluateSymlinksInsideApp(appRootfs, path string) (string, error) {
 	link := appRootfs
 
 	paths := strings.Split(path, "/")
@@ -620,16 +895,16 @@ func evaluateAppMountPath(appRootfs, path string) (string, error) {
 
 // appToNspawnArgs transforms the given app manifest, with the given associated
 // app name, into a subset of applicable systemd-nspawn argument
-func appToNspawnArgs(p *stage1commontypes.Pod, ra *schema.RuntimeApp) ([]string, error) {
+func appToNspawnArgs(p *stage1commontypes.Pod, ra *schema.RuntimeApp, insecureOptions Stage1InsecureOptions) ([]string, error) {
 	var args []string
 	appName := ra.Name
 	app := ra.App
 
 	sharedVolPath := common.SharedVolumesPath(p.Root)
-	if err := os.MkdirAll(sharedVolPath, sharedVolPerm); err != nil {
+	if err := os.MkdirAll(sharedVolPath, SharedVolPerm); err != nil {
 		return nil, errwrap.Wrap(errors.New("could not create shared volumes directory"), err)
 	}
-	if err := os.Chmod(sharedVolPath, sharedVolPerm); err != nil {
+	if err := os.Chmod(sharedVolPath, SharedVolPerm); err != nil {
 		return nil, errwrap.Wrap(fmt.Errorf("could not change permissions of %q", sharedVolPath), err)
 	}
 
@@ -638,25 +913,31 @@ func appToNspawnArgs(p *stage1commontypes.Pod, ra *schema.RuntimeApp) ([]string,
 		vols[v.Name] = v
 	}
 
-	mounts := GenerateMounts(ra, vols)
+	imageManifest := p.Images[appName.String()]
+	mounts := GenerateMounts(ra, vols, imageManifest)
 	for _, m := range mounts {
 		vol := vols[m.Volume]
 
-		if vol.Kind == "empty" {
-			p := filepath.Join(sharedVolPath, vol.Name.String())
-			if err := os.MkdirAll(p, sharedVolPerm); err != nil {
-				return nil, errwrap.Wrap(fmt.Errorf("could not create shared volume %q", vol.Name), err)
-			}
-			if err := os.Chown(p, *vol.UID, *vol.GID); err != nil {
-				return nil, errwrap.Wrap(fmt.Errorf("could not change owner of %q", p), err)
-			}
-			mod, err := strconv.ParseUint(*vol.Mode, 8, 32)
-			if err != nil {
-				return nil, errwrap.Wrap(fmt.Errorf("invalid mode %q for volume %q", *vol.Mode, vol.Name), err)
-			}
-			if err := os.Chmod(p, os.FileMode(mod)); err != nil {
-				return nil, errwrap.Wrap(fmt.Errorf("could not change permissions of %q", p), err)
-			}
+		shPath := filepath.Join(sharedVolPath, vol.Name.String())
+
+		absRoot, err := filepath.Abs(p.Root) // Absolute path to the pod's rootfs.
+		if err != nil {
+			return nil, errwrap.Wrap(errors.New("could not get pod's root absolute path"), err)
+		}
+
+		appRootfs := common.AppRootfsPath(absRoot, appName)
+
+		// TODO(yifan): This is a temporary fix for systemd-nspawn not handling symlink mounts well.
+		// Could be removed when https://github.com/systemd/systemd/issues/2860 is resolved, and systemd
+		// version is bumped.
+		mntPath, err := EvaluateSymlinksInsideApp(appRootfs, m.Path)
+		if err != nil {
+			return nil, errwrap.Wrap(fmt.Errorf("could not evaluate path %v", m.Path), err)
+		}
+		mntAbsPath := filepath.Join(appRootfs, mntPath)
+
+		if err := PrepareMountpoints(shPath, mntAbsPath, &vol, m.DockerImplicit); err != nil {
+			return nil, err
 		}
 
 		opt := make([]string, 4)
@@ -665,11 +946,6 @@ func appToNspawnArgs(p *stage1commontypes.Pod, ra *schema.RuntimeApp) ([]string,
 			opt[0] = "--bind-ro="
 		} else {
 			opt[0] = "--bind="
-		}
-
-		absRoot, err := filepath.Abs(p.Root) // Absolute path to the pod's rootfs.
-		if err != nil {
-			return nil, errwrap.Wrap(errors.New("could not get pod's root absolute path"), err)
 		}
 
 		switch vol.Kind {
@@ -681,31 +957,17 @@ func appToNspawnArgs(p *stage1commontypes.Pod, ra *schema.RuntimeApp) ([]string,
 			return nil, fmt.Errorf(`invalid volume kind %q. Must be one of "host" or "empty"`, vol.Kind)
 		}
 		opt[2] = ":"
-
-		appRootfs := common.AppRootfsPath(absRoot, appName)
-		mntPath, err := evaluateAppMountPath(appRootfs, m.Path)
-		if err != nil {
-			return nil, errwrap.Wrap(fmt.Errorf("could not evaluate path %v", m.Path), err)
-		}
-
 		opt[3] = filepath.Join(common.RelAppRootfsPath(appName), mntPath)
-
 		args = append(args, strings.Join(opt, ""))
 	}
 
-	for _, i := range app.Isolators {
-		switch v := i.Value().(type) {
-		case types.LinuxCapabilitiesSet:
-			var caps []string
-			// TODO: cleanup the API on LinuxCapabilitiesSet to give strings easily.
-			for _, c := range v.Set() {
-				caps = append(caps, string(c))
-			}
-			if i.Name == types.LinuxCapabilitiesRetainSetName {
-				capList := strings.Join(caps, ",")
-				args = append(args, "--capability="+capList)
-			}
+	if !insecureOptions.DisableCapabilities {
+		capabilitiesStr, err := getAppCapabilities(app.Isolators)
+		if err != nil {
+			return nil, err
 		}
+		capList := strings.Join(capabilitiesStr, ",")
+		args = append(args, "--capability="+capList)
 	}
 
 	return args, nil
@@ -713,7 +975,7 @@ func appToNspawnArgs(p *stage1commontypes.Pod, ra *schema.RuntimeApp) ([]string,
 
 // PodToNspawnArgs renders a prepared Pod as a systemd-nspawn
 // argument list ready to be executed
-func PodToNspawnArgs(p *stage1commontypes.Pod) ([]string, error) {
+func PodToNspawnArgs(p *stage1commontypes.Pod, insecureOptions Stage1InsecureOptions) ([]string, error) {
 	args := []string{
 		"--uuid=" + p.UUID.String(),
 		"--machine=" + GetMachineID(p),
@@ -721,11 +983,15 @@ func PodToNspawnArgs(p *stage1commontypes.Pod) ([]string, error) {
 	}
 
 	for i := range p.Manifest.Apps {
-		aa, err := appToNspawnArgs(p, &p.Manifest.Apps[i])
+		aa, err := appToNspawnArgs(p, &p.Manifest.Apps[i], insecureOptions)
 		if err != nil {
 			return nil, err
 		}
 		args = append(args, aa...)
+	}
+
+	if insecureOptions.DisableCapabilities {
+		args = append(args, "--capability=all")
 	}
 
 	return args, nil
@@ -791,4 +1057,143 @@ func GetAppHashes(p *stage1commontypes.Pod) []types.Hash {
 // systemd-nspawn
 func GetMachineID(p *stage1commontypes.Pod) string {
 	return "rkt-" + p.UUID.String()
+}
+
+// getAppCapabilities computes the set of Linux capabilities that an app
+// should have based on its isolators. Only the following capabalities matter:
+// - os/linux/capabilities-retain-set
+// - os/linux/capabilities-remove-set
+//
+// The resulting capabilities are generated following the rules from the spec:
+// See: https://github.com/appc/spec/blob/master/spec/ace.md#linux-isolators
+func getAppCapabilities(isolators types.Isolators) ([]string, error) {
+	var capsToRetain []string
+	var capsToRemove []string
+
+	// Default caps defined in
+	// https://github.com/appc/spec/blob/master/spec/ace.md#linux-isolators
+	appDefaultCapabilities := []string{
+		"CAP_AUDIT_WRITE",
+		"CAP_CHOWN",
+		"CAP_DAC_OVERRIDE",
+		"CAP_FSETID",
+		"CAP_FOWNER",
+		"CAP_KILL",
+		"CAP_MKNOD",
+		"CAP_NET_RAW",
+		"CAP_NET_BIND_SERVICE",
+		"CAP_SETUID",
+		"CAP_SETGID",
+		"CAP_SETPCAP",
+		"CAP_SETFCAP",
+		"CAP_SYS_CHROOT",
+	}
+
+	// Iterate over the isolators defined in
+	// https://github.com/appc/spec/blob/master/spec/ace.md#linux-isolators
+	// Only read the capababilities isolators:
+	// - os/linux/capabilities-retain-set
+	// - os/linux/capabilities-remove-set
+	for _, isolator := range isolators {
+		if capSet, ok := isolator.Value().(types.LinuxCapabilitiesSet); ok {
+			switch isolator.Name {
+			case types.LinuxCapabilitiesRetainSetName:
+				capsToRetain = append(capsToRetain, parseLinuxCapabilitiesSet(capSet)...)
+			case types.LinuxCapabilitiesRevokeSetName:
+				capsToRemove = append(capsToRemove, parseLinuxCapabilitiesSet(capSet)...)
+			}
+		}
+	}
+
+	// appc/spec does not allow to have both the retain set and the remove
+	// set defined.
+	if len(capsToRetain) > 0 && len(capsToRemove) > 0 {
+		return nil, errors.New("cannot have both os/linux/capabilities-retain-set and os/linux/capabilities-remove-set")
+	}
+
+	// Neither the retain set or the remove set are defined
+	if len(capsToRetain) == 0 && len(capsToRemove) == 0 {
+		return appDefaultCapabilities, nil
+	}
+
+	if len(capsToRetain) > 0 {
+		return capsToRetain, nil
+	}
+
+	if len(capsToRemove) == 0 {
+		panic("len(capsToRetain) is negative. This cannot happen.")
+	}
+
+	caps := appDefaultCapabilities
+	for _, rc := range capsToRemove {
+		// backward loop to be safe against deletion
+		for i := len(caps) - 1; i >= 0; i-- {
+			if caps[i] == rc {
+				caps = append(caps[:i], caps[i+1:]...)
+			}
+		}
+	}
+	return caps, nil
+}
+
+// parseLinuxCapabilitySet parses a LinuxCapabilitiesSet into string slice
+func parseLinuxCapabilitiesSet(capSet types.LinuxCapabilitiesSet) []string {
+	var capsStr []string
+	for _, cap := range capSet.Set() {
+		capsStr = append(capsStr, string(cap))
+	}
+	return capsStr
+}
+
+func getAppNoNewPrivileges(isolators types.Isolators) bool {
+	for _, isolator := range isolators {
+		noNewPrivileges, ok := isolator.Value().(*types.LinuxNoNewPrivileges)
+
+		if ok && bool(*noNewPrivileges) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// restrictProcFS restricts access to some security-sensitive paths under
+// /proc and /sys. Entries are either hidden or just made read-only to app.
+func protectSystemFiles(opts []*unit.UnitOption, appName types.ACName) []*unit.UnitOption {
+	roPaths := []string{
+		"/proc/bus/",
+		"/proc/sys/kernel/core_pattern",
+		"/proc/sys/kernel/modprobe",
+		"/proc/sys/vm/panic_on_oom",
+		"/proc/sysrq-trigger",
+		"/sys/block/",
+		"/sys/bus/",
+		"/sys/class/",
+		"/sys/dev/",
+		"/sys/devices/",
+		"/sys/kernel/",
+	}
+	hiddenPaths := []string{
+		// TODO(lucab): file-paths restrictions need support in systemd first
+		//"/proc/config.gz",
+		//"/proc/kallsyms",
+		//"/proc/sched_debug",
+		//"/proc/kcore",
+		//"/proc/kmem",
+		//"/proc/mem",
+		"/sys/firmware/",
+		"/sys/fs/",
+		"/sys/hypervisor/",
+		"/sys/module/",
+		"/sys/power/",
+	}
+	// Paths prefixed with "-" are ignored if they do not exist:
+	// https://www.freedesktop.org/software/systemd/man/systemd.exec.html#ReadWriteDirectories=
+	for _, p := range hiddenPaths {
+		opts = append(opts, unit.NewUnitOption("Service", "InaccessibleDirectories", fmt.Sprintf("-%s", filepath.Join(common.RelAppRootfsPath(appName), p))))
+	}
+	for _, p := range roPaths {
+		opts = append(opts, unit.NewUnitOption("Service", "ReadOnlyDirectories", fmt.Sprintf("-%s", filepath.Join(common.RelAppRootfsPath(appName), p))))
+	}
+	return opts
 }

@@ -1,5 +1,8 @@
 AC_PREREQ([2.63])
-AC_INIT([rkt], [1.2.1+git], [https://github.com/coreos/rkt/issues])
+AC_INIT([rkt], [1.13.0+git], [https://github.com/coreos/rkt/issues])
+
+AC_PROG_CC
+AC_PROG_CXX
 
 AC_DEFUN([RKT_CHECK_PROG],
          [AS_VAR_IF([$1], [],
@@ -37,6 +40,14 @@ AS_IF([test `expr match 'AC_PACKAGE_VERSION' '.*+git$'` -gt 0],
 
 AC_CANONICAL_HOST
 AC_CANONICAL_BUILD
+
+AS_CASE([${host_cpu}],
+        [aarch64],    [RKT_ACI_ARCH=aarch64; GOARCH=arm64;],
+        [armv6l],     [RKT_ACI_ARCH=armv6l;  GOARCH=arm; GOARM=6;],
+        [armv7l],     [RKT_ACI_ARCH=armv7l;  GOARCH=arm; GOARM=7;],
+        [i?86 | x86], [RKT_ACI_ARCH=i386;    GOARCH=386;],
+        [x86_64],     [RKT_ACI_ARCH=amd64;   GOARCH=amd64;],
+        [AC_MSG_ERROR([*** unsupported host arch specified: ${host_cpu}])])
 
 #### FLAGS
 
@@ -102,6 +113,13 @@ AC_ARG_WITH([stage1-systemd-version],
             [RKT_STAGE1_SYSTEMD_VER="${withval}"],
             [RKT_STAGE1_SYSTEMD_VER='auto'])
 
+# STAGE1 - KVM hypervisor. LKVM is the only choice for now
+AC_ARG_WITH([stage1-kvm-hypervisor],
+            [AS_HELP_STRING([--with-stage1-kvm-hypervisor],
+                            [hypervisor used by 'kvm' flavor; default and only option for now: 'lkvm'])],
+            [RKT_STAGE1_KVM_HV="${withval}"],
+            [RKT_STAGE1_KVM_HV='lkvm'])
+
 ## STAGE1 - path to coreos pxe and its systemd version for kvm and coreos flavors
 
 AC_ARG_WITH([coreos-local-pxe-image-path],
@@ -116,11 +134,13 @@ AC_ARG_WITH([coreos-local-pxe-image-systemd-version],
             [RKT_LOCAL_COREOS_PXE_IMAGE_SYSTEMD_VER="${withval}"],
             [RKT_LOCAL_COREOS_PXE_IMAGE_SYSTEMD_VER=])
 
+RKT_STAGE1_COREOS_BOARD=${GOARCH}-usr;
+
 ## Functional tests
 
 AC_ARG_ENABLE([functional-tests],
               [AS_HELP_STRING([--enable-functional-tests],
-                              [enable functional tests on make check (linux only, uses sudo, default: 'no', use 'auto' to enable if possible, for host stage1 flavor systemd version 220 or higher on host is required)])],
+                              [enable functional tests on make check (linux only, uses sudo, default: 'no', use 'auto' to enable if possible, for host stage1 flavor systemd version 227 or higher on host is required)])],
               [RKT_RUN_FUNCTIONAL_TESTS="${enableval}"],
               [RKT_RUN_FUNCTIONAL_TESTS="no"])
 
@@ -131,6 +151,14 @@ AC_ARG_ENABLE([tpm],
                               [enable logging to TPM, use 'auto' to enable it if the required development files are found, default: 'yes'])],
               [RKT_ENABLE_TPM="${enableval}"],
               [RKT_ENABLE_TPM="yes"])
+
+## Systemd-journal support on host
+
+AC_ARG_ENABLE([sdjournal],
+              [AS_HELP_STRING([--enable-sdjournal],
+                              [enable systemd-journal features on host, use 'auto' to enable it if the required development files are found, default: 'yes'])],
+              [RKT_ENABLE_SDJOURNAL="${enableval}"],
+              [RKT_ENABLE_SDJOURNAL="yes"])
 
 ## insecure go
 
@@ -260,6 +288,7 @@ dnl gpg - it will be checked when we will actually download the image
 dnl from the network
 AC_DEFUN([RKT_COMMON_COREOS_PROGS],
          [RKT_REQ_PROG([CAT],[cat],[cat])
+          RKT_REQ_PROG([COMM],[comm],[comm])
           RKT_REQ_PROG([CPIO],[cpio],[cpio])
           RKT_REQ_PROG([GZIP],[gzip],[gzip])
           RKT_REQ_PROG([MD5SUM],[md5sum],[md5sum])
@@ -284,12 +313,15 @@ RKT_ITERATE_FLAVORS([${RKT_STAGE1_FLAVORS}],[flavor],
                              [coreos],
                                      [RKT_COMMON_COREOS_PROGS],
                              [kvm],
-                                     [AC_MSG_WARN([* kvm is an experimental stage1 implementation, some features are missing])
-                                      AC_MSG_NOTICE([will build linux kernel and lkvm from source, make sure that all their build requirements are fulfilled])
+                                     [AC_MSG_NOTICE([will build linux kernel and ${RKT_STAGE1_KVM_HV} from source, make sure that all their build requirements are fulfilled])
                                       RKT_COMMON_COREOS_PROGS
                                       RKT_REQ_PROG([PATCH],[patch],[patch])
                                       RKT_REQ_PROG([TAR],[tar],[tar])
-                                      RKT_REQ_PROG([XZ],[xz],[xz])],
+                                      RKT_REQ_PROG([XZ],[xz],[xz])
+                                      AC_CHECK_HEADER([openssl/bio.h],
+                                                      [],
+                                                      [AC_MSG_ERROR([** No development headers for openssl found])],
+                                                      [AC_INCLUDES_DEFAULT])],
                              [host],
                                      [],
                              [fly],
@@ -382,6 +414,14 @@ dnl Warn if version is HEAD, just use master.
 AS_VAR_IF([RKT_STAGE1_SYSTEMD_VER], [HEAD],
           [AC_MSG_WARN([* 'HEAD' is not a systemd version, setting it to 'master' instead])
            RKT_STAGE1_SYSTEMD_VER='master'])
+
+KVM_HV_TAG='hv_none'
+RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}], [kvm],
+                  dnl for kvm check hypervisor
+                  AS_CASE([${RKT_STAGE1_KVM_HV}],
+                          [lkvm],
+                                  KVM_HV_TAG='hv_lkvm',
+                          [AC_MSG_ERROR([*** Invalid value passed to --with-stage1-kvm-hypervisor; lkvm is the only supported tool right now])]))
 
 ## Options specific to coreos/kvm flavors
 
@@ -502,8 +542,8 @@ AS_IF([test "x${RKT_RUN_FUNCTIONAL_TESTS}" = 'xyes' -o "x${RKT_RUN_FUNCTIONAL_TE
                            [AS_IF([systemctl 2>/dev/null | grep --silent -e '-\.mount'],
                                   dnl systemd runs as init
                                   [sdv=`systemctl --version | head -1 | sed -e 's/^systemd \(@<:@0-9@:>@*\)$/\1/'`
-                                   AS_IF([test ${sdv} -lt 220],
-                                         [rkt_functional_tests_msg="Cannot run functional tests with ${RKT_STAGE1_DEFAULT_FLAVOR} stage1 flavor - systemd version on host is lower than 220 (currently running ${sdv})"])],
+                                   AS_IF([test ${sdv} -lt 227],
+                                         [rkt_functional_tests_msg="Cannot run functional tests with ${RKT_STAGE1_DEFAULT_FLAVOR} stage1 flavor - systemd version on host is lower than 227 (currently running ${sdv})"])],
                                   dnl systemd is not an init
                                   [rkt_functional_tests_msg="Cannot run functional tests with ${RKT_STAGE1_DEFAULT_FLAVOR} stage1 flavor - no systemd on host"])])])
       dnl gpg is required for functional tests
@@ -528,6 +568,32 @@ AS_IF([test "x${RKT_RUN_FUNCTIONAL_TESTS}" = 'xyes' -o "x${RKT_RUN_FUNCTIONAL_TE
 
 ## Miscellaneous stuff
 
+# Check if arch is supported for coreos/kvm flavor.
+AS_CASE([${RKT_ACI_ARCH}],
+        dnl supported arches
+        [aarch64 | amd64], [],
+        dnl unsupported arches
+        [RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}], [coreos,kvm,src],
+                           [AC_MSG_ERROR([*** ${RKT_ACI_ARCH}: no arch support for stage1 flavors {coreos,kvm,src}])],
+                           [AC_MSG_WARN([* ${RKT_ACI_ARCH}: unsupported arch])])])
+
+# Set the path to the interpreter binary for coreos flavor.
+RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}], [coreos],
+                  [AS_CASE([${RKT_ACI_ARCH}],
+                           [aarch64],
+                                    [RKT_STAGE1_INTERPRETER="/usr/lib/ld-linux-aarch64.so.1"],
+                           [amd64],
+                                    [RKT_STAGE1_INTERPRETER="/usr/lib/ld-linux-x86-64.so.2"])])
+
+# Set the path to the interpreter binary for src flavor.
+RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}], [src],
+                  [AS_CASE([${RKT_ACI_ARCH}],
+                           [aarch64],
+                                    [RKT_STAGE1_INTERPRETER="/lib64/ld-linux-aarch64.so.1"],
+                           [amd64],
+                                    [RKT_STAGE1_INTERPRETER="/lib64/ld-linux-x86-64.so.2"])])
+
+
 # cross_compiling is a standard autoconf variable.  See the autoconf manual for
 # details.
 AS_VAR_IF([cross_compiling], [no],
@@ -541,8 +607,10 @@ AS_VAR_IF([cross_compiling], [no],
                                       [GOARCH_FOR_BUILD="amd64"],
                               [aarch64],
                                       [GOARCH_FOR_BUILD="arm64"],
-                              [powerpc],
+                              [powerpc | powerpc64],
                                       [GOARCH_FOR_BUILD="ppc64"],
+                              [powerpc64le],
+                                      [GOARCH_FOR_BUILD="ppc64le"],
                               [AC_MSG_RESULT([unknown]); AC_MSG_ERROR([*** Unknown build cpu: ${build_cpu}.  Set GOARCH_FOR_BUILD variable.])])
                       AC_MSG_RESULT([${GOARCH_FOR_BUILD}])],
                      [AC_MSG_RESULT([user supplied ${GOARCH_FOR_BUILD}])])])
@@ -580,6 +648,30 @@ AS_CASE([${RKT_ENABLE_TPM}],
         [yes],
                 [RKT_ADD_FEATURE '+TPM'])
 
+# Check whether we have libsystemd-journal (for go-systemd/sdjournal)
+AC_CHECK_HEADER([systemd/sd-journal.h], [HAVE_SDJOURNAL=yes], [HAVE_SDJOURNAL=no], [AC_INCLUDES_DEFAULT])
+
+SDJOURNAL_TAGS=''
+AS_CASE([${RKT_ENABLE_SDJOURNAL}],
+        [no],
+                dnl nothing to do
+                [:],
+        [auto],
+                [AS_VAR_IF([HAVE_SDJOURNAL],[yes],
+                           [SDJOURNAL_TAGS=sdjournal
+                            RKT_ENABLE_SDJOURNAL=yes],
+                           [RKT_ENABLE_SDJOURNAL=no])],
+        [yes],
+                [AS_VAR_IF([HAVE_SDJOURNAL],[no],
+                           [AC_MSG_ERROR([*** Host systemd-journal support enabled, but could not find required development files])])
+                 SDJOURNAL_TAGS=sdjournal],
+        [AC_MSG_ERROR([*** Invalid value passed to --enable-sdjournal, should be either 'yes', 'no' or 'auto'])])
+AS_CASE([${RKT_ENABLE_SDJOURNAL}],
+        [no],
+                [RKT_ADD_FEATURE '-SDJOURNAL'],
+        [yes],
+                [RKT_ADD_FEATURE '+SDJOURNAL'])
+
 AC_LANG_POP([C])
 
 AC_PROG_INSTALL
@@ -596,20 +688,14 @@ dnl for [ and ].
 m4_define([DIGITS],[@<:@0-9@:>@])
 m4_define([ALNUM],[@<:@a-z0-9@:>@])
 
-dnl Detect go version. Go 1.4 support only "-X variable 'value'"
-dnl format of assigning values to variables via linker flags. Go 1.5
-dnl deprecates this format in favor of "-X 'variable=value'"
-dnl format. Drop this ugliness when we drop support for Go 1.4.
-dnl Successfully parse versions like "go1.5", "go1.5.3", "go1.6rc1",
-dnl "devel +66330d8 Wed Jan 13 23:40:13 2016 +0000".
+dnl Detect go version. Successfully parse versions like "go1.5",
+dnl "go1.5.3", "go1.6rc1", "devel +66330d8 Wed Jan 13 23:40:13 2016
+dnl +0000".
 GO_VERSION_OUTPUT=`"${ABS_GO}" version`
 GO_VERSION=`AS_ECHO(["${GO_VERSION_OUTPUT}"]) | sed -e 's/^go version \(.*\) ALNUM*\/ALNUM*$/\1/'`
 AS_CASE([$GO_VERSION],
         [devel*],
-                [AC_MSG_WARN([* Using development version of go, all bets are off])
-                 RKT_XF() {
-                     AS_ECHO(["-X '$1=$2'"])
-                 }],
+                [AC_MSG_WARN([* Using development version of go, all bets are off])],
         [go*],
                 [GO_VERSION=`AS_ECHO(["${GO_VERSION}"]) | sed -e 's/^go\(.*\)/\1/'`
                  GO_MAJOR=`AS_ECHO(["${GO_VERSION}"]) | grep -o '^DIGITS\+'`
@@ -622,18 +708,9 @@ AS_CASE([$GO_VERSION],
                  GO_BEST_MINOR=5
                  AC_MSG_CHECKING([whether we have go ${GO_BEST_MAJOR}.${GO_BEST_MINOR} or newer])
                  AS_IF([test "${GO_MAJOR}" -gt "${GO_BEST_MAJOR}" || test "${GO_MAJOR}" -eq "${GO_BEST_MAJOR}" -a "${GO_MINOR}" -ge "${GO_BEST_MINOR}"],
-                       [AC_MSG_RESULT([yes])
-                        RKT_XF() {
-                            AS_ECHO(["-X '$1=$2'"])
-                        }],
+                       [AC_MSG_RESULT([yes])],
                        [AC_MSG_RESULT([no])
-                        AC_MSG_CHECKING([whether we have go 1.4])
-                        AS_IF([test "${GO_MAJOR}" -eq "1" -a "${GO_MINOR}" -eq "4"],
-                              [AC_MSG_RESULT([yes])
-                               RKT_XF() {
-                                   AS_ECHO(["-X $1 '$2'"])
-                               }],
-                              [AC_MSG_ERROR([*** go is too old (${GO_VERSION})])])])
+                        AC_MSG_ERROR([*** go is too old (${GO_VERSION})])])
 
                  AC_MSG_CHECKING([whether we have a go version without CVE-2015-8618])
                  AS_IF([test "${GO_MAJOR}" -eq "1" -a "${GO_MINOR}" -eq "5" -a "${GO_MICRO}" -lt "3"],
@@ -644,18 +721,19 @@ AS_CASE([$GO_VERSION],
                                   [AC_MSG_WARN([* ${insecure_go_warning}])])],
                        [AC_MSG_RESULT([yes])])],
         [AC_MSG_ERROR([*** Could not parse the output of go version])])
-
-RKT_STAGE1_DEFAULT_NAME_LDFLAGS=`RKT_XF main.buildDefaultStage1Name "${RKT_STAGE1_DEFAULT_NAME}"`
-RKT_STAGE1_DEFAULT_VERSION_LDFLAGS=`RKT_XF main.buildDefaultStage1Version "${RKT_STAGE1_DEFAULT_VERSION}"`
-RKT_STAGE1_DEFAULT_LOCATION_LDFLAGS=`RKT_XF main.buildDefaultStage1ImageLoc "${RKT_STAGE1_DEFAULT_LOCATION}"`
-RKT_STAGE1_DEFAULT_IMAGE_FILENAME_LDFLAGS=`RKT_XF main.buildDefaultStage1ImageInRktDir "${RKT_STAGE1_DEFAULT_IMAGE_FILENAME_IN_RKT_DIRECTORY}"`
-RKT_STAGE1_DEFAULT_IMAGES_DIRECTORY_LDFLAGS=`RKT_XF main.buildDefaultStage1ImagesDir "${RKT_STAGE1_DEFAULT_IMAGES_DIR}"`
-RKT_VERSION_LDFLAGS=`RKT_XF github.com/coreos/rkt/version.Version "${RKT_VERSION}"`
-RKT_FEATURES_LDFLAGS=`RKT_XF main.rktFeatures "${RKT_FEATURES}"`
+RKT_STAGE1_DEFAULT_NAME_LDFLAGS="-X 'main.buildDefaultStage1Name=${RKT_STAGE1_DEFAULT_NAME}'"
+RKT_STAGE1_DEFAULT_VERSION_LDFLAGS="-X 'main.buildDefaultStage1Version=${RKT_STAGE1_DEFAULT_VERSION}'"
+RKT_STAGE1_DEFAULT_LOCATION_LDFLAGS="-X 'main.buildDefaultStage1ImageLoc=${RKT_STAGE1_DEFAULT_LOCATION}'"
+RKT_STAGE1_DEFAULT_IMAGE_FILENAME_LDFLAGS="-X 'main.buildDefaultStage1ImageInRktDir=${RKT_STAGE1_DEFAULT_IMAGE_FILENAME_IN_RKT_DIRECTORY}'"
+RKT_STAGE1_DEFAULT_IMAGES_DIRECTORY_LDFLAGS="-X 'main.buildDefaultStage1ImagesDir=${RKT_STAGE1_DEFAULT_IMAGES_DIR}'"
+RKT_STAGE1_INTERPRETER_LDFLAGS="-X 'main.interpBin=${RKT_STAGE1_INTERPRETER}'"
+RKT_VERSION_LDFLAGS="-X 'github.com/coreos/rkt/version.Version=${RKT_VERSION}'"
+RKT_FEATURES_LDFLAGS="-X 'main.rktFeatures=${RKT_FEATURES}'"
 
 #### SUBSTITUTIONS
 
 AC_SUBST(RKT_VERSION)
+AC_SUBST(RKT_ACI_ARCH)
 AC_SUBST(RKT_STAGE1_FLAVORS_VERSION_OVERRIDE)
 
 AC_SUBST(RKT_STAGE1_DEFAULT_NAME)
@@ -675,8 +753,13 @@ AC_SUBST(RKT_STAGE1_SYSTEMD_VER)
 AC_SUBST(RKT_LOCAL_COREOS_PXE_IMAGE_PATH)
 AC_SUBST(RKT_LOCAL_COREOS_PXE_IMAGE_SYSTEMD_VER)
 
+AC_SUBST(RKT_STAGE1_COREOS_BOARD)
+AC_SUBST(RKT_STAGE1_INTERPRETER)
+
 AC_SUBST(RKT_RUN_FUNCTIONAL_TESTS)
 
+AC_SUBST(GOARCH)
+AC_SUBST(GOARM)
 AC_SUBST(GOARCH_FOR_BUILD)
 
 AC_SUBST(RKT_STAGE1_DEFAULT_NAME_LDFLAGS)
@@ -684,10 +767,13 @@ AC_SUBST(RKT_STAGE1_DEFAULT_VERSION_LDFLAGS)
 AC_SUBST(RKT_STAGE1_DEFAULT_LOCATION_LDFLAGS)
 AC_SUBST(RKT_STAGE1_DEFAULT_IMAGE_FILENAME_LDFLAGS)
 AC_SUBST(RKT_STAGE1_DEFAULT_IMAGES_DIRECTORY_LDFLAGS)
+AC_SUBST(RKT_STAGE1_INTERPRETER_LDFLAGS)
 AC_SUBST(RKT_VERSION_LDFLAGS)
 AC_SUBST(RKT_FEATURES_LDFLAGS)
 
+AC_SUBST(KVM_HV_TAG)
 AC_SUBST(TPM_TAGS)
+AC_SUBST(SDJOURNAL_TAGS)
 
 AC_SUBST(RKT_DEFINES_FOR_ENTER)
 
@@ -727,7 +813,8 @@ RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}], [coreos,kvm],
         coreos/kvm flavor specific build parameters
 
         local CoreOS PXE image path:            '${RKT_LOCAL_COREOS_PXE_IMAGE_PATH}'
-        local CoreOS PXE image systemd version: '${RKT_LOCAL_COREOS_PXE_IMAGE_SYSTEMD_VER}'])])
+        local CoreOS PXE image systemd version: '${RKT_LOCAL_COREOS_PXE_IMAGE_SYSTEMD_VER}'
+        stage1 CoreOS board:                    '${RKT_STAGE1_COREOS_BOARD}'])])
 
 RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}], [src],
                   [AC_MSG_RESULT([
@@ -736,9 +823,24 @@ RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}], [src],
         systemd git repo:                       '${RKT_STAGE1_SYSTEMD_SRC}'
         systemd version:                        '${RKT_STAGE1_SYSTEMD_VER}'])])
 
+RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}], [kvm],
+                  [AC_MSG_RESULT([
+        kvm flavor specific build parameters
+
+        hypervisor:                             '${RKT_STAGE1_KVM_HV}'])])
+
+RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}], [coreos,src],
+                  [AC_MSG_RESULT([
+        coreos flavor specific build parameters
+
+        interpreter:                            '${RKT_STAGE1_INTERPRETER}'])])
+
+
 AC_MSG_RESULT([
         other build parameters
 
         functional tests enabled:               '${RKT_RUN_FUNCTIONAL_TESTS}'
         features:                               '${RKT_FEATURES}'
-        go version:                             '${GO_VERSION}'])
+        ACI arch:                               '${RKT_ACI_ARCH}'
+        go version:                             '${GO_VERSION}'
+        go arch:                                '${GOARCH}'])

@@ -1,14 +1,17 @@
 # aci directory should be the last one
 _S1_SS_SUBDIRS_ := \
-	appexec \
-	prepare-app \
 	enter \
 	enter_kvm \
-	net-plugins \
-	net \
-	init \
+	enterexec \
+	diagnostic \
 	gc \
+	init \
+	net \
+	net-plugins \
+	prepare-app \
 	reaper \
+	stop \
+	stop_kvm \
 	units \
 	aci
 

@@ -192,6 +192,7 @@ func httpRequest(method, pth string, body io.Reader) error {
 	return err
 }
 
+// CheckMdsAvailability checks whether a local metadata service can be reached.
 func CheckMdsAvailability() error {
 	if conn, err := net.Dial("unix", common.MetadataServiceRegSock); err != nil {
 		return errUnreachable

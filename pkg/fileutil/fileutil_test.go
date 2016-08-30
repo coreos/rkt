@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/coreos/rkt/pkg/uid"
+	"github.com/coreos/rkt/pkg/user"
 )
 
 const tstprefix = "fileutil-test"
@@ -70,7 +70,7 @@ func TestCopyTree(t *testing.T) {
 	src := filepath.Join(td, "src")
 	dst := filepath.Join(td, "dst")
 	if err := os.MkdirAll(filepath.Join(td, "src"), 0755); err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 
 	tr := []tree{
@@ -95,7 +95,7 @@ func TestCopyTree(t *testing.T) {
 	createTree(t, src, tr)
 
 	// absolute paths
-	if err := CopyTree(src, dst, uid.NewBlankUidRange()); err != nil {
+	if err := CopyTree(src, dst, user.NewBlankUidRange()); err != nil {
 		t.Fatal(err)
 	}
 	checkTree(t, dst, tr)
@@ -106,14 +106,80 @@ func TestCopyTree(t *testing.T) {
 	}
 
 	dst = "dst-rel1"
-	if err := CopyTree("././src/", dst, uid.NewBlankUidRange()); err != nil {
+	if err := CopyTree("././src/", dst, user.NewBlankUidRange()); err != nil {
 		t.Fatal(err)
 	}
 	checkTree(t, dst, tr)
 
 	dst = "./dst-rel2"
-	if err := CopyTree("./src", dst, uid.NewBlankUidRange()); err != nil {
+	if err := CopyTree("./src", dst, user.NewBlankUidRange()); err != nil {
 		t.Fatal(err)
 	}
 	checkTree(t, dst, tr)
+}
+
+func TestFileIsExecutable(t *testing.T) {
+	tempDir, err := ioutil.TempDir("", tstprefix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	testCases := []struct {
+		Permission   os.FileMode
+		IsExecutable bool
+	}{
+		{0200, false},
+		{0400, false},
+		{0600, false},
+		{0100, true},
+		{0300, true},
+		{0500, true},
+		{0700, true},
+
+		{0002, false},
+		{0004, false},
+		{0006, false},
+		{0001, true},
+		{0003, true},
+		{0005, true},
+		{0007, true},
+
+		{0020, false},
+		{0040, false},
+		{0060, false},
+		{0010, true},
+		{0030, true},
+		{0050, true},
+		{0070, true},
+
+		{0000, false},
+		{0222, false},
+		{0444, false},
+		{0666, false},
+
+		{0146, true},
+		{0661, true},
+	}
+
+	for _, tc := range testCases {
+		f, err := ioutil.TempFile(tempDir, "")
+		if err != nil {
+			panic(err)
+		}
+
+		if err := f.Chmod(tc.Permission); err != nil {
+			panic(err)
+		}
+
+		if err := f.Close(); err != nil {
+			panic(err)
+		}
+
+		path := f.Name()
+
+		if tc.IsExecutable != IsExecutable(path) {
+			t.Errorf("fileutil.IsExecutable(%q) with permissions %q, expected %v", path, tc.Permission, tc.IsExecutable)
+		}
+	}
 }

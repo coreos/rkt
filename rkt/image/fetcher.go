@@ -16,13 +16,16 @@ package image
 
 import (
 	"container/list"
+	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"runtime"
 
+	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/common/apps"
 	"github.com/coreos/rkt/stage0"
-	"github.com/coreos/rkt/store"
+	"github.com/coreos/rkt/store/imagestore"
 	"github.com/hashicorp/errwrap"
 
 	"github.com/appc/spec/discovery"
@@ -48,6 +51,16 @@ func (f *Fetcher) FetchImage(img string, ascPath string, imgType apps.AppImageTy
 		err = f.fetchImageDeps(hash)
 		if err != nil {
 			return "", err
+		}
+	}
+
+	// we need to be able to do a chroot and access to the tree store
+	// directories, we need to
+	// 1) check if the system supports OverlayFS
+	// 2) check if we're root
+	if common.SupportsOverlay() == nil && os.Geteuid() == 0 {
+		if _, _, err := f.Ts.Render(hash, false); err != nil {
+			return "", errwrap.Wrap(errors.New("error rendering tree store"), err)
 		}
 	}
 	return hash, nil
@@ -118,7 +131,7 @@ func (f *Fetcher) fetchSingleImage(img string, a *asc, imgType apps.AppImageType
 		imgType = guessImageType(img)
 	}
 	if imgType == apps.AppImageHash {
-		return "", fmt.Errorf("cannot fetch a hash '%q', expected either a URL, a path or an image name", img)
+		return "", fmt.Errorf("cannot fetch a hash %q, expected either a URL, a path or an image name", img)
 	}
 
 	switch imgType {
@@ -132,13 +145,6 @@ func (f *Fetcher) fetchSingleImage(img string, a *asc, imgType apps.AppImageType
 		return "", fmt.Errorf("unknown image type %d", imgType)
 	}
 }
-
-type remoteCheck int
-
-const (
-	remoteCheckLax remoteCheck = iota
-	remoteCheckStrict
-)
 
 func (f *Fetcher) fetchSingleImageByURL(urlStr string, a *asc) (string, error) {
 	u, err := url.Parse(urlStr)
@@ -161,11 +167,11 @@ func (f *Fetcher) fetchSingleImageByURL(urlStr string, a *asc) (string, error) {
 }
 
 func (f *Fetcher) fetchSingleImageByHTTPURL(u *url.URL, a *asc) (string, error) {
-	rem, err := f.getRemoteForURL(u)
+	rem, err := remoteForURL(f.S, u)
 	if err != nil {
 		return "", err
 	}
-	if h := f.maybeCheckRemoteFromStore(rem, remoteCheckStrict); h != "" {
+	if h := f.maybeCheckRemoteFromStore(rem); h != "" {
 		return h, nil
 	}
 	if h, err := f.maybeFetchHTTPURLFromRemote(rem, u, a); h != "" || err != nil {
@@ -175,13 +181,11 @@ func (f *Fetcher) fetchSingleImageByHTTPURL(u *url.URL, a *asc) (string, error) 
 }
 
 func (f *Fetcher) fetchSingleImageByDockerURL(u *url.URL) (string, error) {
-	rem, err := f.getRemoteForURL(u)
+	rem, err := remoteForURL(f.S, u)
 	if err != nil {
 		return "", err
 	}
-	// TODO(krnowak): use strict checking when we implement
-	// setting CacheMaxAge in store.Remote for docker images
-	if h := f.maybeCheckRemoteFromStore(rem, remoteCheckLax); h != "" {
+	if h := f.maybeCheckRemoteFromStore(rem); h != "" {
 		return h, nil
 	}
 	if h, err := f.maybeFetchDockerURLFromRemote(u); h != "" || err != nil {
@@ -190,38 +194,15 @@ func (f *Fetcher) fetchSingleImageByDockerURL(u *url.URL) (string, error) {
 	return "", fmt.Errorf("unable to fetch docker image from URL %q: either image was not found in the store or store was disabled and fetching from remote yielded nothing or it was disabled", u.String())
 }
 
-func (f *Fetcher) getRemoteForURL(u *url.URL) (*store.Remote, error) {
-	if f.NoCache {
-		return nil, nil
-	}
-	urlStr := u.String()
-	if rem, ok, err := f.S.GetRemote(urlStr); err != nil {
-		return nil, errwrap.Wrap(fmt.Errorf("failed to fetch URL %q", urlStr), err)
-	} else if ok {
-		return rem, nil
-	}
-	return nil, nil
-}
-
-func (f *Fetcher) maybeCheckRemoteFromStore(rem *store.Remote, check remoteCheck) string {
+func (f *Fetcher) maybeCheckRemoteFromStore(rem *imagestore.Remote) string {
 	if f.NoStore || rem == nil {
 		return ""
 	}
-	useBlobKey := false
-	switch check {
-	case remoteCheckLax:
-		useBlobKey = true
-	case remoteCheckStrict:
-		useBlobKey = useCached(rem.DownloadTime, rem.CacheMaxAge)
-	}
-	if useBlobKey {
-		log.Printf("using image from local store for url %s", rem.ACIURL)
-		return rem.BlobKey
-	}
-	return ""
+	log.Printf("using image from local store for url %s", rem.ACIURL)
+	return rem.BlobKey
 }
 
-func (f *Fetcher) maybeFetchHTTPURLFromRemote(rem *store.Remote, u *url.URL, a *asc) (string, error) {
+func (f *Fetcher) maybeFetchHTTPURLFromRemote(rem *imagestore.Remote, u *url.URL, a *asc) (string, error) {
 	if !f.StoreOnly {
 		log.Printf("remote fetching from URL %q", u.String())
 		hf := &httpFetcher{
@@ -232,7 +213,7 @@ func (f *Fetcher) maybeFetchHTTPURLFromRemote(rem *store.Remote, u *url.URL, a *
 			Debug:         f.Debug,
 			Headers:       f.Headers,
 		}
-		return hf.GetHash(u, a)
+		return hf.Hash(u, a)
 	}
 	return "", nil
 }
@@ -246,7 +227,7 @@ func (f *Fetcher) maybeFetchDockerURLFromRemote(u *url.URL) (string, error) {
 			S:             f.S,
 			Debug:         f.Debug,
 		}
-		return df.GetHash(u)
+		return df.Hash(u)
 	}
 	return "", nil
 }
@@ -259,7 +240,7 @@ func (f *Fetcher) fetchSingleImageByPath(path string, a *asc) (string, error) {
 		Ks:            f.Ks,
 		Debug:         f.Debug,
 	}
-	return ff.GetHash(path, a)
+	return ff.Hash(path, a)
 }
 
 type appBundle struct {
@@ -310,7 +291,7 @@ func (f *Fetcher) maybeCheckStoreForApp(app *appBundle) (string, error) {
 			return key, nil
 		}
 		switch err.(type) {
-		case store.ACINotFoundError:
+		case imagestore.ACINotFoundError:
 			// ignore the "not found" error
 		default:
 			return "", err
@@ -327,7 +308,7 @@ func (f *Fetcher) getStoreKeyFromApp(app *appBundle) (string, error) {
 	key, err := f.S.GetACI(app.App.Name, labels)
 	if err != nil {
 		switch err.(type) {
-		case store.ACINotFoundError:
+		case imagestore.ACINotFoundError:
 			return "", err
 		default:
 			return "", errwrap.Wrap(fmt.Errorf("cannot find image %q", app.Str), err)
@@ -342,11 +323,12 @@ func (f *Fetcher) maybeFetchImageFromRemote(app *appBundle, a *asc) (string, err
 			InsecureFlags:      f.InsecureFlags,
 			S:                  f.S,
 			Ks:                 f.Ks,
+			NoCache:            f.NoCache,
 			Debug:              f.Debug,
 			Headers:            f.Headers,
 			TrustKeysFromHTTPS: f.TrustKeysFromHTTPS,
 		}
-		return nf.GetHash(app.App, a)
+		return nf.Hash(app.App, a)
 	}
 	return "", nil
 }

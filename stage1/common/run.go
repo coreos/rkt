@@ -37,19 +37,18 @@ func WithClearedCloExec(lfd int, f func() error) error {
 	return f()
 }
 
-// WritePpid writes the pid's parent pid to $PWD/ppid
-func WritePpid(pid int) error {
-	// write ppid file as specified in
+// WritePid writes the given pid to $PWD/{filename}
+func WritePid(pid int, filename string) error {
+	// write pid file as specified in
 	// Documentation/devel/stage1-implementors-guide.md
 	out, err := os.Getwd()
 	if err != nil {
 		return errwrap.Wrap(errors.New("cannot get current working directory"), err)
 	}
-	// we are the parent of the process that is PID 1 in the container so we write our PID to "ppid"
-	err = ioutil.WriteFile(filepath.Join(out, "ppid"),
+	err = ioutil.WriteFile(filepath.Join(out, filename),
 		[]byte(fmt.Sprintf("%d\n", pid)), 0644)
 	if err != nil {
-		return errwrap.Wrap(errors.New("cannot write ppid file"), err)
+		return errwrap.Wrap(errors.New("cannot write pid file"), err)
 	}
 	return nil
 }

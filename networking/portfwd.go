@@ -22,7 +22,52 @@ import (
 	"github.com/coreos/go-iptables/iptables"
 )
 
-func (e *podEnv) forwardPorts(fps []ForwardedPort, defIP net.IP) error {
+// ForwardedPort describes a port that will be
+// forwarded (mapped) from the host to the pod
+type ForwardedPort struct {
+	Protocol string
+	HostPort uint
+	PodPort  uint
+}
+
+// GetForwardableNet iterates through all loaded networks and returns either
+// the first network that has masquerading enabled,
+// or the last network in case there is no masqueraded one,
+// or an error if no network was loaded.
+func (n *Networking) GetForwardableNet() (*activeNet, error) {
+	numberNets := len(n.nets)
+	if numberNets == 0 {
+		return nil, fmt.Errorf("no networks found")
+	}
+	for _, net := range n.nets {
+		if net.IPMasq() {
+			return &net, nil
+		}
+	}
+	return &n.nets[numberNets-1], nil
+}
+
+// GetForwardableNetPodIP uses GetForwardableNet() to determine the default network and then
+// returns the Pod's IP of that network.
+func (n *Networking) GetForwardableNetPodIP() (net.IP, error) {
+	net, err := n.GetForwardableNet()
+	if err != nil {
+		return nil, err
+	}
+	return net.runtime.IP, nil
+}
+
+// GetForwardableNetHostIP uses GetForwardableNet() to determine the default network and then
+// returns the Host's IP of that network.
+func (n *Networking) GetForwardableNetHostIP() (net.IP, error) {
+	net, err := n.GetForwardableNet()
+	if err != nil {
+		return nil, err
+	}
+	return net.runtime.HostIP, nil
+}
+
+func (e *podEnv) forwardPorts(fps []ForwardedPort, podIP net.IP) error {
 	if len(fps) == 0 {
 		return nil
 	}
@@ -70,9 +115,9 @@ func (e *podEnv) forwardPorts(fps []ForwardedPort, defIP net.IP) error {
 
 	for _, p := range fps {
 
-		dst := fmt.Sprintf("%v:%v", defIP, p.PodPort)
-		dstIP := fmt.Sprintf("%v", defIP)
-		dport := strconv.Itoa(int(p.HostPort))
+		socketPod := fmt.Sprintf("%v:%v", podIP, p.PodPort)
+		dstPortHost := strconv.Itoa(int(p.HostPort))
+		dstPortPod := strconv.Itoa(int(p.PodPort))
 
 		for _, r := range []struct {
 			chain string
@@ -82,9 +127,9 @@ func (e *podEnv) forwardPorts(fps []ForwardedPort, defIP net.IP) error {
 				chainDNAT,
 				[]string{
 					"-p", p.Protocol,
-					"--dport", dport,
+					"--dport", dstPortHost,
 					"-j", "DNAT",
-					"--to-destination", dst,
+					"--to-destination", socketPod,
 				},
 			},
 			{ // Rewrite the source for connections to localhost on the host
@@ -92,8 +137,8 @@ func (e *podEnv) forwardPorts(fps []ForwardedPort, defIP net.IP) error {
 				[]string{
 					"-p", p.Protocol,
 					"-s", "127.0.0.1",
-					"-d", dstIP,
-					"--dport", dport,
+					"-d", podIP.String(),
+					"--dport", dstPortPod,
 					"-j", "MASQUERADE",
 				},
 			},

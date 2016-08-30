@@ -25,7 +25,8 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/stage0"
-	"github.com/coreos/rkt/store"
+	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/treestore"
 	"github.com/hashicorp/errwrap"
 	"github.com/spf13/cobra"
 )
@@ -94,7 +95,13 @@ func runEnter(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	s, err := store.NewStore(getDataDir())
+	s, err := imagestore.NewStore(storeDir())
+	if err != nil {
+		stderr.PrintE("cannot open store", err)
+		return 1
+	}
+
+	ts, err := treestore.NewStore(treeStoreDir(), s)
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
 		return 1
@@ -106,7 +113,7 @@ func runEnter(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	stage1RootFS := s.GetTreeStoreRootFS(stage1TreeStoreID)
+	stage1RootFS := ts.GetRootFS(stage1TreeStoreID)
 
 	if err = stage0.Enter(p.path(), podPID, *appName, stage1RootFS, argv); err != nil {
 		stderr.PrintE("enter failed", err)

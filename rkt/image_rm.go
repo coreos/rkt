@@ -18,7 +18,7 @@ import (
 	"fmt"
 
 	"github.com/appc/spec/schema/types"
-	"github.com/coreos/rkt/store"
+	"github.com/coreos/rkt/store/imagestore"
 	"github.com/spf13/cobra"
 )
 
@@ -35,7 +35,7 @@ func init() {
 	cmdImage.AddCommand(cmdImageRm)
 }
 
-func rmImages(s *store.Store, images []string) error {
+func rmImages(s *imagestore.Store, images []string) error {
 	done := 0
 	errors := 0
 	staleErrors := 0
@@ -94,7 +94,7 @@ func rmImages(s *store.Store, images []string) error {
 
 	for key, name := range imageMap {
 		if err := s.RemoveACI(key); err != nil {
-			if serr, ok := err.(*store.StoreRemovalError); ok {
+			if serr, ok := err.(*imagestore.StoreRemovalError); ok {
 				staleErrors++
 				stderr.PrintE(fmt.Sprintf("some files cannot be removed for image %q (%q)", key, name), serr)
 			} else {
@@ -131,7 +131,7 @@ func runRmImage(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	s, err := store.NewStore(getDataDir())
+	s, err := imagestore.NewStore(storeDir())
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
 		return 1

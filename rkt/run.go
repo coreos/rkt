@@ -17,7 +17,9 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -25,10 +27,11 @@ import (
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/pkg/label"
 	"github.com/coreos/rkt/pkg/lock"
-	"github.com/coreos/rkt/pkg/uid"
+	"github.com/coreos/rkt/pkg/user"
 	"github.com/coreos/rkt/rkt/image"
 	"github.com/coreos/rkt/stage0"
-	"github.com/coreos/rkt/store"
+	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/treestore"
 	"github.com/hashicorp/errwrap"
 	"github.com/spf13/cobra"
 )
@@ -57,6 +60,7 @@ image arguments with a lone "---" to resume argument parsing.`,
 	flagPrivateUsers bool
 	flagInheritEnv   bool
 	flagExplicitEnv  envMap
+	flagEnvFromFile  envFileMap
 	flagInteractive  bool
 	flagDNS          flagStringList
 	flagDNSSearch    flagStringList
@@ -79,8 +83,9 @@ func init() {
 	cmdRun.Flags().Lookup("net").NoOptDefVal = "default"
 	cmdRun.Flags().BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
 	cmdRun.Flags().BoolVar(&flagNoOverlay, "no-overlay", false, "disable overlay filesystem")
-	cmdRun.Flags().BoolVar(&flagPrivateUsers, "private-users", false, "run within user namespaces (experimental).")
-	cmdRun.Flags().Var(&flagExplicitEnv, "set-env", "an environment variable to set for apps in the form name=value")
+	cmdRun.Flags().BoolVar(&flagPrivateUsers, "private-users", false, "run within user namespaces.")
+	cmdRun.Flags().Var(&flagExplicitEnv, "set-env", "environment variable to set for apps in the form name=value")
+	cmdRun.Flags().Var(&flagEnvFromFile, "set-env-file", "path to an environment variables file")
 	cmdRun.Flags().BoolVar(&flagInteractive, "interactive", false, "run pod interactively. If true, only one image may be supplied.")
 	cmdRun.Flags().Var(&flagDNS, "dns", "name servers to write in /etc/resolv.conf")
 	cmdRun.Flags().Var(&flagDNSSearch, "dns-search", "DNS search domains to write in /etc/resolv.conf")
@@ -99,6 +104,17 @@ func init() {
 	cmdRun.Flags().Var((*appMount)(&rktApps), "mount", "mount point binding a volume to a path within an app")
 	cmdRun.Flags().Var((*appMemoryLimit)(&rktApps), "memory", "memory limit for the preceding image (example: '--memory=16Mi', '--memory=50M', '--memory=1G')")
 	cmdRun.Flags().Var((*appCPULimit)(&rktApps), "cpu", "cpu limit for the preceding image (example: '--cpu=500m')")
+	cmdRun.Flags().Var((*appUser)(&rktApps), "user", "user override for the preceding image (example: '--user=user')")
+	cmdRun.Flags().Var((*appGroup)(&rktApps), "group", "group override for the preceding image (example: '--group=group')")
+	cmdRun.Flags().Var((*appCapsRetain)(&rktApps), "caps-retain", "capability to retain (example: '--caps-retain=CAP_SYS_ADMIN')")
+	cmdRun.Flags().Var((*appCapsRemove)(&rktApps), "caps-remove", "capability to remove (example: '--caps-remove=CAP_MKNOD')")
+	cmdRun.Flags().Var((*appSeccompFilter)(&rktApps), "seccomp", "seccomp filter override (example: '--seccomp mode=retain,errno=EPERM,chmod,chown')")
+
+	// For backwards compatibility
+	cmdRun.Flags().Var((*appCapsRetain)(&rktApps), "cap-retain", "capability to retain (example: '--caps-retain=CAP_SYS_ADMIN')")
+	cmdRun.Flags().Var((*appCapsRemove)(&rktApps), "cap-remove", "capability to remove (example: '--caps-remove=CAP_MKNOD')")
+	cmdRun.Flags().MarkDeprecated("cap-retain", "use --caps-retain instead")
+	cmdRun.Flags().MarkDeprecated("cap-remove", "use --caps-remove instead")
 
 	flagPorts = portList{}
 	flagDNS = flagStringList{}
@@ -112,7 +128,7 @@ func init() {
 }
 
 func runRun(cmd *cobra.Command, args []string) (exit int) {
-	privateUsers := uid.NewBlankUidRange()
+	privateUsers := user.NewBlankUidRange()
 	err := parseApps(&rktApps, args, cmd.Flags(), true)
 	if err != nil {
 		stderr.PrintE("error parsing app image arguments", err)
@@ -129,7 +145,7 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 			stderr.Print("--private-users is not supported, kernel compiled without user namespace support")
 			return 1
 		}
-		privateUsers.SetRandomUidRange(uid.DefaultRangeCount)
+		privateUsers.SetRandomUidRange(user.DefaultRangeCount)
 	}
 
 	if len(flagPorts) > 0 && flagNet.None() {
@@ -146,7 +162,11 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	if len(flagPodManifest) > 0 && (len(flagPorts) > 0 || flagInheritEnv || !flagExplicitEnv.IsEmpty() || rktApps.Count() > 0 || flagStoreOnly || flagNoStore) {
+	if len(flagPodManifest) > 0 && (len(flagPorts) > 0 || rktApps.Count() > 0 || flagStoreOnly || flagNoStore ||
+		flagInheritEnv || !flagExplicitEnv.IsEmpty() || !flagEnvFromFile.IsEmpty() ||
+		(*appsVolume)(&rktApps).String() != "" || (*appMount)(&rktApps).String() != "" || (*appExec)(&rktApps).String() != "" ||
+		(*appUser)(&rktApps).String() != "" || (*appGroup)(&rktApps).String() != "" ||
+		(*appCapsRetain)(&rktApps).String() != "" || (*appCapsRemove)(&rktApps).String() != "") {
 		stderr.Print("conflicting flags set with --pod-manifest (see --help)")
 		return 1
 	}
@@ -161,9 +181,15 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	s, err := store.NewStore(getDataDir())
+	s, err := imagestore.NewStore(storeDir())
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
+		return 1
+	}
+
+	ts, err := treestore.NewStore(treeStoreDir(), s)
+	if err != nil {
+		stderr.PrintE("cannot open treestore", err)
 		return 1
 	}
 
@@ -173,7 +199,7 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	s1img, err := getStage1Hash(s, config)
+	s1img, err := getStage1Hash(s, ts, config)
 	if err != nil {
 		stderr.Error(err)
 		return 1
@@ -181,6 +207,7 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 
 	fn := &image.Finder{
 		S:                  s,
+		Ts:                 ts,
 		Ks:                 getKeystore(),
 		Headers:            config.AuthPerHost,
 		DockerAuth:         config.DockerCredentialsPerRegistry,
@@ -212,7 +239,7 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		}
 	}
 
-	processLabel, mountLabel, err := label.InitLabels([]string{"mcsdir:/var/run/rkt/mcs"})
+	processLabel, mountLabel, err := label.InitLabels("/var/run/rkt/mcs", []string{})
 	if err != nil {
 		stderr.PrintE("error initialising SELinux", err)
 		return 1
@@ -224,14 +251,28 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		MountLabel:   mountLabel,
 		ProcessLabel: processLabel,
 		Store:        s,
+		TreeStore:    ts,
 		Stage1Image:  *s1img,
 		UUID:         p.uuid,
 		Debug:        globalFlags.Debug,
 	}
 
+	ovlOk := true
+	if err := common.PathSupportsOverlay(getDataDir()); err != nil {
+		if oerr, ok := err.(common.ErrOverlayUnsupported); ok {
+			stderr.Printf("disabling overlay support: %q", oerr.Error())
+			ovlOk = false
+		} else {
+			stderr.PrintE("error determining overlay support", err)
+			return 1
+		}
+	}
+
+	useOverlay := !flagNoOverlay && ovlOk
+
 	pcfg := stage0.PrepareConfig{
 		CommonConfig:       &cfg,
-		UseOverlay:         !flagNoOverlay && common.SupportsOverlay(),
+		UseOverlay:         useOverlay,
 		PrivateUsers:       privateUsers,
 		SkipTreeStoreCheck: globalFlags.InsecureFlags.SkipOnDiskCheck(),
 	}
@@ -242,6 +283,7 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		pcfg.Ports = []types.ExposedPort(flagPorts)
 		pcfg.InheritEnv = flagInheritEnv
 		pcfg.ExplicitEnv = flagExplicitEnv.Strings()
+		pcfg.EnvFromFile = flagEnvFromFile.Strings()
 		pcfg.Apps = &rktApps
 	}
 
@@ -282,17 +324,21 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 	}
 
 	rcfg := stage0.RunConfig{
-		CommonConfig: &cfg,
-		Net:          flagNet,
-		LockFd:       lfd,
-		Interactive:  flagInteractive,
-		DNS:          flagDNS,
-		DNSSearch:    flagDNSSearch,
-		DNSOpt:       flagDNSOpt,
-		MDSRegister:  flagMDSRegister,
-		LocalConfig:  globalFlags.LocalConfigDir,
-		RktGid:       rktgid,
-		Hostname:     flagHostname,
+		CommonConfig:         &cfg,
+		Net:                  flagNet,
+		LockFd:               lfd,
+		Interactive:          flagInteractive,
+		DNS:                  flagDNS,
+		DNSSearch:            flagDNSSearch,
+		DNSOpt:               flagDNSOpt,
+		MDSRegister:          flagMDSRegister,
+		LocalConfig:          globalFlags.LocalConfigDir,
+		RktGid:               rktgid,
+		Hostname:             flagHostname,
+		InsecureCapabilities: globalFlags.InsecureFlags.SkipCapabilities(),
+		InsecurePaths:        globalFlags.InsecureFlags.SkipPaths(),
+		InsecureSeccomp:      globalFlags.InsecureFlags.SkipSeccomp(),
+		UseOverlay:           useOverlay,
 	}
 
 	apps, err := p.getApps()
@@ -401,4 +447,67 @@ func (e *envMap) Strings() []string {
 
 func (e *envMap) Type() string {
 	return "envMap"
+}
+
+// envFileMap
+type envFileMap struct {
+	mapping map[string]string
+}
+
+func commentLine(s string) bool {
+	return strings.HasPrefix(s, "#") || strings.HasPrefix(s, ";")
+}
+
+func (e *envFileMap) Set(s string) error {
+	if e.mapping == nil {
+		e.mapping = make(map[string]string)
+	}
+	file, err := os.Open(s)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		// Skip empty lines
+		if len(line) == 0 {
+			continue
+		}
+		// Skip comments
+		if commentLine(line) {
+			continue
+		}
+		pair := strings.SplitN(line, "=", 2)
+		// Malformed lines
+		if len(pair) != 2 || len(pair[0]) == 0 {
+			return fmt.Errorf("environment variable must be specified as name=value (file %q)", file)
+		}
+		if _, exists := e.mapping[pair[0]]; exists {
+			return fmt.Errorf("environment variable %q already set (file %q)", pair[0], file)
+		}
+		e.mapping[pair[0]] = pair[1]
+	}
+	return nil
+}
+
+func (e *envFileMap) IsEmpty() bool {
+	return len(e.mapping) == 0
+}
+
+func (e *envFileMap) String() string {
+	return strings.Join(e.Strings(), "\n")
+}
+
+func (e *envFileMap) Strings() []string {
+	var env []string
+	for n, v := range e.mapping {
+		env = append(env, n+"="+v)
+	}
+	return env
+}
+
+func (e *envFileMap) Type() string {
+	return "envFileMap"
 }

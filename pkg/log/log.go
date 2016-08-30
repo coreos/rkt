@@ -58,13 +58,6 @@ func NewLogSet(prefix string, debug bool) (stderr, diagnostic, stdout *Logger) {
 // SetDebug sets the debug flag to the value of b
 func (l *Logger) SetDebug(b bool) { l.debug = b }
 
-// SetOutput sets the output destination for Logger.
-// FIXME: We can get rid of this once rkt drops support for 1.4.
-func (l *Logger) SetOutput(w io.Writer) {
-	// No SetOutput exposed in go 1.4.
-	*l = *New(w, l.Prefix(), l.debug)
-}
-
 // SetFlags is a wrapper around log.SetFlags that adds and removes, ": " to and
 // from a prefix. This is needed because ": " is only added by golang's log
 // package if either of the Lshortfile or Llongfile flags are set.

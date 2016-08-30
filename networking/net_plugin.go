@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	cnitypes "github.com/appc/cni/pkg/types"
+	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/hashicorp/errwrap"
 
 	"github.com/coreos/rkt/common"

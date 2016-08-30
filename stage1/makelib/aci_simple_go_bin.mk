@@ -20,7 +20,7 @@ _ASGB_PATH_ := $(lastword $(MAKEFILE_LIST))
 # Name of a binary, deduced upon filename of a parent Makefile.
 _ASGB_NAME_ := $(patsubst %.mk,%,$(MK_FILENAME))
 # Path to built binary. Not the one in the ACI rootfs.
-_ASGB_BINARY_ := $(TOOLSDIR)/$(_ASGB_NAME_)
+_ASGB_BINARY_ := $(TARGET_TOOLSDIR)/$(_ASGB_NAME_)
 
 ifeq ($(ASGB_FLAVORS),)
 
@@ -42,7 +42,7 @@ include makelib/build_go_bin.mk
 
 CLEAN_FILES += $(_ASGB_BINARY_)
 
-$(_ASGB_BINARY_): $(_ASGB_PATH_) $(MK_PATH) | $(TOOLSDIR)
+$(_ASGB_BINARY_): $(_ASGB_PATH_) $(MK_PATH) | $(TARGET_TOOLSDIR)
 
 # 2.
 

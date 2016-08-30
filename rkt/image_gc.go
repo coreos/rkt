@@ -21,7 +21,8 @@ import (
 
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/pkg/lock"
-	"github.com/coreos/rkt/store"
+	"github.com/coreos/rkt/store/imagestore"
+	"github.com/coreos/rkt/store/treestore"
 	"github.com/hashicorp/errwrap"
 	"github.com/spf13/cobra"
 )
@@ -49,13 +50,19 @@ func init() {
 }
 
 func runGCImage(cmd *cobra.Command, args []string) (exit int) {
-	s, err := store.NewStore(getDataDir())
+	s, err := imagestore.NewStore(storeDir())
 	if err != nil {
 		stderr.PrintE("cannot open store", err)
 		return 1
 	}
 
-	if err := gcTreeStore(s); err != nil {
+	ts, err := treestore.NewStore(treeStoreDir(), s)
+	if err != nil {
+		stderr.PrintE("cannot open store", err)
+		return
+	}
+
+	if err := gcTreeStore(ts); err != nil {
 		stderr.PrintE("failed to remove unreferenced treestores", err)
 		return 1
 	}
@@ -70,7 +77,7 @@ func runGCImage(cmd *cobra.Command, args []string) (exit int) {
 
 // gcTreeStore removes all treeStoreIDs not referenced by any non garbage
 // collected pod from the store.
-func gcTreeStore(s *store.Store) error {
+func gcTreeStore(ts *treestore.Store) error {
 	// Take an exclusive lock to block other pods being created.
 	// This is needed to avoid races between the below steps (getting the
 	// list of referenced treeStoreIDs, getting the list of treeStoreIDs
@@ -85,13 +92,13 @@ func gcTreeStore(s *store.Store) error {
 	if err != nil {
 		return errwrap.Wrap(errors.New("cannot get referenced treestoreIDs"), err)
 	}
-	treeStoreIDs, err := s.GetTreeStoreIDs()
+	treeStoreIDs, err := ts.GetIDs()
 	if err != nil {
 		return errwrap.Wrap(errors.New("cannot get treestoreIDs from the store"), err)
 	}
 	for _, treeStoreID := range treeStoreIDs {
 		if _, ok := referencedTreeStoreIDs[treeStoreID]; !ok {
-			if err := s.RemoveTreeStore(treeStoreID); err != nil {
+			if err := ts.Remove(treeStoreID); err != nil {
 				stderr.PrintE(fmt.Sprintf("error removing treestore %q", treeStoreID), err)
 			} else {
 				stderr.Printf("removed treestore %q", treeStoreID)
@@ -126,7 +133,7 @@ func getReferencedTreeStoreIDs() (map[string]struct{}, error) {
 	return treeStoreIDs, nil
 }
 
-func gcStore(s *store.Store, gracePeriod time.Duration) error {
+func gcStore(s *imagestore.Store, gracePeriod time.Duration) error {
 	var imagesToRemove []string
 	aciinfos, err := s.GetAllACIInfos([]string{"lastused"}, true)
 	if err != nil {

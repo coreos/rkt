@@ -96,6 +96,7 @@ func NewRktRunCtx() *RktRunCtx {
 			newDirDesc("datadir-", "data", "dir"),
 			newDirDesc("localdir-", "local configuration", "local-config"),
 			newDirDesc("systemdir-", "system configuration", "system-config"),
+			newDirDesc("userdir-", "user configuration", "user-config"),
 		},
 	}
 }
@@ -121,6 +122,10 @@ func (ctx *RktRunCtx) SystemDir() string {
 	return ctx.dir(2)
 }
 
+func (ctx *RktRunCtx) UserDir() string {
+	return ctx.dir(3)
+}
+
 func (ctx *RktRunCtx) dir(idx int) string {
 	ctx.ensureValid()
 	if idx < len(ctx.directories) {
@@ -139,6 +144,12 @@ func (ctx *RktRunCtx) Reset() {
 
 func (ctx *RktRunCtx) cleanupChildren() error {
 	for _, child := range ctx.children {
+		if child.Cmd == nil ||
+			child.Cmd.Process == nil ||
+			child.Cmd.ProcessState == nil {
+			continue
+		}
+
 		if child.Cmd.ProcessState.Exited() {
 			logger.Logf("Child %q already exited", child.Cmd.Path)
 			continue
