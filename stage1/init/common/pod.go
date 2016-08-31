@@ -769,6 +769,15 @@ func writeShutdownService(p *stage1commontypes.Pod) error {
 		unit.NewUnitOption("Unit", "StopWhenUnneeded", "yes"),
 		unit.NewUnitOption("Unit", "DefaultDependencies", "false"),
 		unit.NewUnitOption("Service", "RemainAfterExit", "yes"),
+
+		// The default stdout is /dev/console (the tty created by nspawn).
+		// But the tty might be destroyed if rkt is executed via ssh and
+		// the user terminates the ssh session. We still want
+		// shutdown.service to succeed in that case, so don't use
+		// /dev/console.
+		unit.NewUnitOption("Service", "StandardInput", "null"),
+		unit.NewUnitOption("Service", "StandardOutput", "null"),
+		unit.NewUnitOption("Service", "StandardError", "null"),
 	}
 
 	shutdownVerb := "exit"
