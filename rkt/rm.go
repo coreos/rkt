@@ -75,6 +75,7 @@ func runRm(cmd *cobra.Command, args []string) (exit int) {
 		if err != nil {
 			ret = 1
 			stderr.PrintE("cannot get pod", err)
+			continue
 		}
 
 		if removePod(p) {
