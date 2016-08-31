@@ -19,6 +19,15 @@ aforementioned stage1 entrypoints.
 
 The proposed app-level commands are described below.
 
+## `rkt app sandbox`
+Initializes an empty pod having no applications. This returns a single line
+containing the `pod-uuid` which can be used to perform application
+operations specified below. This also implies the started pod will be injectable.
+
+```bash
+rkt app sandbox
+```
+
 ## `rkt app add`
 Injects an application image into a running pod. After this has been called,
 the app is prepared and ready to be run via `rkt app start`.
@@ -196,7 +205,7 @@ operations.
 
 ### Example Workflow
 
-1. Create an empty pod (specified via an option that allows empty pods to stay alive).
+1. Create an empty pod.
 2. Inject applications into the pod.
 3. Orchestrate the workflow of applications (e.g. app1 has to terminate successfully before app2).
 
