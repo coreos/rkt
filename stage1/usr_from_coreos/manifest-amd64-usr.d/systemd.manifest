@@ -15,6 +15,7 @@ bin/systemd-notify
 bin/systemd-nspawn
 bin/systemd-path
 bin/systemd-run
+bin/systemd-socket-activate
 bin/systemd-stdio-bridge
 bin/systemd-sysusers
 bin/systemd-tmpfiles
@@ -43,7 +44,7 @@ lib64/libgcrypt.so.20
 lib64/libgcrypt.so.20.0.5
 lib64/libgpg-error.so
 lib64/libgpg-error.so.0
-lib64/libgpg-error.so.0.10.0
+lib64/libgpg-error.so.0.15.0
 lib64/libip4tc.so
 lib64/libip4tc.so.0
 lib64/libip4tc.so.0.1.0
@@ -55,7 +56,7 @@ lib64/libkmod.so.2
 lib64/libkmod.so.2.2.11
 lib64/liblzma.so
 lib64/liblzma.so.5
-lib64/liblzma.so.5.0.8
+lib64/liblzma.so.5.2.2
 lib64/libmount.so
 lib64/libmount.so.1
 lib64/libmount.so.1.1.0
@@ -66,7 +67,7 @@ lib64/libpam.so.0
 lib64/libpam.so.0.84.1
 lib64/libpcre.so
 lib64/libpcre.so.1
-lib64/libpcre.so.1.2.4
+lib64/libpcre.so.1.2.6
 lib64/libpthread-2.21.so
 lib64/libpthread.so
 lib64/libpthread.so.0
@@ -84,14 +85,12 @@ lib64/libuuid.so.1.3.0
 lib64/libz.so
 lib64/libz.so.1
 lib64/libz.so.1.2.8
+lib64/systemd/libsystemd-shared-231.so
 lib64/systemd/system-sleep
 lib64/systemd/systemd
 lib64/systemd/systemd-ac-power
-lib64/systemd/systemd-activate
 lib64/systemd/systemd-backlight
 lib64/systemd/systemd-binfmt
-lib64/systemd/systemd-bootchart
-lib64/systemd/systemd-bus-proxyd
 lib64/systemd/systemd-cgroups-agent
 lib64/systemd/systemd-coredump
 lib64/systemd/systemd-fsck

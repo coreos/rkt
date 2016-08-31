@@ -19,7 +19,8 @@ import (
 )
 
 const (
-	RktGroup = "rkt"
+	RktGroup      = "rkt"       // owns /var/lib/rkt
+	RktAdminGroup = "rkt-admin" // owns /etc/rkt
 )
 
 // LookupGid reads the group file and returns the gid of the group

@@ -129,6 +129,28 @@ $ journalctl -M rkt-bc3c1451-2e81-45c6-aeb0-807db44e31b4 -t redis
 
 Additionaly, logs can be programmatically accessed via the [sd-journal API](https://www.freedesktop.org/software/systemd/man/sd-journal.html).
 
+Currently there are two known main issues with logging in rkt:
+* In some rare situations when an application inside the pod is writing to `/dev/stdout` and `/dev/stderr` (i.e. nginx) there is no way to obtain logs.
+ The app should be modified so it will write to `stdout` or `syslog`. In the case of nginx:
+ ```
+ error_log stderr;
+ 
+ http {
+     access_log syslog:server=unix:/dev/log main;
+     [...]
+ }
+ ```
+ should be added to ```/etc/nginx/nginx.conf```
+
+* Some applications, like newer version of etcd, write directly to journald. Such log entries will not be written to stdout or stderr.
+ These logs can be retrieved by passing the machine ID to journalctl:
+
+ ```
+ $ journalctl -M rkt-bc3c1451-2e81-45c6-aeb0-807db44e31b4
+ ```
+
+ Etcd case will be solved when [flag allowing forcing output to stdout](https://github.com/coreos/etcd/issues/5449) is added.
+
 ##### Stopped pod
 
 To read the logs of a stopped pod, use:

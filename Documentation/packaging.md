@@ -40,16 +40,17 @@ Please see [the list of run-time dependencies][run-deps].
 
 ### Ownership and permissions of rkt directories
 
-In general, subdirectories of `/var/lib/rkt` should be created with the same ownership and permissions as described in the [directory list](https://github.com/coreos/rkt/blob/master/dist/init/systemd/tmpfiles.d/rkt.conf).
+In general, subdirectories of `/var/lib/rkt`, and `/etc/rkt` should be created with the same ownership and permissions as described in the [directory list](https://github.com/coreos/rkt/blob/master/dist/init/systemd/tmpfiles.d/rkt.conf).
 
-Any rkt package should create a system group `rkt`, and `/var/lib/rkt` should belong to group `rkt` with the `setgid` bit set (`chmod g+s`)
+Any rkt package should create a system group `rkt`, and `rkt-admin`. The directory `/var/lib/rkt` should belong to group `rkt` with the `setgid` bit set (`chmod g+s`). The directory `/etc/rkt` should belong to group `rkt-admin` with the `setgid` bit set (`chmod g+s`).
 
-When the ownership and permissions of `/var/lib/rkt` are set up correctly, members of group `rkt` should be able to fetch ACIs without using `sudo`. Root privilege is still required to run pods.
+When the ownership and permissions of `/var/lib/rkt` are set up correctly, members of group `rkt` should be able to fetch ACIs. Members of group `rkt-admin` should be able to trust GPG keys, and add additional configurations in `/etc/rkt`. Root privilege is still required to run pods.
+
+The motivation to have separate `rkt`, and `rkt-admin` groups is that the person who makes administrative changes would likely be different than the unprivileged user who is able to fetch.
 
 ### systemd units
 
 A few [example systemd unit files for rkt helper services][rkt-units] are included in the rkt sources. These units demonstrate systemd-managed units to run the rkt [metadata-service][rkt-metadata-svc] with socket-activation, the rkt [api-service][api-service], and a periodic [garbage collection][rkt-gc] service invoked at 12-hour intervals to purge dead pods.
-
 
 [build-config]: build-configure.md
 [rkt-gc]: subcommands/gc.md
