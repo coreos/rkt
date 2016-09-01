@@ -9,21 +9,14 @@ The version of the spec that rkt implements can be seen in the output of `rkt ve
 
 rkt's version 1.0 release marks the command line user interface and on-disk data structures as stable and reliable for external development. The (optional) API for pod inspection is not yet completely stabilized, but is quite usable.
 
-### rkt 1.14.0 (September)
-
-Full plan at https://github.com/coreos/rkt/milestone/48.
-
-Highlights:
-- Introduce support for systemd v231 in stage1
-- Refactor distribution/storage handling
-- Improved native support for OCI
-- Cleanup/unify cgroup detection
-
 ### rkt 1.15.0 (September)
 
 Full plan at https://github.com/coreos/rkt/milestone/49.
 
 Highlights:
+- initial CRI support, replacing the existing gRPC [API](https://github.com/coreos/rkt/tree/master/api/v1alpha).
+- Refactor distribution/storage handling
+- Improved native support for OCI
 - Enhanced DNS configuration
 - Further improvements for SELinux environments, especially Fedora in enforcing mode
 - Support for unified cgroups
