@@ -564,8 +564,9 @@ func appToSystemd(p *stage1commontypes.Pod, ra *schema.RuntimeApp, interactive b
 		}
 	}
 
-	// Restrict access to sensitive paths (eg. procfs) and devices
-	if !insecureOptions.DisablePaths {
+	// Restrict access to sensitive paths (eg. procfs) and devices. For kvm flavor,
+	// these paths are stored inside the vm, without influence to the host.
+	if !insecureOptions.DisablePaths && flavor != "kvm" {
 		opts = protectSystemFiles(opts, appName)
 		opts = append(opts, unit.NewUnitOption("Service", "DevicePolicy", "closed"))
 		deviceAllows, err := generateDeviceAllows(common.Stage1RootfsPath(absRoot), appName, app.MountPoints, mounts, vols, uidRange)
