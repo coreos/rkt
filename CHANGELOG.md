@@ -1,3 +1,38 @@
+## 1.14.0
+
+This release updates the coreos and kvm flavors, bringing in a newer stable systemd (v231). Several fixes and cgroups-related changes landed in `api-service`, and better heuristics have been introduced to avoid using overlays in non-supported environments. Finally, `run-prepared` now honors options for insecure/privileged pods too.
+
+### New features and UX changes
+- stage1: update to CoreOS 1151.0.0 and systemd v231 ([#3122](https://github.com/coreos/rkt/pull/3122)).
+- common: fall back to non-overlay with ftype=0 ([#3105](https://github.com/coreos/rkt/pull/3105)).
+- rkt: honor insecure-options in run-prepared ([#3138](https://github.com/coreos/rkt/pull/3138)).
+
+#### Bug fixes
+- stage0: fix golint warnings ([#3099](https://github.com/coreos/rkt/pull/3099)).
+- rkt: avoid possible panic in api-server ([#3111](https://github.com/coreos/rkt/pull/3111)).
+- rkt/run: allow --set-env-file files with comments ([#3115](https://github.com/coreos/rkt/pull/3115)).
+- scripts/install-rkt: add wget as dependency ([#3124](https://github.com/coreos/rkt/pull/3124)).
+- install-rkt.sh: scripts: Fix missing files in .deb when using install-rkt.sh ([#3127](https://github.com/coreos/rkt/pull/3127)). 
+- tests: check for run-prepared with insecure options ([#3139](https://github.com/coreos/rkt/pull/3139)).
+
+#### Other changes
+- seccomp/docker: update docker whitelist to include mlock ([#3126](https://github.com/coreos/rkt/pull/3126)). This updates the `@docker/default-whitelist` to include mlock-related
+syscalls (mlock, mlock2, mlockall).
+- build: add PowerPC ([#2936](https://github.com/coreos/rkt/pull/2936)).
+- scripts: install-rkt.sh: fail install-pak on errors ([#3150](https://github.com/coreos/rkt/pull/3150)). When install-pak (called from install-rkt.sh) fails at some point
+abort packaging.
+- api_service: Rework cgroup detection ([#3072](https://github.com/coreos/rkt/pull/3072)). Use the `subcgroup` file hint provided by some stage1s rather than
+machined registration.
+- Documentation/devel: add make images target ([#3142](https://github.com/coreos/rkt/pull/3142)). This introduces the possibility to generate graphivz based PNG images using
+a new `images` make target.
+- vendor: update appc/spec to 0.8.7 ([#3143](https://github.com/coreos/rkt/pull/3143)).
+- stage1/kvm: avoid writing misleading subcgroup ([#3107](https://github.com/coreos/rkt/pull/3107)).
+- vendor: update go-systemd to v12 ([#3125](https://github.com/coreos/rkt/pull/3125)).
+- scripts: bump coreos.com/rkt/builder image version ([#3092](https://github.com/coreos/rkt/pull/3092)). This bumps rkt-builder version to 1.0.2, in order to work with
+seccomp filtering.
+- export: test export for multi-app pods ([#3075](https://github.com/coreos/rkt/pull/3075)).
+- Documentation updates: ([#3146](https://github.com/coreos/rkt/pull/3146), [#2954](https://github.com/coreos/rkt/pull/2954), [#3128](https://github.com/coreos/rkt/pull/3128), [#2953](https://github.com/coreos/rkt/pull/2953), [#3103](https://github.com/coreos/rkt/pull/3103), [#3087](https://github.com/coreos/rkt/pull/3087), [#3097](https://github.com/coreos/rkt/pull/3097), [#3096](https://github.com/coreos/rkt/pull/3096), [#3095](https://github.com/coreos/rkt/pull/3095), [#3089](https://github.com/coreos/rkt/pull/3089))
+
 ## 1.13.0
 
 This release introduces support for exporting single applications out of multi-app pods. Moreover, it adds additional support to control device manipulation inside pods. Finally all runtime security features can now be optionally disabled at the pod level via new insecure options. This version also contains multiple bugfixes and supports Go 1.7.
