@@ -781,68 +781,80 @@ AC_SUBST(RKT_DEFINES_FOR_ENTER)
 
 #### FILE GENERATION AND REPORTING
 
-AC_CONFIG_FILES([Makefile])
-AC_OUTPUT
-
-AC_MSG_RESULT([
+RKT_FINAL_REPORT="
         AC_PACKAGE_NAME ${RKT_VERSION}
 
         stage1 setup
 
         type:                                   '${RKT_STAGE1_SETUP_KIND}'
         default stage1 location:                '${RKT_STAGE1_DEFAULT_LOCATION}'
-        default stage1 images directory:        '${RKT_STAGE1_DEFAULT_IMAGES_DIR}'])
-
+        default stage1 images directory:        '${RKT_STAGE1_DEFAULT_IMAGES_DIR}'
+"
 AS_CASE([${RKT_STAGE1_SETUP_KIND}],
         [flavor],
-                [AC_MSG_RESULT([
+                [RKT_FINAL_REPORT="${RKT_FINAL_REPORT}
         built stage1 flavors:                   '${RKT_STAGE1_FLAVORS}'
         default stage1 flavor:                  '${RKT_STAGE1_DEFAULT_FLAVOR}'
-        implied default stage1 name:            '${RKT_STAGE1_DEFAULT_NAME}'])
+        implied default stage1 name:            '${RKT_STAGE1_DEFAULT_NAME}'"
                  AS_VAR_IF([RKT_STAGE1_FLAVORS_VERSION_OVERRIDE], [],
-                           [AC_MSG_RESULT([dnl
-        implied default stage1 version:         '${RKT_STAGE1_DEFAULT_VERSION}'])],
-                           [AC_MSG_RESULT([dnl
-        overridden default stage1 version:      '${RKT_STAGE1_DEFAULT_VERSION}'])])],
+                           [RKT_FINAL_REPORT="${RKT_FINAL_REPORT}
+        implied default stage1 version:         '${RKT_STAGE1_DEFAULT_VERSION}'
+"],
+                           [RKT_FINAL_REPORT="${RKT_FINAL_REPORT}
+        overridden default stage1 version:      '${RKT_STAGE1_DEFAULT_VERSION}'
+"])],
         [detailed],
-                [AC_MSG_RESULT([
+                [RKT_FINAL_REPORT="${RKT_FINAL_REPORT}
         default stage1 name:                    '${RKT_STAGE1_DEFAULT_NAME}'
-        default stage1 version:                 '${RKT_STAGE1_DEFAULT_VERSION}'])],
+        default stage1 version:                 '${RKT_STAGE1_DEFAULT_VERSION}'
+"],
         [AC_MSG_ERROR([*** Unknown setup kind, should not happen])])
 
 RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}], [coreos,kvm],
-                  [AC_MSG_RESULT([
+                  [RKT_FINAL_REPORT="${RKT_FINAL_REPORT}
         coreos/kvm flavor specific build parameters
 
         local CoreOS PXE image path:            '${RKT_LOCAL_COREOS_PXE_IMAGE_PATH}'
         local CoreOS PXE image systemd version: '${RKT_LOCAL_COREOS_PXE_IMAGE_SYSTEMD_VER}'
-        stage1 CoreOS board:                    '${RKT_STAGE1_COREOS_BOARD}'])])
+        stage1 CoreOS board:                    '${RKT_STAGE1_COREOS_BOARD}'
+"])
 
 RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}], [src],
-                  [AC_MSG_RESULT([
+                  [RKT_FINAL_REPORT="${RKT_FINAL_REPORT}
         src flavor specific build parameters
 
         systemd git repo:                       '${RKT_STAGE1_SYSTEMD_SRC}'
-        systemd version:                        '${RKT_STAGE1_SYSTEMD_VER}'])])
+        systemd version:                        '${RKT_STAGE1_SYSTEMD_VER}'
+"])
 
 RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}], [kvm],
-                  [AC_MSG_RESULT([
+                  [RKT_FINAL_REPORT="${RKT_FINAL_REPORT}
         kvm flavor specific build parameters
 
-        hypervisor:                             '${RKT_STAGE1_KVM_HV}'])])
+        hypervisor:                             '${RKT_STAGE1_KVM_HV}'
+"])
 
 RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}], [coreos,src],
-                  [AC_MSG_RESULT([
+                  [RKT_FINAL_REPORT="${RKT_FINAL_REPORT}
         coreos flavor specific build parameters
 
-        interpreter:                            '${RKT_STAGE1_INTERPRETER}'])])
+        interpreter:                            '${RKT_STAGE1_INTERPRETER}'
+"])
 
-
-AC_MSG_RESULT([
+RKT_FINAL_REPORT="${RKT_FINAL_REPORT}
         other build parameters
 
         functional tests enabled:               '${RKT_RUN_FUNCTIONAL_TESTS}'
         features:                               '${RKT_FEATURES}'
         ACI arch:                               '${RKT_ACI_ARCH}'
         go version:                             '${GO_VERSION}'
-        go arch:                                '${GOARCH}'])
+        go arch:                                '${GOARCH}'
+"
+
+AC_SUBST(RKT_FINAL_REPORT)
+
+AC_CONFIG_FILES([Makefile
+                 configure-report])
+AC_OUTPUT
+
+AC_MSG_RESULT([${RKT_FINAL_REPORT}])

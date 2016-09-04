@@ -1,0 +1,29 @@
+The rkt binary and stage1 images provided in this tarball should be
+usable immediately after unpacking. rkt will use stage1-coreos.aci
+from this directory by default as a fallback. The steps below will
+make rkt more usable though (like making rkt available to everyone on
+the system, enabling rkt fetch for non-root users, integrating it with
+systemd, making rkt's --stage1-from-dir usable, etc).
+
+1. copy rkt to /usr/bin
+  - cp rkt /usr/bin
+2. add a rkt group
+  - groupadd rkt
+3. add users to the group
+  - gpasswd -a ${USER} rkt
+  - newgrp rkt
+4. create data directories
+  - ./scripts/setup-data-dir.sh
+5. install tmpfiles
+  - cp init/systemd/tmpfiles.d/rkt.conf /usr/lib/tmpfiles.d/
+6. install unit files and reload systemd
+  - cp init/systemd/*.{service,socket,timer} /usr/lib/systemd/system
+  - systemctl daemon-reload
+7. install the stage1 ACIs
+  - mkdir -p /usr/lib/rkt/stage1-images
+  - cp *.aci /usr/lib/rkt/stage1-images
+8. install bash completion
+  - cp bash_completion/rkt.bash /etc/bash_completion.d
+9. probably disable SELinux (this may be unnecessary, please test rkt first before following it)
+  - setenforce Permissive
+  - sed -i'' 's/enforcing/permissive/' /etc/selinux/config

@@ -71,7 +71,7 @@ Now we switch to the GitHub web UI to conduct the release:
 export RKTVER="1.2.0"
 export NAME="rkt-v$RKTVER"
 mkdir $NAME
-cp release-build/target/bin/rkt release-build/target/bin/stage1-{coreos,kvm,fly}.aci $NAME/
+cp configure-report release-build/target/bin/rkt release-build/target/bin/stage1-{coreos,kvm,fly}.aci $NAME/
 cp -r dist/* $NAME/
 sudo chown -R root:root $NAME/
 tar czvf $NAME.tar.gz --numeric-owner $NAME/
