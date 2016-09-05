@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package pod
 
 import (
 	"io/ioutil"
@@ -119,11 +119,7 @@ func TestWalkPods(t *testing.T) {
 		}
 		defer os.RemoveAll(d)
 
-		// This will mark the flag as changed, so it will have
-		// precedence over the configuration and the default
-		// value.
-		cmdRkt.PersistentFlags().Set("dir", d)
-		if err := initPods(); err != nil {
+		if err := initPods(d); err != nil {
 			t.Fatalf("error initializing pods: %v", err)
 		}
 
@@ -131,18 +127,18 @@ func TestWalkPods(t *testing.T) {
 			n_expected int
 			n_walked   int
 			n_matched  int
-			included   includeMask
+			included   IncludeMask
 		)
 
 		// create the pod dirs as specified by the test
 		for _, ct := range tt {
 			var cp string
 			if ct.garbage {
-				cp = filepath.Join(exitedGarbageDir(), ct.uuid)
-				included |= includeExitedGarbageDir
+				cp = filepath.Join(exitedGarbageDir(d), ct.uuid)
+				included |= IncludeExitedGarbageDir
 			} else {
-				cp = filepath.Join(runDir(), ct.uuid)
-				included |= includeRunDir
+				cp = filepath.Join(runDir(d), ct.uuid)
+				included |= IncludeRunDir
 			}
 
 			if err := os.MkdirAll(cp, 0700); err != nil {
@@ -163,10 +159,10 @@ func TestWalkPods(t *testing.T) {
 		}
 
 		// match what walk provided against the set in the test
-		if err := walkPods(included, func(ch *pod) {
+		if err := WalkPods(d, included, func(ch *Pod) {
 			n_walked++
 			for _, ct := range tt {
-				if ch.uuid.String() == ct.uuid &&
+				if ch.UUID.String() == ct.uuid &&
 					ch.isExitedGarbage == ct.garbage &&
 					ch.isExited == ct.exited &&
 					ch.isExitedDeleting == ct.deleting {

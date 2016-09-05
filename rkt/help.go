@@ -21,6 +21,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/appc/spec/schema"
 	"github.com/coreos/rkt/version"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -155,4 +156,18 @@ func usageFunc(cmd *cobra.Command) error {
 	})
 	tabOut.Flush()
 	return nil
+}
+
+func printErrors(errors []error, operation string) {
+	sep := "----------------------------------------"
+	stderr.Printf("%d error(s) encountered when %s:", len(errors), operation)
+	stderr.Print(sep)
+	for _, err := range errors {
+		stderr.Error(err)
+		stderr.Print(sep)
+	}
+	stderr.Print("misc:")
+	stderr.Printf("  rkt's appc version: %s", schema.AppContainerVersion)
+	// make a visible break between errors and the listing
+	stderr.Print("")
 }

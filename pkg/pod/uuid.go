@@ -12,9 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//+build linux
-
-package main
+package pod
 
 import (
 	"bytes"
@@ -29,12 +27,12 @@ import (
 
 // matchUUID attempts to match the uuid specified as uuid against all pods present.
 // An array of matches is returned, which may be empty when nothing matches.
-func matchUUID(uuid string) ([]string, error) {
+func matchUUID(dataDir, uuid string) ([]string, error) {
 	if uuid == "" {
 		return nil, types.ErrNoEmptyUUID
 	}
 
-	ls, err := listPods(includePrepareDir | includePreparedDir | includeRunDir | includeExitedGarbageDir)
+	ls, err := listPods(dataDir, IncludePrepareDir|IncludePreparedDir|IncludeRunDir|IncludeExitedGarbageDir)
 	if err != nil {
 		return nil, err
 	}
@@ -51,9 +49,9 @@ func matchUUID(uuid string) ([]string, error) {
 
 // resolveUUID attempts to resolve the uuid specified as uuid against all pods present.
 // An unambiguously matched uuid or nil is returned.
-func resolveUUID(uuid string) (*types.UUID, error) {
+func resolveUUID(dataDir, uuid string) (*types.UUID, error) {
 	uuid = strings.ToLower(uuid)
-	m, err := matchUUID(uuid)
+	m, err := matchUUID(dataDir, uuid)
 	if err != nil {
 		return nil, err
 	}
@@ -74,16 +72,14 @@ func resolveUUID(uuid string) (*types.UUID, error) {
 	return u, nil
 }
 
-func readUUIDFromFile(path string) (*types.UUID, error) {
+func ReadUUIDFromFile(path string) (string, error) {
 	uuid, err := ioutil.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	uuid = bytes.TrimSpace(uuid)
-
-	return resolveUUID(string(uuid))
+	return string(bytes.TrimSpace(uuid)), nil
 }
 
-func writeUUIDToFile(uuid *types.UUID, path string) error {
+func WriteUUIDToFile(uuid *types.UUID, path string) error {
 	return ioutil.WriteFile(path, []byte(uuid.String()), 0644)
 }
