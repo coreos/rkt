@@ -19,11 +19,9 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 
-	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
-	"github.com/coreos/rkt/common"
+	pkgPod "github.com/coreos/rkt/pkg/pod"
 	"github.com/coreos/rkt/stage0"
 	"github.com/coreos/rkt/store/imagestore"
 	"github.com/coreos/rkt/store/treestore"
@@ -65,21 +63,21 @@ func runEnter(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	p, err := getPodFromUUIDString(args[0])
+	p, err := pkgPod.PodFromUUIDString(getDataDir(), args[0])
 	if err != nil {
 		stderr.PrintE("problem retrieving pod", err)
 		return 1
 	}
 	defer p.Close()
 
-	if !p.isRunning() {
-		stderr.Printf("pod %q isn't currently running", p.uuid)
+	if p.State() != pkgPod.Running {
+		stderr.Printf("pod %q isn't currently running", p.UUID)
 		return 1
 	}
 
-	podPID, err := p.getContainerPID1()
+	podPID, err := p.ContainerPid1()
 	if err != nil {
-		stderr.PrintE(fmt.Sprintf("unable to determine the pid for pod %q", p.uuid), err)
+		stderr.PrintE(fmt.Sprintf("unable to determine the pid for pod %q", p.UUID), err)
 		return 1
 	}
 
@@ -107,7 +105,7 @@ func runEnter(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	stage1TreeStoreID, err := p.getStage1TreeStoreID()
+	stage1TreeStoreID, err := p.GetStage1TreeStoreID()
 	if err != nil {
 		stderr.PrintE("error getting stage1 treeStoreID", err)
 		return 1
@@ -115,7 +113,7 @@ func runEnter(cmd *cobra.Command, args []string) (exit int) {
 
 	stage1RootFS := ts.GetRootFS(stage1TreeStoreID)
 
-	if err = stage0.Enter(p.path(), podPID, *appName, stage1RootFS, argv); err != nil {
+	if err = stage0.Enter(p.Path(), podPID, *appName, stage1RootFS, argv); err != nil {
 		stderr.PrintE("enter failed", err)
 		return 1
 	}
@@ -127,20 +125,15 @@ func runEnter(cmd *cobra.Command, args []string) (exit int) {
 // If one was supplied in the flags then it's simply returned
 // If the PM contains a single app, that app's name is returned
 // If the PM has multiple apps, the names are printed and an error is returned
-func getAppName(p *pod) (*types.ACName, error) {
+func getAppName(p *pkgPod.Pod) (*types.ACName, error) {
 	if flagAppName != "" {
 		return types.NewACName(flagAppName)
 	}
 
 	// figure out the app name, or show a list if multiple are present
-	b, err := ioutil.ReadFile(common.PodManifestPath(p.path()))
+	_, m, err := p.PodManifest()
 	if err != nil {
 		return nil, errwrap.Wrap(errors.New("error reading pod manifest"), err)
-	}
-
-	m := schema.PodManifest{}
-	if err = m.UnmarshalJSON(b); err != nil {
-		return nil, errwrap.Wrap(errors.New("invalid pod manifest"), err)
 	}
 
 	switch len(m.Apps) {
@@ -160,7 +153,7 @@ func getAppName(p *pod) (*types.ACName, error) {
 }
 
 // getEnterArgv returns the argv to use for entering the pod
-func getEnterArgv(p *pod, cmdArgs []string) ([]string, error) {
+func getEnterArgv(p *pkgPod.Pod, cmdArgs []string) ([]string, error) {
 	var argv []string
 	if len(cmdArgs) < 2 {
 		stderr.Printf("no command specified, assuming %q", defaultCmd)

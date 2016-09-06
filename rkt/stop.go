@@ -21,7 +21,7 @@ import (
 
 	"github.com/coreos/rkt/stage0"
 
-	"github.com/appc/spec/schema/types"
+	pkgPod "github.com/coreos/rkt/pkg/pod"
 	"github.com/spf13/cobra"
 )
 
@@ -41,15 +41,13 @@ func init() {
 }
 
 func runStop(cmd *cobra.Command, args []string) (exit int) {
-	var podUUID *types.UUID
-	var podUUIDs []*types.UUID
-	var err error
+	var podUUIDs []string
 	var errors int
 
 	ret := 0
 	switch {
 	case len(args) == 0 && flagUUIDFile != "":
-		podUUID, err = readUUIDFromFile(flagUUIDFile)
+		podUUID, err := pkgPod.ReadUUIDFromFile(flagUUIDFile)
 		if err != nil {
 			stderr.PrintE("unable to resolve UUID from file", err)
 			ret = 1
@@ -58,38 +56,30 @@ func runStop(cmd *cobra.Command, args []string) (exit int) {
 		}
 
 	case len(args) > 0 && flagUUIDFile == "":
-		for _, uuid := range args {
-			podUUID, err := resolveUUID(uuid)
-			if err != nil {
-				stderr.PrintE("unable to resolve UUID", err)
-				ret = 1
-			} else {
-				podUUIDs = append(podUUIDs, podUUID)
-			}
-		}
+		podUUIDs = args
 
 	default:
 		cmd.Usage()
 		return 1
 	}
 
-	for _, podUUID = range podUUIDs {
-		p, err := getPod(podUUID)
+	for _, podUUID := range podUUIDs {
+		p, err := pkgPod.PodFromUUIDString(getDataDir(), podUUID)
 		if err != nil {
 			errors++
 			stderr.PrintE("cannot get pod", err)
 		}
 
-		if !p.isRunning() {
-			stderr.Error(fmt.Errorf("pod %q is not running", p.uuid))
+		if p.State() != pkgPod.Running {
+			stderr.Error(fmt.Errorf("pod %q is not running", p.UUID))
 			errors++
 			continue
 		}
 
-		if err := stage0.StopPod(p.path(), flagForce, podUUID); err == nil {
-			stdout.Printf("%q", p.uuid)
+		if err := stage0.StopPod(p.Path(), flagForce, p.UUID); err == nil {
+			stdout.Printf("%q", p.UUID)
 		} else {
-			stderr.PrintE(fmt.Sprintf("error stopping %q", p.uuid), err)
+			stderr.PrintE(fmt.Sprintf("error stopping %q", p.UUID), err)
 			errors++
 		}
 	}

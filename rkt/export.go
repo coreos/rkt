@@ -31,6 +31,7 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/common/overlay"
+	pkgPod "github.com/coreos/rkt/pkg/pod"
 	"github.com/coreos/rkt/pkg/user"
 	"github.com/coreos/rkt/store/imagestore"
 	"github.com/coreos/rkt/store/treestore"
@@ -98,14 +99,15 @@ func runExport(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	p, err := getPodFromUUIDString(args[0])
+	p, err := pkgPod.PodFromUUIDString(getDataDir(), args[0])
 	if err != nil {
 		stderr.PrintE("problem retrieving pod", err)
 		return 1
 	}
 	defer p.Close()
 
-	if !p.isExited {
+	state := p.State()
+	if state != pkgPod.Exited && state != pkgPod.ExitedGarbage {
 		stderr.Print("pod is not exited. Only exited pods can be exported")
 		return 1
 	}
@@ -116,15 +118,15 @@ func runExport(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	root := common.AppPath(p.path(), app.Name)
-	manifestPath := filepath.Join(common.AppInfoPath(p.path(), app.Name), aci.ManifestFile)
-	if p.usesOverlay() {
+	root := common.AppPath(p.Path(), app.Name)
+	manifestPath := filepath.Join(common.AppInfoPath(p.Path(), app.Name), aci.ManifestFile)
+	if p.UsesOverlay() {
 		tmpDir := filepath.Join(getDataDir(), "tmp")
 		if err := os.MkdirAll(tmpDir, common.DefaultRegularDirPerm); err != nil {
 			stderr.PrintE("unable to create temp directory", err)
 			return 1
 		}
-		podDir, err := ioutil.TempDir(tmpDir, fmt.Sprintf("rkt-export-%s", p.uuid))
+		podDir, err := ioutil.TempDir(tmpDir, fmt.Sprintf("rkt-export-%s", p.UUID))
 		if err != nil {
 			stderr.PrintE("unable to create export temp directory", err)
 			return 1
@@ -153,7 +155,7 @@ func runExport(cmd *cobra.Command, args []string) (exit int) {
 		}()
 		root = podDir
 	} else {
-		hasMPs, err := appHasMountpoints(p.path(), app.Name)
+		hasMPs, err := appHasMountpoints(p.Path(), app.Name)
 		if err != nil {
 			stderr.PrintE("error parsing mountpoints", err)
 			return 1
@@ -166,7 +168,7 @@ func runExport(cmd *cobra.Command, args []string) (exit int) {
 
 	// Check for user namespace (--private-user), if in use get uidRange
 	var uidRange *user.UidRange
-	privUserFile := filepath.Join(p.path(), common.PrivateUsersPreparedFilename)
+	privUserFile := filepath.Join(p.Path(), common.PrivateUsersPreparedFilename)
 	privUserContent, err := ioutil.ReadFile(privUserFile)
 	if err == nil {
 		uidRange = user.NewBlankUidRange()
@@ -188,11 +190,13 @@ func runExport(cmd *cobra.Command, args []string) (exit int) {
 // If one was supplied in the flags then it's returned if present
 // If the PM contains a single app, that app is returned
 // If the PM has multiple apps, the names are printed and an error is returned
-func getApp(p *pod) (*schema.RuntimeApp, error) {
-	apps, err := p.getApps()
+func getApp(p *pkgPod.Pod) (*schema.RuntimeApp, error) {
+	_, manifest, err := p.PodManifest()
 	if err != nil {
-		return nil, errwrap.Wrap(errors.New("problem getting the pod's app list"), err)
+		return nil, errwrap.Wrap(errors.New("problem getting the pod's manifest"), err)
 	}
+
+	apps := manifest.Apps
 
 	if flagExportAppName != "" {
 		exportAppName, err := types.NewACName(flagExportAppName)
@@ -224,7 +228,7 @@ func getApp(p *pod) (*schema.RuntimeApp, error) {
 }
 
 // mountOverlay mounts the app from the overlay-rendered pod to the destination directory.
-func mountOverlay(pod *pod, app *schema.RuntimeApp, dest string) error {
+func mountOverlay(pod *pkgPod.Pod, app *schema.RuntimeApp, dest string) error {
 	if _, err := os.Stat(dest); err != nil {
 		return err
 	}
@@ -239,12 +243,12 @@ func mountOverlay(pod *pod, app *schema.RuntimeApp, dest string) error {
 		return errwrap.Wrap(errors.New("cannot open treestore"), err)
 	}
 
-	treeStoreID, err := pod.getAppTreeStoreID(app.Name)
+	treeStoreID, err := pod.GetAppTreeStoreID(app.Name)
 	if err != nil {
 		return err
 	}
 	lower := ts.GetRootFS(treeStoreID)
-	imgDir := filepath.Join(filepath.Join(pod.path(), "overlay"), treeStoreID)
+	imgDir := filepath.Join(filepath.Join(pod.Path(), "overlay"), treeStoreID)
 	if _, err := os.Stat(imgDir); err != nil {
 		return err
 	}

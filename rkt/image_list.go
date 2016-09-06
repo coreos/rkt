@@ -243,18 +243,9 @@ func runImages(cmd *cobra.Command, args []string) int {
 	}
 
 	if len(errors) > 0 {
-		sep := "----------------------------------------"
-		stderr.Printf("%d error(s) encountered when listing images:", len(errors))
-		stderr.Print(sep)
-		for _, err := range errors {
-			stderr.Error(err)
-			stderr.Print(sep)
-		}
-		stderr.Print("misc:")
-		stderr.Printf("  rkt's appc version: %s", schema.AppContainerVersion)
-		// make a visible break between errors and the listing
-		stderr.Print("")
+		printErrors(errors, "listing images")
 	}
+
 	tabOut.Flush()
 	stdout.Print(tabBuffer.String())
 	return 0

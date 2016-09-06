@@ -22,6 +22,7 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/pkg/lock"
+	pkgPod "github.com/coreos/rkt/pkg/pod"
 	"github.com/coreos/rkt/pkg/user"
 	"github.com/coreos/rkt/rkt/image"
 	"github.com/coreos/rkt/stage0"
@@ -168,7 +169,7 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	p, err := newPod()
+	p, err := pkgPod.NewPod(getDataDir())
 	if err != nil {
 		stderr.PrintE("error creating new pod", err)
 		return 1
@@ -178,7 +179,7 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 		Store:       s,
 		TreeStore:   ts,
 		Stage1Image: *s1img,
-		UUID:        p.uuid,
+		UUID:        p.UUID,
 		Debug:       globalFlags.Debug,
 	}
 
@@ -219,25 +220,25 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 		stderr.PrintE("cannot get shared prepare lock", err)
 		return 1
 	}
-	if err = stage0.Prepare(pcfg, p.path(), p.uuid); err != nil {
+	if err = stage0.Prepare(pcfg, p.Path(), p.UUID); err != nil {
 		stderr.PrintE("error setting up stage0", err)
 		keyLock.Close()
 		return 1
 	}
 	keyLock.Close()
 
-	if err := p.sync(); err != nil {
+	if err := p.Sync(); err != nil {
 		stderr.PrintE("error syncing pod data", err)
 		return 1
 	}
 
-	if err := p.xToPrepared(); err != nil {
+	if err := p.ToPrepared(); err != nil {
 		stderr.PrintE("error transitioning to prepared", err)
 		return 1
 	}
 
 	os.Stdout = origStdout // restore output in case of --quiet
-	stdout.Printf("%s", p.uuid.String())
+	stdout.Printf("%s", p.UUID.String())
 
 	return 0
 }
