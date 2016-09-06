@@ -31,61 +31,64 @@ import (
 // TODO: unite these tests with rkt_run_pod_manifest_test.go
 
 var (
-	boolTrue                             = true
-	boolFalse                            = false
-	tmpdir                               = createTempDirOrPanic("rkt-tests-volume-mount")
-	tmpdirmountname         types.ACName = "dir1"
-	tmpdirpathpod                        = "/dir1"
-	tmpdir2path                          = path.Join(tmpdir, "dir2")
-	tmpdir2filepath                      = path.Join(tmpdir2path, "file")
-	tmpdir2filepathpod                   = "/dir1/dir2/file"
-	tmpdir2innerfilecontent              = "inner"
-	tmpdir2outerfilecontent              = "outer"
+	boolTrue  = true
+	boolFalse = false
+
+	mountName     types.ACName = "mnt"
+	mountDir                   = "/mnt"
+	mountFilePath              = "/mnt/subDirRW/file"
+
+	volDir      = createTempDirOrPanic("rkt-tests-volume-data")
+	volSubDirRW = path.Join(volDir, "subDirRW")
+	volFilePath = path.Join(volSubDirRW, "file")
+
+	innerFileContent = "inner"
+	outerFileContent = "outer"
 )
 
 func prepareTmpDirWithRecursiveMountsAndFiles(t *testing.T) []func() {
 	cleanupFuncs := make([]func(), 0)
 
-	// create directory for /dir1
-	if err := os.MkdirAll(tmpdir2path, 0); err != nil {
-		t.Fatalf("Can't recreate inner temp directory %q: %v", tmpdir2path, err)
+	// create directories on the host
+	if err := os.MkdirAll(volSubDirRW, 0); err != nil {
+		t.Fatalf("Can't create directory %q: %v", volSubDirRW, err)
 	}
-	cleanupFuncs = append(cleanupFuncs, func() { os.RemoveAll(tmpdir) })
+	cleanupFuncs = append(cleanupFuncs, func() { os.RemoveAll(volDir) })
 
-	// create the file in dir2 before the mount
-	tmpdir2outerfile, err := os.Create(tmpdir2filepath)
+	// create the file in subDirRW before the mount
+	tmpdir2outerfile, err := os.Create(volFilePath)
 	if err != nil {
 		executeFuncsReverse(cleanupFuncs)
-		t.Fatalf("Can't create outer file %q: %v", tmpdir2path, err)
+		t.Fatalf("Can't create outer file %q: %v", volSubDirRW, err)
 	}
 	cleanupFuncs = append(cleanupFuncs, func() { tmpdir2outerfile.Close() })
 
-	if _, err := tmpdir2outerfile.WriteString(tmpdir2outerfilecontent); err != nil {
+	if _, err := tmpdir2outerfile.WriteString(outerFileContent); err != nil {
 		executeFuncsReverse(cleanupFuncs)
 		t.Fatalf("Can't write to file %q after mounting: %v", tmpdir2outerfile, err)
 	}
 
-	// mount tmpfs for /dir1/dir2
-	if err := syscall.Mount("", tmpdir2path, "tmpfs", 0, ""); err != nil {
+	// mount tmpfs for /dir1/subDirRW
+	if err := syscall.Mount("", volSubDirRW, "tmpfs", 0, ""); err != nil {
 		executeFuncsReverse(cleanupFuncs)
-		t.Fatalf("Can't mount tmpfs on inner temp directory %q: %v", tmpdir2path, err)
+		t.Fatalf("Can't mount tmpfs on inner temp directory %q: %v", volSubDirRW, err)
 	}
 	cleanupFuncs = append(cleanupFuncs, func() {
-		if err := syscall.Unmount(tmpdir2path, syscall.MNT_DETACH); err != nil {
-			t.Errorf("could not unmount %q: %v", tmpdir2path, err)
+		if err := syscall.Unmount(volSubDirRW, syscall.MNT_DETACH); err != nil {
+			t.Errorf("could not unmount %q: %v", volSubDirRW, err)
 		}
 	})
-	cleanupFuncs = append(cleanupFuncs, func() { os.RemoveAll(tmpdir) })
+	cleanupFuncs = append(cleanupFuncs, func() { os.RemoveAll(volDir) })
 
-	// create the file in dir2 after the mount
-	tmpdir2innerfile, err := os.Create(tmpdir2filepath)
+	// create the file in subDirRW after the mount
+	tmpdir2innerfile, err := os.Create(volFilePath)
 	if err != nil {
 		executeFuncsReverse(cleanupFuncs)
-		t.Fatalf("Can't create inner file %q: %v", tmpdir2path, err)
+		t.Fatalf("Can't create inner file %q: %v", volSubDirRW, err)
 	}
 	cleanupFuncs = append(cleanupFuncs, func() { tmpdir2innerfile.Close() })
 
-	if _, err := tmpdir2innerfile.WriteString(tmpdir2innerfilecontent); err != nil {
+	if _, err := tmpdir2innerfile.WriteString(innerFileContent); err != nil {
 		executeFuncsReverse(cleanupFuncs)
 		t.Fatalf("Can't write to file %q after mounting: %v", tmpdir2innerfile, err)
 	}
@@ -110,28 +113,28 @@ var (
 			[]imagePatch{
 				{
 					"rkt-test-run-read-file.aci",
-					[]string{fmt.Sprintf("--exec=/inspect --read-file --file-name %s", tmpdir2filepathpod)},
+					[]string{fmt.Sprintf("--exec=/inspect --read-file --file-name %s", mountFilePath)},
 				},
 			},
 			fmt.Sprintf(
 				"--volume=test1,kind=host,source=%s,recursive=true --mount volume=test1,target=%s",
-				tmpdir, tmpdirpathpod,
+				volDir, mountDir,
 			),
 			nil,
 			0,
-			tmpdir2innerfilecontent,
+			innerFileContent,
 		},
 		{
 			"CLI: recursive read-only mount write file must fail",
 			[]imagePatch{
 				{
 					"rkt-test-run-write-file.aci",
-					[]string{fmt.Sprintf("--exec=/inspect --write-file --file-name %s", tmpdir2filepathpod)},
+					[]string{fmt.Sprintf("--exec=/inspect --write-file --file-name %s", mountFilePath)},
 				},
 			},
 			fmt.Sprintf(
 				"--volume=test1,kind=host,source=%s,recursive=true,readOnly=true --mount volume=test1,target=%s",
-				tmpdir, tmpdirpathpod,
+				volDir, mountDir,
 			),
 			nil,
 			1,
@@ -145,16 +148,16 @@ var (
 			[]imagePatch{
 				{
 					"rkt-test-run-read-file.aci",
-					[]string{fmt.Sprintf("--exec=/inspect --read-file --file-name %s", tmpdir2filepathpod)},
+					[]string{fmt.Sprintf("--exec=/inspect --read-file --file-name %s", mountFilePath)},
 				},
 			},
 			fmt.Sprintf(
 				"--volume=test,kind=host,source=%s,recursive=false --mount volume=test,target=%s",
-				tmpdir, tmpdirpathpod,
+				volDir, mountDir,
 			),
 			nil,
 			0,
-			tmpdir2outerfilecontent,
+			outerFileContent,
 		},
 	}
 
@@ -174,22 +177,22 @@ var (
 							User:  "0",
 							Group: "0",
 							Environment: []types.EnvironmentVariable{
-								{"FILE", tmpdir2filepathpod},
+								{"FILE", mountFilePath},
 							},
 							MountPoints: []types.MountPoint{
-								{tmpdirmountname, tmpdirpathpod, false},
+								{mountName, mountDir, false},
 							},
 						},
 					},
 				},
 				Volumes: []types.Volume{
-					{Name: tmpdirmountname, Kind: "host", Source: tmpdir,
+					{Name: mountName, Kind: "host", Source: volDir,
 						ReadOnly: nil, Recursive: &boolTrue,
 						Mode: nil, UID: nil, GID: nil},
 				},
 			},
 			0,
-			tmpdir2innerfilecontent,
+			innerFileContent,
 		},
 		{
 			"Write of nested file for recursive/read-only mount must fail",
@@ -206,17 +209,17 @@ var (
 							User:  "0",
 							Group: "0",
 							Environment: []types.EnvironmentVariable{
-								{"FILE", tmpdir2filepathpod},
+								{"FILE", mountFilePath},
 								{"CONTENT", "should-not-see-me"},
 							},
 							MountPoints: []types.MountPoint{
-								{tmpdirmountname, tmpdirpathpod, false},
+								{mountName, mountDir, false},
 							},
 						},
 					},
 				},
 				Volumes: []types.Volume{
-					{Name: tmpdirmountname, Kind: "host", Source: tmpdir,
+					{Name: mountName, Kind: "host", Source: volDir,
 						ReadOnly: &boolTrue, Recursive: &boolTrue,
 						Mode: nil, UID: nil, GID: nil},
 				},
@@ -242,18 +245,18 @@ var (
 							User:  "0",
 							Group: "0",
 							Environment: []types.EnvironmentVariable{
-								{"FILE", path.Join(tmpdirpathpod, "file")},
+								{"FILE", path.Join(mountDir, "file")},
 								{"CONTENT", "host:foo"},
 							},
 							MountPoints: []types.MountPoint{
-								{tmpdirmountname, tmpdirpathpod, false},
+								{mountName, mountDir, false},
 							},
 						},
 						ReadOnlyRootFS: true,
 					},
 				},
 				Volumes: []types.Volume{
-					{Name: tmpdirmountname, Kind: "host", Source: tmpdir,
+					{Name: mountName, Kind: "host", Source: volDir,
 						ReadOnly: nil, Recursive: &boolFalse,
 						Mode: nil, UID: nil, GID: nil},
 				},
@@ -279,22 +282,22 @@ var (
 							User:  "0",
 							Group: "0",
 							Environment: []types.EnvironmentVariable{
-								{"FILE", tmpdir2filepathpod},
+								{"FILE", mountFilePath},
 							},
 							MountPoints: []types.MountPoint{
-								{"dir1", tmpdirpathpod, false},
+								{mountName, mountDir, false},
 							},
 						},
 					},
 				},
 				Volumes: []types.Volume{
-					{Name: tmpdirmountname, Kind: "host", Source: tmpdir,
+					{Name: mountName, Kind: "host", Source: volDir,
 						ReadOnly: nil, Recursive: &boolFalse,
 						Mode: nil, UID: nil, GID: nil},
 				},
 			},
 			0,
-			tmpdir2outerfilecontent,
+			outerFileContent,
 		},
 	}
 )
@@ -355,7 +358,7 @@ func NewTestVolumeMount(volumeMountTestCases [][]volumeMountTestCase) testutils.
 					}
 				}
 				waitOrFail(t, child, tt.expectedExit)
-				verifyHostFile(t, tmpdir, "file", i, tt.expectedResult)
+				verifyHostFile(t, volDir, "file", i, tt.expectedResult)
 
 				// 2. Test 'rkt prepare' + 'rkt run-prepared'.
 				prepareCmd := fmt.Sprintf("%s prepare", ctx.Cmd())
@@ -378,7 +381,7 @@ func NewTestVolumeMount(volumeMountTestCases [][]volumeMountTestCase) testutils.
 				}
 
 				waitOrFail(t, child, tt.expectedExit)
-				verifyHostFile(t, tmpdir, "file", i, tt.expectedResult)
+				verifyHostFile(t, volDir, "file", i, tt.expectedResult)
 
 				// we run the garbage collector and remove the imported images to save
 				// space

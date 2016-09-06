@@ -34,13 +34,13 @@ func TestVolumeMount(t *testing.T) {
 				[]imagePatch{
 					{
 						"rkt-test-run-read-file.aci",
-						[]string{fmt.Sprintf("--exec=/inspect --read-file --file-name %s", tmpdir2filepathpod)},
+						[]string{fmt.Sprintf("--exec=/inspect --read-file --file-name %s", mountFilePath)},
 					},
 				},
 				fmt.Sprintf(
 					"--volume=test1,kind=host,source=%s --mount volume=test1,target=%s --volume=test2,kind=host,source=%s --mount volume=test1,target=%s",
-					tmpdir, tmpdirpathpod,
-					tmpdir, tmpdirpathpod,
+					volDir, mountDir,
+					volDir, mountDir,
 				),
 				nil,
 				1, /* TODO: decide on consistency with other stage1s */
