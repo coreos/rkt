@@ -104,7 +104,7 @@ These flavors will:
 
 This process is slightly different for the qemu-kvm stage1 but a similar workflow starting at `exec()`'ing kvm instead of an nspawn.
 
-We will now detail how the starting, shutdown, and exist status collection of the apps in a pod are implemented internally.
+We will now detail how the starting, shutdown, and exit status collection of the apps in a pod are implemented internally.
 
 ![rkt-systemd](rkt-systemd.png)
 
