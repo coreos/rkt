@@ -33,7 +33,7 @@ import (
 var (
 	boolTrue                             = true
 	boolFalse                            = false
-	tmpdir                               = createTempDirOrPanic("rkt-tests-fly")
+	tmpdir                               = createTempDirOrPanic("rkt-tests-volume-mount")
 	tmpdirmountname         types.ACName = "dir1"
 	tmpdirpathpod                        = "/dir1"
 	tmpdir2path                          = path.Join(tmpdir, "dir2")

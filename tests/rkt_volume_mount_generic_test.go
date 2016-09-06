@@ -27,6 +27,7 @@ func TestVolumeMount(t *testing.T) {
 		volumeMountTestCasesNonRecursiveCLI,
 		volumeMountTestCasesRecursivePodManifest,
 		volumeMountTestCasesNonRecursivePodManifest,
+		volumeMountTestCasesNonRecursive,
 		{
 			{
 				"CLI: duplicate mount given",
