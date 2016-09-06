@@ -20,38 +20,24 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"time"
 
-	"github.com/appc/spec/schema/types"
 	"github.com/coreos/go-systemd/sdjournal"
 	"github.com/coreos/rkt/api/v1alpha"
 	"github.com/coreos/rkt/common"
+	pkgPod "github.com/coreos/rkt/pkg/pod"
 )
 
 func (s *v1AlphaAPIServer) constrainedGetLogs(request *v1alpha.GetLogsRequest, server v1alpha.PublicAPI_GetLogsServer) error {
-	uuid, err := types.NewUUID(request.PodId)
-	if err != nil {
-		return err
-	}
-	pod, err := getPod(uuid)
+	pod, err := pkgPod.PodFromUUIDString(getDataDir(), request.PodId)
 	if err != nil {
 		return err
 	}
 	defer pod.Close()
 
-	stage1Path := "stage1/rootfs"
-	if pod.usesOverlay() {
-		stage1TreeStoreID, err := pod.getStage1TreeStoreID()
-		if err != nil {
-			return err
-		}
-		stage1Path = fmt.Sprintf("/overlay/%s/upper/", stage1TreeStoreID)
-	}
-	path := filepath.Join(getDataDir(), "/pods/run/", request.PodId, stage1Path, "/var/log/journal/")
-
+	path, err := pod.JournalLogPath()
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return fmt.Errorf("%s: logging unsupported", uuid.String())
+		return fmt.Errorf("logging unsupported for pod %q", request.PodId)
 	}
 
 	jconf := sdjournal.JournalReaderConfig{

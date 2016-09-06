@@ -19,7 +19,7 @@ package main
 import (
 	"os"
 
-	"github.com/appc/spec/schema/types"
+	pkgPod "github.com/coreos/rkt/pkg/pod"
 	"github.com/spf13/cobra"
 )
 
@@ -39,14 +39,12 @@ func init() {
 }
 
 func runRm(cmd *cobra.Command, args []string) (exit int) {
-	var podUUID *types.UUID
-	var podUUIDs []*types.UUID
-	var err error
+	var podUUIDs []string
+	var ret int
 
-	ret := 0
 	switch {
 	case len(args) == 0 && flagUUIDFile != "":
-		podUUID, err = readUUIDFromFile(flagUUIDFile)
+		podUUID, err := pkgPod.ReadUUIDFromFile(flagUUIDFile)
 		if err != nil {
 			stderr.PrintE("unable to resolve UUID from file", err)
 			ret = 1
@@ -55,30 +53,23 @@ func runRm(cmd *cobra.Command, args []string) (exit int) {
 		}
 
 	case len(args) > 0 && flagUUIDFile == "":
-		for _, uuid := range args {
-			podUUID, err := resolveUUID(uuid)
-			if err != nil {
-				stderr.PrintE("unable to resolve UUID", err)
-				ret = 1
-			} else {
-				podUUIDs = append(podUUIDs, podUUID)
-			}
-		}
+		podUUIDs = args
 
 	default:
 		cmd.Usage()
 		return 1
 	}
 
-	for _, podUUID = range podUUIDs {
-		p, err := getPod(podUUID)
+	for _, podUUID := range podUUIDs {
+		p, err := pkgPod.PodFromUUIDString(getDataDir(), podUUID)
 		if err != nil {
 			ret = 1
 			stderr.PrintE("cannot get pod", err)
+			continue
 		}
 
 		if removePod(p) {
-			stdout.Printf("%q", p.uuid)
+			stdout.Printf("%q", p.UUID)
 		} else {
 			ret = 1
 		}
@@ -91,40 +82,40 @@ func runRm(cmd *cobra.Command, args []string) (exit int) {
 	return ret
 }
 
-func removePod(p *pod) bool {
-	switch {
-	case p.isRunning():
-		stderr.Printf("pod %q is currently running", p.uuid)
+func removePod(p *pkgPod.Pod) bool {
+	switch p.State() {
+	case pkgPod.Running:
+		stderr.Printf("pod %q is currently running", p.UUID)
 		return false
 
-	case p.isEmbryo, p.isPreparing:
-		stderr.Printf("pod %q is currently being prepared", p.uuid)
+	case pkgPod.Embryo, pkgPod.Preparing:
+		stderr.Printf("pod %q is currently being prepared", p.UUID)
 		return false
 
-	case p.isExitedDeleting, p.isDeleting:
-		stderr.Printf("pod %q is currently being deleted", p.uuid)
+	case pkgPod.Deleting:
+		stderr.Printf("pod %q is currently being deleted", p.UUID)
 		return false
 
-	case p.isAbortedPrepare:
-		stderr.Printf("moving failed prepare %q to garbage", p.uuid)
-		if err := p.xToGarbage(); err != nil && err != os.ErrNotExist {
+	case pkgPod.AbortedPrepare:
+		stderr.Printf("moving failed prepare %q to garbage", p.UUID)
+		if err := p.ToGarbage(); err != nil && err != os.ErrNotExist {
 			stderr.PrintE("rename error", err)
 			return false
 		}
 
-	case p.isPrepared:
-		stderr.Printf("moving expired prepared pod %q to garbage", p.uuid)
-		if err := p.xToGarbage(); err != nil && err != os.ErrNotExist {
+	case pkgPod.Prepared:
+		stderr.Printf("moving expired prepared pod %q to garbage", p.UUID)
+		if err := p.ToGarbage(); err != nil && err != os.ErrNotExist {
 			stderr.PrintE("rename error", err)
 			return false
 		}
 
 	// p.isExitedGarbage and p.isExited can be true at the same time. Test
 	// the most specific case first.
-	case p.isExitedGarbage, p.isGarbage:
+	case pkgPod.ExitedGarbage, pkgPod.Garbage:
 
-	case p.isExited:
-		if err := p.xToExitedGarbage(); err != nil && err != os.ErrNotExist {
+	case pkgPod.Exited:
+		if err := p.ToExitedGarbage(); err != nil && err != os.ErrNotExist {
 			stderr.PrintE("rename error", err)
 			return false
 		}

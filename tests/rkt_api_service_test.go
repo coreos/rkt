@@ -103,7 +103,7 @@ func checkPodState(t *testing.T, rawState string, apiState v1alpha.PodState) {
 		if apiState == v1alpha.PodState_POD_STATE_EXITED {
 			return
 		}
-	case "garbage":
+	case "garbage", "exited garbage":
 		if apiState == v1alpha.PodState_POD_STATE_GARBAGE {
 			return
 		}

@@ -21,6 +21,7 @@ import (
 
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/pkg/lock"
+	pkgPod "github.com/coreos/rkt/pkg/pod"
 	"github.com/coreos/rkt/store/imagestore"
 	"github.com/coreos/rkt/store/treestore"
 	"github.com/hashicorp/errwrap"
@@ -111,15 +112,15 @@ func gcTreeStore(ts *treestore.Store) error {
 func getReferencedTreeStoreIDs() (map[string]struct{}, error) {
 	treeStoreIDs := map[string]struct{}{}
 	// Consider pods in preparing, prepared, run, exitedgarbage state
-	if err := walkPods(includeMostDirs, func(p *pod) {
-		stage1TreeStoreID, err := p.getStage1TreeStoreID()
+	if err := pkgPod.WalkPods(getDataDir(), pkgPod.IncludeMostDirs, func(p *pkgPod.Pod) {
+		stage1TreeStoreID, err := p.GetStage1TreeStoreID()
 		if err != nil {
-			stderr.PrintE(fmt.Sprintf("cannot get stage1 treestoreID for pod %s", p.uuid), err)
+			stderr.PrintE(fmt.Sprintf("cannot get stage1 treestoreID for pod %s", p.UUID), err)
 			return
 		}
-		appsTreeStoreIDs, err := p.getAppsTreeStoreIDs()
+		appsTreeStoreIDs, err := p.GetAppsTreeStoreIDs()
 		if err != nil {
-			stderr.PrintE(fmt.Sprintf("cannot get apps treestoreID for pod %s", p.uuid), err)
+			stderr.PrintE(fmt.Sprintf("cannot get apps treestoreID for pod %s", p.UUID), err)
 			return
 		}
 		allTreeStoreIDs := append(appsTreeStoreIDs, stage1TreeStoreID)

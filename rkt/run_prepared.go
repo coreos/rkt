@@ -18,6 +18,7 @@ package main
 
 import (
 	"github.com/coreos/rkt/common"
+	pkgPod "github.com/coreos/rkt/pkg/pod"
 	"github.com/coreos/rkt/stage0"
 	"github.com/coreos/rkt/store/imagestore"
 	"github.com/coreos/rkt/store/treestore"
@@ -56,7 +57,7 @@ func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	p, err := getPodFromUUIDString(args[0])
+	p, err := pkgPod.PodFromUUIDString(getDataDir(), args[0])
 	if err != nil {
 		stderr.PrintE("problem retrieving pod", err)
 		return 1
@@ -75,18 +76,19 @@ func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	if !p.isPrepared {
-		stderr.Printf("pod %q is not prepared", p.uuid)
+	if p.State() != pkgPod.Prepared {
+		stderr.Printf("pod %q is not prepared", p.UUID)
+		return 1
+	}
+
+	_, manifest, err := p.PodManifest()
+	if err != nil {
+		stderr.PrintE("cannot read pod manifest", err)
 		return 1
 	}
 
 	if flagInteractive {
-		ac, err := p.getAppCount()
-		if err != nil {
-			stderr.PrintE("cannot get pod's app count", err)
-			return 1
-		}
-		if ac > 1 {
+		if len(manifest.Apps) > 1 {
 			stderr.Print("interactive option only supports pods with one app")
 			return 1
 		}
@@ -102,7 +104,7 @@ func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 		}
 	}
 
-	if err := p.xToRun(); err != nil {
+	if err := p.ToRun(); err != nil {
 		stderr.PrintE("cannot transition to run", err)
 		return 1
 	}
@@ -110,12 +112,6 @@ func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 	lfd, err := p.Fd()
 	if err != nil {
 		stderr.PrintE("unable to get lock fd", err)
-		return 1
-	}
-
-	apps, err := p.getApps()
-	if err != nil {
-		stderr.PrintE("unable to get app list", err)
 		return 1
 	}
 
@@ -136,11 +132,7 @@ func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 		}
 	}
 
-	ovlPrep, err := p.overlayPrepared()
-	if err != nil {
-		stderr.PrintE("unable to determine prepared overlay state", err)
-		return 1
-	}
+	ovlPrep := p.UsesOverlay()
 
 	// should not happen, maybe the data directory moved from an overlay-enabled fs to another location
 	// between prepare and run-prepared
@@ -153,7 +145,7 @@ func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 		CommonConfig: &stage0.CommonConfig{
 			Store:     s,
 			TreeStore: ts,
-			UUID:      p.uuid,
+			UUID:      p.UUID,
 			Debug:     globalFlags.Debug,
 		},
 		Net:                  flagNet,
@@ -163,7 +155,7 @@ func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 		DNSSearch:            flagDNSSearch,
 		DNSOpt:               flagDNSOpt,
 		MDSRegister:          flagMDSRegister,
-		Apps:                 apps,
+		Apps:                 manifest.Apps,
 		RktGid:               rktgid,
 		Hostname:             flagHostname,
 		InsecureCapabilities: globalFlags.InsecureFlags.SkipCapabilities(),
@@ -174,6 +166,6 @@ func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 	if globalFlags.Debug {
 		stage0.InitDebug()
 	}
-	stage0.Run(rcfg, p.path(), getDataDir()) // execs, never returns
+	stage0.Run(rcfg, p.Path(), getDataDir()) // execs, never returns
 	return 1
 }

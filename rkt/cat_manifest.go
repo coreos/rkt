@@ -17,6 +17,7 @@ package main
 import (
 	"encoding/json"
 
+	pkgPod "github.com/coreos/rkt/pkg/pod"
 	"github.com/spf13/cobra"
 )
 
@@ -41,14 +42,14 @@ func runCatManifest(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	pod, err := getPodFromUUIDString(args[0])
+	pod, err := pkgPod.PodFromUUIDString(getDataDir(), args[0])
 	if err != nil {
 		stderr.PrintE("problem retrieving pod", err)
 		return 1
 	}
 	defer pod.Close()
 
-	manifest, err := pod.getManifest()
+	_, manifest, err := pod.PodManifest()
 	if err != nil {
 		return 1
 	}
