@@ -52,7 +52,7 @@ $(call generate-stamp-rule,$(QEMU_BUILD_STAMP),$(QEMU_CONF_STAMP),, \
 
 $(call generate-stamp-rule,$(QEMU_CONF_STAMP),$(QEMU_CLONE_STAMP),, \
 	$(call vb,vt,CONFIG EXT,qemu) \
-	cd $(QEMU_SRCDIR); ./configure $(QEMU_CONFIGURATION_OPTS) $(call vl2,>/dev/null))
+	cd $(QEMU_SRCDIR); ./configure --python=/usr/bin/python2 $(QEMU_CONFIGURATION_OPTS) $(call vl2,>/dev/null))
 
 # Generate filelist of qemu directory (this is both srcdir and
 # builddir). Can happen after build finished.
