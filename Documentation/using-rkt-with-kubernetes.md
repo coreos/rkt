@@ -19,9 +19,9 @@ The kubelet provides several flags to use rkt as the container runtime:
 Check the [rktnetes getting started guide](http://kubernetes.io/docs/getting-started-guides/rkt/) for information about setting up and using a rktnetes cluster.
 
 ## Configuring rkt using supported setup tools
-The [coreos-kubernetes](https://github.com/coreos/coreos-kubernetes) and [coreos-baremetal](https://github.com/coreos/coreos-baremetal) repos both support configuring rkt as the Kubernetes runtime out of the box. 
+The [coreos-kubernetes](https://github.com/coreos/coreos-kubernetes) and [coreos-baremetal](https://github.com/coreos/coreos-baremetal) repos both support configuring rkt as the Kubernetes runtime out of the box.
 
-Check out the coreos-kubernetes repo if you want to spin up a cluster on [AWS](https://coreos.com/kubernetes/docs/latest/kubernetes-on-aws.html) or [locally with vagrant](https://coreos.com/kubernetes/docs/latest/kubernetes-on-vagrant-single.html). The common configuration option here is setting `CONTAINER_RUNTMIE` environment variable to rkt. 
+Check out the coreos-kubernetes repo if you want to spin up a cluster on [AWS](https://coreos.com/kubernetes/docs/latest/kubernetes-on-aws.html) or [locally with vagrant](https://coreos.com/kubernetes/docs/latest/kubernetes-on-vagrant-single.html). The common configuration option here is setting `CONTAINER_RUNTIME` environment variable to rkt.
 
 For baremetal, check out the Kubernetes guides [here](https://github.com/coreos/coreos-baremetal/blob/master/Documentation/kubernetes.md)
 
