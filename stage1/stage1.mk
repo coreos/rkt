@@ -56,12 +56,20 @@
 #
 # STAGE1_STOP_CMD_$(flavor) - a stop command in stage1 to be used
 # for the "rkt stop" command.
+# 
+# STAGE1_IMAGES_$(flavor) - list of stage1 images we want to build for
+# each flavor. Need to be parsed here. If empty, single $(STAGE1_ACI_IMAGE_$f)
+# will be built. Variables $(STAGE1_ACI_IMAGE_$f-$(image)) will be used
+# only for aci build rules.
 
 STAGE1_FLAVORS := $(call commas-to-spaces,$(RKT_STAGE1_ALL_FLAVORS))
 STAGE1_BUILT_FLAVORS := $(call commas-to-spaces,$(RKT_STAGE1_FLAVORS))
 # filter out the fly flavor - it is special
 STAGE1_FLAVORS := $(filter-out fly,$(STAGE1_FLAVORS))
 STAGE1_BUILT_FLAVORS := $(filter-out fly,$(STAGE1_BUILT_FLAVORS))
+
+# hypervisors for kvm stage1
+STAGE1_BUILT_KVM_HV := $(call commas-to-spaces,$(RKT_STAGE1_KVM_HV))
 
 $(foreach f,$(STAGE1_FLAVORS), \
 	$(eval STAGE1_COPY_SO_DEPS_$f :=) \
@@ -83,6 +91,19 @@ $(call setup-stamp-file,_STAGE1_BUILT_ACI_STAMP_,built_aci)
 # List of all the ACIs that the build system will build
 _STAGE1_ALL_ACI_ := $(foreach f,$(STAGE1_FLAVORS),$(STAGE1_ACI_IMAGE_$f))
 _STAGE1_BUILT_ACI_ := $(foreach f,$(STAGE1_BUILT_FLAVORS),$(STAGE1_ACI_IMAGE_$f))
+
+# Assign rules for selected kvm hypervisors, fill STAGE1_IMAGES_kvm variable 
+# needed by _STAGE1_BUILT_ACI_ variable and _STAGE1_ACI_RULE_ function
+$(foreach h,$(STAGE1_BUILT_KVM_HV), \
+	$(eval STAGE1_ACI_IMAGE_kvm-$h := $(TARGET_BINDIR)/stage1-kvm-$h.aci) \
+	$(eval STAGE1_IMAGES_kvm += $h))
+
+# Replace stage1-flavor.aci with stage1-flavor-image1.aci,stage1-flavor-image2.aci,...
+# for every flavor with more than one image
+$(foreach f,$(STAGE1_BUILT_FLAVORS), \
+	$(if $(STAGE1_IMAGES_$f), \
+		$(eval _STAGE1_BUILT_ACI_ := \
+		$(subst $(STAGE1_ACI_IMAGE_$f), $(foreach i,$(STAGE1_IMAGES_$f),$(STAGE1_ACI_IMAGE_$f-$i)), $(_STAGE1_BUILT_ACI_)))))
 
 # The rootfs.mk file takes care of preparing the initial /usr contents
 # of the ACI rootfs of a specific flavor. Basically fills
@@ -107,9 +128,13 @@ $(call generate-stamp-rule,$(_STAGE1_BUILT_ACI_STAMP_),$(_STAGE1_BUILT_ACI_))
 # A rule template for building an ACI. To build the ACI we need to
 # have the /usr contents prepared and the additional stuff in place as
 # well. If a flavor wants to have missing libraries copied, it is done
-# here too.
-#
+# here too. If we want to build more than one image for single flavor 
+# (with differences in rootfs - i.e. hypervisor binary for kvm flavor), 
+# rootfs common part has to be stored in STAGE1_ACIROOTFSDIR_$1, and 
+# additional files in STAGE1_ACIROOTFSDIR_$1_$(image), for each $(image)
+# entry from $2.
 # 1 - flavor
+# 2 - images
 define _STAGE1_ACI_RULE_
 
 STAGE1_ALL_STAMPS_$1 := $$(STAGE1_USR_STAMPS_$1) $$(STAGE1_SECONDARY_STAMPS_$1)
@@ -121,6 +146,10 @@ ifeq ($$(STAGE1_COPY_SO_DEPS_$1),)
 # The flavor needs no libraries from the host
 
 $$(STAGE1_ACI_IMAGE_$1): $$(STAGE1_ALL_STAMPS_$1)
+
+# Same dependencies has to be fulfilled for every image in given flavor
+$(foreach i,$2, \
+$$(eval $$(STAGE1_ACI_IMAGE_$1-$i): $$(STAGE1_ALL_STAMPS_$1)))
 
 else
 
@@ -138,17 +167,46 @@ endif
 
 # The actual rule that builds the ACI. Additional dependencies are
 # above.
+
+# Forward variables to rules that build acis. If more than one image,
+# forward to every rule.
 $$(call forward-vars,$$(STAGE1_ACI_IMAGE_$1), \
 	ACTOOL STAGE1_ACIDIR_$1)
-$$(STAGE1_ACI_IMAGE_$1): $$(ACTOOL_STAMP) | $$(TARGET_BINDIR)
+$(foreach i,$2, \
+$$(call forward-vars,$$(STAGE1_ACI_IMAGE_$1-$i), \
+	ACTOOL STAGE1_ACIDIR_$1))
+
+# Prepare targets to build images. Also copy common rootfs to each image directory
+# and ensure that all of them will be removed
+$(if $(strip $2), \
+        $(eval IMG := $(foreach h,$2,$1-$h)) \
+        $(foreach s,$(IMG), \
+                $(call setup-stamp-file,STAGE1_COPY_IMAGE_FILES_$s,/copy-files-$s) \
+		$$(STAGE1_COPY_IMAGE_FILES_$s): $$(STAGE1_ALL_STAMPS_$1)
+			$(VQ) $(call vb,vt,COPY FILES,$$(call vsp,$s)) cp -rn $(STAGE1_ACIDIR_$1)/rootfs $(STAGE1_ACIDIR_$1)/manifest $(STAGE1_ACIDIR_$1)/$s \
+		$(eval CLEAN_DIRS += $(STAGE1_ACIDIR_$1)/$s)
+		$(call generate-clean-mk-simple, \
+		        $(STAGE1_ACI_IMAGE_$s), \
+		        $(STAGE1_ACIDIR_$1)/$s, \
+		        $(STAGE1_ACIDIR_$1)/$s, \
+		        $(STAGE1_COPY_IMAGE_FILES_$s), \
+		        copy-$s)), \
+        $(eval IMG := $1))
+
+# Build images. Common files are stored in STAGE1_ACIDIR_$1,
+# image specific files in STAGE1_ACIDIR_$1/flavor-image/...
+$(foreach s,$(IMG),
+$$(STAGE1_ACI_IMAGE_$s): $$(ACTOOL_STAMP) | $$(TARGET_BINDIR)
+	$(eval ACI_OUTPUT := "$(if $(filter 1,$(words $2)),$(STAGE1_ACI_IMAGE_$1),$(STAGE1_ACI_IMAGE_$s))")
 	$(VQ) \
-	$(call vb,vt,ACTOOL,$$(call vsp,$$@)) \
-	"$$(ACTOOL)" build --overwrite --owner-root "$$(STAGE1_ACIDIR_$1)" "$$@"
+	$(call vb,vt,ACTOOL,$$(call vsp,$(ACI_OUTPUT))) \
+	"$$(ACTOOL)" build --overwrite --owner-root "$$(STAGE1_ACIDIR_$1)$(if $(strip $2),/$s,)" $(ACI_OUTPUT)
+)
 
 endef
 
 $(foreach f,$(STAGE1_FLAVORS), \
-	$(eval $(call _STAGE1_ACI_RULE_,$f)))
+	$(eval $(call _STAGE1_ACI_RULE_,$f,$(STAGE1_IMAGES_$f))))
 
 
 # The following piece of wizardry takes the variables

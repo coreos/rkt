@@ -38,6 +38,9 @@ import (
 
 const journalDir = "/var/log/journal"
 
+// Supported hypervisors
+var hypervisors = [...]string{"lkvm", "qemu"}
+
 // KvmNetworkingToSystemd generates systemd unit files for a pod according to network configuration
 func KvmNetworkingToSystemd(p *stage1commontypes.Pod, n *networking.Networking) error {
 	podRoot := common.Stage1RootfsPath(p.Root)
@@ -193,6 +196,15 @@ func KvmPrepareMounts(s1Root string, p *stage1commontypes.Pod) error {
 	}
 
 	return nil
+}
+
+func KvmCheckHypervisor(s1Root string) (string, error) {
+	for _, hv := range hypervisors {
+		if _, err := os.Stat(filepath.Join(s1Root, hv)); err == nil {
+			return hv, nil
+		}
+	}
+	return "", fmt.Errorf("unrecognized hypervisor")
 }
 
 func linkJournal(s1Root, machineID string) error {

@@ -115,10 +115,10 @@ AC_ARG_WITH([stage1-systemd-version],
             [RKT_STAGE1_SYSTEMD_VER="${withval}"],
             [RKT_STAGE1_SYSTEMD_VER='auto'])
 
-# STAGE1 - KVM hypervisor. LKVM is the only choice for now
-AC_ARG_WITH([stage1-kvm-hypervisor],
-            [AS_HELP_STRING([--with-stage1-kvm-hypervisor],
-                            [hypervisor used by 'kvm' flavor; default and only option for now: 'lkvm'])],
+# STAGE1 - kvm hypervisor. lkvm or/and qemu can be chosen
+AC_ARG_WITH([stage1-kvm-hypervisors],
+            [AS_HELP_STRING([--with-stage1-kvm-hypervisors],
+                            [select hypervisors for kvm flavor; build stage1 aci for each of them. select "lkvm", "qemu" or both (default: 'lkvm')])],
             [RKT_STAGE1_KVM_HV="${withval}"],
             [RKT_STAGE1_KVM_HV='lkvm'])
 
@@ -250,19 +250,13 @@ AS_CASE([${RKT_STAGE1_DEFAULT_IMAGES_DIR}],
                 [:],
         [AC_MSG_ERROR([*** Path to the stage1 images directory must be absolute])])
 
-## Built stage1 flavors verification
+## Built stage1 flavors and hypervisors verification
 
 dnl a list of all flavors
 RKT_STAGE1_ALL_FLAVORS=coreos,kvm,host,src,fly
 
-dnl RKT_ITERATE_FLAVORS iterates all comma-separated flavors stored in
-dnl $1 using an iterator variable $2 and executes body $3.
-AC_DEFUN([RKT_ITERATE_FLAVORS],
-         [for $2 in `AS_ECHO(["$1"]) | tr ',' ' '`
-          do
-              :
-              $3
-          done])
+dnl a list of all kvm hypervisors
+RKT_STAGE1_KVM_ALL_HV=lkvm,qemu
 
 dnl RKT_IS_VALID_FLAVOR checks if $1 is a valid flavor, $2 is an
 dnl additional string to an error message.
@@ -274,16 +268,35 @@ AC_DEFUN([RKT_IS_VALID_FLAVOR],
                   dnl Bogus flavor, bail out.
                   [AC_MSG_ERROR([*** Unknown stage1 flavor "$1" $2])])])
 
-dnl RKT_IF_HAS_FLAVOR checks if the comma-separated list of flavors in
-dnl $1 contains any flavor in the comma-separated list of flavors in
+dnl RKT_IS_VALID_HYPERVISOR checks if $1 is a valid kvm hypervisor, $2 is an
+dnl additional string to an error message.
+AC_DEFUN([RKT_IS_VALID_HYPERVISOR],
+         [AS_CASE([$1],
+                  dnl Correct hypervisor, nothing to do.
+                  [lkvm|qemu],
+                          [],
+                  dnl Bogus hypervisor, bail out.
+                  [AC_MSG_ERROR([*** Unknown stage1 kvm hypervisor "$1" $2])])])
+
+dnl RKT_ITERATE iterates all comma-separated values stored in
+dnl $1 using an iterator variable $2 and executes body $3.
+AC_DEFUN([RKT_ITERATE],
+         [for $2 in `AS_ECHO(["$1"]) | tr ',' ' '`
+          do
+              :
+              $3
+          done])
+
+dnl RKT_IF_HAS_VALUE checks if the comma-separated list of values in
+dnl $1 contains any value in the comma-separated list of values in
 dnl $2; if yes, executes $3, otherwise - $4.
-AC_DEFUN([RKT_IF_HAS_FLAVOR],
-         [flavor_found=0
-          RKT_ITERATE_FLAVORS([$2],[flavor],
-                              [AS_IF([AS_ECHO([",$1,"]) | grep --silent ",${flavor},"],
-                                     [flavor_found=1
+AC_DEFUN([RKT_IF_HAS_VALUE],
+         [value_found=0
+          RKT_ITERATE([$2],[value],
+                              [AS_IF([AS_ECHO([",$1,"]) | grep --silent ",${value},"],
+                                     [value_found=1
                                       break])])
-          AS_IF([test ${flavor_found} -eq 1],[:;$3],[:;$4])])
+          AS_IF([test ${value_found} -eq 1],[:;$3],[:;$4])])
 
 dnl common deps for flavors using CoreOS PXE image; not checking for
 dnl gpg - it will be checked when we will actually download the image
@@ -304,9 +317,9 @@ dnl Validate passed flavors to build - make sure that valid flavors
 dnl were passed and each flavor was specified only once. Also, do some
 dnl basic program checks for each requested flavor.
 RKT_SPECIFIED_FLAVORS=''
-RKT_ITERATE_FLAVORS([${RKT_STAGE1_FLAVORS}],[flavor],
+RKT_ITERATE([${RKT_STAGE1_FLAVORS}],[flavor],
                     [RKT_IS_VALID_FLAVOR([${flavor}],[in --with-stage1-flavors])
-                     RKT_IF_HAS_FLAVOR([${RKT_SPECIFIED_FLAVORS}],[${flavor}],
+                     RKT_IF_HAS_VALUE([${RKT_SPECIFIED_FLAVORS}],[${flavor}],
                                        [AC_MSG_ERROR([*** "${flavor}" flavor specified twice in --with-stage1-flavors])])
                      RKT_SPECIFIED_FLAVORS="${RKT_SPECIFIED_FLAVORS},${flavor}"
                      AS_CASE([${flavor}],
@@ -315,7 +328,7 @@ RKT_ITERATE_FLAVORS([${RKT_STAGE1_FLAVORS}],[flavor],
                              [coreos],
                                      [RKT_COMMON_COREOS_PROGS],
                              [kvm],
-                                     [AC_MSG_NOTICE([will build linux kernel and ${RKT_STAGE1_KVM_HV} from source, make sure that all their build requirements are fulfilled])
+                                     [AC_MSG_NOTICE([will build linux kernel and kvm hypervisors (${RKT_STAGE1_KVM_HV}) from source, make sure that all their build requirements are fulfilled])
                                       RKT_COMMON_COREOS_PROGS
                                       RKT_REQ_PROG([PATCH],[patch],[patch])
                                       RKT_REQ_PROG([TAR],[tar],[tar])
@@ -379,7 +392,7 @@ dnl stage1 flavors
 
 AS_VAR_IF([RKT_STAGE1_SETUP_KIND],['flavor'],
           [RKT_IS_VALID_FLAVOR([${RKT_STAGE1_DEFAULT_FLAVOR}],[in --with-stage1-default-flavor])
-           RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}],[${RKT_STAGE1_DEFAULT_FLAVOR}],
+           RKT_IF_HAS_VALUE([${RKT_STAGE1_FLAVORS}],[${RKT_STAGE1_DEFAULT_FLAVOR}],
                              dnl valid default flavor, alright
                              [],
                              dnl not a part of built flavors, bail out
@@ -388,7 +401,7 @@ AS_VAR_IF([RKT_STAGE1_SETUP_KIND],['flavor'],
 ## Options specific for src flavor
 
 # Process systemd src repo and version for src flavor.
-RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}],[src],
+RKT_IF_HAS_VALUE([${RKT_STAGE1_FLAVORS}],[src],
                   dnl we are building src flavor
                   [AS_VAR_IF([RKT_STAGE1_SYSTEMD_SRC], [auto],
                              dnl systemd source not specified, use default
@@ -417,19 +430,27 @@ AS_VAR_IF([RKT_STAGE1_SYSTEMD_VER], [HEAD],
           [AC_MSG_WARN([* 'HEAD' is not a systemd version, setting it to 'master' instead])
            RKT_STAGE1_SYSTEMD_VER='master'])
 
-KVM_HV_TAG='hv_none'
-RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}], [kvm],
-                  dnl for kvm check hypervisor
-                  AS_CASE([${RKT_STAGE1_KVM_HV}],
-                          [lkvm],
-                                  KVM_HV_TAG='hv_lkvm',
-                          [AC_MSG_ERROR([*** Invalid value passed to --with-stage1-kvm-hypervisor; lkvm is the only supported tool right now])]))
+## Options specific for kvm flavor
+
+RKT_SPECIFIED_HYPERVISORS=''
+RKT_IF_HAS_VALUE([${RKT_STAGE1_FLAVORS}],[kvm],
+          [RKT_ITERATE([${RKT_STAGE1_KVM_HV}],[hypervisor],
+                     [RKT_IS_VALID_HYPERVISOR([${hypervisor}],[in --with-stage1-kvm-hypervisors])
+                      RKT_IF_HAS_VALUE([${RKT_SPECIFIED_HYPERVISORS}],[${hypervisor}],
+                                [AC_MSG_ERROR([*** "${hypervisor}" hypervisor specified twice in --with-stage1-kvm-hypervisors])])
+                                RKT_SPECIFIED_HYPERVISORS="${RKT_SPECIFIED_HYPERVISORS},${hypervisor}"
+                                AS_CASE([${hypervisor}],
+                                          [lkvm],
+                                                    [AC_MSG_NOTICE([including lkvm...])],
+                                          [qemu],
+                                                    [AC_MSG_NOTICE([including qemu...])],
+                                          [AC_MSG_ERROR([*** Unhandled hypervisor "${hypervisor}". should not happen])])])])
 
 ## Options specific to coreos/kvm flavors
 
 # Process local CoreOS PXE image path and its systemd version for
 # coreos/kvm flavors.
-RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}],[coreos,kvm],
+RKT_IF_HAS_VALUE([${RKT_STAGE1_FLAVORS}],[coreos,kvm],
                   dnl for kvm and coreos check if both pxe image path and
                   dnl systemd version are specified or neither
                   [AS_VAR_IF([RKT_LOCAL_COREOS_PXE_IMAGE_PATH], [],
@@ -575,12 +596,12 @@ AS_CASE([${RKT_ACI_ARCH}],
         dnl supported arches
         [aarch64 | amd64], [],
         dnl unsupported arches
-        [RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}], [coreos,kvm,src],
+        [RKT_IF_HAS_VALUE([${RKT_STAGE1_FLAVORS}], [coreos,kvm,src],
                            [AC_MSG_ERROR([*** ${RKT_ACI_ARCH}: no arch support for stage1 flavors {coreos,kvm,src}])],
                            [AC_MSG_WARN([* ${RKT_ACI_ARCH}: unsupported arch])])])
 
 # Set the path to the interpreter binary for coreos flavor.
-RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}], [coreos],
+RKT_IF_HAS_VALUE([${RKT_STAGE1_FLAVORS}], [coreos],
                   [AS_CASE([${RKT_ACI_ARCH}],
                            [aarch64],
                                     [RKT_STAGE1_INTERPRETER="/usr/lib/ld-linux-aarch64.so.1"],
@@ -588,7 +609,7 @@ RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}], [coreos],
                                     [RKT_STAGE1_INTERPRETER="/usr/lib/ld-linux-x86-64.so.2"])])
 
 # Set the path to the interpreter binary for src flavor.
-RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}], [src],
+RKT_IF_HAS_VALUE([${RKT_STAGE1_FLAVORS}], [src],
                   [AS_CASE([${RKT_ACI_ARCH}],
                            [aarch64],
                                     [RKT_STAGE1_INTERPRETER="/lib64/ld-linux-aarch64.so.1"],
@@ -773,7 +794,8 @@ AC_SUBST(RKT_STAGE1_INTERPRETER_LDFLAGS)
 AC_SUBST(RKT_VERSION_LDFLAGS)
 AC_SUBST(RKT_FEATURES_LDFLAGS)
 
-AC_SUBST(KVM_HV_TAG)
+AC_SUBST(RKT_STAGE1_KVM_ALL_HV)
+AC_SUBST(RKT_STAGE1_KVM_HV)
 AC_SUBST(TPM_TAGS)
 AC_SUBST(SDJOURNAL_TAGS)
 
@@ -810,7 +832,7 @@ AS_CASE([${RKT_STAGE1_SETUP_KIND}],
         default stage1 version:                 '${RKT_STAGE1_DEFAULT_VERSION}'])],
         [AC_MSG_ERROR([*** Unknown setup kind, should not happen])])
 
-RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}], [coreos,kvm],
+RKT_IF_HAS_VALUE([${RKT_STAGE1_FLAVORS}], [coreos,kvm],
                   [AC_MSG_RESULT([
         coreos/kvm flavor specific build parameters
 
@@ -818,20 +840,20 @@ RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}], [coreos,kvm],
         local CoreOS PXE image systemd version: '${RKT_LOCAL_COREOS_PXE_IMAGE_SYSTEMD_VER}'
         stage1 CoreOS board:                    '${RKT_STAGE1_COREOS_BOARD}'])])
 
-RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}], [src],
+RKT_IF_HAS_VALUE([${RKT_STAGE1_FLAVORS}], [src],
                   [AC_MSG_RESULT([
         src flavor specific build parameters
 
         systemd git repo:                       '${RKT_STAGE1_SYSTEMD_SRC}'
         systemd version:                        '${RKT_STAGE1_SYSTEMD_VER}'])])
 
-RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}], [kvm],
+RKT_IF_HAS_VALUE([${RKT_STAGE1_FLAVORS}], [kvm],
                   [AC_MSG_RESULT([
         kvm flavor specific build parameters
 
-        hypervisor:                             '${RKT_STAGE1_KVM_HV}'])])
+        hypervisors:                            '${RKT_STAGE1_KVM_HV}'])])
 
-RKT_IF_HAS_FLAVOR([${RKT_STAGE1_FLAVORS}], [coreos,src],
+RKT_IF_HAS_VALUE([${RKT_STAGE1_FLAVORS}], [coreos,src],
                   [AC_MSG_RESULT([
         coreos flavor specific build parameters
 

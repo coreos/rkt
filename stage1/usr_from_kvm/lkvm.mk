@@ -2,7 +2,7 @@ $(call setup-stamp-file,LKVM_STAMP)
 LKVM_TMPDIR := $(UFK_TMPDIR)/lkvm
 LKVM_SRCDIR := $(LKVM_TMPDIR)/src
 LKVM_BINARY := $(LKVM_SRCDIR)/lkvm-static
-LKVM_ACI_BINARY := $(S1_RF_ACIROOTFSDIR)/lkvm
+LKVM_ACI_BINARY := $(HV_ACIROOTFSDIR)/lkvm
 LKVM_GIT := https://kernel.googlesource.com/pub/scm/linux/kernel/git/will/kvmtool
 # just last published version (for reproducible builds), not for any other reason
 LKVM_VERSION := d62653e177597251c24494a6dda60acd6d846671

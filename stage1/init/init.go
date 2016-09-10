@@ -50,7 +50,8 @@ import (
 	rktlog "github.com/coreos/rkt/pkg/log"
 	"github.com/coreos/rkt/pkg/sys"
 	"github.com/coreos/rkt/stage1/init/kvm"
-	"github.com/coreos/rkt/stage1/init/kvm/hypervisor"
+	"github.com/coreos/rkt/stage1/init/kvm/hypervisor/hvlkvm"
+	"github.com/coreos/rkt/stage1/init/kvm/hypervisor/hvqemu"
 )
 
 const (
@@ -258,7 +259,24 @@ func getArgsEnv(p *stage1commontypes.Pod, flavor string, canMachinedRegister boo
 
 		cpu, mem := kvm.GetAppsResources(p.Manifest.Apps)
 
-		hvStartCmd := hypervisor.StartCmd(
+		// Parse hypervisor
+		hv, err := KvmCheckHypervisor(common.Stage1RootfsPath(p.Root))
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// Set start command for hypervisor
+		StartCmd := hvlkvm.StartCmd
+		switch hv {
+		case "lkvm":
+			StartCmd = hvlkvm.StartCmd
+		case "qemu":
+			StartCmd = hvqemu.StartCmd
+		default:
+			return nil, nil, fmt.Errorf("unrecognized hypervisor")
+		}
+
+		hvStartCmd := StartCmd(
 			common.Stage1RootfsPath(p.Root),
 			p.UUID.String(),
 			kernelPath,

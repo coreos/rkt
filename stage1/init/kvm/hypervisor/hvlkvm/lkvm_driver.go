@@ -12,9 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// +build hv_lkvm
-
-package hypervisor
+package hvlkvm
 
 import (
 	"fmt"
@@ -23,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/coreos/rkt/stage1/init/kvm"
+	"github.com/coreos/rkt/stage1/init/kvm/hypervisor"
 )
 
 // StartCmd takes path to stage1, UUID of the pod, path to kernel, network
@@ -30,7 +29,7 @@ import (
 // line to run LKVM process
 func StartCmd(wdPath, uuid, kernelPath string, nds []kvm.NetDescriber, cpu, mem int64, debug bool) []string {
 	machineID := strings.Replace(uuid, "-", "", -1)
-	driverConfiguration := KvmHypervisor{
+	driverConfiguration := hypervisor.KvmHypervisor{
 		Bin: "./lkvm",
 		KernelParams: []string{
 			"systemd.default_standard_error=journal+console",

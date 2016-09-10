@@ -35,6 +35,9 @@ if [ "${CI-}" == true ] ; then
 		# building systemd v229 crashes with the gcc 4.8, update to gcc 5
 		sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
 		sudo apt-get update -qq
-		sudo apt-get install gcc-5 gcc-5-base libgcc-5-dev -y -qq
+		sudo apt-get install gcc-5 gcc-5-base libgcc-5-dev g++-5 libstdc++-5-dev libseccomp-dev -y -qq
+		sudo update-alternatives --remove-all gcc
+		sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-5 20
+		sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-5 20
 	fi
 fi
