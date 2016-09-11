@@ -9,6 +9,7 @@ For more information, see:
 - #1359
 - #1468
 - [API Service Subcommand](../../Documentation/subcommands/api-service.md)
+- [API Python example](api-python.md)
 
 ## Protobuf
 
