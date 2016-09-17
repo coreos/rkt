@@ -11,6 +11,8 @@ Vagrant.configure('2') do |config|
     config.vm.provider :libvirt do |libvirt, override|
         libvirt.memory = 1024
     end
+  
+    config.vm.provision :shell, inline: "sudo echo nameserver 8.8.8.8 > /etc/resolv.conf"
 
     config.vm.network "private_network", type: "dhcp"
     config.vm.provision :shell, :privileged => true, :path => "scripts/install-rkt.sh"
