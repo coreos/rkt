@@ -182,11 +182,17 @@ func MergeMounts(mounts []schema.Mount, appMounts []schema.Mount) []schema.Mount
 	return deduplicateMPs(ml)
 }
 
+func convertedFromDocker(am *schema.ImageManifest) bool {
+	ann := am.Annotations
+	_, ok := ann.Get("appc.io/docker/repository")
+	return ok
+}
+
 // generatePodManifest creates the pod manifest from the command line input.
 // It returns the pod manifest as []byte on success.
 // This is invoked if no pod manifest is specified at the command line.
-func generatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
-	pm := schema.PodManifest{
+func generatePodManifest(cfg PrepareConfig, dir string) (*schema.PodManifest, error) {
+	pm := &schema.PodManifest{
 		ACKind: "PodManifest",
 		Apps:   make(schema.AppList, 0),
 	}
@@ -342,23 +348,19 @@ func generatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 	pm.Volumes = cfg.Apps.Volumes
 	pm.Ports = cfg.Ports
 
-	pmb, err := json.Marshal(pm)
-	if err != nil {
-		return nil, errwrap.Wrap(errors.New("error marshalling pod manifest"), err)
-	}
-	return pmb, nil
+	return pm, nil
 }
 
 // validatePodManifest reads the user-specified pod manifest, prepares the app images
 // and validates the pod manifest. If the pod manifest passes validation, it returns
 // the manifest as []byte.
 // TODO(yifan): More validation in the future.
-func validatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
+func validatePodManifest(cfg PrepareConfig, dir string) (*schema.PodManifest, error) {
 	pmb, err := ioutil.ReadFile(cfg.PodManifest)
 	if err != nil {
 		return nil, errwrap.Wrap(errors.New("error reading pod manifest"), err)
 	}
-	var pm schema.PodManifest
+	var pm *schema.PodManifest
 	if err := json.Unmarshal(pmb, &pm); err != nil {
 		return nil, errwrap.Wrap(errors.New("error unmarshaling pod manifest"), err)
 	}
@@ -384,8 +386,35 @@ func validatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 		if ra.App == nil && am.App == nil {
 			return nil, fmt.Errorf("no app section in the pod manifest or the image manifest")
 		}
+		if a, ok := ra.Annotations.Get(common.NoVolumePolicyAnnotation); ok {
+			if a != common.NoVolumePolicyEmpty && a != common.NoVolumePolicyEmptyCopy {
+				return nil, fmt.Errorf("invalid no volume policy annotation value %q", a)
+			}
+		}
 	}
-	return pmb, nil
+
+	return pm, nil
+}
+
+// setRuntimeAppsNoVolumePolicy sets, for the runtime apps in the pod manifest, the NoVolumePolicyAnnotation.
+func setRuntimeAppsNoVolumePolicy(cfg PrepareConfig, pm *schema.PodManifest) (*schema.PodManifest, error) {
+	for i, ra := range pm.Apps {
+		// skip if the NoVolumePolicyAnnotation is already defined in the runtimeApp
+		if _, ok := ra.Annotations.Get(common.NoVolumePolicyAnnotation); ok {
+			continue
+		}
+		am, err := cfg.Store.GetImageManifest(ra.Image.ID.String())
+		if err != nil {
+			return nil, errwrap.Wrap(errors.New("error getting the image manifest"), err)
+		}
+		// If the image was converted from a docker registry set the empty-copy no volume policy.
+		if convertedFromDocker(am) {
+			ra.Annotations.Set(common.NoVolumePolicyAnnotation, common.NoVolumePolicyEmptyCopy)
+		}
+		// since appc spec define Apps as []RuntimeApp, ra is a copy of RuntimeApp, so we have to replace the whole app
+		pm.Apps[i] = ra
+	}
+	return pm, nil
 }
 
 // Prepare sets up a pod based on the given config.
@@ -398,15 +427,27 @@ func Prepare(cfg PrepareConfig, dir string, uuid *types.UUID) error {
 		return errwrap.Wrap(errors.New("error preparing stage1"), err)
 	}
 
-	var pmb []byte
+	var pm *schema.PodManifest
 	var err error
 	if len(cfg.PodManifest) > 0 {
-		pmb, err = validatePodManifest(cfg, dir)
+		pm, err = validatePodManifest(cfg, dir)
 	} else {
-		pmb, err = generatePodManifest(cfg, dir)
+		pm, err = generatePodManifest(cfg, dir)
 	}
 	if err != nil {
 		return err
+	}
+
+	// Sets the apps EmptyVolumePolicy, this is done for both generated or provided pod manifests.
+	pm, err = setRuntimeAppsNoVolumePolicy(cfg, pm)
+	if err != nil {
+		return err
+	}
+
+	var pmb []byte
+	pmb, err = json.Marshal(pm)
+	if err != nil {
+		return errwrap.Wrap(errors.New("error marshalling pod manifest"), err)
 	}
 
 	cfg.CommonConfig.ManifestData = string(pmb)

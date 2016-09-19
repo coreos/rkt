@@ -569,8 +569,7 @@ func appToSystemd(p *stage1commontypes.Pod, ra *schema.RuntimeApp, interactive b
 	appRootfs := common.AppRootfsPath(absRoot, appName)
 
 	rwDirs := []string{}
-	imageManifest := p.Images[appName.String()]
-	mounts := GenerateMounts(ra, vols, imageManifest)
+	mounts := GenerateMounts(ra, vols)
 	for _, m := range mounts {
 		mntPath, err := EvaluateSymlinksInsideApp(appRootfs, m.Path)
 		if err != nil {
@@ -941,8 +940,7 @@ func appToNspawnArgs(p *stage1commontypes.Pod, ra *schema.RuntimeApp, insecureOp
 		vols[v.Name] = v
 	}
 
-	imageManifest := p.Images[appName.String()]
-	mounts := GenerateMounts(ra, vols, imageManifest)
+	mounts := GenerateMounts(ra, vols)
 	for _, m := range mounts {
 		vol := vols[m.Volume]
 
@@ -964,7 +962,7 @@ func appToNspawnArgs(p *stage1commontypes.Pod, ra *schema.RuntimeApp, insecureOp
 		}
 		mntAbsPath := filepath.Join(appRootfs, mntPath)
 
-		if err := PrepareMountpoints(shPath, mntAbsPath, &vol, m.DockerImplicit); err != nil {
+		if err := PrepareMountpoints(shPath, mntAbsPath, &vol, m.CopyImageFiles); err != nil {
 			return nil, err
 		}
 

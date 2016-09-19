@@ -67,6 +67,11 @@ const (
 	// Default perm bits for the regular directories
 	// within the stage1 directory.
 	DefaultRegularDirPerm = os.FileMode(0750)
+
+	// pod manifest annotations
+	NoVolumePolicyAnnotation = "coreos.com/rkt/annotations/novolumepolicy"
+	NoVolumePolicyEmpty      = "empty"
+	NoVolumePolicyEmptyCopy  = "empty-copy"
 )
 
 const (

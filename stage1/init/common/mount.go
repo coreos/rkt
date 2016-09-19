@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"syscall"
 
+	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/pkg/fileutil"
 	"github.com/coreos/rkt/pkg/user"
 
@@ -39,7 +40,7 @@ import (
 // whether it is an implicit empty volume converted from a Docker image.
 type mountWrapper struct {
 	schema.Mount
-	DockerImplicit bool
+	CopyImageFiles bool
 }
 
 func isMPReadOnly(mountPoints []types.MountPoint, name types.ACName) bool {
@@ -63,16 +64,10 @@ func IsMountReadOnly(vol types.Volume, mountPoints []types.MountPoint) bool {
 	return isMPReadOnly(mountPoints, vol.Name)
 }
 
-func convertedFromDocker(im *schema.ImageManifest) bool {
-	ann := im.Annotations
-	_, ok := ann.Get("appc.io/docker/repository")
-	return ok
-}
-
 // GenerateMounts maps MountPoint paths to volumes, returning a list of mounts,
 // each with a parameter indicating if it's an implicit empty volume from a
 // Docker image.
-func GenerateMounts(ra *schema.RuntimeApp, volumes map[types.ACName]types.Volume, imageManifest *schema.ImageManifest) []mountWrapper {
+func GenerateMounts(ra *schema.RuntimeApp, volumes map[types.ACName]types.Volume) []mountWrapper {
 	app := ra.App
 
 	var genMnts []mountWrapper
@@ -83,7 +78,7 @@ func GenerateMounts(ra *schema.RuntimeApp, volumes map[types.ACName]types.Volume
 		genMnts = append(genMnts,
 			mountWrapper{
 				Mount:          m,
-				DockerImplicit: false,
+				CopyImageFiles: false,
 			})
 	}
 
@@ -108,10 +103,16 @@ func GenerateMounts(ra *schema.RuntimeApp, volumes map[types.ACName]types.Volume
 				GID:  &defaultGID,
 			}
 
-			dockerImplicit := convertedFromDocker(imageManifest)
+			copyImageFiles := false
+			if ann, ok := ra.Annotations.Get(common.NoVolumePolicyAnnotation); ok {
+				// assume that stage0 already checks if the annotation values are correct.
+				if ann == common.NoVolumePolicyEmptyCopy {
+					copyImageFiles = true
+				}
+			}
 			log.Printf("warning: no volume specified for mount point %q, implicitly creating an \"empty\" volume. This volume will be removed when the pod is garbage-collected.", mp.Name)
-			if dockerImplicit {
-				log.Printf("Docker converted image, initializing implicit volume with data contained at the mount point %q.", mp.Name)
+			if copyImageFiles {
+				log.Printf("Initializing implicit volume with data contained at the mount point %q.", mp.Name)
 			}
 
 			volumes[uniqName] = emptyVol
@@ -121,7 +122,7 @@ func GenerateMounts(ra *schema.RuntimeApp, volumes map[types.ACName]types.Volume
 						Volume: uniqName,
 						Path:   mp.Path,
 					},
-					DockerImplicit: dockerImplicit,
+					CopyImageFiles: copyImageFiles,
 				})
 		} else {
 			genMnts = append(genMnts,
@@ -130,7 +131,7 @@ func GenerateMounts(ra *schema.RuntimeApp, volumes map[types.ACName]types.Volume
 						Volume: vol.Name,
 						Path:   mp.Path,
 					},
-					DockerImplicit: false,
+					CopyImageFiles: false,
 				})
 		}
 	}

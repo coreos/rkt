@@ -71,8 +71,7 @@ func mountSharedVolumes(root string, p *stage1commontypes.Pod, ra *schema.Runtim
 		return errwrap.Wrap(fmt.Errorf("could not change permissions of %q", sharedVolPath), err)
 	}
 
-	imageManifest := p.Images[appName.String()]
-	mounts := stage1initcommon.GenerateMounts(ra, vols, imageManifest)
+	mounts := stage1initcommon.GenerateMounts(ra, vols)
 	for _, m := range mounts {
 		vol := vols[m.Volume]
 
@@ -92,7 +91,7 @@ func mountSharedVolumes(root string, p *stage1commontypes.Pod, ra *schema.Runtim
 		}
 		absDestination := filepath.Join(absAppRootfs, mntPath)
 		shPath := filepath.Join(sharedVolPath, vol.Name.String())
-		if err := stage1initcommon.PrepareMountpoints(shPath, absDestination, &vol, m.DockerImplicit); err != nil {
+		if err := stage1initcommon.PrepareMountpoints(shPath, absDestination, &vol, m.CopyImageFiles); err != nil {
 			return err
 		}
 
