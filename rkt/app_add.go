@@ -53,7 +53,21 @@ func runAppAdd(cmd *cobra.Command, args []string) (exit int) {
 		return 1
 	}
 
-	err := parseApps(&rktApps, args[1:], cmd.Flags(), true)
+	p, err := pkgPod.PodFromUUIDString(getDataDir(), args[0])
+	if err != nil {
+		stderr.PrintE("problem retrieving pod", err)
+		return 1
+	}
+	defer p.Close()
+
+	_, manifest, err := p.PodManifest()
+	if err != nil {
+		stderr.PrintE("cannot get the pod manifest", err)
+		return 1
+	}
+
+	rktApps.Volumes = manifest.Volumes
+	err = parseApps(&rktApps, args[1:], cmd.Flags(), true)
 	if err != nil {
 		stderr.PrintE("error parsing app image arguments", err)
 		return 1
@@ -62,13 +76,6 @@ func runAppAdd(cmd *cobra.Command, args []string) (exit int) {
 		stderr.Print("must give only one app")
 		return 1
 	}
-
-	p, err := pkgPod.PodFromUUIDString(getDataDir(), args[0])
-	if err != nil {
-		stderr.PrintE("problem retrieving pod", err)
-		return 1
-	}
-	defer p.Close()
 
 	if p.State() != pkgPod.Running {
 		stderr.Printf("pod %q isn't currently running", p.UUID)

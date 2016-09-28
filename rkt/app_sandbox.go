@@ -57,6 +57,7 @@ func init() {
 	cmdAppSandbox.Flags().Var(&flagDNSOpt, "dns-opt", "DNS options to write in /etc/resolv.conf")
 	cmdAppSandbox.Flags().StringVar(&flagHostname, "hostname", "", `pod's hostname. If empty, it will be "rkt-$PODUUID"`)
 	cmdAppSandbox.Flags().Var(&flagAppPorts, "port", "ports to forward. format: \"name:proto:podPort:hostIP:hostPort\"")
+	cmdAppSandbox.Flags().Var((*appsVolume)(&rktApps), "volume", "volumes to make available in the pod")
 
 	flagAppPorts = appPortList{}
 	cmdAppSandbox.Flags().Var(&flagAnnotations, "user-annotation", "optional, set the pod's annotations in the form of key=value")

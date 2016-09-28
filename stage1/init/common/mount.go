@@ -16,7 +16,9 @@ package common
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"syscall"
@@ -27,6 +29,8 @@ import (
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
 	"github.com/hashicorp/errwrap"
+
+	stage1commontypes "github.com/coreos/rkt/stage1/common/types"
 )
 
 /*
@@ -237,4 +241,151 @@ func ensureDestinationExists(source, destination string) error {
 		}
 	}
 	return nil
+}
+
+func AppAddMounts(p *stage1commontypes.Pod, ra *schema.RuntimeApp, enterCmd []string) {
+	vols := make(map[types.ACName]types.Volume)
+	for _, v := range p.Manifest.Volumes {
+		vols[v.Name] = v
+	}
+
+	imageManifest := p.Images[ra.Name.String()]
+
+	/* TODO(alban): ra.Mounts is empty at the moment because the run-time manifest
+	 * has not been updated with the mount. See how it is done in
+	 * generatePodManifest/MergeMounts.
+	 *
+	 * For now, do it manually.
+	 */
+	ra.Mounts = append(ra.Mounts, schema.Mount{Volume: "foo", Path: "/mnt/hardcoded"})
+
+	mounts := GenerateMounts(ra, vols, imageManifest)
+	for _, m := range mounts {
+		vol := vols[m.Volume]
+		/* TODO(alban): set readOnly correctly */
+		readOnly := true
+		AppAddOneMount(p, ra, vol.Source, m.Mount.Path, readOnly, enterCmd)
+	}
+}
+
+/* AppAddOneMount bind-mounts "sourcePath" from the host into "dstPath" in
+ * the container.
+ *
+ * We use the propagation mechanism of systemd-nspawn. In all systemd-nspawn
+ * containers, the directory "/run/systemd/nspawn/propagate/$MACHINE_ID" on
+ * the host is propagating mounts to the directory
+ * "/run/systemd/nspawn/incoming/" in the container mount namespace. Once a
+ * bind mount is propagated, we simply move to its correct location.
+ *
+ * The algorithm is the same as in "machinectl bind":
+ * https://github.com/systemd/systemd/blob/v231/src/machine/machine-dbus.c#L865
+ * except that we don't use setns() to enter the mount namespace of the pod
+ * because Linux does not allow multithreaded applications (such as Go
+ * programs) to change mount namespaces with setns. Instead, we fork another
+ * process written in C (single-threaded) to enter the mount namespace. The
+ * command used is specified by the "enterCmd" parameter.
+ *
+ * Users might request a bind mount to be set up read-only. This complicates
+ * things a bit because on Linux, setting up a read-only bind mount involves
+ * two mount() calls, so it is not atomic. We don't want the container to see
+ * the mount in read-write mode, even for a short time, so we don't create the
+ * bind mount directly in "/run/systemd/nspawn/propagate/$MACHINE_ID" to avoid
+ * an immediate propagation to the container. Instead, we create a temporary
+ * playground in "/tmp/rkt.propagate.XXXX" and create the bind mount in
+ * "/tmp/rkt.propagate.XXXX/mount" with the correct read-only attribute before
+ * moving it.
+ *
+ * Another complication is that the playground cannot be on a shared mount
+ * because Linux does not allow MS_MOVE to be applied to mounts with MS_SHARED
+ * parent mounts. But by default, systemd mounts everything as shared, see:
+ * https://github.com/systemd/systemd/blob/v231/src/core/mount-setup.c#L392
+ * We set up the temporary playground as a slave bind mount to avoid this
+ * limitation.
+ */
+func AppAddOneMount(p *stage1commontypes.Pod, ra *schema.RuntimeApp, sourcePath string, dstPath string, readOnly bool, enterCmd []string) {
+	/* Prepare a temporary playground that is not a shared mount */
+	playgroundMount, err := ioutil.TempDir("", "rkt.propagate.")
+	if err != nil {
+		log.FatalE("error creating temporary propagation directory", err)
+		os.Exit(1)
+	}
+	defer os.Remove(playgroundMount)
+
+	err = syscall.Mount(playgroundMount, playgroundMount, "bind", syscall.MS_BIND, "")
+	if err != nil {
+		log.FatalE("error mounting temporary directory", err)
+		os.Exit(1)
+	}
+	defer syscall.Unmount(playgroundMount, 0)
+
+	err = syscall.Mount("", playgroundMount, "none", syscall.MS_SLAVE, "")
+	if err != nil {
+		log.FatalE("error mounting temporary directory", err)
+		os.Exit(1)
+	}
+
+	/* Bind mount the source into the playground, possibly read-only */
+	mountTmp := filepath.Join(playgroundMount, "mount")
+	if err := os.MkdirAll(mountTmp, 0700); err != nil {
+		log.FatalE("error creating temporary mount directory", err)
+		os.Exit(1)
+	}
+	defer os.Remove(mountTmp)
+
+	err = syscall.Mount(sourcePath, mountTmp, "bind", syscall.MS_BIND, "")
+	if err != nil {
+		log.FatalE("error mounting temporary directory", err)
+		os.Exit(1)
+	}
+	defer syscall.Unmount(mountTmp, 0)
+
+	if readOnly {
+		err = syscall.Mount("", mountTmp, "bind", syscall.MS_REMOUNT|syscall.MS_RDONLY|syscall.MS_BIND, "")
+		if err != nil {
+			log.FatalE("error remounting temporary mount directory read-only", err)
+			os.Exit(1)
+		}
+	}
+
+	/* Now that the bind mount has the correct attributes (RO or RW), move
+	 * it to the propagation directory prepared by systemd-nspawn */
+	mountOutside := filepath.Join("/run/systemd/nspawn/propagate/", "rkt-"+p.UUID.String(), "rkt.mount")
+	mountInside := filepath.Join("/run/systemd/nspawn/incoming/", filepath.Base(mountOutside))
+	/* TODO(Alban): instead of always using mkdir(), we should check if the
+	 * source is a file or a directory, and use mkdir() or touch() accordingly. */
+	if err := os.MkdirAll(mountOutside, 0700); err != nil {
+		log.FatalE("error creating temporary mount directory", err)
+		os.Exit(1)
+	}
+	defer os.Remove(mountOutside)
+
+	err = syscall.Mount(mountTmp, mountOutside, "", syscall.MS_MOVE, "")
+	if err != nil {
+		log.FatalE("error moving mount directory", err)
+		os.Exit(1)
+	}
+	defer syscall.Unmount(mountOutside, 0)
+
+	mountDst := filepath.Join("/opt/stage2", ra.Name.String(), "rootfs", dstPath)
+	mountDstOutside := filepath.Join(p.Root, "stage1/rootfs", mountDst)
+	/* TODO(Alban): ditto, possibly use touch() instead. */
+	if err := os.MkdirAll(mountDstOutside, 0700); err != nil {
+		log.FatalE("error creating destination directory", err)
+		os.Exit(1)
+	}
+
+	/* Finally move the bind mount at the correct place inside the
+	 * container. */
+	args := enterCmd
+	args = append(args, "/bin/mount", "--move", mountInside, mountDst)
+
+	cmd := exec.Cmd{
+		Path: args[0],
+		Args: args,
+	}
+
+	if err := cmd.Run(); err != nil {
+		log.PrintE("error executing mount move", err)
+		os.Exit(1)
+	}
 }
