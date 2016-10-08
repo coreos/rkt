@@ -199,6 +199,15 @@ func runList(cmd *cobra.Command, args []string) int {
 		return 1
 	}
 
+	if len(pods) == 0 {
+		if len(errors) > 0 {
+			printErrors(errors, "listing pods")
+			return 1
+		}
+		stdout.Print("No pods")
+		return 0
+	}
+
 	switch flagFormat {
 	case "":
 		tabOut.Flush()
