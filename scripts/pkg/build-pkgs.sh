@@ -90,6 +90,7 @@ fpm -s dir -t deb \
     -d dbus \
     -d libc6 \
     -d systemd \
+	-d iptables \
     --deb-suggests ca-certificates \
     -C ${prefix} 
 

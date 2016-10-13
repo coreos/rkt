@@ -10,6 +10,15 @@
 - [Ubuntu](#ubuntu)
 - [Void](#void)
 
+## rkt-maintained packages (manual installation)
+- [rpm-based](#rpm-based)
+- [deb-based](#deb-based)
+
+
+## Distro-maintained packages
+If your distribution packages rkt, then you should generally use their version. However,
+if you need a newer version, you may choose to manually install the rkt-provided rpm and deb packages.
+
 ## Arch
 
 rkt is available in the [Community Repository](https://www.archlinux.org/packages/community/x86_64/rkt/) and can be installed using pacman:
@@ -40,19 +49,20 @@ sudo apt-get install rkt
 Note that due to an outstanding bug (https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=823322) one has to use the "coreos" stage1 image:
 
 ```
-sudo rkt run --insecure-options=image --stage1-name=coreos.com/rkt/stage1-coreos:1.5.1 docker://nginx
+sudo rkt run --insecure-options=image --stage1-name=coreos.com/rkt/stage1-coreos:1.16.0 docker://nginx
 ```
 
-If you prefer to install the newest version of rkt follow the instructions in the Ubuntu section below.
+If you don't run sid, or wish for a newer version, you can [install manually](#deb-based).
 
 ## Fedora
 
-rkt is packaged in the development version of Fedora, [Rawhide](https://fedoraproject.org/wiki/Releases/Rawhide):
+Fedora version 24 and up include rkt, with some caveats. __Careful!__ The version of rkt in Fedora
+24 is very old. [Install manually](#rpm-based) instead. Fedora 25 and Rawhide [contain
+recent versions](https://apps.fedoraproject.org/packages/rkt).
+
 ```
 sudo dnf install rkt
 ```
-
-Until the rkt package makes its way into the general Fedora releases, [download the latest rkt directly from the project](https://github.com/coreos/rkt/releases).
 
 rkt's entry in the [Fedora package database](https://admin.fedoraproject.org/pkgdb/package/rpms/rkt/) tracks packaging work for this distribution.
 
@@ -115,31 +125,36 @@ sudo zypper in rkt
 
 ## Ubuntu
 
-rkt is not packaged currently in Ubuntu. If you want the newest version of rkt the easiest method to install it is using the `install-rkt.sh` script. This script can be found in the *scripts* directory of the [rkt Github repository](https://github.com/coreos/rkt).
-
-Either clone the repository and run the script:
-
-```
-git clone https://github.com/coreos/rkt
-cd rkt
-sudo ./scripts/install-rkt.sh
-```
-
-Or just get the script:
-
-```
-wget https://raw.githubusercontent.com/coreos/rkt/master/scripts/install-rkt.sh
-chmod +x install-rkt.sh
-sudo ./install-rkt.sh
-```
-
-The above script will install the "gnupg2", and "checkinstall" packages, download rkt, verify it, and finally invoke "checkinstall" to create a deb package and install rkt. To uninstall rkt, execute:
-
-```
-sudo apt-get remove rkt
-```
+rkt is not packaged currently in Ubuntu. Instead, install manually using the 
+[rkt debian package](#deb-based).
 
 ## Void
 
 rkt is available in the [official binary packages](http://www.voidlinux.eu/packages/) for the Void Linux distribution.
 The source for these packages is hosted on [GitHub](https://github.com/voidlinux/void-packages/tree/master/srcpkgs/rkt).
+
+
+# rkt-maintained packages
+As part of the rkt build process, rpm and deb packages are built. If you need to use
+the latest rkt version, or your distribution does not bundle rkt, these are available.
+
+Currently rkt does not maintain an update server, so users of these packages must
+upgrade manually.
+
+### rpm-based 
+```
+gpg --recv-key 18AD5014C99EF7E3BA5F6CE950BDD3E0FC8A365E
+wget https://github.com/coreos/rkt/releases/download/v1.16.0/rkt-1.16.0-1.x86_64.rpm
+wget https://github.com/coreos/rkt/releases/download/v1.16.0/rkt-1.16.0-1.x86_64.rpm.asc
+gpg --verify rkt-1.16.0-1.x86_64.rpm.asc
+sudo rpm -Uvh rkt-1.16.0-1.x86_64.rpm
+```
+
+### deb-based
+```
+gpg --recv-key 18AD5014C99EF7E3BA5F6CE950BDD3E0FC8A365E
+wget https://github.com/coreos/rkt/releases/download/v1.16.0/rkt_1.16.0-1_amd64.deb
+wget https://github.com/coreos/rkt/releases/download/v1.16.0/rkt_1.16.0-1_amd64.deb.asc
+gpg --verify rkt_1.16.0-1_amd64.deb.asc
+sudo dpkg -i rkt_1.16.0-1_amd64.deb
+```
