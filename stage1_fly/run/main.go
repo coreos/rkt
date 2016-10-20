@@ -381,7 +381,7 @@ func stage1() int {
 	}
 
 	for _, mount := range effectiveMounts {
-		log.Printf("Processing %+v", mount)
+		diag.Printf("Processing %+v", mount)
 
 		var (
 			err            error
