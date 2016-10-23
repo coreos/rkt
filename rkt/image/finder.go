@@ -30,7 +30,7 @@ type Finder action
 // FindImages uses FindImage to attain a list of image hashes
 func (f *Finder) FindImages(al *apps.Apps) error {
 	return al.Walk(func(app *apps.App) error {
-		h, err := f.FindImage(app.Image, app.Asc, app.ImType)
+		h, err := f.FindImage(app.Image, app.Asc)
 		if err != nil {
 			return err
 		}
@@ -42,26 +42,28 @@ func (f *Finder) FindImages(al *apps.Apps) error {
 // FindImage tries to get a hash of a passed image, ideally from
 // store. Otherwise this might involve fetching it from remote with
 // the Fetcher.
-func (f *Finder) FindImage(img string, asc string, imgType apps.AppImageType) (*types.Hash, error) {
+func (f *Finder) FindImage(img string, asc string) (*types.Hash, error) {
 	ensureLogger(f.Debug)
-	if imgType == apps.AppImageGuess {
-		imgType = guessImageType(img)
+
+	// Check if it's an hash
+	if _, err := types.NewHash(img); err == nil {
+		h, err := f.getHashFromStore(img)
+		if err != nil {
+			return nil, err
+		}
+		return h, nil
 	}
 
-	if imgType == apps.AppImageHash {
-		return f.getHashFromStore(img)
+	d, err := DistFromImageString(img)
+	if err != nil {
+		return nil, err
 	}
 
 	// urls, names, paths have to be fetched, potentially remotely
 	ft := (*Fetcher)(f)
-	key, err := ft.FetchImage(img, asc, imgType)
+	h, err := ft.FetchImage(d, img, asc)
 	if err != nil {
 		return nil, err
-	}
-	h, err := types.NewHash(key)
-	if err != nil {
-		// should never happen
-		log.PanicE("got an invalid hash from the store, looks like it is corrupted", err)
 	}
 	return h, nil
 }

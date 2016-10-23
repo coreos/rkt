@@ -313,7 +313,7 @@ func TestResumedFetch(t *testing.T) {
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
 
-	cmd := fmt.Sprintf("%s --no-store --insecure-options=image fetch %s", ctx.Cmd(), server.URL)
+	cmd := fmt.Sprintf("%s --no-store --insecure-options=image fetch %s", ctx.Cmd(), server.URL+"/image.aci")
 	child := spawnOrFail(t, cmd)
 	<-kill
 	err := child.Close()
@@ -354,7 +354,7 @@ func TestResumedFetchInvalidCache(t *testing.T) {
 	// Fetch the first half of the image, and kill rkt once it reaches halfway.
 	server := httptest.NewServer(testServerHandler(t, shouldInterrupt, imagePath, kill, reportkill))
 	defer server.Close()
-	cmd := fmt.Sprintf("%s --no-store --insecure-options=image fetch %s", ctx.Cmd(), server.URL)
+	cmd := fmt.Sprintf("%s --no-store --insecure-options=image fetch %s", ctx.Cmd(), server.URL+"/image.aci")
 	child := spawnOrFail(t, cmd)
 	<-kill
 	err := child.Close()

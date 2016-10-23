@@ -112,11 +112,13 @@ func runFetch(cmd *cobra.Command, args []string) (exit int) {
 		WithDeps:  true,
 	}
 
+	err = ft.FetchImages(&rktApps)
+	if err != nil {
+		stderr.Error(err)
+		return 1
+	}
 	err = rktApps.Walk(func(app *apps.App) error {
-		hash, err := ft.FetchImage(app.Image, app.Asc, app.ImType)
-		if err != nil {
-			return err
-		}
+		hash := app.ImageID.String()
 		if !flagFullHash {
 			hash = types.ShortHash(hash)
 		}
