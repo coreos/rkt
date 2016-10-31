@@ -8,7 +8,7 @@ Support for overlay fs will be auto-detected if `--no-overlay` is set to `false`
 
 ```
 # rkt prepare --insecure-options=image docker://busybox --exec=/bin/sh
-image: using image from local store for image name coreos.com/rkt/stage1-coreos:1.17.0
+image: using image from local store for image name coreos.com/rkt/stage1-coreos:1.18.0
 image: remote fetching from URL "docker://busybox"
 Downloading sha256:8ddc19f1652 [===============================] 668 KB / 668 KB
 prepare: disabling overlay support: "unsupported filesystem: missing d_type support"
@@ -32,7 +32,7 @@ Therefore, the supported arguments are mostly the same as in `run` except runtim
 ```
 # rkt prepare coreos.com/etcd:v2.0.10
 rkt prepare coreos.com/etcd:v2.0.10
-rkt: using image from local store for image name coreos.com/rkt/stage1-coreos:1.17.0
+rkt: using image from local store for image name coreos.com/rkt/stage1-coreos:1.18.0
 rkt: searching for app image coreos.com/etcd:v2.0.10
 rkt: remote fetching from url https://github.com/coreos/etcd/releases/download/v2.0.10/etcd-v2.0.10-linux-amd64.aci
 prefix: "coreos.com/etcd"

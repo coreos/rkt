@@ -27,7 +27,7 @@ buildImages() {
     acbuild --debug begin
     trap acbuildEnd EXIT
     acbuild --debug set-name appc.io/rkt-"${1}"-stresser
-    acbuild --debug copy build-rkt-1.17.0+git/target/bin/"${1}"-stresser /worker
+    acbuild --debug copy build-rkt-1.18.0+git/target/bin/"${1}"-stresser /worker
     acbuild --debug set-exec -- /worker
     acbuild --debug write --overwrite "${1}"-stresser.aci
     acbuild --debug end

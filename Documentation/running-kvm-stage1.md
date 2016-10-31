@@ -13,7 +13,7 @@ $ ./autogen.sh && ./configure --with-stage1-flavors=kvm --with-stage1-kvm-hyperv
 ```
 
 For more details about configure parameters, see [configure script parameters documentation](build-configure.md).
-This will build the rkt binary and the KVM stage1 aci image in `build-rkt-1.17.0+git/target/bin/`. Depending on the configuration options, it will be `stage1-kvm.aci` (if one hypervisor is set), or `stage1-kvm-lkvm.aci` and `stage1-kvm-qemu.aci` (if you want to have both images built once).
+This will build the rkt binary and the KVM stage1 aci image in `build-rkt-1.18.0+git/target/bin/`. Depending on the configuration options, it will be `stage1-kvm.aci` (if one hypervisor is set), or `stage1-kvm-lkvm.aci` and `stage1-kvm-qemu.aci` (if you want to have both images built once).
 
 Provided you have hardware virtualization support and the [kernel KVM module](http://www.linux-kvm.org/page/Getting_the_kvm_kernel_modules) loaded (refer to your distribution for instructions), you can then run an image like you would normally do with rkt:
 
@@ -84,7 +84,7 @@ If you want to run software that requires hypervisor isolation along with truste
 For example, to use the official kvm stage1:
 
 ```
-# rkt run --stage1-name=coreos.com/rkt/stage1-kvm:1.17.0 coreos.com/etcd:v2.0.9
+# rkt run --stage1-name=coreos.com/rkt/stage1-kvm:1.18.0 coreos.com/etcd:v2.0.9
 ...
 ```
 

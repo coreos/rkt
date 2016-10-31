@@ -143,17 +143,17 @@ upgrade manually.
 ### rpm-based 
 ```
 gpg --recv-key 18AD5014C99EF7E3BA5F6CE950BDD3E0FC8A365E
-wget https://github.com/coreos/rkt/releases/download/v1.16.0/rkt-1.16.0-1.x86_64.rpm
-wget https://github.com/coreos/rkt/releases/download/v1.16.0/rkt-1.16.0-1.x86_64.rpm.asc
-gpg --verify rkt-1.16.0-1.x86_64.rpm.asc
-sudo rpm -Uvh rkt-1.16.0-1.x86_64.rpm
+wget https://github.com/coreos/rkt/releases/download/v1.18.0/rkt-1.18.0-1.x86_64.rpm
+wget https://github.com/coreos/rkt/releases/download/v1.18.0/rkt-1.18.0-1.x86_64.rpm.asc
+gpg --verify rkt-1.18.0-1.x86_64.rpm.asc
+sudo rpm -Uvh rkt-1.18.0-1.x86_64.rpm
 ```
 
 ### deb-based
 ```
 gpg --recv-key 18AD5014C99EF7E3BA5F6CE950BDD3E0FC8A365E
-wget https://github.com/coreos/rkt/releases/download/v1.16.0/rkt_1.16.0-1_amd64.deb
-wget https://github.com/coreos/rkt/releases/download/v1.16.0/rkt_1.16.0-1_amd64.deb.asc
-gpg --verify rkt_1.16.0-1_amd64.deb.asc
-sudo dpkg -i rkt_1.16.0-1_amd64.deb
+wget https://github.com/coreos/rkt/releases/download/v1.18.0/rkt_1.18.0-1_amd64.deb
+wget https://github.com/coreos/rkt/releases/download/v1.18.0/rkt_1.18.0-1_amd64.deb.asc
+gpg --verify rkt_1.18.0-1_amd64.deb.asc
+sudo dpkg -i rkt_1.18.0-1_amd64.deb
 ```

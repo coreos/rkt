@@ -29,7 +29,7 @@ import (
 const (
 
 	// The expected image manifest of the 'rkt-inspect-image-cat-manifest.aci'.
-	manifestTemplate = `{"acKind":"ImageManifest","acVersion":"0.8.8","name":"IMG_NAME","labels":[{"name":"version","value":"1.17.0"},{"name":"arch","value":"amd64"},{"name":"os","value":"linux"}],"app":{"exec":["/inspect"],"user":"0","group":"0","workingDirectory":"/","environment":[{"name":"VAR_FROM_MANIFEST","value":"manifest"}]}}`
+	manifestTemplate = `{"acKind":"ImageManifest","acVersion":"0.8.8","name":"IMG_NAME","labels":[{"name":"version","value":"1.18.0"},{"name":"arch","value":"amd64"},{"name":"os","value":"linux"}],"app":{"exec":["/inspect"],"user":"0","group":"0","workingDirectory":"/","environment":[{"name":"VAR_FROM_MANIFEST","value":"manifest"}]}}`
 )
 
 // TestImageCatManifest tests 'rkt image cat-manifest', it will:

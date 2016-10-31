@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	manifestRenderTemplate = `{"acKind":"ImageManifest","acVersion":"0.8.8","name":"IMG_NAME","labels":[{"name":"version","value":"1.17.0"},{"name":"arch","value":"amd64"},{"name":"os","value":"linux"}],"dependencies":[{"imageName":"coreos.com/rkt-inspect"}],"app":{"exec":["/inspect"],"user":"0","group":"0","workingDirectory":"/","environment":[{"name":"VAR_FROM_MANIFEST","value":"manifest"}]}}`
+	manifestRenderTemplate = `{"acKind":"ImageManifest","acVersion":"0.8.8","name":"IMG_NAME","labels":[{"name":"version","value":"1.18.0"},{"name":"arch","value":"amd64"},{"name":"os","value":"linux"}],"dependencies":[{"imageName":"coreos.com/rkt-inspect"}],"app":{"exec":["/inspect"],"user":"0","group":"0","workingDirectory":"/","environment":[{"name":"VAR_FROM_MANIFEST","value":"manifest"}]}}`
 )
 
 // TestImageRender tests 'rkt image render', it will import some existing empty

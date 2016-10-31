@@ -60,14 +60,14 @@ $ ./autogen.sh && ./configure --with-stage1-flavors=fly && make
 ```
 
 For more details about configure parameters, see the [configure script parameters documentation](build-configure.md).
-This will build the rkt binary and the stage1-fly.aci in `build-rkt-1.17.0+git/bin/`.
+This will build the rkt binary and the stage1-fly.aci in `build-rkt-1.18.0+git/bin/`.
 
 ### Selecting stage1 at runtime
 
 Here is a quick example of how to use a container with the official fly stage1:
 
 ```
-# rkt run --stage1-name=coreos.com/rkt/stage1-fly:1.17.0 coreos.com/etcd:v2.2.5
+# rkt run --stage1-name=coreos.com/rkt/stage1-fly:1.18.0 coreos.com/etcd:v2.2.5
 ```
 
 If the image is not in the store, `--stage1-name` will perform discovery and fetch the image.

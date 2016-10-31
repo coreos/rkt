@@ -1,3 +1,27 @@
+## 1.18.0
+
+This minor release contains bugfixes, UX enhancements, and other improvements.
+
+### UX changes:
+- rkt: gate diagnostic output behind `--debug` ([#3297](https://github.com/coreos/rkt/pull/3297)).
+- rkt: Change exit codes to 254 ([#3261](https://github.com/coreos/rkt/pull/3261)). 
+
+
+### Bug fixes:
+- stage1/kvm: correctly bind-mount read-only volumes ([#3304](https://github.com/coreos/rkt/pull/3304)). 
+- stage0/cas: apply xattr attributes ([#3305](https://github.com/coreos/rkt/pull/3305)). 
+- scripts/install-rkt: add iptables dependency ([#3309](https://github.com/coreos/rkt/pull/3309)). 
+- stage0/image: set proxy if InsecureSkipVerify is set ([#3303](https://github.com/coreos/rkt/pull/3303)).
+
+### Other changes
+- vendor: update docker2aci to 0.13.0 ([#3314](https://github.com/coreos/rkt/pull/3314)). This fixes multiple fetching and conversion bugs, including two security issues.
+- scripts: update glide vendor script ([#3313](https://github.com/coreos/rkt/pull/3313)). 
+- vendor: update appc/spec to v0.8.8 ([#3310](https://github.com/coreos/rkt/pull/3310)). 
+- stage1: update to CoreOS 1192.0.0 (and update sanity checks) ([#3283](https://github.com/coreos/rkt/pull/3283)). 
+- cgroup: introduce proper cgroup/v1, cgroup/v2 packages ([#3277](https://github.com/coreos/rkt/pull/3277)).
+- Documentation updates: ([#3281](https://github.com/coreos/rkt/pull/3281)), ([#3319](https://github.com/coreos/rkt/pull/3319)), ([#3308](https://github.com/coreos/rkt/pull/3308)).
+
+
 ## 1.17.0
 
 This is a minor release packaging rkt-api systemd service units, and fixing a bug caused by overly long lines in generated stage1 unit files.
