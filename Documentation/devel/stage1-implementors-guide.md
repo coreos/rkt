@@ -69,6 +69,7 @@ Any stage1 that supports and expects machined registration to occur will likely 
 * `--interactive` to run a pod interactively, that is, pass standard input to the application (only for pods with one application)
 * `--local-config=$PATH` to override the local configuration directory
 * `--private-users=$SHIFT` to define a UID/GID shift when using user namespaces. SHIFT is a two-value colon-separated parameter, the first value is the host UID to assign to the container and the second one is the number of host UIDs to assign.
+* `--mutable` activates a mutable environment in stage1. If the stage1 image manifest has no `app` entrypoint annotations declared, this flag will be unset to retain backwards compatibility.
 
 #### Arguments added in interface version 2
 
@@ -138,7 +139,59 @@ In the bundled rkt stage 1, the entrypoint is sending SIGTERM signal to systemd-
 * `--force` to force the stopping of the pod. E.g. in the bundled rkt stage 1, stop sends SIGKILL
 * UUID of the pod
 
-## Versioning
+### rkt app add
+
+`coreos.com/rkt/stage1/app/add`
+
+#### Arguments
+
+`start $OPTIONS UUID APPNAME ENTERENTRYPOINT PID`
+
+* `--debug` to activate debugging
+* `--disable-capabilities-restriction` gives all capabilities to apps (overrides `retain-set` and `remove-set`)
+* `--disable-paths` disables inaccessible and read-only paths (such as `/proc/sysrq-trigger`)
+* `--disable-seccomp` disables seccomp (overrides `retain-set` and `remove-set`)
+* `--private-users=$SHIFT` to define a UID/GID shift when using user namespaces. SHIFT is a two-value colon-separated parameter, the first value is the host UID to assign to the container and the second one is the number of host UIDs to assign.
+
+### rkt app start
+
+`coreos.com/rkt/stage1/app/start`
+
+#### Arguments
+
+`start $OPTIONS UUID APPNAME ENTERENTRYPOINT PID`
+
+* `--debug` to activate debugging
+
+### rkt app stop
+
+`coreos.com/rkt/stage1/app/stop`
+
+#### Arguments
+
+`stop $OPTIONS UUID APPNAME ENTERENTRYPOINT PID`
+
+* `--debug` to activate debugging
+
+### rkt app rm
+
+`coreos.com/rkt/stage1/app/rm`
+
+#### Arguments
+
+`rm $OPTIONS UUID APPNAME ENTERENTRYPOINT PID`
+
+* `--debug` to activate debugging
+
+## Metadata
+
+### Mutable pods
+
+Stage1 images can support mutable pod environments, where, once a pod has been started, applications can be added/started/stopped/removed while the actual pod is running. This information is persisted at runtime in the pod manifest using the `coreos.com/rkt/stage1/mutable` annotation.
+
+If the annotation is not present, `false` is assumed.
+
+### Versioning
 
 The stage1 command line interface is versioned using an annotation with the name `coreos.com/rkt/stage1/interface-version`.
 If the annotation is not present, rkt assumes the version is 1.

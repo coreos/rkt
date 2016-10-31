@@ -26,7 +26,7 @@ import (
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/lastditch"
 	"github.com/appc/spec/schema/types"
-	"github.com/coreos/rkt/lib"
+	lib "github.com/coreos/rkt/lib"
 	"github.com/coreos/rkt/networking/netinfo"
 	pkgPod "github.com/coreos/rkt/pkg/pod"
 	"github.com/dustin/go-humanize"
@@ -66,9 +66,18 @@ func runList(cmd *cobra.Command, args []string) int {
 		}
 	}
 
-	var pods []*rkt.Pod
+	var pods []*lib.Pod
 
 	if err := pkgPod.WalkPods(getDataDir(), pkgPod.IncludeMostDirs, func(p *pkgPod.Pod) {
+		if flagFormat != "" {
+			pod, err := lib.NewPodFromInternalPod(p)
+			if err != nil {
+				errors = append(errors, err)
+			}
+			pods = append(pods, pod)
+			return
+		}
+
 		var pm schema.PodManifest
 		var err error
 
@@ -82,19 +91,6 @@ func runList(cmd *cobra.Command, args []string) int {
 				return
 			}
 			pm = *manifest
-
-			if flagFormat != "" {
-				pod := &rkt.Pod{
-					UUID:     p.UUID.String(),
-					State:    podState,
-					Networks: p.Nets,
-				}
-				for _, app := range pm.Apps {
-					pod.AppNames = append(pod.AppNames, app.Name.String())
-				}
-				pods = append(pods, pod)
-				return
-			}
 		}
 
 		type printedApp struct {

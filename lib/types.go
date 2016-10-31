@@ -58,8 +58,10 @@ type (
 		ImageID string `json:"image_id"`
 		// Mount points of the container.
 		Mounts []*Mount `json:"mounts,omitempty"`
-		// Annotations of the container.
-		Annotations map[string]string `json:"annotations,omitempty"`
+		// User annotations of the container.
+		UserAnnotations map[string]string `json:"user_annotations,omitempty"`
+		// User labels of the container.
+		UserLabels map[string]string `json:"user_labels,omitempty"`
 	}
 
 	// Pod defines the pod object.
@@ -72,5 +74,11 @@ type (
 		Networks []netinfo.NetInfo `json:"networks,omitempty"`
 		// AppNames are the names of the apps.
 		AppNames []string `json:"app_names,omitempty"`
+		// The start time of the pod.
+		StartedAt *int64 `json:"started_at,omitempty"`
+		// UserAnnotations are the pod user annotations.
+		UserAnnotations map[string]string `json:"user_annotations,omitempty"`
+		// UserLabels are the pod user labels.
+		UserLabels map[string]string `json:"user_labels,omitempty"`
 	}
 )

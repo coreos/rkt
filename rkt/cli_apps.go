@@ -19,9 +19,11 @@ package main
 import (
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/coreos/rkt/common/apps"
+	"github.com/hashicorp/errwrap"
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
@@ -151,6 +153,18 @@ func (ae *appExec) Set(s string) error {
 	return nil
 }
 
+func (ae *appExec) String() string {
+	app := (*apps.Apps)(ae).Last()
+	if app == nil {
+		return ""
+	}
+	return app.Exec
+}
+
+func (ae *appExec) Type() string {
+	return "appExec"
+}
+
 // appMount is for --mount flags in the form of: --mount volume=VOLNAME,target=PATH
 type appMount apps.Apps
 
@@ -193,19 +207,6 @@ func (al *appMount) Set(s string) error {
 	return nil
 }
 
-func (ae *appExec) String() string {
-	app := (*apps.Apps)(ae).Last()
-	if app == nil {
-		return ""
-	}
-	return app.Exec
-}
-
-func (ae *appExec) Type() string {
-	return "appExec"
-}
-
-// TODO(vc): --set-env should also be per-app and should implement the flags.Value interface.
 func (al *appMount) String() string {
 	var ms []string
 	for _, m := range ((*apps.Apps)(al)).Mounts {
@@ -241,6 +242,67 @@ func (al *appsVolume) String() string {
 		vs = append(vs, v.String())
 	}
 	return strings.Join(vs, " ")
+}
+
+// appMountVolume is for CRI style per-app-volumes
+// this is a mount and volume in a single argument
+// It is exactly like --volume, but with a "target" param
+type appMountVolume apps.Apps
+
+func (am *appMountVolume) Set(s string) error {
+	pairs, err := url.ParseQuery(strings.Replace(s, ",", "&", -1))
+	if err != nil {
+		return err
+	}
+
+	mount := schema.Mount{}
+
+	target, ok := pairs["target"]
+	if !ok {
+		return fmt.Errorf("missing target= parameter")
+	}
+	if len(target) != 1 {
+		return fmt.Errorf("label %s with multiple values %q", "target", target)
+	}
+	mount.Path = target[0]
+
+	delete(pairs, "target")
+
+	vol, err := types.VolumeFromParams(pairs)
+	if err != nil {
+		return errwrap.Wrap(fmt.Errorf("error parsing volume component of MountVolume"), err)
+	}
+
+	mount.AppVolume = vol
+	mount.Volume = vol.Name
+
+	as := (*apps.Apps)(am)
+	if as.Count() == 0 {
+		return fmt.Errorf("an image is required before any MountVolumes")
+	}
+	app := as.Last()
+	app.Mounts = append(app.Mounts, mount)
+	return nil
+}
+
+func (am *appMountVolume) String() string {
+	as := (*apps.Apps)(am)
+	app := as.Last()
+	if app == nil {
+		return ""
+	}
+	out := ""
+	for _, mnt := range app.Mounts {
+		if mnt.AppVolume == nil {
+			continue
+		}
+		out = fmt.Sprintf("%s target=%s,%s", out, mnt.Path, mnt.AppVolume.String())
+	}
+	return out
+}
+
+func (am *appMountVolume) Type() string {
+	return "appMountVolume"
 }
 
 // appMemoryLimit is for --memory flags in the form of: --memory=128M
@@ -303,6 +365,42 @@ func (aml *appCPULimit) String() string {
 
 func (aml *appCPULimit) Type() string {
 	return "appCPULimit"
+}
+
+// appCPUShares is for --cpu-shares flags in the form of: --cpu-shares=2048
+type appCPUShares apps.Apps
+
+func (aml *appCPUShares) Set(s string) error {
+	app := (*apps.Apps)(aml).Last()
+	if app == nil {
+		return fmt.Errorf("--cpu-shares must follow an image")
+	}
+	shares, err := strconv.Atoi(s)
+	if err != nil {
+		return err
+	}
+	isolator, err := types.NewLinuxCPUShares(shares)
+	if err != nil {
+		return err
+	}
+	app.CPUShares = isolator
+	return nil
+}
+
+func (aml *appCPUShares) String() string {
+	app := (*apps.Apps)(aml).Last()
+	if app == nil {
+		return ""
+	}
+	shares := app.CPUShares
+	if shares == nil {
+		return ""
+	}
+	return strconv.Itoa(int(*shares))
+}
+
+func (aml *appCPUShares) Type() string {
+	return "appCPUShares"
 }
 
 // appUser is for --user flags in the form of: --user=user
@@ -439,4 +537,260 @@ func (au *appSeccompFilter) String() string {
 
 func (au *appSeccompFilter) Type() string {
 	return "appSeccompFilter"
+}
+
+// appOOMScoreAdj is to adjust /proc/$pid/oom_score_adj
+type appOOMScoreAdj apps.Apps
+
+func (aml *appOOMScoreAdj) Set(s string) error {
+	app := (*apps.Apps)(aml).Last()
+	if app == nil {
+		return fmt.Errorf("--oom-score-adj must follow an image")
+	}
+	limit, err := strconv.Atoi(s)
+	if err != nil {
+		return err
+	}
+	score, err := types.NewLinuxOOMScoreAdj(limit)
+	if err != nil {
+		return err
+	}
+
+	app.OOMScoreAdj = score
+	return nil
+}
+
+func (aml *appOOMScoreAdj) String() string {
+	app := (*apps.Apps)(aml).Last()
+	if app == nil {
+		return ""
+	}
+	adj := app.OOMScoreAdj
+	if adj == nil {
+		return ""
+	}
+	return strconv.Itoa(int(*adj))
+}
+
+func (aml *appOOMScoreAdj) Type() string {
+	return "appOOMScoreAdj"
+}
+
+// appName is for --name flags in the form of: --name=APPNAME.
+type appName apps.Apps
+
+func (au *appName) Set(s string) error {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return fmt.Errorf("--name must follow an image")
+	}
+	app.Name = s
+	return nil
+}
+
+func (au *appName) String() string {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return ""
+	}
+	return app.Name
+}
+
+func (au *appName) Type() string {
+	return "appName"
+}
+
+// appAnnotation is for --user-annotation flags in the form of: --user-annotation=NAME=VALUE.
+type appAnnotation apps.Apps
+
+func (au *appAnnotation) Set(s string) error {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return fmt.Errorf("--user-annotation must follow an image")
+	}
+
+	fields := strings.SplitN(s, "=", 2)
+	if len(fields) != 2 {
+		return fmt.Errorf("invalid format of --user-annotation flag %q", s)
+	}
+
+	if app.UserAnnotations == nil {
+		app.UserAnnotations = make(map[string]string)
+	}
+	app.UserAnnotations[fields[0]] = fields[1]
+	return nil
+}
+
+func (au *appAnnotation) String() string {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return ""
+	}
+	var annotations []string
+	for name, value := range app.UserAnnotations {
+		annotations = append(annotations, fmt.Sprintf("%s=%s", name, value))
+	}
+	return strings.Join(annotations, ",")
+}
+
+func (au *appAnnotation) Type() string {
+	return "appAnnotation"
+}
+
+// appLabel is for --user-label flags in the form of: --user-label=NAME=VALUE.
+type appLabel apps.Apps
+
+func (au *appLabel) Set(s string) error {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return fmt.Errorf("--user-label must follow an image")
+	}
+
+	fields := strings.SplitN(s, "=", 2)
+	if len(fields) != 2 {
+		return fmt.Errorf("invalid format of --user-label flag %q", s)
+	}
+
+	if app.UserLabels == nil {
+		app.UserLabels = make(map[string]string)
+	}
+	app.UserLabels[fields[0]] = fields[1]
+	return nil
+}
+
+func (au *appLabel) String() string {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return ""
+	}
+	var labels []string
+	for name, value := range app.UserLabels {
+		labels = append(labels, fmt.Sprintf("%s=%s", name, value))
+	}
+	return strings.Join(labels, ",")
+}
+
+func (au *appLabel) Type() string {
+	return "appLabel"
+}
+
+// appEnv is for --environment flags in the form of --environment=NAME=VALUE.
+type appEnv apps.Apps
+
+func (au *appEnv) Set(s string) error {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return fmt.Errorf("--environment must follow an image")
+	}
+
+	fields := strings.SplitN(s, "=", 2)
+	if len(fields) != 2 {
+		return fmt.Errorf("invalid format of --environment flag %q", s)
+	}
+
+	if app.Environments == nil {
+		app.Environments = make(map[string]string)
+	}
+	app.Environments[fields[0]] = fields[1]
+	return nil
+}
+
+func (au *appEnv) String() string {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return ""
+	}
+	var environments []string
+	for name, value := range app.Environments {
+		environments = append(environments, fmt.Sprintf("%s=%s", name, value))
+	}
+	return strings.Join(environments, ",")
+}
+
+func (au *appEnv) Type() string {
+	return "appEnv"
+}
+
+type appWorkingDir apps.Apps
+
+func (au *appWorkingDir) Set(s string) error {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return fmt.Errorf("--working-dir must follow an image")
+	}
+	app.WorkingDir = s
+	return nil
+}
+
+func (au *appWorkingDir) String() string {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return ""
+	}
+	return app.WorkingDir
+}
+
+func (au *appWorkingDir) Type() string {
+	return "appWorkingDir"
+}
+
+type appReadOnlyRootFS apps.Apps
+
+func (au *appReadOnlyRootFS) Set(s string) error {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return fmt.Errorf("--readonly-rootfs must follow an image")
+	}
+	value, err := strconv.ParseBool(s)
+	if err != nil {
+		return fmt.Errorf("--readonly-rootfs must be set with a boolean")
+	}
+	app.ReadOnlyRootFS = value
+	return nil
+}
+
+func (au *appReadOnlyRootFS) String() string {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return ""
+	}
+	return fmt.Sprintf("%v", app.ReadOnlyRootFS)
+}
+
+func (au *appReadOnlyRootFS) Type() string {
+	return "appReadOnlyRootFS"
+}
+
+type appSupplementaryGIDs apps.Apps
+
+func (au *appSupplementaryGIDs) Set(s string) error {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return fmt.Errorf("--supplementary-gids must follow an image")
+	}
+	values := strings.Split(s, ",")
+	for _, v := range values {
+		gid, err := strconv.Atoi(v)
+		if err != nil {
+			return fmt.Errorf("--supplementary-gids must be integers")
+		}
+		app.SupplementaryGIDs = append(app.SupplementaryGIDs, gid)
+	}
+	return nil
+}
+
+func (au *appSupplementaryGIDs) String() string {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return ""
+	}
+	var gids []string
+	for _, gid := range app.SupplementaryGIDs {
+		gids = append(gids, strconv.Itoa(gid))
+	}
+	return strings.Join(gids, ",")
+}
+
+func (au *appSupplementaryGIDs) Type() string {
+	return "appSupplementaryGIDs"
 }

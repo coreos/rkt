@@ -19,6 +19,7 @@ package stage0
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"strconv"
 
@@ -28,8 +29,59 @@ import (
 )
 
 const (
+	enterEntrypoint = "coreos.com/rkt/stage1/enter"
+	runEntrypoint   = "coreos.com/rkt/stage1/run"
+	gcEntrypoint    = "coreos.com/rkt/stage1/gc"
+	stopEntrypoint  = "coreos.com/rkt/stage1/stop"
+
+	appAddEntrypoint   = "coreos.com/rkt/stage1/app/add"
+	appRmEntrypoint    = "coreos.com/rkt/stage1/app/rm"
+	appStartEntrypoint = "coreos.com/rkt/stage1/app/start"
+	appStopEntrypoint  = "coreos.com/rkt/stage1/app/stop"
+)
+
+const (
 	interfaceVersion = "coreos.com/rkt/stage1/interface-version"
 )
+
+// supportsMutableEnvironment returns whether the given stage1 image supports mutable pod operations.
+// It introspects the stage1 manifest and checks the presence of app* entrypoints.
+func supportsMutableEnvironment(cdir string) (bool, error) {
+	b, err := ioutil.ReadFile(common.Stage1ManifestPath(cdir))
+	if err != nil {
+		return false, errwrap.Wrap(errors.New("error reading pod manifest"), err)
+	}
+
+	s1m := schema.ImageManifest{}
+	if err := json.Unmarshal(b, &s1m); err != nil {
+		return false, errwrap.Wrap(errors.New("error unmarshaling stage1 manifest"), err)
+	}
+
+	_, appRmOk := s1m.Annotations.Get(appRmEntrypoint)
+	_, appStartOk := s1m.Annotations.Get(appStartEntrypoint)
+	_, appStopOk := s1m.Annotations.Get(appStopEntrypoint)
+
+	return appRmOk && appStartOk && appStopOk, nil
+}
+
+// getStage1Entrypoint retrieves the named entrypoint from the stage1 manifest for a given pod
+func getStage1Entrypoint(cdir string, entrypoint string) (string, error) {
+	b, err := ioutil.ReadFile(common.Stage1ManifestPath(cdir))
+	if err != nil {
+		return "", errwrap.Wrap(errors.New("error reading pod manifest"), err)
+	}
+
+	s1m := schema.ImageManifest{}
+	if err := json.Unmarshal(b, &s1m); err != nil {
+		return "", errwrap.Wrap(errors.New("error unmarshaling stage1 manifest"), err)
+	}
+
+	if ep, ok := s1m.Annotations.Get(entrypoint); ok {
+		return ep, nil
+	}
+
+	return "", fmt.Errorf("entrypoint %q not found", entrypoint)
+}
 
 // getStage1InterfaceVersion retrieves the interface version from the stage1
 // manifest for a given pod

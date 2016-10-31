@@ -2,6 +2,7 @@ bin/bash
 bin/coredumpctl
 bin/journalctl
 bin/mount
+bin/umount
 bin/systemctl
 bin/systemd-analyze
 bin/systemd-ask-password

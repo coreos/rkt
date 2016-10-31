@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/coreos/rkt/common"
 	rktlog "github.com/coreos/rkt/pkg/log"
 	stage1initcommon "github.com/coreos/rkt/stage1/init/common"
 
@@ -71,8 +72,11 @@ func main() {
 	}
 
 	if err := cmd.Run(); err != nil {
-		log.PrintE(fmt.Sprintf("error stopping app %q", appName.String()), err)
-		os.Exit(254)
+		status, err := common.GetExitStatus(err)
+		if err != nil {
+			os.Exit(254)
+		}
+		os.Exit(status)
 	}
 
 	os.Exit(0)

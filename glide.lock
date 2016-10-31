@@ -1,5 +1,5 @@
-hash: 4355187753fd2b36529621c88ffd3b28cc8d1960ff6947ff305a7d10d7510542
-updated: 2016-10-25T09:27:11.804401231Z
+hash: bbc3d4989ff4b5a1643ba6f3830314a3aea89f9d06cf030a22aac0856bfa5760
+updated: 2016-10-26T15:26:32.030860921+02:00
 imports:
 - name: github.com/appc/docker2aci
   version: 0cac1a3ecc114941cf643ec25f4daaeee8c3d538
@@ -206,6 +206,8 @@ imports:
   version: 19b0b332c9e4516a6370a0456e6182c3b5036720
 - name: github.com/klauspost/pgzip
   version: 95e8170c5d4da28db9c64dfc9ec3138ea4466fd4
+- name: github.com/kr/pretty
+  version: cfb55aafdaf3ec08f0db22699ab822c50091b1c4
 - name: github.com/kr/pty
   version: f7ee69f31298ecbe5d2b349c711e2547a617d398
 - name: github.com/opencontainers/image-spec
@@ -301,4 +303,6 @@ imports:
   - pkg/api/resource
   - pkg/conversion
   - third_party/forked/reflect
-testImports: []
+testImports:
+- name: github.com/kr/text
+  version: 7cafcd837844e784b526369c9bce262804aebc60

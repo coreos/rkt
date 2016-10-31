@@ -65,6 +65,7 @@ var (
 		PreSleep           int
 		PrintMemoryLimit   bool
 		PrintCPUQuota      bool
+		PrintCPUShares     bool
 		FileName           string
 		Content            string
 		CheckCgroupMounts  bool
@@ -110,6 +111,7 @@ func init() {
 	globalFlagset.IntVar(&globalFlags.PreSleep, "pre-sleep", -1, "Sleep before executing (in seconds)")
 	globalFlagset.BoolVar(&globalFlags.PrintMemoryLimit, "print-memorylimit", false, "Print cgroup memory limit")
 	globalFlagset.BoolVar(&globalFlags.PrintCPUQuota, "print-cpuquota", false, "Print cgroup cpu quota in milli-cores")
+	globalFlagset.BoolVar(&globalFlags.PrintCPUShares, "print-cpushares", false, "Print cgroup cpu shares")
 	globalFlagset.StringVar(&globalFlags.FileName, "file-name", "", "The file to read/write, $FILE will be ignored if this is specified")
 	globalFlagset.StringVar(&globalFlags.Content, "content", "", "The content to write, $CONTENT will be ignored if this is specified")
 	globalFlagset.BoolVar(&globalFlags.CheckCgroupMounts, "check-cgroups", false, "Try to write to the cgroup filesystem. Everything should be RO except some well-known files")
@@ -490,6 +492,24 @@ func main() {
 
 		quotaMilliCores := quota * 1000 / period
 		fmt.Printf("CPU Quota: %s\n", strconv.Itoa(quotaMilliCores))
+	}
+
+	if globalFlags.PrintCPUShares {
+		cpuCgroupPath, err := v1.GetOwnCgroupPath("cpu")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error getting own cpu cgroup path: %v\n", err)
+			os.Exit(1)
+		}
+		// we use /proc/1/root to escape the chroot we're in and read our
+		// cpu quota
+		sharesPath := filepath.Join("/proc/1/root/sys/fs/cgroup/cpu", cpuCgroupPath, "cpu.shares")
+		sharesBytes, err := ioutil.ReadFile(sharesPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Can't read cpu.shares\n")
+			os.Exit(1)
+		}
+
+		fmt.Printf("CPU Shares: %s", string(sharesBytes))
 	}
 
 	if globalFlags.CheckCgroupMounts {

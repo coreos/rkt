@@ -361,6 +361,7 @@ func NewTestNetDefaultRestrictedConnectivity() testutils.Test {
 type PortFwdCase struct {
 	HttpGetIP     string
 	HttpServePort int
+	ListenAddress string
 	RktArg        string
 	ShouldSucceed bool
 }
@@ -368,10 +369,12 @@ type PortFwdCase struct {
 var (
 	bannedPorts = make(map[int]struct{}, 0)
 
-	defaultSamePortFwdCase   = PortFwdCase{"172.16.28.1", 0, "--net=default", true}
-	defaultDiffPortFwdCase   = PortFwdCase{"172.16.28.1", 1024, "--net=default", true}
-	defaultLoSamePortFwdCase = PortFwdCase{"127.0.0.1", 0, "--net=default", true}
-	defaultLoDiffPortFwdCase = PortFwdCase{"127.0.0.1", 1014, "--net=default", true}
+	defaultSamePortFwdCase       = PortFwdCase{"172.16.28.1", 0, "", "--net=default", true}
+	defaultDiffPortFwdCase       = PortFwdCase{"172.16.28.1", 1024, "", "--net=default", true}
+	defaultSpecificIPFwdCase     = PortFwdCase{"172.16.28.1", 1024, "172.16.28.1:", "--net=default", true}
+	defaultSpecificIPFwdFailCase = PortFwdCase{"127.0.0.1", 1024, "172.16.28.1:", "--net=default", false}
+	defaultLoSamePortFwdCase     = PortFwdCase{"127.0.0.1", 0, "", "--net=default", true}
+	defaultLoDiffPortFwdCase     = PortFwdCase{"127.0.0.1", 1014, "", "--net=default", true}
 
 	portFwdBridge = networkTemplateT{
 		Name:      "bridge1",
@@ -387,10 +390,10 @@ var (
 			},
 		},
 	}
-	bridgeSamePortFwdCase   = PortFwdCase{"11.11.5.1", 0, "--net=" + portFwdBridge.Name, true}
-	bridgeDiffPortFwdCase   = PortFwdCase{"11.11.5.1", 1024, "--net=" + portFwdBridge.Name, true}
-	bridgeLoSamePortFwdCase = PortFwdCase{"127.0.0.1", 0, "--net=" + portFwdBridge.Name, true}
-	bridgeLoDiffPortFwdCase = PortFwdCase{"127.0.0.1", 1024, "--net=" + portFwdBridge.Name, true}
+	bridgeSamePortFwdCase   = PortFwdCase{"11.11.5.1", 0, "", "--net=" + portFwdBridge.Name, true}
+	bridgeDiffPortFwdCase   = PortFwdCase{"11.11.5.1", 1024, "", "--net=" + portFwdBridge.Name, true}
+	bridgeLoSamePortFwdCase = PortFwdCase{"127.0.0.1", 0, "", "--net=" + portFwdBridge.Name, true}
+	bridgeLoDiffPortFwdCase = PortFwdCase{"127.0.0.1", 1024, "", "--net=" + portFwdBridge.Name, true}
 )
 
 func (ct PortFwdCase) Execute(t *testing.T, ctx *testutils.RktRunCtx) {
@@ -418,8 +421,8 @@ func (ct PortFwdCase) Execute(t *testing.T, ctx *testutils.RktRunCtx) {
 	defer os.Remove(testImage)
 
 	cmd := fmt.Sprintf(
-		"%s --debug --insecure-options=image run --port=http:%d %s --mds-register=false %s",
-		ctx.Cmd(), httpPort, ct.RktArg, testImage)
+		"%s --debug --insecure-options=image run --port=http:%s%d %s --mds-register=false %s",
+		ctx.Cmd(), ct.ListenAddress, httpPort, ct.RktArg, testImage)
 	child := spawnOrFail(t, cmd)
 
 	httpGetAddr := fmt.Sprintf("http://%v:%v", ct.HttpGetIP, httpPort)
@@ -448,8 +451,7 @@ func (ct PortFwdCase) Execute(t *testing.T, ctx *testutils.RktRunCtx) {
 		case err == nil && !ct.ShouldSucceed:
 			ga.Fatalf("HTTP-Get to %q should have failed! But received %q", httpGetAddr, body)
 		case err != nil && !ct.ShouldSucceed:
-			child.Close()
-			fallthrough
+			t.Logf("HTTP-Get failed, as expected: %v", err)
 		default:
 			t.Logf("HTTP-Get received: %s", body)
 		}

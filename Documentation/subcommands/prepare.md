@@ -52,12 +52,16 @@ c9fad0e6-8236-4fc2-ad17-55d0a4c7d742
 
 | Flag | Default | Options | Description |
 | --- | --- | --- | --- |
+| `--user-annotation` | none | annotation add to the app's UserAnnotations field | Set the app's annotations (example: '--annotation=foo=bar'). |
 | `--caps-remove` | none | capability to remove (example: '--caps-remove=CAP\_SYS\_CHROOT,CAP\_MKNOD') | Capabilities to remove from the process's capabilities bounding set, all others from the default set will be included |
 | `--caps-retain` | none | capability to retain (example: '--caps-remove=CAP\_SYS\_ADMIN,CAP\_NET\_ADMIN') | Capabilities to retain in the process's capabilities bounding set, all others will be removed |
+| `--environment` | none | environment variables add to the app's environment variables | Set the app's environment variables (example: '--environment=foo=bar'). |
 | `--exec` | none | Path to executable | Override the exec command for the preceding image. |
 | `--group` | root | gid, groupname or file path | Group override for the preceding image (example: '--group=group') |
 | `--inherit-env` | `false` | `true` or `false` | Inherit all environment variables not set by apps. |
+| `--user-label` | none | label add to the apps' UserLabels field | Set the app's labels (example: '--label=foo=bar'). |
 | `--mount` | none | Mount syntax (ex. `--mount volume=NAME,target=PATH`) | Mount point binding a volume to a path within an app. See [Mounting Volumes without Mount Points](#mounting-volumes-without-mount-points). |
+| `--name` | none | Name of the app | Set the name of the app (example: '--name=foo'). If not set, then the app name default to the image's name |
 | `--no-overlay` | `false` | `true` or `false` | Disable the overlay filesystem. |
 | `--no-store` | `false` | `true` or `false` | Fetch images, ignoring the local store. See [image fetching behavior](../image-fetching-behavior.md) |
 | `--pod-manifest` | none | A path | The path to the pod manifest. If it's non-empty, then only `--net`, `--no-overlay` and `--interactive` will have effect. |

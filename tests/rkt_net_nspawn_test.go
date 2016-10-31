@@ -30,6 +30,8 @@ func TestNetPortFwdConnectivity(t *testing.T) {
 	NewNetPortFwdConnectivityTest(
 		defaultSamePortFwdCase,
 		defaultDiffPortFwdCase,
+		defaultSpecificIPFwdCase,
+		defaultSpecificIPFwdFailCase,
 		defaultLoSamePortFwdCase,
 		defaultLoDiffPortFwdCase,
 		bridgeSamePortFwdCase,

@@ -38,6 +38,7 @@ import (
 	"github.com/vishvananda/netlink"
 
 	"github.com/coreos/rkt/common"
+	commonnet "github.com/coreos/rkt/common/networking"
 	"github.com/coreos/rkt/networking/tuntap"
 )
 
@@ -433,7 +434,7 @@ func kvmTransformFlannelNetwork(net *activeNet) error {
 
 // kvmSetup prepare new Networking to be used in kvm environment based on tuntap pair interfaces
 // to allow communication with virtual machine created by lkvm tool
-func kvmSetup(podRoot string, podID types.UUID, fps []ForwardedPort, netList common.NetList, localConfig string, noDNS bool) (*Networking, error) {
+func kvmSetup(podRoot string, podID types.UUID, fps []commonnet.ForwardedPort, netList common.NetList, localConfig string, noDNS bool) (*Networking, error) {
 	network := Networking{
 		podEnv: podEnv{
 			podRoot:      podRoot,
@@ -628,7 +629,12 @@ func kvmSetup(podRoot string, podID types.UUID, fps []ForwardedPort, netList com
 	if err != nil {
 		return nil, err
 	}
+	if err := network.setupForwarding(); err != nil {
+		network.teardownForwarding()
+		return nil, err
+	}
 	if err := network.forwardPorts(fps, podIP); err != nil {
+		network.teardownForwarding()
 		return nil, err
 	}
 
@@ -698,7 +704,7 @@ func (n *Networking) teardownKvmNets() {
 // similar to Networking.Teardown but without host namespaces
 func (n *Networking) kvmTeardown() {
 
-	if err := n.unforwardPorts(); err != nil {
+	if err := n.teardownForwarding(); err != nil {
 		stderr.PrintE("error removing forwarded ports (kvm)", err)
 	}
 	n.teardownKvmNets()

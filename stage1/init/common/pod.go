@@ -309,7 +309,7 @@ func FindBinPath(p *stage1commontypes.Pod, ra *schema.RuntimeApp) (string, error
 // node, we create a symlink to its target in "/rkt/volumes". Later,
 // prepare-app will copy those to "/dev/.rkt/" so that's what we use in the
 // DeviceAllow= line.
-func generateDeviceAllows(root string, appName types.ACName, mountPoints []types.MountPoint, mounts []mountWrapper, vols map[types.ACName]types.Volume, uidRange *user.UidRange) ([]string, error) {
+func generateDeviceAllows(root string, appName types.ACName, mountPoints []types.MountPoint, mounts []mountWrapper, uidRange *user.UidRange) ([]string, error) {
 	var devAllow []string
 
 	rktVolumeLinksPath := filepath.Join(root, "rkt", "volumes")
@@ -321,21 +321,20 @@ func generateDeviceAllows(root string, appName types.ACName, mountPoints []types
 	}
 
 	for _, m := range mounts {
-		v := vols[m.Volume]
-		if v.Kind != "host" {
+		if m.Volume.Kind != "host" {
 			continue
 		}
-		if fileutil.IsDeviceNode(v.Source) {
+		if fileutil.IsDeviceNode(m.Volume.Source) {
 			mode := "r"
-			if !IsMountReadOnly(v, mountPoints) {
+			if !m.ReadOnly {
 				mode += "w"
 			}
 
-			tgt := filepath.Join(common.RelAppRootfsPath(appName), m.Path)
+			tgt := filepath.Join(common.RelAppRootfsPath(appName), m.Mount.Path)
 			// the DeviceAllow= line needs the link path in /dev/.rkt/
-			linkRel := filepath.Join("/dev/.rkt", v.Name.String())
+			linkRel := filepath.Join("/dev/.rkt", m.Volume.Name.String())
 			// the real link should be in /rkt/volumes for now
-			link := filepath.Join(rktVolumeLinksPath, v.Name.String())
+			link := filepath.Join(rktVolumeLinksPath, m.Volume.Name.String())
 
 			err := os.Symlink(tgt, link)
 			// if the link already exists, we don't need to do anything
@@ -484,11 +483,13 @@ func appToNspawnArgs(p *stage1commontypes.Pod, ra *schema.RuntimeApp, insecureOp
 	}
 
 	imageManifest := p.Images[appName.String()]
-	mounts := GenerateMounts(ra, vols, imageManifest)
+	mounts, err := GenerateMounts(ra, p.Manifest.Volumes, ConvertedFromDocker(imageManifest))
+	if err != nil {
+		return nil, errwrap.Wrap(fmt.Errorf("could not generate app %q mounts", appName), err)
+	}
 	for _, m := range mounts {
-		vol := vols[m.Volume]
 
-		shPath := filepath.Join(sharedVolPath, vol.Name.String())
+		shPath := filepath.Join(sharedVolPath, m.Volume.Name.String())
 
 		absRoot, err := filepath.Abs(p.Root) // Absolute path to the pod's rootfs.
 		if err != nil {
@@ -500,31 +501,31 @@ func appToNspawnArgs(p *stage1commontypes.Pod, ra *schema.RuntimeApp, insecureOp
 		// TODO(yifan): This is a temporary fix for systemd-nspawn not handling symlink mounts well.
 		// Could be removed when https://github.com/systemd/systemd/issues/2860 is resolved, and systemd
 		// version is bumped.
-		mntPath, err := EvaluateSymlinksInsideApp(appRootfs, m.Path)
+		mntPath, err := EvaluateSymlinksInsideApp(appRootfs, m.Mount.Path)
 		if err != nil {
-			return nil, errwrap.Wrap(fmt.Errorf("could not evaluate path %v", m.Path), err)
+			return nil, errwrap.Wrap(fmt.Errorf("could not evaluate path %v", m.Mount.Path), err)
 		}
 		mntAbsPath := filepath.Join(appRootfs, mntPath)
 
-		if err := PrepareMountpoints(shPath, mntAbsPath, &vol, m.DockerImplicit); err != nil {
+		if err := PrepareMountpoints(shPath, mntAbsPath, &m.Volume, m.DockerImplicit); err != nil {
 			return nil, err
 		}
 
 		opt := make([]string, 6)
 
-		if IsMountReadOnly(vol, app.MountPoints) {
+		if m.ReadOnly {
 			opt[0] = "--bind-ro="
 		} else {
 			opt[0] = "--bind="
 		}
 
-		switch vol.Kind {
+		switch m.Volume.Kind {
 		case "host":
-			opt[1] = vol.Source
+			opt[1] = m.Volume.Source
 		case "empty":
-			opt[1] = filepath.Join(common.SharedVolumesPath(absRoot), vol.Name.String())
+			opt[1] = filepath.Join(common.SharedVolumesPath(absRoot), m.Volume.Name.String())
 		default:
-			return nil, fmt.Errorf(`invalid volume kind %q. Must be one of "host" or "empty"`, vol.Kind)
+			return nil, fmt.Errorf(`invalid volume kind %q. Must be one of "host" or "empty"`, m.Volume.Kind)
 		}
 		opt[2] = ":"
 		opt[3] = filepath.Join(common.RelAppRootfsPath(appName), mntPath)
@@ -532,8 +533,8 @@ func appToNspawnArgs(p *stage1commontypes.Pod, ra *schema.RuntimeApp, insecureOp
 
 		// If Recursive is not set, default to recursive.
 		recursive := true
-		if vol.Recursive != nil {
-			recursive = *vol.Recursive
+		if m.Volume.Recursive != nil {
+			recursive = *m.Volume.Recursive
 		}
 
 		// rbind/norbind options exist since systemd-nspawn v226

@@ -37,6 +37,25 @@ To prevent the period between first creating a pod's directory and acquiring its
 | ExitedGarbage   | "$var/exited-garbage/$uuid" | exited+deleting         | exited+gc-marked         |
 | Garbage         | "$var/garbage/$uuid"        | prepare-failed+deleting | prepare-failed+gc-marked |
 
+## App
+
+The `rkt app` family of subcommands allow mutating operations on a running pod, namely adding, starting, stopping, and removing applications.
+The `rkt app sandbox` subcommand transitions to the Run phase as described above, whereas the remaining subcommands mutate the pod while staying in the Run phase.
+To synchronize operations inside the Run phase an additional advisory lock `$var/run/$uuid/pod.lck` is being introduced.
+Locking on the `$var/run/$uuid/pod` manifest won't work because changes on it need to be atomic, realized by overwriting the original manifest.
+If this file is locked, the pod is undergoing a mutation. Note that only `rkt add/rm` operations are synchronized.
+To retain consistency for all other operations (i.e. `rkt list`) that need to read the `$var/run/$uuid/pod` manifest all mutating operations are atomic.
+
+The `app add/start/stop/rm` subcommands all run within the Run phase where the exclusive advisory lock on the `$var/run/$uuid` directory is held by the systemd-nspawn process.
+The following table gives an overview of the states when a lock on `$var/run/$uuid/pod.lck` is being held:
+
+| Phase  | Locked exclusively | Unlocked |
+|--------|--------------------|----------|
+| Add    | adding             | added    |
+| Start  | -                  | -        |
+| Stop   | -                  | -        |
+| Remove | removing           | removed  |
+
 These phases, their function, and how they proceed through their respective states is explained in more detail below.
 
 ## Embryo

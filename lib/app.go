@@ -59,9 +59,10 @@ func AppsForPod(uuid, dataDir string, appName string) ([]*App, error) {
 // newApp constructs the App object with the runtime app and pod manifest.
 func newApp(ra *schema.RuntimeApp, podManifest *schema.PodManifest, pod *pkgPod.Pod) (*App, error) {
 	app := &App{
-		Name:        ra.Name.String(),
-		ImageID:     ra.Image.ID.String(),
-		Annotations: make(map[string]string),
+		Name:            ra.Name.String(),
+		ImageID:         ra.Image.ID.String(),
+		UserAnnotations: ra.App.UserAnnotations,
+		UserLabels:      ra.App.UserLabels,
 	}
 
 	// Generate mounts
@@ -95,11 +96,6 @@ func newApp(ra *schema.RuntimeApp, podManifest *schema.PodManifest, pod *pkgPod.
 		})
 	}
 
-	// Generate annotations.
-	for _, anno := range ra.Annotations {
-		app.Annotations[anno.Name.String()] = anno.Value
-	}
-
 	// Generate state.
 	if err := appState(app, pod); err != nil {
 		return nil, fmt.Errorf("error getting app's state: %v", err)
@@ -122,7 +118,7 @@ func appState(app *App, pod *pkgPod.Pod) error {
 					fmt.Fprintf(os.Stderr, "Cannot get GC marked time: %v", err)
 				}
 				if !t.IsZero() {
-					finishedAt := t.UnixNano()
+					finishedAt := t.Unix()
 					app.FinishedAt = &finishedAt
 				}
 			}
@@ -139,7 +135,7 @@ func appState(app *App, pod *pkgPod.Pod) error {
 	}
 
 	app.State = AppStateCreated
-	createdAt := fi.ModTime().UnixNano()
+	createdAt := fi.ModTime().Unix()
 	app.CreatedAt = &createdAt
 
 	// Check if the app is started.
@@ -152,7 +148,7 @@ func appState(app *App, pod *pkgPod.Pod) error {
 	}
 
 	app.State = AppStateRunning
-	startedAt := fi.ModTime().UnixNano()
+	startedAt := fi.ModTime().Unix()
 	app.StartedAt = &startedAt
 
 	// Check if the app is exited.
@@ -166,7 +162,7 @@ func appState(app *App, pod *pkgPod.Pod) error {
 	}
 
 	app.State = AppStateExited
-	finishedAt := fi.ModTime().UnixNano()
+	finishedAt := fi.ModTime().Unix()
 	app.FinishedAt = &finishedAt
 
 	// Read exit code.

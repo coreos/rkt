@@ -20,14 +20,13 @@ import (
 	"strconv"
 
 	"github.com/coreos/go-iptables/iptables"
+
+	commonnet "github.com/coreos/rkt/common/networking"
 )
 
-// ForwardedPort describes a port that will be
-// forwarded (mapped) from the host to the pod
-type ForwardedPort struct {
-	Protocol string
-	HostPort uint
-	PodPort  uint
+type iptablesRule struct {
+	Chain string
+	Rule  []string
 }
 
 // GetForwardableNet iterates through all loaded networks and returns either
@@ -67,11 +66,8 @@ func (n *Networking) GetForwardableNetHostIP() (net.IP, error) {
 	return net.runtime.HostIP, nil
 }
 
-func (e *podEnv) forwardPorts(fps []ForwardedPort, podIP net.IP) error {
-	if len(fps) == 0 {
-		return nil
-	}
-
+// setupForwarding creates the iptables chains
+func (e *podEnv) setupForwarding() error {
 	ipt, err := iptables.New()
 	if err != nil {
 		return err
@@ -97,9 +93,9 @@ func (e *podEnv) forwardPorts(fps []ForwardedPort, podIP net.IP) error {
 		chain           string
 		customChainRule []string
 	}{
-		{"POSTROUTING", chainRuleSNAT}, // traffic originating from this host
+		{"POSTROUTING", chainRuleSNAT}, // traffic originating from this host from loopback
 		{"PREROUTING", chainRuleDNAT},  // outside traffic hitting this host
-		{"OUTPUT", chainRuleDNAT},      // traffic originating from this host
+		{"OUTPUT", chainRuleDNAT},      // traffic originating from this host on non-loopback
 	} {
 		exists, err := ipt.Exists("nat", entry.chain, entry.customChainRule...)
 		if err != nil {
@@ -112,38 +108,23 @@ func (e *podEnv) forwardPorts(fps []ForwardedPort, podIP net.IP) error {
 			}
 		}
 	}
+	return nil
+}
 
-	for _, p := range fps {
+func (e *podEnv) forwardPorts(fps []commonnet.ForwardedPort, podIP net.IP) error {
+	if len(fps) == 0 {
+		return nil
+	}
+	ipt, err := iptables.New()
+	if err != nil {
+		return err
+	}
+	chainDNAT := e.portFwdChain("DNAT")
+	chainSNAT := e.portFwdChain("SNAT")
 
-		socketPod := fmt.Sprintf("%v:%v", podIP, p.PodPort)
-		dstPortHost := strconv.Itoa(int(p.HostPort))
-		dstPortPod := strconv.Itoa(int(p.PodPort))
-
-		for _, r := range []struct {
-			chain string
-			rule  []string
-		}{
-			{ // Rewrite the destination
-				chainDNAT,
-				[]string{
-					"-p", p.Protocol,
-					"--dport", dstPortHost,
-					"-j", "DNAT",
-					"--to-destination", socketPod,
-				},
-			},
-			{ // Rewrite the source for connections to localhost on the host
-				chainSNAT,
-				[]string{
-					"-p", p.Protocol,
-					"-s", "127.0.0.1",
-					"-d", podIP.String(),
-					"--dport", dstPortPod,
-					"-j", "MASQUERADE",
-				},
-			},
-		} {
-			if err := ipt.AppendUnique("nat", r.chain, r.rule...); err != nil {
+	for _, fp := range fps {
+		for _, r := range portRules(fp, podIP, chainDNAT, chainSNAT) {
+			if err := ipt.AppendUnique("nat", r.Chain, r.Rule...); err != nil {
 				return err
 			}
 		}
@@ -151,7 +132,63 @@ func (e *podEnv) forwardPorts(fps []ForwardedPort, podIP net.IP) error {
 	return nil
 }
 
-func (e *podEnv) unforwardPorts() error {
+func (e *podEnv) unforwardPorts(fps []commonnet.ForwardedPort, podIP net.IP) error {
+	if len(fps) == 0 {
+		return nil
+	}
+
+	ipt, err := iptables.New()
+	if err != nil {
+		return err
+	}
+	chainDNAT := e.portFwdChain("DNAT")
+	chainSNAT := e.portFwdChain("SNAT")
+
+	for _, fp := range fps {
+		for _, r := range portRules(fp, podIP, chainDNAT, chainSNAT) {
+			if err := ipt.Delete("nat", r.Chain, r.Rule...); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func portRules(fp commonnet.ForwardedPort, podIP net.IP, chainDNAT, chainSNAT string) []iptablesRule {
+	socketPod := fmt.Sprintf("%v:%v", podIP, fp.PodPort.Port)
+	dstPortHost := strconv.Itoa(int(fp.HostPort.HostPort))
+	dstPortPod := strconv.Itoa(int(fp.PodPort.Port))
+	dstIPHost := fp.HostPort.HostIP.String()
+
+	if fp.HostPort.HostIP == nil || dstIPHost == "0.0.0.0" {
+		dstIPHost = "0.0.0.0/0"
+	}
+
+	return []iptablesRule{
+		{ // nat the destination
+			chainDNAT,
+			[]string{
+				"-d", dstIPHost,
+				"-p", fp.PodPort.Protocol,
+				"--dport", dstPortHost,
+				"-j", "DNAT",
+				"--to-destination", socketPod,
+			},
+		},
+		{ // Rewrite the source for connections to localhost on the host
+			chainSNAT,
+			[]string{
+				"-p", fp.PodPort.Protocol,
+				"-s", "127.0.0.1",
+				"-d", podIP.String(),
+				"--dport", dstPortPod,
+				"-j", "MASQUERADE",
+			},
+		},
+	}
+}
+
+func (e *podEnv) teardownForwarding() error {
 	ipt, err := iptables.New()
 	if err != nil {
 		return err
@@ -187,6 +224,8 @@ func (e *podEnv) unforwardPorts() error {
 	return nil
 }
 
+// portFwdChain generates the *name* of the chain for pod port forwarding.
+// This name must be stable.
 func (e *podEnv) portFwdChain(name string) string {
 	return fmt.Sprintf("RKT-PFWD-%s-%s", name, e.podID.String()[0:8])
 }

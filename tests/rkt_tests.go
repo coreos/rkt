@@ -39,6 +39,7 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/gexpect"
 	"github.com/coreos/rkt/api/v1alpha"
+	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/tests/testutils"
 	taas "github.com/coreos/rkt/tests/testutils/aci-server"
 	"google.golang.org/grpc"
@@ -122,22 +123,9 @@ func spawnOrFail(t *testing.T, cmd string) *gexpect.ExpectSubprocess {
 	return child
 }
 
-func getExitStatus(err error) int {
-	if err == nil {
-		return 0
-	}
-	if exiterr, ok := err.(*exec.ExitError); ok {
-		// the program has exited with an exit code != 0
-		if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
-			return status.ExitStatus()
-		}
-	}
-	return -1
-}
-
 func waitOrFail(t *testing.T, child *gexpect.ExpectSubprocess, expectedStatus int) {
 	err := child.Wait()
-	status := getExitStatus(err)
+	status, _ := common.GetExitStatus(err)
 	if status != expectedStatus {
 		t.Fatalf("rkt terminated with unexpected status %d, expected %d\nOutput:\n%s", status, expectedStatus, child.Collect())
 	}
@@ -348,7 +336,8 @@ func runRkt(t *testing.T, rktCmd string, uid, gid int) (string, int) {
 		buf.WriteString(line + "\n") // reappend newline
 	}
 
-	return buf.String(), getExitStatus(child.Wait())
+	status, _ := common.GetExitStatus(child.Wait())
+	return buf.String(), status
 }
 
 func startRktAsGidAndCheckOutput(t *testing.T, rktCmd, expectedLine string, gid int) *gexpect.ExpectSubprocess {
@@ -878,7 +867,7 @@ func unmountPod(t *testing.T, ctx *testutils.RktRunCtx, uuid string, rmNetns boo
 
 func checkExitStatus(child *gexpect.ExpectSubprocess) error {
 	err := child.Wait()
-	status := getExitStatus(err)
+	status, _ := common.GetExitStatus(err)
 	if status != 0 {
 		return fmt.Errorf("rkt terminated with unexpected status %d, expected %d\nOutput:\n%s", status, 0, child.Collect())
 	}

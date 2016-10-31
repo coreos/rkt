@@ -48,6 +48,7 @@ import (
 	"github.com/coreos/rkt/common/cgroup"
 	"github.com/coreos/rkt/common/cgroup/v1"
 	"github.com/coreos/rkt/common/cgroup/v2"
+	commonnet "github.com/coreos/rkt/common/networking"
 	"github.com/coreos/rkt/networking"
 	pkgflag "github.com/coreos/rkt/pkg/flag"
 	rktlog "github.com/coreos/rkt/pkg/log"
@@ -195,6 +196,14 @@ func installAssets() error {
 	if err != nil {
 		return err
 	}
+	mountBin, err := common.LookupPath("mount", os.Getenv("PATH"))
+	if err != nil {
+		return err
+	}
+	umountBin, err := common.LookupPath("umount", os.Getenv("PATH"))
+	if err != nil {
+		return err
+	}
 	// More paths could be added in that list if some Linux distributions install it in a different path
 	// Note that we look in /usr/lib/... first because of the merge:
 	// http://www.freedesktop.org/wiki/Software/systemd/TheCaseForTheUsrMerge/
@@ -218,6 +227,8 @@ func installAssets() error {
 		proj2aci.GetAssetString("/usr/bin/systemd-sysusers", systemdSysusersBin),
 		proj2aci.GetAssetString("/usr/lib/systemd/systemd-journald", systemdJournaldBin),
 		proj2aci.GetAssetString("/usr/bin/bash", bashBin),
+		proj2aci.GetAssetString("/bin/mount", mountBin),
+		proj2aci.GetAssetString("/bin/umount", umountBin),
 		proj2aci.GetAssetString(fmt.Sprintf("%s/systemd-journald.service", systemdUnitsPath), fmt.Sprintf("%s/systemd-journald.service", systemdUnitsPath)),
 		proj2aci.GetAssetString(fmt.Sprintf("%s/systemd-journald.socket", systemdUnitsPath), fmt.Sprintf("%s/systemd-journald.socket", systemdUnitsPath)),
 		proj2aci.GetAssetString(fmt.Sprintf("%s/systemd-journald-dev-log.socket", systemdUnitsPath), fmt.Sprintf("%s/systemd-journald-dev-log.socket", systemdUnitsPath)),
@@ -263,10 +274,6 @@ func getArgsEnv(p *stage1commontypes.Pod, flavor string, canMachinedRegister boo
 	case "kvm":
 		if privateUsers != "" {
 			return nil, nil, fmt.Errorf("flag --private-users cannot be used with an lkvm stage1")
-		}
-
-		if mutable {
-			return nil, nil, fmt.Errorf("flag --mutable is not implemented in lkvm stage1")
 		}
 
 		// kernel and hypervisor binaries are located relative to the working directory
@@ -487,45 +494,6 @@ func getArgsEnv(p *stage1commontypes.Pod, flavor string, canMachinedRegister boo
 	return args, env, nil
 }
 
-func forwardedPorts(pod *stage1commontypes.Pod) ([]networking.ForwardedPort, error) {
-	var fps []networking.ForwardedPort
-
-NextPort:
-	for _, ep := range pod.Manifest.Ports {
-		n := ""
-		fp := networking.ForwardedPort{}
-
-		for _, a := range pod.Manifest.Apps {
-			for _, p := range a.App.Ports {
-				if p.Name == ep.Name {
-					if n == "" {
-						// skip socket-activated ports, they don't need port forwarding
-						if p.SocketActivated {
-							continue NextPort
-						}
-						fp.Protocol = p.Protocol
-						fp.HostPort = ep.HostPort
-						fp.PodPort = p.Port
-						n = a.Name.String()
-					} else {
-						return nil, fmt.Errorf("ambiguous exposed port in PodManifest: %q and %q both define port %q", n, a.Name, p.Name)
-					}
-				}
-			}
-		}
-
-		if n == "" {
-			return nil, fmt.Errorf("port name %q is not defined by any apps", ep.Name)
-		}
-
-		fps = append(fps, fp)
-	}
-
-	// TODO(eyakubovich): validate that there're no conflicts
-
-	return fps, nil
-}
-
 func stage1() int {
 	uuid, err := types.NewUUID(flag.Arg(0))
 	if err != nil {
@@ -563,7 +531,7 @@ func stage1() int {
 
 	var n *networking.Networking
 	if netList.Contained() {
-		fps, err := forwardedPorts(p)
+		fps, err := commonnet.ForwardedPorts(p.Manifest)
 		if err != nil {
 			log.Error(err)
 			return 254
@@ -732,6 +700,7 @@ func stage1() int {
 			return 254
 		}
 	}
+	diag.Println(args)
 
 	err = stage1common.WithClearedCloExec(lfd, func() error {
 		return syscall.Exec(args[0], args, env)

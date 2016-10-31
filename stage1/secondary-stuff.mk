@@ -12,6 +12,7 @@ _S1_SS_SUBDIRS_ := \
 	reaper \
 	stop \
 	stop_kvm \
+	app-add \
 	app-rm \
 	app-start \
 	app-stop \

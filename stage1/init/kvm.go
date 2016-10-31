@@ -25,7 +25,6 @@ import (
 	"syscall"
 
 	"github.com/appc/spec/schema"
-	"github.com/appc/spec/schema/types"
 	"github.com/coreos/go-systemd/util"
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/networking"
@@ -55,13 +54,7 @@ func KvmNetworkingToSystemd(p *stage1commontypes.Pod, n *networking.Networking) 
 }
 
 func mountSharedVolumes(root string, p *stage1commontypes.Pod, ra *schema.RuntimeApp) error {
-	app := ra.App
 	appName := ra.Name
-	volumes := p.Manifest.Volumes
-	vols := make(map[types.ACName]types.Volume)
-	for _, v := range volumes {
-		vols[v.Name] = v
-	}
 
 	sharedVolPath := common.SharedVolumesPath(root)
 	if err := os.MkdirAll(sharedVolPath, stage1initcommon.SharedVolPerm); err != nil {
@@ -72,10 +65,11 @@ func mountSharedVolumes(root string, p *stage1commontypes.Pod, ra *schema.Runtim
 	}
 
 	imageManifest := p.Images[appName.String()]
-	mounts := stage1initcommon.GenerateMounts(ra, vols, imageManifest)
+	mounts, err := stage1initcommon.GenerateMounts(ra, p.Manifest.Volumes, stage1initcommon.ConvertedFromDocker(imageManifest))
+	if err != nil {
+		return err
+	}
 	for _, m := range mounts {
-		vol := vols[m.Volume]
-
 		absRoot, err := filepath.Abs(p.Root) // Absolute path to the pod's rootfs.
 		if err != nil {
 			return errwrap.Wrap(errors.New("could not get pod's root absolute path"), err)
@@ -86,32 +80,31 @@ func mountSharedVolumes(root string, p *stage1commontypes.Pod, ra *schema.Runtim
 			return fmt.Errorf(`could not evaluate absolute path for application rootfs in app: %v`, appName)
 		}
 
-		mntPath, err := stage1initcommon.EvaluateSymlinksInsideApp(absAppRootfs, m.Path)
+		mntPath, err := stage1initcommon.EvaluateSymlinksInsideApp(absAppRootfs, m.Mount.Path)
 		if err != nil {
-			return errwrap.Wrap(fmt.Errorf("could not evaluate path %v", m.Path), err)
+			return errwrap.Wrap(fmt.Errorf("could not evaluate path %v", m.Mount.Path), err)
 		}
 		absDestination := filepath.Join(absAppRootfs, mntPath)
-		shPath := filepath.Join(sharedVolPath, vol.Name.String())
-		if err := stage1initcommon.PrepareMountpoints(shPath, absDestination, &vol, m.DockerImplicit); err != nil {
+		shPath := filepath.Join(sharedVolPath, m.Volume.Name.String())
+		if err := stage1initcommon.PrepareMountpoints(shPath, absDestination, &m.Volume, m.DockerImplicit); err != nil {
 			return err
 		}
 
-		readOnly := stage1initcommon.IsMountReadOnly(vol, app.MountPoints)
 		var source string
-		switch vol.Kind {
+		switch m.Volume.Kind {
 		case "host":
-			source = vol.Source
+			source = m.Volume.Source
 		case "empty":
-			source = filepath.Join(common.SharedVolumesPath(root), vol.Name.String())
+			source = filepath.Join(common.SharedVolumesPath(root), m.Volume.Name.String())
 		default:
-			return fmt.Errorf(`invalid volume kind %q. Must be one of "host" or "empty"`, vol.Kind)
+			return fmt.Errorf(`invalid volume kind %q. Must be one of "host" or "empty"`, m.Volume.Kind)
 		}
 		if cleanedSource, err := filepath.EvalSymlinks(source); err != nil {
 			return errwrap.Wrap(fmt.Errorf("could not resolve symlink for source: %v", source), err)
 		} else if err := ensureDestinationExists(cleanedSource, absDestination); err != nil {
 			return errwrap.Wrap(fmt.Errorf("could not create destination mount point: %v", absDestination), err)
-		} else if err := doBindMount(cleanedSource, absDestination, readOnly, vol.Recursive); err != nil {
-			return errwrap.Wrap(fmt.Errorf("could not bind mount path %v (s: %v, d: %v)", m.Path, source, absDestination), err)
+		} else if err := doBindMount(cleanedSource, absDestination, m.ReadOnly, m.Volume.Recursive); err != nil {
+			return errwrap.Wrap(fmt.Errorf("could not bind mount path %v (s: %v, d: %v)", m.Mount.Path, source, absDestination), err)
 		}
 	}
 	return nil

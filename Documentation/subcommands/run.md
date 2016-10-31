@@ -32,6 +32,16 @@ Multiple applications can be run in a pod by passing multiple images to the run 
 # rkt run example.com/app1 example.com/app2
 ```
 
+## Overriding the app's name
+
+Be default, the image's name will be used as the app's name.
+It can be overridden by rkt using the `--name` flag.
+This comes handy when we want to run multiple apps using the same image:
+
+```
+# rkt --insecure-options=image run docker://busybox --name=busybox1 docker://busybox --name=busybox2
+```
+
 ## Overriding Executable to launch
 
 Application images include an `exec` field that specifies the executable to launch.
@@ -74,19 +84,34 @@ This can be combined with overridden executables:
 # rkt run example.com/worker --exec /bin/ov -- --loglevel verbose --- example.com/syncer --exec /bin/syncer2 -- --interval 30s
 ```
 
+## Adding user annotations and user labels
+
+Additional annotations and labels can be added to the app by using `--user-annotation` and `--user-label` flag.
+The annotations and labels will appear in the app's `UserAnnotations` and `UserLabels` field.
+
+```
+# rkt run example.com/example --user-annotation=foo=bar --user-label=hello=world
+```
+
 ## Influencing Environment Variables
 
-To inherit all environment variables from the parent use the `--inherit-env` flag.
+To inherit all environment variables from the parent, use the `--inherit-env` flag.
 
-To explicitly set individual environment variables use the `--set-env` flag.
+To explicitly set environment variables for all apps, use the `--set-env` flag.
 
-To explicitly set environment variables from a file use the `--set-env-file` flag. Variables are expected to be in the format `VAR_NAME=VALUE` separated by the new line character `\n`. Lines starting with `#` or `;` and empty ones will be ignored.
+To explicitly set environment variables for all apps from a file, use the `--set-env-file` flag.
+Variables are expected to be in the format `VAR_NAME=VALUE` separated by the new line character `\n`.
+Lines starting with `#` or `;` and empty ones will be ignored.
+
+To explicitly set environment variables for each app individually, use the `--environment` flag.
+
 The precedence is as follows with the last item replacing previous environment entries:
 
 - Parent environment
 - App image environment
-- Explicitly set environment variables from file (`--set-env-file`)
-- Explicitly set environment variables on command line (`--set-env`)
+- Explicitly set environment variables for all apps from file (`--set-env-file`)
+- Explicitly set environment variables for all apps on command line (`--set-env`)
+- Explicitly set environment variables for each app on command line (`--environment`)
 
 ```
 # export EXAMPLE_ENV=hello
@@ -95,6 +120,13 @@ The precedence is as follows with the last item replacing previous environment e
 EXAMPLE_ENV=hello
 FOO=bar
 EXAMPLE_OVERRIDE=over
+
+# export EXAMPLE_ENV=hello
+# export EXAMPLE_OVERRIDE=under
+# rkt run --inherit-env --set-env=FOO=bar --set-env=EXAMPLE_OVERRIDE=over example.com/env-printer --environment=EXAMPLE_OVERRIDE=ride
+EXAMPLE_ENV=hello
+FOO=bar
+EXAMPLE_OVERRIDE=ride
 ```
 
 ## Disable Signature Verification
@@ -355,20 +387,24 @@ This feature will be disabled automatically if the underlying filesystem does no
 
 | Flag | Default | Options | Description |
 | --- | --- | --- | --- |
+| `--user-annotation` | none | annotation add to the app's UserAnnotations field | Set the app's annotations (example: '--user-annotation=foo=bar'). |
 | `--caps-remove` | none | capability to remove (e.g. `--caps-remove=CAP_SYS_CHROOT,CAP_MKNOD`) | Capabilities to remove from the process's capabilities bounding set; all others from the default set will be included. |
 | `--caps-retain` | none | capability to retain (e.g. `--caps-retain=CAP_SYS_ADMIN,CAP_NET_ADMIN`) | Capabilities to retain in the process's capabilities bounding set; all others will be removed. |
 | `--cpu` | none | CPU units (e.g. `--cpu=500m`) | CPU limit for the preceding image in [Kubernetes resource model](https://github.com/kubernetes/kubernetes/blob/release-1.2/docs/design/resources.md) format. |
 | `--dns` | none | IP Address | Name server to write in `/etc/resolv.conf`. It can be specified several times. |
 | `--dns-opt` | none | DNS option | DNS option from resolv.conf(5) to write in `/etc/resolv.conf`. It can be specified several times. |
 | `--dns-search` | none | Domain name | DNS search domain to write in `/etc/resolv.conf`. It can be specified several times. |
+| `--environment` | none | environment variables add to the app's environment variables | Set the app's environment variables (example: '--environment=foo=bar'). |
 | `--exec` | none | Path to executable | Override the exec command for the preceding image. |
 | `--group` | root | gid, groupname or file path (e.g. `--group=core`) | Group override for the preceding image. |
 | `--hostname` | `rkt-$PODUUID` | A host name | Set pod's host name. |
 | `--inherit-env` | `false` | `true` or `false` | Inherit all environment variables not set by apps. |
 | `--interactive` | `false` | `true` or `false` | Run pod interactively. If true, only one image may be supplied. |
+| `--user-label` | none | label add to the apps' UserLabels field | Set the app's labels (example: '--user-label=foo=bar'). |
 | `--mds-register` | `false` | `true` or `false` | Register pod with metadata service. It needs network connectivity to the host (`--net` as `default`, `default-restricted`, or `host`). |
 | `--memory` | none | Memory units (e.g. `--memory=50M`) | Memory limit for the preceding image in [Kubernetes resource model](https://github.com/kubernetes/kubernetes/blob/release-1.2/docs/design/resources.md) format. |
 | `--mount` | none | Mount syntax (e.g. `--mount volume=NAME,target=PATH`) | Mount point binding a volume to a path within an app. See [Mounting Volumes without Mount Points](#mounting-volumes-without-mount-points). |
+| `--name` | none | Name of the app | Set the name of the app (example: '--name=foo'). If not set, then the app name default to the image's name |
 | `--net` | `default` | A comma-separated list of networks. (e.g. `--net[=n[:args], ...]`) | Configure the pod's networking. Optionally, pass a list of user-configured networks to load and set arguments to pass to each network, respectively. |
 | `--no-overlay` | `false` | `true` or `false` | Disable the overlay filesystem. |
 | `--no-store` | `false` | `true` or `false` | Fetch images, ignoring the local store. See [image fetching behavior](../image-fetching-behavior.md). |

@@ -31,6 +31,7 @@ import (
 	"github.com/vishvananda/netlink"
 
 	"github.com/coreos/rkt/common"
+	commonnet "github.com/coreos/rkt/common/networking"
 	"github.com/coreos/rkt/networking/netinfo"
 	"github.com/coreos/rkt/pkg/log"
 
@@ -65,7 +66,7 @@ var (
 
 // Setup creates a new networking namespace and executes network plugins to
 // set up networking. It returns in the new pod namespace
-func Setup(podRoot string, podID types.UUID, fps []ForwardedPort, netList common.NetList, localConfig, flavor string, noDNS, debug bool) (*Networking, error) {
+func Setup(podRoot string, podID types.UUID, fps []commonnet.ForwardedPort, netList common.NetList, localConfig, flavor string, noDNS, debug bool) (*Networking, error) {
 
 	stderr = log.New(os.Stderr, "networking", debug)
 	debuglog = debug
@@ -109,8 +110,12 @@ func Setup(podRoot string, podID types.UUID, fps []ForwardedPort, netList common
 		if err != nil {
 			return nil, err
 		}
+		if err := n.setupForwarding(); err != nil {
+			n.teardownForwarding()
+			return nil, err
+		}
 		if err := n.forwardPorts(fps, podIP); err != nil {
-			n.unforwardPorts()
+			n.teardownForwarding()
 			return nil, err
 		}
 	}
@@ -274,7 +279,7 @@ func (n *Networking) Teardown(flavor string, debug bool) {
 		return
 	}
 
-	if err := n.unforwardPorts(); err != nil {
+	if err := n.teardownForwarding(); err != nil {
 		stderr.PrintE("error removing forwarded ports", err)
 	}
 

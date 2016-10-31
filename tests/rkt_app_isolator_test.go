@@ -49,6 +49,14 @@ var cpuTest = struct {
 	[]string{"--exec=/inspect --print-cpuquota", "--capability=CAP_SYS_PTRACE"},
 }
 
+var cpuSharesTest = struct {
+	testName     string
+	aciBuildArgs []string
+}{
+	`Check CPU shares`,
+	[]string{"--exec=/inspect --print-cpushares", "--capability=CAP_SYS_PTRACE"},
+}
+
 var cgroupsTest = struct {
 	testName     string
 	aciBuildArgs []string
@@ -116,5 +124,37 @@ func TestAppIsolatorCPU(t *testing.T) {
 
 	rktCmd = fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s --cpu 900m", ctx.Cmd(), aciFileName)
 	expectedLine = "CPU Quota: " + strconv.Itoa(900)
+	runRktAndCheckOutput(t, rktCmd, expectedLine, false)
+}
+
+func TestAppIsolatorCPUShares(t *testing.T) {
+	isUnified, err := cgroup.IsCgroupUnified("/")
+	if err != nil {
+		t.Fatalf("Error determining the cgroup version: %v", err)
+	}
+
+	if isUnified {
+		t.Skip("kernel does not support cpu isolator in cgroup2.")
+	}
+
+	ok, err := cgroup.IsIsolatorSupported("cpu")
+	if err != nil {
+		t.Fatalf("Error checking cpu isolator support: %v", err)
+	}
+
+	if !ok {
+		t.Skip("CPU isolator not supported.")
+	}
+
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
+
+	t.Logf("Running test: %v", cpuSharesTest.testName)
+
+	aciFileName := patchTestACI("rkt-inspect-isolators.aci", cpuSharesTest.aciBuildArgs...)
+	defer os.Remove(aciFileName)
+
+	rktCmd := fmt.Sprintf("%s --insecure-options=image run --mds-register=false %s --cpu-shares 12345", ctx.Cmd(), aciFileName)
+	expectedLine := "CPU Shares: 12345"
 	runRktAndCheckOutput(t, rktCmd, expectedLine, false)
 }

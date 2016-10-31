@@ -61,7 +61,7 @@ func init() {
 	cmdPrepare.Flags().BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
 	cmdPrepare.Flags().BoolVar(&flagNoOverlay, "no-overlay", false, "disable overlay filesystem")
 	cmdPrepare.Flags().BoolVar(&flagPrivateUsers, "private-users", false, "run within user namespaces.")
-	cmdPrepare.Flags().Var(&flagExplicitEnv, "set-env", "environment variable to set for apps in the form name=value")
+	cmdPrepare.Flags().Var(&flagExplicitEnv, "set-env", "environment variable to set for all the apps in the form key=value, this will be overriden by --environment")
 	cmdPrepare.Flags().Var(&flagEnvFromFile, "set-env-file", "the path to an environment variables file")
 	cmdPrepare.Flags().BoolVar(&flagStoreOnly, "store-only", false, "use only available images in the store (do not discover or download from remote URLs)")
 	cmdPrepare.Flags().BoolVar(&flagNoStore, "no-store", false, "fetch images ignoring the local store")
@@ -108,11 +108,10 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 		return 254
 	}
 
-	if len(flagPodManifest) > 0 && (len(flagPorts) > 0 || flagStoreOnly || flagNoStore ||
-		flagInheritEnv || !flagExplicitEnv.IsEmpty() || !flagEnvFromFile.IsEmpty() ||
-		(*appsVolume)(&rktApps).String() != "" || (*appMount)(&rktApps).String() != "" || (*appExec)(&rktApps).String() != "" ||
-		(*appUser)(&rktApps).String() != "" || (*appGroup)(&rktApps).String() != "" ||
-		(*appCapsRetain)(&rktApps).String() != "" || (*appCapsRemove)(&rktApps).String() != "") {
+	if len(flagPodManifest) > 0 && (rktApps.Count() > 0 ||
+		(*appsVolume)(&rktApps).String() != "" || (*appMount)(&rktApps).String() != "" ||
+		len(flagPorts) > 0 || flagStoreOnly || flagNoStore ||
+		flagInheritEnv || !flagExplicitEnv.IsEmpty() || !flagEnvFromFile.IsEmpty()) {
 		stderr.Print("conflicting flags set with --pod-manifest (see --help)")
 		return 254
 	}

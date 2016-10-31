@@ -62,7 +62,7 @@ image arguments with a lone "---" to resume argument parsing.`,
 	flagNet          common.NetList
 	flagPrivateUsers bool
 	flagInheritEnv   bool
-	flagExplicitEnv  envMap
+	flagExplicitEnv  kvMap
 	flagEnvFromFile  envFileMap
 	flagInteractive  bool
 	flagDNS          flagStringList
@@ -82,9 +82,11 @@ image arguments with a lone "---" to resume argument parsing.`,
 func addIsolatorFlags(cmd *cobra.Command, compat bool) {
 	cmd.Flags().Var((*appMemoryLimit)(&rktApps), "memory", "memory limit for the preceding image (example: '--memory=16Mi', '--memory=50M', '--memory=1G')")
 	cmd.Flags().Var((*appCPULimit)(&rktApps), "cpu", "cpu limit for the preceding image (example: '--cpu=500m')")
+	cmd.Flags().Var((*appCPUShares)(&rktApps), "cpu-shares", "cpu-shares assigns the specified CPU time share weight (example: '--cpu-shares=2048')")
 	cmd.Flags().Var((*appCapsRetain)(&rktApps), "caps-retain", "capability to retain (example: '--caps-retain=CAP_SYS_ADMIN')")
 	cmd.Flags().Var((*appCapsRemove)(&rktApps), "caps-remove", "capability to remove (example: '--caps-remove=CAP_MKNOD')")
 	cmd.Flags().Var((*appSeccompFilter)(&rktApps), "seccomp", "seccomp filter override (example: '--seccomp mode=retain,errno=EPERM,chmod,chown')")
+	cmd.Flags().Var((*appOOMScoreAdj)(&rktApps), "oom-score-adj", "oom-score-adj isolator override")
 
 	// For backwards compatibility
 	if compat {
@@ -97,9 +99,16 @@ func addIsolatorFlags(cmd *cobra.Command, compat bool) {
 
 func addAppFlags(cmd *cobra.Command) {
 	cmd.Flags().Var((*appExec)(&rktApps), "exec", "override the exec command for the preceding image")
+	cmd.Flags().Var((*appWorkingDir)(&rktApps), "working-dir", "override the working directory of the preceding image")
+	cmd.Flags().Var((*appReadOnlyRootFS)(&rktApps), "readonly-rootfs", "if set, the app's rootfs will be mounted read-only")
 	cmd.Flags().Var((*appMount)(&rktApps), "mount", "mount point binding a volume to a path within an app")
 	cmd.Flags().Var((*appUser)(&rktApps), "user", "user override for the preceding image (example: '--user=user')")
 	cmd.Flags().Var((*appGroup)(&rktApps), "group", "group override for the preceding image (example: '--group=group')")
+	cmd.Flags().Var((*appSupplementaryGIDs)(&rktApps), "supplementary-gids", "supplementary group IDs override for the preceding image (examples: '--supplementary-gids=1024,2048'")
+	cmd.Flags().Var((*appName)(&rktApps), "name", "set the name of the app (example: '--name=foo'). If not set, then the app name default to the image's name")
+	cmd.Flags().Var((*appAnnotation)(&rktApps), "user-annotation", "set the app's annotations (example: '--user-annotation=foo=bar')")
+	cmd.Flags().Var((*appLabel)(&rktApps), "user-label", "set the app's labels (example: '--user-label=foo=bar')")
+	cmd.Flags().Var((*appEnv)(&rktApps), "environment", "set the app's environment variables (example: '--environment=foo=bar')")
 }
 
 func init() {
@@ -111,13 +120,13 @@ func init() {
 	*/
 
 	addStage1ImageFlags(cmdRun.Flags())
-	cmdRun.Flags().Var(&flagPorts, "port", "ports to expose on the host (requires contained network). Syntax: --port=NAME:HOSTPORT")
+	cmdRun.Flags().Var(&flagPorts, "port", "ports to expose on the host (requires contained network). Syntax: --port=NAME:[HOSTIP:]HOSTPORT")
 	cmdRun.Flags().Var(&flagNet, "net", "configure the pod's networking. Optionally, pass a list of user-configured networks to load and set arguments to pass to each network, respectively. Syntax: --net[=n[:args], ...]")
 	cmdRun.Flags().Lookup("net").NoOptDefVal = "default"
 	cmdRun.Flags().BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
 	cmdRun.Flags().BoolVar(&flagNoOverlay, "no-overlay", false, "disable overlay filesystem")
 	cmdRun.Flags().BoolVar(&flagPrivateUsers, "private-users", false, "run within user namespaces.")
-	cmdRun.Flags().Var(&flagExplicitEnv, "set-env", "environment variable to set for apps in the form name=value")
+	cmdRun.Flags().Var(&flagExplicitEnv, "set-env", "environment variable to set for all the apps in the form key=value, this will be overriden by --environment")
 	cmdRun.Flags().Var(&flagEnvFromFile, "set-env-file", "path to an environment variables file")
 	cmdRun.Flags().BoolVar(&flagInteractive, "interactive", false, "run pod interactively. If true, only one image may be supplied.")
 	cmdRun.Flags().Var(&flagDNS, "dns", "name servers to write in /etc/resolv.conf. Pass 'host' to use host's resolv.conf. Pass 'none' to ignore CNI DNS config")
@@ -185,11 +194,10 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		return 254
 	}
 
-	if len(flagPodManifest) > 0 && (len(flagPorts) > 0 || rktApps.Count() > 0 || flagStoreOnly || flagNoStore ||
-		flagInheritEnv || !flagExplicitEnv.IsEmpty() || !flagEnvFromFile.IsEmpty() ||
-		(*appsVolume)(&rktApps).String() != "" || (*appMount)(&rktApps).String() != "" || (*appExec)(&rktApps).String() != "" ||
-		(*appUser)(&rktApps).String() != "" || (*appGroup)(&rktApps).String() != "" ||
-		(*appCapsRetain)(&rktApps).String() != "" || (*appCapsRemove)(&rktApps).String() != "") {
+	if len(flagPodManifest) > 0 && (rktApps.Count() > 0 ||
+		(*appsVolume)(&rktApps).String() != "" || (*appMount)(&rktApps).String() != "" ||
+		len(flagPorts) > 0 || flagStoreOnly || flagNoStore ||
+		flagInheritEnv || !flagExplicitEnv.IsEmpty() || !flagEnvFromFile.IsEmpty()) {
 		stderr.Print("conflicting flags set with --pod-manifest (see --help)")
 		return 254
 	}
@@ -387,9 +395,9 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 type portList []types.ExposedPort
 
 func (pl *portList) Set(s string) error {
-	parts := strings.SplitN(s, ":", 2)
-	if len(parts) != 2 {
-		return fmt.Errorf("%q is not in name:port format", s)
+	parts := strings.SplitN(s, ":", 3)
+	if len(parts) < 2 {
+		return fmt.Errorf("%q is not in name:[ip:]port format", s)
 	}
 
 	name, err := types.NewACName(parts[0])
@@ -397,7 +405,17 @@ func (pl *portList) Set(s string) error {
 		return errwrap.Wrap(fmt.Errorf("%q is not a valid port name", parts[0]), err)
 	}
 
-	port, err := strconv.ParseUint(parts[1], 10, 16)
+	portStr := parts[1]
+	var ip net.IP
+	if len(parts) == 3 {
+		portStr = parts[2]
+		ip = net.ParseIP(parts[1])
+		if ip == nil {
+			return fmt.Errorf("%q is not a valid IP", parts[1])
+		}
+	}
+
+	port, err := strconv.ParseUint(portStr, 10, 16)
 	if err != nil {
 		return fmt.Errorf("%q is not a valid port number", parts[1])
 	}
@@ -405,6 +423,7 @@ func (pl *portList) Set(s string) error {
 	p := types.ExposedPort{
 		Name:     *name,
 		HostPort: uint(port),
+		HostIP:   ip,
 	}
 
 	*pl = append(*pl, p)
@@ -439,35 +458,35 @@ func (dns *flagStringList) Type() string {
 	return "flagStringList"
 }
 
-// envMap implements the flag.Value interface to contain a set of name=value mappings
-type envMap struct {
+// kvMap implements the flag.Value interface to contain a set of key=value mappings
+type kvMap struct {
 	mapping map[string]string
 }
 
-func (e *envMap) Set(s string) error {
+func (e *kvMap) Set(s string) error {
 	if e.mapping == nil {
 		e.mapping = make(map[string]string)
 	}
 	pair := strings.SplitN(s, "=", 2)
 	if len(pair) != 2 {
-		return fmt.Errorf("environment variable must be specified as name=value")
+		return fmt.Errorf("must be specified as key=value")
 	}
 	if _, exists := e.mapping[pair[0]]; exists {
-		return fmt.Errorf("environment variable %q already set", pair[0])
+		return fmt.Errorf("key %q already set", pair[0])
 	}
 	e.mapping[pair[0]] = pair[1]
 	return nil
 }
 
-func (e *envMap) IsEmpty() bool {
+func (e *kvMap) IsEmpty() bool {
 	return len(e.mapping) == 0
 }
 
-func (e *envMap) String() string {
+func (e *kvMap) String() string {
 	return strings.Join(e.Strings(), "\n")
 }
 
-func (e *envMap) Strings() []string {
+func (e *kvMap) Strings() []string {
 	var env []string
 	for n, v := range e.mapping {
 		env = append(env, n+"="+v)
@@ -475,8 +494,8 @@ func (e *envMap) Strings() []string {
 	return env
 }
 
-func (e *envMap) Type() string {
-	return "envMap"
+func (e *kvMap) Type() string {
+	return "kvMap"
 }
 
 // envFileMap
