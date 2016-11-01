@@ -281,9 +281,8 @@ func buildAci(root, manifestPath, target string, uidRange *user.UidRange) (e err
 	if err != nil {
 		if os.IsExist(err) {
 			return errors.New("target file exists (try --overwrite)")
-		} else {
-			return errwrap.Wrap(fmt.Errorf("unable to open target %s", target), err)
 		}
+		return errwrap.Wrap(fmt.Errorf("unable to open target %s", target), err)
 	}
 
 	gw := gzip.NewWriter(aciFile)

@@ -1031,9 +1031,8 @@ func (p *Pod) Pid() (int, error) {
 	}
 	if pid, err := p.readIntFromFile("ppid"); err != nil {
 		return -1, err
-	} else {
-		return pid, nil
 	}
+	return pid, nil
 }
 
 // ContainerPid1 returns the pid of the process with pid 1 in the pod.

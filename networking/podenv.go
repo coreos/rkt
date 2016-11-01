@@ -131,13 +131,12 @@ func (e *podEnv) podNSLoad() (ns.NetNS, error) {
 	podNSPath, err := e.podNSPathLoad()
 	if err != nil && !podNSerrorOK(podNSPath, err) {
 		return nil, err
-	} else {
-		podNS, err := ns.GetNS(podNSPath)
-		if err != nil && !podNSerrorOK(podNSPath, err) {
-			return nil, err
-		}
-		return podNS, nil
 	}
+	podNS, err := ns.GetNS(podNSPath)
+	if err != nil && !podNSerrorOK(podNSPath, err) {
+		return nil, err
+	}
+	return podNS, nil
 }
 
 func (e *podEnv) podNSPathSave() error {

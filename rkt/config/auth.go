@@ -18,15 +18,16 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/client/metadata"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/private/signer/v4"
-	"io"
-	"net/http"
-	"strings"
-	"time"
 )
 
 const (
@@ -163,9 +164,8 @@ func guessAWSRegion(host string) string {
 		return parts[len(parts)-3][3:]
 	} else if len(parts) > 4 && parts[len(parts)-4] == "s3" {
 		return parts[len(parts)-3]
-	} else {
-		return defaultAWSRegion
 	}
+	return defaultAWSRegion
 }
 
 func (p *authV1JsonParser) parse(config *Config, raw []byte) error {

@@ -174,9 +174,8 @@ func ensureDestinationExists(source, destination string) error {
 	} else {
 		if file, err := os.OpenFile(destination, os.O_CREATE, stage1initcommon.SharedVolPerm); err != nil {
 			return err
-		} else {
-			file.Close()
 		}
+		file.Close()
 	}
 	return nil
 }
@@ -259,10 +258,9 @@ func linkJournal(s1Root, machineID string) error {
 
 		if link == podJournalDir {
 			return nil
-		} else {
-			if err := os.Remove(machineJournalDir); err != nil {
-				return err
-			}
+		}
+		if err := os.Remove(machineJournalDir); err != nil {
+			return err
 		}
 	}
 

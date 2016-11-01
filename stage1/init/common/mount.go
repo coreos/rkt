@@ -16,6 +16,7 @@ package common
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -232,9 +233,8 @@ func ensureDestinationExists(source, destination string) error {
 	} else {
 		if file, err := os.OpenFile(destination, os.O_CREATE, SharedVolPerm); err != nil {
 			return err
-		} else {
-			file.Close()
 		}
+		file.Close()
 	}
 	return nil
 }
