@@ -17,7 +17,8 @@ _S1_SS_SUBDIRS_ := \
 	app-start \
 	app-stop \
 	units \
-	aci
+	aci \
+	runc
 
 $(call inc-many,$(foreach f,$(_S1_SS_SUBDIRS_),$f/$f.mk))
 
