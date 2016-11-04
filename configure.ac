@@ -357,33 +357,6 @@ AS_VAR_IF([RKT_SPECIFIED_FLAVORS],[],
                            [],
                            [AC_MSG_ERROR([*** No development headers for libdl found])],
                            [AC_INCLUDES_DEFAULT])
-           # check for static libc
-           SAVE_LDFLAGS="$LDFLAGS"
-           LDFLAGS="-static $LDFLAGS"
-           AC_CHECK_LIB([c], [printf],
-                        dnl static libc is there
-                        [:],
-                        dnl static libc is not there
-                        [AC_MSG_ERROR([*** No static libc found. Try to install glibc-static or libc6-dev.])])
-           LDFLAGS="$SAVE_LDFLAGS"
-
-           # check for setns syscall, drop it in 2020 (centos 6.7 support ends
-           # then).
-           AC_MSG_CHECKING([whether C library provides setns function])
-           AC_LINK_IFELSE([AC_LANG_PROGRAM([[
-                                             #define _GNU_SOURCE
-                                             #include <sched.h>
-                                           ]], [[(void)setns(0, 0);]])],
-                          [AC_MSG_RESULT([yes])],
-                          [AC_MSG_RESULT([no])
-                           AC_MSG_CHECKING([whether Linux kernel headers provide __NR_setns macro])
-                           AC_LINK_IFELSE([AC_LANG_PROGRAM([[
-                                                             #include <linux/unistd.h>
-                                                           ]], [[(void)syscall(__NR_setns,0,0);]])],
-                                          [AC_MSG_RESULT([yes])
-                                           RKT_DEFINES_FOR_ENTER=-DNO_SETNS_AVAILABLE],
-                                          [AC_MSG_RESULT([no])
-                                           AC_MSG_ERROR([*** Neither setns function nor __NR_setns macro are available - either both glibc and kernel are too old or their development headers are not installed])])])
 
            AC_LANG_POP([C])])
 

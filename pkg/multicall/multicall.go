@@ -14,8 +14,6 @@
 
 // inspired by github.com/docker/docker/pkg/reexec
 
-//+build linux
-
 package multicall
 
 import (
@@ -24,25 +22,30 @@ import (
 	"os/exec"
 	"path"
 	"syscall"
+
+	"github.com/coreos/rkt/pkg/sys"
 )
 
-var exePath string
+var (
+	exePath     string
+	sysProcAttr *syscall.SysProcAttr
+	commands    = make(map[string]commandFn)
+)
+
+type commandFn func() error
+
+// Entrypoint provides the access to a multicall command.
+type Entrypoint string
 
 func init() {
 	// save the program path
 	var err error
-	exePath, err = os.Readlink("/proc/self/exe")
+	exePath, err = sys.SelfPath()
 	if err != nil {
 		panic("cannot get current executable")
 	}
+
 }
-
-type commandFn func() error
-
-var commands = make(map[string]commandFn)
-
-// Entrypoint provides the access to a multicall command.
-type Entrypoint string
 
 // Add adds a new multicall command. name is the command name and fn is the
 // function that will be executed for the specified command. It returns the
@@ -79,10 +82,8 @@ func (e Entrypoint) Cmd(args ...string) *exec.Cmd {
 	// append the Entrypoint as argv[0]
 	args = append([]string{string(e)}, args...)
 	return &exec.Cmd{
-		Path: exePath,
-		Args: args,
-		SysProcAttr: &syscall.SysProcAttr{
-			Pdeathsig: syscall.SIGTERM,
-		},
+		Path:        exePath,
+		Args:        args,
+		SysProcAttr: sysProcAttr,
 	}
 }

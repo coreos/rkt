@@ -19,9 +19,9 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"syscall"
 
 	"github.com/containernetworking/cni/pkg/types"
+	"github.com/coreos/rkt/pkg/sys"
 )
 
 const filename = "net-info.json"
@@ -48,7 +48,7 @@ type NetInfo struct {
 }
 
 func LoadAt(cdirfd int) ([]NetInfo, error) {
-	fd, err := syscall.Openat(cdirfd, filename, syscall.O_RDONLY, 0)
+	fd, err := sys.OpenAt(cdirfd, filename, 0)
 	if err != nil {
 		return nil, err
 	}

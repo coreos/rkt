@@ -1,4 +1,4 @@
-// Copyright 2016 The rkt Authors
+// Copyright 2015 The rkt Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,16 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// +build !sdjournal,linux
+// +build linux
 
-package main
+package netinfo
 
 import (
-	"fmt"
-
-	"github.com/coreos/rkt/api/v1alpha"
+	"syscall"
 )
 
-func (s *v1AlphaAPIServer) constrainedGetLogs(request *v1alpha.GetLogsRequest, server v1alpha.PublicAPI_GetLogsServer) error {
-	return fmt.Errorf("rkt built without logging support")
+func openAt(cdirfd int, path string) (int, error) {
+	return syscall.Openat(cdirfd, filename, syscall.O_RDONLY, 0)
 }

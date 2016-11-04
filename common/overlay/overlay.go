@@ -16,9 +16,9 @@ package overlay
 
 import (
 	"fmt"
-	"syscall"
 
 	"github.com/coreos/rkt/pkg/label"
+	"github.com/coreos/rkt/pkg/sys"
 	"github.com/hashicorp/errwrap"
 )
 
@@ -40,7 +40,7 @@ type MountCfg struct {
 func Mount(cfg *MountCfg) error {
 	opts := fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s", cfg.Lower, cfg.Upper, cfg.Work)
 	opts = label.FormatMountLabel(opts, cfg.Lbl)
-	if err := syscall.Mount("overlay", cfg.Dest, "overlay", 0, opts); err != nil {
+	if err := sys.Mountfs("overlay", cfg.Dest, "overlay", 0, opts); err != nil {
 		return errwrap.Wrap(fmt.Errorf("error mounting overlay with options '%s' and dest '%s'", opts, cfg.Dest), err)
 	}
 

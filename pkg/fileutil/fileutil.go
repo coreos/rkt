@@ -103,7 +103,7 @@ func CopyTree(src, dest string, uidRange *user.UidRange) error {
 				return err
 			}
 
-			dev := device.Makedev(device.Major(stat.Rdev), device.Minor(stat.Rdev))
+			dev := device.Makedev(device.Major(uint64(stat.Rdev)), device.Minor(uint64(stat.Rdev)))
 			mode := uint32(mode) | syscall.S_IFCHR
 			if err := syscall.Mknod(target, mode, int(dev)); err != nil {
 				return err
@@ -114,7 +114,7 @@ func CopyTree(src, dest string, uidRange *user.UidRange) error {
 				return err
 			}
 
-			dev := device.Makedev(device.Major(stat.Rdev), device.Minor(stat.Rdev))
+			dev := device.Makedev(device.Major(uint64(stat.Rdev)), device.Minor(uint64(stat.Rdev)))
 			mode := uint32(mode) | syscall.S_IFBLK
 			if err := syscall.Mknod(target, mode, int(dev)); err != nil {
 				return err
@@ -190,8 +190,7 @@ func pathToTimespec(name string) ([]syscall.Timespec, error) {
 		return nil, err
 	}
 	mtime := fi.ModTime()
-	stat := fi.Sys().(*syscall.Stat_t)
-	atime := time.Unix(int64(stat.Atim.Sec), int64(stat.Atim.Nsec))
+	atime := GetAtime(fi)
 	return []syscall.Timespec{TimeToTimespec(atime), TimeToTimespec(mtime)}, nil
 }
 

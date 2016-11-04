@@ -55,7 +55,7 @@ $(call setup-stamp-file,UFS_SYSTEMD_RM_ACIROOTFSDIR_STAMP,systemd-rm-acirootfs)
 # the regexp, so if that number is equal to the string length then it
 # means that the string matched the regexp.
 UFS_SYSTEMD_TAG_MATCH := $(shell expr "$(RKT_STAGE1_SYSTEMD_VER)" : 'v[[:digit:]]\+')
-UFS_SYSTEMD_TAG_LENGTH := $(shell expr length "$(RKT_STAGE1_SYSTEMD_VER)")
+UFS_SYSTEMD_TAG_LENGTH := $(shell echo -n "$(RKT_STAGE1_SYSTEMD_VER)" | wc -c)
 # patches dir
 UFS_PATCHES_DIR := $(MK_SRCDIR)/patches/$(RKT_STAGE1_SYSTEMD_VER)
 # output file for autogen.sh, used for the truncated verbosity

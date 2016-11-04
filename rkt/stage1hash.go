@@ -17,12 +17,12 @@ package main
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/common/apps"
+	"github.com/coreos/rkt/pkg/sys"
 	"github.com/coreos/rkt/rkt/config"
 	"github.com/coreos/rkt/rkt/image"
 	"github.com/coreos/rkt/store/imagestore"
@@ -366,7 +366,7 @@ func getStage1HashFromPath(fn *image.Finder, imgLoc, imgFileName string) (*types
 		fetchErr = err
 	}
 	if imgFileName != "" {
-		exePath, err := os.Readlink("/proc/self/exe")
+		exePath, err := sys.SelfPath()
 		if err != nil {
 			fallbackErr = err
 		} else {

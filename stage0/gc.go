@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//+build linux
-
 package stage0
 
 import (
@@ -30,6 +28,7 @@ import (
 	"syscall"
 
 	"github.com/coreos/rkt/common"
+	"github.com/coreos/rkt/pkg/sys"
 
 	"github.com/appc/spec/schema/types"
 	"github.com/hashicorp/errwrap"
@@ -207,7 +206,7 @@ func MountGC(path, uuid string) error {
 	for i := len(mnts) - 1; i >= 0; i-- {
 		mnt := mnts[i]
 		if needsRemountPrivate(mnt) {
-			if err := syscall.Mount("", mnt.MountPoint, "", syscall.MS_PRIVATE, ""); err != nil {
+			if err := sys.RemountPrivate(mnt.MountPoint); err != nil {
 				return errwrap.Wrap(fmt.Errorf("could not remount at %v", mnt.MountPoint), err)
 			}
 		}

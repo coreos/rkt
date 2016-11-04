@@ -15,7 +15,12 @@
 package sys
 
 import (
+	"errors"
 	"syscall"
+)
+
+var (
+	ErrNotImplemented = errors.New("Not implemented")
 )
 
 // CloseOnExec sets or clears FD_CLOEXEC flag on a file descriptor
