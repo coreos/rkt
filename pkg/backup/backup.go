@@ -59,21 +59,20 @@ func CreateBackup(dir, backupsDir string, limit int) error {
 func pruneOldBackups(dir string, limit int) error {
 	if list, err := ioutil.ReadDir(dir); err != nil {
 		return err
-	} else {
-		for _, fi := range list {
-			if num, err := strconv.Atoi(fi.Name()); err != nil {
-				// directory name is not a number,
-				// leave it alone
-				continue
-			} else if num < limit {
-				// directory name is a number lower
-				// than a limit, leave it alone
-				continue
-			}
-			path := filepath.Join(dir, fi.Name())
-			if err := os.RemoveAll(path); err != nil {
-				return err
-			}
+	}
+	for _, fi := range list {
+		if num, err := strconv.Atoi(fi.Name()); err != nil {
+			// directory name is not a number,
+			// leave it alone
+			continue
+		} else if num < limit {
+			// directory name is a number lower
+			// than a limit, leave it alone
+			continue
+		}
+		path := filepath.Join(dir, fi.Name())
+		if err := os.RemoveAll(path); err != nil {
+			return err
 		}
 	}
 	return nil

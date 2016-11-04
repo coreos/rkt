@@ -132,9 +132,8 @@ func parseHeader(scanner *bufio.Scanner) (string, int, error) {
 	if !scanner.Scan() {
 		if err := scanner.Err(); err != nil {
 			return "", 0, err
-		} else {
-			return "", 0, fmt.Errorf("expected a line with a count, unexpected EOF?")
 		}
+		return "", 0, fmt.Errorf("expected a line with a count, unexpected EOF?")
 	}
 	countReader := strings.NewReader(scanner.Text())
 	count := 0

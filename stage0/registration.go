@@ -31,6 +31,7 @@ import (
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
 	"github.com/hashicorp/errwrap"
+	"github.com/prometheus/common/log"
 
 	"github.com/coreos/rkt/common"
 )
@@ -196,8 +197,7 @@ func httpRequest(method, pth string, body io.Reader) error {
 func CheckMdsAvailability() error {
 	if conn, err := net.Dial("unix", common.MetadataServiceRegSock); err != nil {
 		return errUnreachable
-	} else {
-		conn.Close()
-		return nil
 	}
+	conn.Close()
+	return nil
 }

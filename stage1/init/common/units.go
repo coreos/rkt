@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -177,10 +178,10 @@ func ImmutableEnv(p *stage1commontypes.Pod, interactive bool, privateUsers strin
 	return w.Error()
 }
 
-// UnitWriter is the type that writes systemd units preserving the first previously occured error.
+// UnitWriter is the type that writes systemd units preserving the first previously occurred error.
 // Any method of this type can be invoked multiple times without error checking.
 // If a previous invocation generated an error, any invoked method will be skipped.
-// If an error occured during method invocations, it can be retrieved using Error().
+// If an error occurred during method invocations, it can be retrieved using Error().
 type UnitWriter struct {
 	err error
 	p   *stage1commontypes.Pod
@@ -192,7 +193,7 @@ func NewUnitWriter(p *stage1commontypes.Pod) *UnitWriter {
 }
 
 // WriteUnit writes a systemd unit in the given path with the given unit options
-// if no previous error occured.
+// if no previous error occurred.
 func (uw *UnitWriter) WriteUnit(path string, errmsg string, opts ...*unit.UnitOption) {
 	if uw.err != nil {
 		return
@@ -211,7 +212,7 @@ func (uw *UnitWriter) WriteUnit(path string, errmsg string, opts ...*unit.UnitOp
 }
 
 // writeShutdownService writes a shutdown.service unit with the given unit options
-// if no previous error occured.
+// if no previous error occurred.
 // exec specifies how systemctl should be invoked, i.e. ExecStart, or ExecStop.
 func (uw *UnitWriter) writeShutdownService(exec string, opts ...*unit.UnitOption) {
 	if uw.err != nil {
@@ -273,7 +274,7 @@ func (uw *UnitWriter) Activate(unit, wantPath string) {
 	}
 }
 
-// error returns the first error that occured during write* invocations.
+// error returns the first error that occurred during write* invocations.
 func (uw *UnitWriter) Error() error {
 	return uw.err
 }

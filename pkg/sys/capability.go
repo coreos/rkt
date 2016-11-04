@@ -29,7 +29,6 @@ func HasChrootCapability() bool {
 	caps, err := capability.NewPid(0)
 	if err == nil {
 		return caps.Get(capability.EFFECTIVE, capability.CAP_SYS_CHROOT)
-	} else {
-		return os.Geteuid() == 0
 	}
+	return os.Geteuid() == 0
 }
