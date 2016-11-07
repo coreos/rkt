@@ -375,7 +375,8 @@ func (uw *UnitWriter) AppUnit(
 		opts = append(opts, unit.NewUnitOption("Service", "Type", "notify"))
 	}
 
-	if !insecureOptions.DisableCapabilities {
+	// For kvm flavor, capabilities refer to stage1 VM, without influence to the host
+	if !insecureOptions.DisableCapabilities && flavor != "kvm" {
 		opts = append(opts, unit.NewUnitOption("Service", "CapabilityBoundingSet", strings.Join(capabilitiesStr, " ")))
 	}
 
@@ -383,7 +384,8 @@ func (uw *UnitWriter) AppUnit(
 
 	// Apply seccomp isolator, if any and not opt-ing out;
 	// see https://www.freedesktop.org/software/systemd/man/systemd.exec.html#SystemCallFilter=
-	if !insecureOptions.DisableSeccomp {
+	// For kvm flavor, seccomp refer to stage1 VM, without influence to the host
+	if !insecureOptions.DisableSeccomp && flavor != "kvm" {
 		var forceNoNewPrivileges bool
 
 		unprivileged := (u != 0)
