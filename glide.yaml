@@ -218,7 +218,7 @@ import:
   subpackages:
   - capability
 - package: github.com/vishvananda/netlink
-  version: ecf47fd5739b3d2c3daf7c89c4b9715a2605c21b
+  version: da7420cab5e209195f5f7387fccd4c7f48758d30
   subpackages:
   - nl
 - package: go4.org

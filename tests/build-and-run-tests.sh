@@ -121,6 +121,7 @@ function configure {
         coreos|kvm|fly)
         ./configure --with-stage1-flavors="${RKT_STAGE1_USR_FROM}" \
                 --with-stage1-default-flavor="${RKT_STAGE1_USR_FROM}" \
+                --with-stage1-kvm-hypervisors=qemu \
                 --enable-functional-tests --enable-tpm=auto \
                 --enable-insecure-go
         ;;

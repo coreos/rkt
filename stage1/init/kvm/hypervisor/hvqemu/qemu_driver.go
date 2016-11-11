@@ -26,7 +26,7 @@ import (
 
 // StartCmd takes path to stage1, name of the machine, path to kernel, network describers, memory in megabytes
 // and quantity of cpus and prepares command line to run QEMU process
-func StartCmd(wdPath, name, kernelPath string, nds []kvm.NetDescriber, cpu, mem int64, debug bool) []string {
+func StartCmd(wdPath, name, kernelPath string, nds []kvm.NetDescriber, cpu, mem int64, debug bool, podNS string) []string {
 	var (
 		driverConfiguration = hypervisor.KvmHypervisor{
 			Bin: "./qemu",
@@ -44,6 +44,7 @@ func StartCmd(wdPath, name, kernelPath string, nds []kvm.NetDescriber, cpu, mem 
 	driverConfiguration.InitKernelParams(debug)
 
 	cmd := []string{
+		filepath.Join(wdPath, "/usr/bin/ip"), "netns", "exec", podNS,
 		filepath.Join(wdPath, driverConfiguration.Bin),
 		"-L", wdPath,
 		"-no-reboot",
@@ -69,9 +70,9 @@ func StartCmd(wdPath, name, kernelPath string, nds []kvm.NetDescriber, cpu, mem 
 func kvmNetArgs(nds []kvm.NetDescriber) []string {
 	var qemuArgs []string
 
-	for _, nd := range nds {
+	for i := range nds {
 		qemuArgs = append(qemuArgs, []string{"-net", "nic,model=virtio"}...)
-		qemuNic := fmt.Sprintf("tap,ifname=%s,script=no,downscript=no,vhost=on", nd.IfName())
+		qemuNic := fmt.Sprintf("tap,ifname=tap%d,script=stage1/rootfs/net-tap-setup,downscript=stage1/rootfs/net-tap-teardown,vhost=on", i)
 		qemuArgs = append(qemuArgs, []string{"-net", qemuNic}...)
 	}
 

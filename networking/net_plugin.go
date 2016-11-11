@@ -69,6 +69,7 @@ func (e *podEnv) netPluginAdd(n *activeNet, netns string) error {
 
 	// All is well - mutate the runtime
 	n.runtime.MergeCNIResult(pr)
+
 	return nil
 }
 

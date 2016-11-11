@@ -12,9 +12,9 @@ imports:
   - lib/internal/docker
   - lib/internal/tarball
   - lib/internal/types
-  - lib/internal/typesV2
   - lib/internal/util
   - pkg/log
+  - lib/internal/typesV2
 - name: github.com/appc/goaci
   version: ba7b591f930783c0ab75f5bbfd6ff65c7bd011bf
   subpackages:
@@ -53,32 +53,32 @@ imports:
   - pkg/ipam
   - pkg/ns
   - pkg/skel
-  - pkg/skel
   - pkg/testutils
+  - pkg/skel
   - pkg/testutils
   - pkg/types
   - pkg/utils
   - pkg/utils/sysctl
-  - pkg/utils/sysctl
-  - plugins/ipam/dhcp
   - plugins/ipam/dhcp
   - plugins/ipam/host-local
-  - plugins/ipam/host-local
-  - plugins/ipam/host-local/backend
   - plugins/ipam/host-local/backend
   - plugins/ipam/host-local/backend/disk
-  - plugins/ipam/host-local/backend/disk
-  - plugins/main/bridge
   - plugins/main/bridge
   - plugins/main/ipvlan
-  - plugins/main/ipvlan
-  - plugins/main/macvlan
   - plugins/main/macvlan
   - plugins/main/ptp
-  - plugins/main/ptp
-  - plugins/meta/flannel
   - plugins/meta/flannel
   - plugins/meta/tuning
+  - pkg/utils/sysctl
+  - plugins/ipam/dhcp
+  - plugins/ipam/host-local
+  - plugins/ipam/host-local/backend
+  - plugins/ipam/host-local/backend/disk
+  - plugins/main/bridge
+  - plugins/main/ipvlan
+  - plugins/main/macvlan
+  - plugins/main/ptp
+  - plugins/meta/flannel
   - plugins/meta/tuning
 - name: github.com/coreos/gexpect
   version: ca42424d18c76d0d51a4cccd830d11878e9e5c17
@@ -172,9 +172,9 @@ imports:
   - protoc-gen-go
   - protoc-gen-go/descriptor
   - protoc-gen-go/generator
-  - protoc-gen-go/grpc
   - protoc-gen-go/internal/grpc
   - protoc-gen-go/plugin
+  - protoc-gen-go/grpc
 - name: github.com/google/btree
   version: f06e229e679911bb31a04e07ac891115822e37c3
 - name: github.com/gorilla/context
@@ -249,9 +249,11 @@ imports:
   subpackages:
   - capability
 - name: github.com/vishvananda/netlink
-  version: ecf47fd5739b3d2c3daf7c89c4b9715a2605c21b
+  version: da7420cab5e209195f5f7387fccd4c7f48758d30
   subpackages:
   - nl
+- name: github.com/vishvananda/netns
+  version: 8ba1072b58e0c2a240eb5f6120165c7776c3e7b8
 - name: go4.org
   version: 03efcb870d84809319ea509714dd6d19a1498483
   subpackages:
@@ -276,8 +278,8 @@ imports:
   - http2
   - http2/hpack
   - internal/timeseries
-  - lex/httplex
   - trace
+  - lex/httplex
 - name: golang.org/x/sys
   version: b44883b474ffefa37335017174e397412b633a4f
   subpackages:
@@ -292,11 +294,11 @@ imports:
   - codes
   - credentials
   - grpclog
-  - internal
   - metadata
   - naming
   - peer
   - transport
+  - internal
 - name: gopkg.in/inf.v0
   version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4
 - name: k8s.io/kubernetes

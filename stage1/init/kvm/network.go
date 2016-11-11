@@ -45,7 +45,7 @@ type NetDescriber interface {
 	IPMasq() bool
 	Name() string
 	Gateway() net.IP
-	Routes() []types.Route
+	Routes() ([]types.Route, error)
 }
 
 // GetKVMNetArgs returns additional arguments that need to be passed
@@ -129,20 +129,47 @@ func GenerateNetworkInterfaceUnits(unitsPath string, netDescriptions []NetDescri
 			unit.NewUnitOption("Install", "RequiredBy", "default.target"),
 		}
 
-		for _, route := range netDescription.Routes() {
-			gw := route.GW
-			if gw == nil {
-				gw = netDescription.Gateway()
-			}
+		// add network related routes
+		_, ipnet, err := net.ParseCIDR(address)
+		if err != nil {
+			return err
+		}
 
-			opts = append(
-				opts,
-				unit.NewUnitOption(
-					"Service",
-					"ExecStartPost",
-					addRouteCommand(route.Dst.String(), gw.String()),
-				),
-			)
+		opts = append(opts, unit.NewUnitOption(
+			"Service",
+			"ExecStartPost",
+			fmt.Sprintf("/bin/ip route del %s", ipnet.String())))
+
+		opts = append(opts, unit.NewUnitOption(
+			"Service",
+			"ExecStartPost",
+			fmt.Sprintf("/bin/ip route add %s dev %s src %s", netDescription.Gateway(), ifName, netDescription.GuestIP())))
+
+		opts = append(opts, unit.NewUnitOption(
+			"Service",
+			"ExecStartPost",
+			fmt.Sprintf("/bin/ip route add %s via %s dev %s", ipnet.String(), netDescription.Gateway(), ifName)))
+
+		routes, err := netDescription.Routes()
+		if err == nil {
+			for _, route := range routes {
+				diag.Printf("route: %v\n", route)
+				gw := route.GW
+				if gw == nil {
+					gw = netDescription.Gateway()
+				}
+
+				opts = append(
+					opts,
+					unit.NewUnitOption(
+						"Service",
+						"ExecStartPost",
+						addRouteCommand(route.Dst.String(), gw.String()),
+					),
+				)
+			}
+		} else {
+			diag.Printf("!!! NO ROUTES !!! %v\n", err)
 		}
 
 		unitName := fmt.Sprintf("interface-%s", ifName) + ".service"

@@ -68,10 +68,6 @@ func Setup(podRoot string, podID types.UUID, fps []commonnet.ForwardedPort, netL
 	stderr = log.New(os.Stderr, "networking", debug)
 	debuglog = debug
 
-	if flavor == "kvm" {
-		return kvmSetup(podRoot, podID, fps, netList, localConfig, noDNS)
-	}
-
 	// TODO(jonboulle): currently podRoot is _always_ ".", and behaviour in other
 	// circumstances is untested. This should be cleaned up.
 	n := Networking{
@@ -121,8 +117,10 @@ func Setup(podRoot string, podID types.UUID, fps []commonnet.ForwardedPort, netL
 		return nil, err
 	}
 
-	if err = loUp(); err != nil {
-		return nil, err
+	if flavor != "kvm" {
+		if err = loUp(); err != nil {
+			return nil, err
+		}
 	}
 
 	return &n, nil
@@ -269,11 +267,6 @@ func (n *Networking) Teardown(flavor string, debug bool) {
 
 	// Teardown everything in reverse order of setup.
 	// This should be idempotent -- be tolerant of missing stuff
-
-	if flavor == "kvm" {
-		n.kvmTeardown()
-		return
-	}
 
 	if err := n.teardownForwarding(); err != nil {
 		stderr.PrintE("error removing forwarded ports", err)

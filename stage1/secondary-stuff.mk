@@ -8,6 +8,8 @@ _S1_SS_SUBDIRS_ := \
 	init \
 	net \
 	net-plugins \
+	net-tap-setup \
+	net-tap-teardown \
 	prepare-app \
 	reaper \
 	stop \

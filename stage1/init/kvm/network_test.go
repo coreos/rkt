@@ -30,14 +30,14 @@ type testNetDescriber struct {
 	ipMasq  bool
 }
 
-func (t testNetDescriber) HostIP() net.IP        { return t.hostIP }
-func (t testNetDescriber) GuestIP() net.IP       { return t.guestIP }
-func (t testNetDescriber) Mask() net.IP          { return t.mask }
-func (t testNetDescriber) IfName() string        { return t.ifName }
-func (t testNetDescriber) IPMasq() bool          { return t.ipMasq }
-func (t testNetDescriber) Name() string          { return t.name }
-func (t testNetDescriber) Gateway() net.IP       { return net.IP{1, 1, 1, 1} }
-func (t testNetDescriber) Routes() []types.Route { return []types.Route{} }
+func (t testNetDescriber) HostIP() net.IP                 { return t.hostIP }
+func (t testNetDescriber) GuestIP() net.IP                { return t.guestIP }
+func (t testNetDescriber) Mask() net.IP                   { return t.mask }
+func (t testNetDescriber) IfName() string                 { return t.ifName }
+func (t testNetDescriber) IPMasq() bool                   { return t.ipMasq }
+func (t testNetDescriber) Name() string                   { return t.name }
+func (t testNetDescriber) Gateway() net.IP                { return net.IP{1, 1, 1, 1} }
+func (t testNetDescriber) Routes() ([]types.Route, error) { return []types.Route{}, nil }
 
 func TestGetKVMNetArgs(t *testing.T) {
 	tests := []struct {

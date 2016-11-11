@@ -42,8 +42,8 @@ type NetInfo struct {
 	IP         net.IP          `json:"ip"`
 	Args       string          `json:"args"`
 	Mask       net.IP          `json:"mask"` // we used IP instead of IPMask because support for json serialization (we don't need specific functionalities)
-	HostIP     net.IP          `json:"-"`
-	IP4        *types.IPConfig `json:"-"`
+	HostIP     net.IP          `json:"gateway"`
+	IP4        *types.IPConfig `json:"ip4"`
 	DNS        types.DNS       `json:"-"`
 }
 

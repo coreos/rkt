@@ -27,7 +27,7 @@ import (
 // StartCmd takes path to stage1, UUID of the pod, path to kernel, network
 // describers, memory in megabytes and quantity of cpus and prepares command
 // line to run LKVM process
-func StartCmd(wdPath, uuid, kernelPath string, nds []kvm.NetDescriber, cpu, mem int64, debug bool) []string {
+func StartCmd(wdPath, uuid, kernelPath string, nds []kvm.NetDescriber, cpu, mem int64, debug bool, podNS string) []string {
 	machineID := strings.Replace(uuid, "-", "", -1)
 	driverConfiguration := hypervisor.KvmHypervisor{
 		Bin: "./lkvm",
@@ -41,6 +41,7 @@ func StartCmd(wdPath, uuid, kernelPath string, nds []kvm.NetDescriber, cpu, mem 
 	driverConfiguration.InitKernelParams(debug)
 
 	startCmd := []string{
+		filepath.Join(wdPath, "/usr/bin/ip"), "netns", "exec", podNS,
 		filepath.Join(wdPath, driverConfiguration.Bin),
 		"run",
 		"--name", "rkt-" + uuid,
@@ -62,11 +63,11 @@ func StartCmd(wdPath, uuid, kernelPath string, nds []kvm.NetDescriber, cpu, mem 
 func kvmNetArgs(nds []kvm.NetDescriber) []string {
 	var lkvmArgs []string
 
-	for _, nd := range nds {
+	for i := range nds {
 		lkvmArgs = append(lkvmArgs, "--network")
 		lkvmArgs = append(
 			lkvmArgs,
-			fmt.Sprintf("mode=tap,tapif=%s,host_ip=%s,guest_ip=%s", nd.IfName(), nd.Gateway(), nd.GuestIP()),
+			fmt.Sprintf("mode=tap,tapif=tap%d,script=stage1/rootfs/net-tap-setup,downscript=stage1/rootfs/net-tap-teardown", i),
 		)
 	}
 
