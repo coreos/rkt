@@ -58,7 +58,7 @@ func (f *httpFetcher) Hash(u *url.URL, a *asc) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer func() { maybeClose(aciFile) }()
+	defer aciFile.Close()
 
 	if key := maybeUseCached(f.Rem, cd); key != "" {
 		// TODO(krnowak): that does not update the store with
@@ -119,15 +119,15 @@ func (f *httpFetcher) fetchVerifiedURL(u *url.URL, a *asc, etag string) (readSee
 	if err != nil {
 		return nil, nil, err
 	}
-	defer func() { maybeClose(ascFile) }()
+	defer ascFile.Close()
 
 	aciFile, cd, err := o.DownloadImageWithETag(u, etag)
 	if err != nil {
 		return nil, nil, err
 	}
-	defer func() { maybeClose(aciFile) }()
+
 	if cd.UseCached {
-		return nil, cd, nil
+		return NopReadSeekCloser(nil), cd, nil
 	}
 
 	if retry {
@@ -140,9 +140,7 @@ func (f *httpFetcher) fetchVerifiedURL(u *url.URL, a *asc, etag string) (readSee
 	if err := f.validate(aciFile, ascFile); err != nil {
 		return nil, nil, err
 	}
-	retAciFile := aciFile
-	aciFile = nil
-	return retAciFile, cd, nil
+	return aciFile, cd, nil
 }
 
 func (f *httpFetcher) httpOps() *httpOps {

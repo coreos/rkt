@@ -49,7 +49,7 @@ func (o *httpOps) DownloadSignature(a *asc) (readSeekCloser, bool, error) {
 	}
 	if _, ok := err.(*statusAcceptedError); ok {
 		log.Printf("server requested deferring the signature download")
-		return nil, true, nil
+		return NopReadSeekCloser(nil), true, nil
 	}
 	return nil, false, errwrap.Wrap(errors.New("error downloading the signature file"), err)
 }
@@ -91,19 +91,19 @@ func (o *httpOps) DownloadImageWithETag(u *url.URL, etag string) (readSeekCloser
 	if err != nil {
 		return nil, nil, err
 	}
-	defer func() { maybeClose(aciFile) }()
 
 	session := o.getSession(u, aciFile.File, "ACI", etag)
 	dl := o.getDownloader(session)
 	if err := dl.Download(u, aciFile.File); err != nil {
+		aciFile.Close() // download failed, close the aciFile to implicitely release the lock
 		return nil, nil, errwrap.Wrap(errors.New("error downloading ACI"), err)
 	}
+
 	if session.Cd.UseCached {
-		return nil, session.Cd, nil
+		return NopReadSeekCloser(nil), session.Cd, nil
 	}
-	retAciFile := aciFile
-	aciFile = nil
-	return retAciFile, session.Cd, nil
+
+	return aciFile, session.Cd, nil
 }
 
 // AscRemoteFetcher provides a remoteAscFetcher for asc.

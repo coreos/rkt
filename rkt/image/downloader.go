@@ -52,7 +52,6 @@ type downloader struct {
 // Download tries to fetch the passed URL and write the contents into
 // a given writeSyncer instance.
 func (d *downloader) Download(u *url.URL, out writeSyncer) error {
-	d.ensureSession()
 	client, err := d.Session.Client()
 	if err != nil {
 		return err
@@ -84,12 +83,6 @@ func (d *downloader) Download(u *url.URL, out writeSyncer) error {
 	}
 
 	return nil
-}
-
-func (d *downloader) ensureSession() {
-	if isReallyNil(d.Session) {
-		d.Session = &defaultDownloadSession{}
-	}
 }
 
 // default DownloadSession is very simple implementation of

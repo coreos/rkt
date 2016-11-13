@@ -15,10 +15,7 @@
 package image
 
 import (
-	"io"
-	"io/ioutil"
 	"net/url"
-	"os"
 	"testing"
 	"time"
 
@@ -179,52 +176,6 @@ func TestUseCached(t *testing.T) {
 		got := useCached(age, maxAge)
 		if got != tt.use {
 			t.Errorf("expected useCached(%v, %v) to return %v, but it returned %v", age, maxAge, tt.use, got)
-		}
-	}
-}
-
-func TestIsReallyNil(t *testing.T) {
-	tests := []struct {
-		name  string
-		iface interface{}
-		isNil bool
-	}{
-		// plain nil
-		{
-			name:  "plain nil",
-			iface: nil,
-			isNil: true,
-		},
-		// some pointer
-		{
-			name:  "some pointer",
-			iface: &struct{}{},
-			isNil: false,
-		},
-		// a nil interface
-		{
-			name:  "a nil interface",
-			iface: func() io.Closer { return nil }(),
-			isNil: true,
-		},
-		// a non-nil interface with nil value
-		{
-			name:  "a non-nil interface with nil value",
-			iface: func() io.Closer { var v *os.File; return v }(),
-			isNil: true,
-		},
-		// a non-nil interface with non-nil value
-		{
-			name:  "a non-nil interface with non-nil value",
-			iface: func() io.Closer { return ioutil.NopCloser(nil) }(),
-			isNil: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Log(tt.name)
-		got := isReallyNil(tt.iface)
-		if tt.isNil != got {
-			t.Errorf("expected isReallyNil(%#v) to return %v, but got %v", tt.iface, tt.isNil, got)
 		}
 	}
 }
