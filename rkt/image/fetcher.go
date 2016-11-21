@@ -43,7 +43,7 @@ type Fetcher action
 func (f *Fetcher) FetchImage(img string, ascPath string, imgType apps.AppImageType) (string, error) {
 	ensureLogger(f.Debug)
 	a := f.getAsc(ascPath)
-	hash, err := f.fetchSingleImage(img, a, imgType)
+	hash, err := f.fetchSingleImage(img, a, imgType, true)
 	if err != nil {
 		return "", err
 	}
@@ -84,7 +84,7 @@ func (f *Fetcher) fetchImageDeps(hash string) error {
 	for el := imgsl.Front(); el != nil; el = el.Next() {
 		a := &asc{}
 		img := el.Value.(string)
-		hash, err := f.fetchSingleImage(img, a, apps.AppImageName)
+		hash, err := f.fetchSingleImage(img, a, apps.AppImageName, false)
 		if err != nil {
 			return err
 		}
@@ -126,7 +126,7 @@ func (f *Fetcher) getImageDeps(hash string) (types.Dependencies, error) {
 	return im.Dependencies, nil
 }
 
-func (f *Fetcher) fetchSingleImage(img string, a *asc, imgType apps.AppImageType) (string, error) {
+func (f *Fetcher) fetchSingleImage(img string, a *asc, imgType apps.AppImageType, isTopImage bool) (string, error) {
 	if imgType == apps.AppImageGuess {
 		imgType = guessImageType(img)
 	}
@@ -140,7 +140,7 @@ func (f *Fetcher) fetchSingleImage(img string, a *asc, imgType apps.AppImageType
 	case apps.AppImagePath:
 		return f.fetchSingleImageByPath(img, a)
 	case apps.AppImageName:
-		return f.fetchSingleImageByName(img, a)
+		return f.fetchSingleImageByName(img, a, isTopImage)
 	default:
 		return "", fmt.Errorf("unknown image type %d", imgType)
 	}
@@ -248,16 +248,18 @@ type appBundle struct {
 	Str string
 }
 
-func newAppBundle(name string) (*appBundle, error) {
+func newAppBundle(name string, isTopImage bool) (*appBundle, error) {
 	app, err := discovery.NewAppFromString(name)
 	if err != nil {
 		return nil, errwrap.Wrap(fmt.Errorf("invalid image name %q", name), err)
 	}
-	if _, ok := app.Labels["arch"]; !ok {
-		app.Labels["arch"] = runtime.GOARCH
-	}
-	if _, ok := app.Labels["os"]; !ok {
-		app.Labels["os"] = runtime.GOOS
+	if isTopImage {
+		if _, ok := app.Labels["arch"]; !ok {
+			app.Labels["arch"] = runtime.GOARCH
+		}
+		if _, ok := app.Labels["os"]; !ok {
+			app.Labels["os"] = runtime.GOOS
+		}
 	}
 	if err := types.IsValidOSArch(app.Labels, stage0.ValidOSArch); err != nil {
 		return nil, errwrap.Wrap(fmt.Errorf("invalid image name %q", name), err)
@@ -269,8 +271,8 @@ func newAppBundle(name string) (*appBundle, error) {
 	return bundle, nil
 }
 
-func (f *Fetcher) fetchSingleImageByName(name string, a *asc) (string, error) {
-	app, err := newAppBundle(name)
+func (f *Fetcher) fetchSingleImageByName(name string, a *asc, isTopImage bool) (string, error) {
+	app, err := newAppBundle(name, isTopImage)
 	if err != nil {
 		return "", err
 	}
