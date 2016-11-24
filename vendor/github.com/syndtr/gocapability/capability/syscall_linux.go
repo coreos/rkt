@@ -38,6 +38,15 @@ func capset(hdr *capHeader, data *capData) (err error) {
 	return
 }
 
+// not yet in syscall
+const (
+	pr_CAP_AMBIENT           = 47
+	pr_CAP_AMBIENT_IS_SET    = uintptr(1)
+	pr_CAP_AMBIENT_RAISE     = uintptr(2)
+	pr_CAP_AMBIENT_LOWER     = uintptr(3)
+	pr_CAP_AMBIENT_CLEAR_ALL = uintptr(4)
+)
+
 func prctl(option int, arg2, arg3, arg4, arg5 uintptr) (err error) {
 	_, _, e1 := syscall.Syscall6(syscall.SYS_PRCTL, uintptr(option), arg2, arg3, arg4, arg5, 0)
 	if e1 != 0 {
@@ -86,6 +95,10 @@ func getVfsCap(path string, dest *vfscapData) (err error) {
 	}
 	r0, _, e1 := syscall.Syscall6(syscall.SYS_GETXATTR, uintptr(unsafe.Pointer(_p0)), uintptr(unsafe.Pointer(_vfsXattrName)), uintptr(unsafe.Pointer(dest)), vfscapDataSizeV2, 0, 0)
 	if e1 != 0 {
+		if e1 == syscall.ENODATA {
+			dest.version = 2
+			return
+		}
 		err = e1
 	}
 	switch dest.magic & vfsCapVerMask {
@@ -128,8 +141,6 @@ func setVfsCap(path string, data *vfscapData) (err error) {
 		data.magic = vfsCapVer2
 		if data.effective[0] != 0 || data.effective[1] != 0 {
 			data.magic |= vfsCapFlageffective
-			data.data[0].permitted |= data.effective[0]
-			data.data[1].permitted |= data.effective[1]
 		}
 		size = vfscapDataSizeV2
 	} else {
