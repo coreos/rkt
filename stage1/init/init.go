@@ -16,13 +16,10 @@
 
 package main
 
-// this implements /init of stage1/nspawn+systemd
-
 import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net"
 	"os"
@@ -32,12 +29,9 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/appc/goaci/proj2aci"
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/go-systemd/util"
 	"github.com/coreos/pkg/dlopen"
-	"github.com/godbus/dbus"
-	"github.com/godbus/dbus/introspect"
 	"github.com/hashicorp/errwrap"
 
 	stage1common "github.com/coreos/rkt/stage1/common"
@@ -47,7 +41,6 @@ import (
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/common/cgroup"
 	"github.com/coreos/rkt/common/cgroup/v1"
-	"github.com/coreos/rkt/common/cgroup/v2"
 	commonnet "github.com/coreos/rkt/common/networking"
 	"github.com/coreos/rkt/networking"
 	pkgflag "github.com/coreos/rkt/pkg/flag"
@@ -61,43 +54,7 @@ import (
 const (
 	// Path to systemd-nspawn binary within the stage1 rootfs
 	nspawnBin = "/usr/bin/systemd-nspawn"
-	// Path to the localtime file/symlink in host
-	localtimePath = "/etc/localtime"
 )
-
-// mirrorLocalZoneInfo tries to reproduce the /etc/localtime target in stage1/ to satisfy systemd-nspawn
-func mirrorLocalZoneInfo(root string) {
-	zif, err := os.Readlink(localtimePath)
-	if err != nil {
-		return
-	}
-
-	// On some systems /etc/localtime is a relative symlink, make it absolute
-	if !filepath.IsAbs(zif) {
-		zif = filepath.Join(filepath.Dir(localtimePath), zif)
-		zif = filepath.Clean(zif)
-	}
-
-	src, err := os.Open(zif)
-	if err != nil {
-		return
-	}
-	defer src.Close()
-
-	destp := filepath.Join(common.Stage1RootfsPath(root), zif)
-
-	if err = os.MkdirAll(filepath.Dir(destp), 0755); err != nil {
-		return
-	}
-
-	dest, err := os.OpenFile(destp, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return
-	}
-	defer dest.Close()
-
-	_, _ = io.Copy(dest, src)
-}
 
 var (
 	debug               bool
@@ -148,97 +105,6 @@ func init() {
 	if localhostIP == nil {
 		panic("localhost IP failed to parse")
 	}
-}
-
-// machinedRegister checks if nspawn should register the pod to machined
-func machinedRegister() bool {
-	// machined has a D-Bus interface following versioning guidelines, see:
-	// http://www.freedesktop.org/wiki/Software/systemd/machined/
-	// Therefore we can just check if the D-Bus method we need exists and we
-	// don't need to check the signature.
-	var found int
-
-	conn, err := dbus.SystemBus()
-	if err != nil {
-		return false
-	}
-	node, err := introspect.Call(conn.Object("org.freedesktop.machine1", "/org/freedesktop/machine1"))
-	if err != nil {
-		return false
-	}
-	for _, iface := range node.Interfaces {
-		if iface.Name != "org.freedesktop.machine1.Manager" {
-			continue
-		}
-		// machined v215 supports methods "RegisterMachine" and "CreateMachine" called by nspawn v215.
-		// machined v216+ (since commit 5aa4bb) additionally supports methods "CreateMachineWithNetwork"
-		// and "RegisterMachineWithNetwork", called by nspawn v216+.
-		for _, method := range iface.Methods {
-			if method.Name == "CreateMachineWithNetwork" || method.Name == "RegisterMachineWithNetwork" {
-				found++
-			}
-		}
-		break
-	}
-	return found == 2
-}
-
-func installAssets() error {
-	systemctlBin, err := common.LookupPath("systemctl", os.Getenv("PATH"))
-	if err != nil {
-		return err
-	}
-	systemdSysusersBin, err := common.LookupPath("systemd-sysusers", os.Getenv("PATH"))
-	if err != nil {
-		return err
-	}
-	bashBin, err := common.LookupPath("bash", os.Getenv("PATH"))
-	if err != nil {
-		return err
-	}
-	mountBin, err := common.LookupPath("mount", os.Getenv("PATH"))
-	if err != nil {
-		return err
-	}
-	umountBin, err := common.LookupPath("umount", os.Getenv("PATH"))
-	if err != nil {
-		return err
-	}
-	// More paths could be added in that list if some Linux distributions install it in a different path
-	// Note that we look in /usr/lib/... first because of the merge:
-	// http://www.freedesktop.org/wiki/Software/systemd/TheCaseForTheUsrMerge/
-	systemdShutdownBin, err := common.LookupPath("systemd-shutdown", "/usr/lib/systemd:/lib/systemd")
-	if err != nil {
-		return err
-	}
-	systemdBin, err := common.LookupPath("systemd", "/usr/lib/systemd:/lib/systemd")
-	if err != nil {
-		return err
-	}
-	systemdJournaldBin, err := common.LookupPath("systemd-journald", "/usr/lib/systemd:/lib/systemd")
-	if err != nil {
-		return err
-	}
-
-	systemdUnitsPath := "/lib/systemd/system"
-	assets := []string{
-		proj2aci.GetAssetString("/usr/lib/systemd/systemd", systemdBin),
-		proj2aci.GetAssetString("/usr/bin/systemctl", systemctlBin),
-		proj2aci.GetAssetString("/usr/bin/systemd-sysusers", systemdSysusersBin),
-		proj2aci.GetAssetString("/usr/lib/systemd/systemd-journald", systemdJournaldBin),
-		proj2aci.GetAssetString("/usr/bin/bash", bashBin),
-		proj2aci.GetAssetString("/bin/mount", mountBin),
-		proj2aci.GetAssetString("/bin/umount", umountBin),
-		proj2aci.GetAssetString(fmt.Sprintf("%s/systemd-journald.service", systemdUnitsPath), fmt.Sprintf("%s/systemd-journald.service", systemdUnitsPath)),
-		proj2aci.GetAssetString(fmt.Sprintf("%s/systemd-journald.socket", systemdUnitsPath), fmt.Sprintf("%s/systemd-journald.socket", systemdUnitsPath)),
-		proj2aci.GetAssetString(fmt.Sprintf("%s/systemd-journald-dev-log.socket", systemdUnitsPath), fmt.Sprintf("%s/systemd-journald-dev-log.socket", systemdUnitsPath)),
-		proj2aci.GetAssetString(fmt.Sprintf("%s/systemd-journald-audit.socket", systemdUnitsPath), fmt.Sprintf("%s/systemd-journald-audit.socket", systemdUnitsPath)),
-		// systemd-shutdown has to be installed at the same path as on the host
-		// because it depends on systemd build flag -DSYSTEMD_SHUTDOWN_BINARY_PATH=
-		proj2aci.GetAssetString(systemdShutdownBin, systemdShutdownBin),
-	}
-
-	return proj2aci.PrepareAssets(assets, "./stage1/rootfs/", nil)
 }
 
 // getArgsEnv returns the nspawn or lkvm args and env according to the flavor
@@ -607,11 +473,9 @@ func stage1() int {
 		}
 	}
 
-	canMachinedRegister := false
-	if flavor != "kvm" {
-		// kvm doesn't register with systemd right now, see #2664.
-		canMachinedRegister = machinedRegister()
-	}
+	// Whether or not we can register our container with systemd-machined.
+	// kvm doesn't register with systemd right now, see #2664.
+	canMachinedRegister := (flavor != "kvm") && hasMachinedRegister()
 	args, env, err := getArgsEnv(p, flavor, canMachinedRegister, debug, n, insecureOptions)
 	if err != nil {
 		log.Error(err)
@@ -711,118 +575,6 @@ func stage1() int {
 	}
 
 	return 0
-}
-
-func areHostV1CgroupsMounted(enabledV1Cgroups map[int][]string) bool {
-	controllers := v1.GetControllerDirs(enabledV1Cgroups)
-	for _, c := range controllers {
-		if !v1.IsControllerMounted(c) {
-			return false
-		}
-	}
-
-	return true
-}
-
-// mountHostV1Cgroups mounts the host v1 cgroup hierarchy as required by
-// systemd-nspawn. We need this because some distributions don't have the
-// "name=systemd" cgroup or don't mount the cgroup controllers in
-// "/sys/fs/cgroup", and systemd-nspawn needs this. Since this is mounted
-// inside the rkt mount namespace, it doesn't affect the host.
-func mountHostV1Cgroups(enabledCgroups map[int][]string) error {
-	systemdControllerPath := "/sys/fs/cgroup/systemd"
-	if !areHostV1CgroupsMounted(enabledCgroups) {
-		mountContext := os.Getenv(common.EnvSELinuxMountContext)
-		if err := v1.CreateCgroups("/", enabledCgroups, mountContext); err != nil {
-			return errwrap.Wrap(errors.New("error creating host cgroups"), err)
-		}
-	}
-
-	if !v1.IsControllerMounted("systemd") {
-		if err := os.MkdirAll(systemdControllerPath, 0700); err != nil {
-			return err
-		}
-		if err := syscall.Mount("cgroup", systemdControllerPath, "cgroup", 0, "none,name=systemd"); err != nil {
-			return errwrap.Wrap(fmt.Errorf("error mounting name=systemd hierarchy on %q", systemdControllerPath), err)
-		}
-	}
-
-	return nil
-}
-
-// mountContainerV1Cgroups mounts the cgroup controllers hierarchy in the container's
-// namespace read-only, leaving the needed knobs in the subcgroup for each-app
-// read-write so systemd inside stage1 can apply isolators to them
-func mountContainerV1Cgroups(s1Root string, enabledCgroups map[int][]string, subcgroup string, serviceNames []string) error {
-	mountContext := os.Getenv(common.EnvSELinuxMountContext)
-	if err := v1.CreateCgroups(s1Root, enabledCgroups, mountContext); err != nil {
-		return errwrap.Wrap(errors.New("error creating container cgroups"), err)
-	}
-	if err := v1.RemountCgroupsRO(s1Root, enabledCgroups, subcgroup, serviceNames); err != nil {
-		return errwrap.Wrap(errors.New("error restricting container cgroups"), err)
-	}
-
-	return nil
-}
-
-func getContainerSubCgroup(machineID string, canMachinedRegister, unified bool) (string, error) {
-	var subcgroup string
-	fromUnit, err := util.RunningFromSystemService()
-	if err != nil {
-		return "", errwrap.Wrap(errors.New("could not determine if we're running from a unit file"), err)
-	}
-	if fromUnit {
-		slice, err := util.GetRunningSlice()
-		if err != nil {
-			return "", errwrap.Wrap(errors.New("could not get slice name"), err)
-		}
-		slicePath, err := common.SliceToPath(slice)
-		if err != nil {
-			return "", errwrap.Wrap(errors.New("could not convert slice name to path"), err)
-		}
-		unit, err := util.CurrentUnitName()
-		if err != nil {
-			return "", errwrap.Wrap(errors.New("could not get unit name"), err)
-		}
-		subcgroup = filepath.Join(slicePath, unit)
-
-		if unified {
-			subcgroup = filepath.Join(subcgroup, "payload")
-		}
-	} else {
-		escapedmID := strings.Replace(machineID, "-", "\\x2d", -1)
-		machineDir := "machine-" + escapedmID + ".scope"
-		if canMachinedRegister {
-			// we are not in the final cgroup yet: systemd-nspawn will move us
-			// to the correct cgroup later during registration so we can't
-			// look it up in /proc/self/cgroup
-			subcgroup = filepath.Join("machine.slice", machineDir)
-		} else {
-			if unified {
-				var err error
-				subcgroup, err = v2.GetOwnCgroupPath()
-				if err != nil {
-					return "", errwrap.Wrap(errors.New("could not get own v2 cgroup path"), err)
-				}
-			} else {
-				// when registration is disabled the container will be directly
-				// under the current cgroup so we can look it up in /proc/self/cgroup
-				ownV1CgroupPath, err := v1.GetOwnCgroupPath("name=systemd")
-				if err != nil {
-					return "", errwrap.Wrap(errors.New("could not get own v1 cgroup path"), err)
-				}
-				// systemd-nspawn won't work if we are in the root cgroup. In addition,
-				// we want all rkt instances to be in distinct cgroups. Create a
-				// subcgroup and add ourselves to it.
-				subcgroup = filepath.Join(ownV1CgroupPath, machineDir)
-				if err := v1.JoinSubcgroup("systemd", subcgroup); err != nil {
-					return "", errwrap.Wrap(fmt.Errorf("error joining %s subcgroup", ownV1CgroupPath), err)
-				}
-			}
-		}
-	}
-
-	return subcgroup, nil
 }
 
 func main() {
