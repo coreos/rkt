@@ -102,7 +102,6 @@ func mirrorLocalZoneInfo(root string) {
 
 var (
 	debug       bool
-	interactive bool
 	localhostIP net.IP
 	localConfig string
 	log         *rktlog.Logger
@@ -114,10 +113,10 @@ func parseFlags() *stage1commontypes.RuntimePod {
 	rp := stage1commontypes.RuntimePod{}
 
 	flag.BoolVar(&debug, "debug", false, "Run in debug mode")
-	flag.BoolVar(&interactive, "interactive", false, "The pod is interactive")
 	flag.StringVar(&localConfig, "local-config", common.DefaultLocalConfigDir, "Local config path")
 
 	// These flags are persisted in the PodRuntime
+	flag.BoolVar(&rp.Interactive, "interactive", false, "The pod is interactive")
 	flag.BoolVar(&rp.Mutable, "mutable", false, "Enable mutable operations on this pod, including starting an empty one")
 	flag.Var(&rp.NetList, "net", "Setup networking")
 	flag.StringVar(&rp.PrivateUsers, "private-users", "", "Run within user namespace. Can be set to [=UIDBASE[:NUIDS]]")
@@ -524,6 +523,39 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 		log.FatalE("failed to load pod", err)
 	}
 
+	flavor, _, err := stage1initcommon.GetFlavor(p)
+	if err != nil {
+		log.FatalE("failed to get stage1 flavor", err)
+	}
+
+	/*
+	 * compute the cgroup slice
+	 */
+	unifiedCgroup, err := cgroup.IsCgroupUnified("/")
+	if err != nil {
+		log.FatalE("error determining cgroup version", err)
+	}
+	diag.Printf("unifiedCgroup %t", unifiedCgroup)
+
+	machineID := stage1initcommon.GetMachineID(p)
+
+	canMachinedRegister := flavor != "kvm" && machinedRegister()
+
+	subcgroup, err := getContainerSubCgroup(machineID, canMachinedRegister, unifiedCgroup)
+	p.SubCgroupName = subcgroup
+	if err != nil {
+		log.FatalE("error getting container subcgroup", err)
+	}
+	diag.Printf("subcgroup %q", subcgroup)
+
+	if err := ioutil.WriteFile(filepath.Join(p.Root, "subcgroup"),
+		[]byte(fmt.Sprintf("%s", subcgroup)), 0644); err != nil {
+		log.FatalE("cannot write subcgroup file", err)
+	}
+
+	/*
+	 * Save the runtime params to disk
+	 */
 	if err := p.SaveRuntime(); err != nil {
 		log.FatalE("failed to save runtime parameters", err)
 	}
@@ -540,11 +572,6 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 	}
 
 	mirrorLocalZoneInfo(p.Root)
-
-	flavor, _, err := stage1initcommon.GetFlavor(p)
-	if err != nil {
-		log.FatalE("failed to get stage1 flavor", err)
-	}
 
 	var n *networking.Networking
 	if p.NetList.Contained() {
@@ -601,7 +628,7 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 			log.FatalE("cannot initialize mutable environment", err)
 		}
 	} else {
-		if err = stage1initcommon.ImmutableEnv(p, interactive); err != nil {
+		if err = stage1initcommon.ImmutableEnv(p); err != nil {
 			log.FatalE("cannot initialize immutable environment", err)
 		}
 	}
@@ -617,11 +644,6 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 		}
 	}
 
-	canMachinedRegister := false
-	if flavor != "kvm" {
-		// kvm doesn't register with systemd right now, see #2664.
-		canMachinedRegister = machinedRegister()
-	}
 	diag.Printf("canMachinedRegister %t", canMachinedRegister)
 
 	args, env, err := getArgsEnv(p, flavor, canMachinedRegister, debug, n)
@@ -647,25 +669,6 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 	}
 	if err := mnt.Mount("", "/", "none", syscall.MS_REC|syscall.MS_SHARED, ""); err != nil {
 		log.FatalE("error making / a shared and slave mount", err)
-	}
-
-	unifiedCgroup, err := cgroup.IsCgroupUnified("/")
-	if err != nil {
-		log.FatalE("error determining cgroup version", err)
-	}
-	diag.Printf("unifiedCgroup %t", unifiedCgroup)
-
-	machineID := stage1initcommon.GetMachineID(p)
-
-	subcgroup, err := getContainerSubCgroup(machineID, canMachinedRegister, unifiedCgroup)
-	if err != nil {
-		log.FatalE("error getting container subcgroup", err)
-	}
-	diag.Printf("subcgroup %q", subcgroup)
-
-	if err := ioutil.WriteFile(filepath.Join(p.Root, "subcgroup"),
-		[]byte(fmt.Sprintf("%s", subcgroup)), 0644); err != nil {
-		log.FatalE("cannot write subcgroup file", err)
 	}
 
 	if !unifiedCgroup {
@@ -729,7 +732,7 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 func areHostV1CgroupsMounted(enabledV1Cgroups map[int][]string) bool {
 	controllers := v1.GetControllerDirs(enabledV1Cgroups)
 	for _, c := range controllers {
-		if !v1.IsControllerMounted(c) {
+		if mounted, _ := v1.IsControllerMounted(c); !mounted {
 			return false
 		}
 	}
@@ -751,7 +754,11 @@ func mountHostV1Cgroups(m fs.Mounter, enabledCgroups map[int][]string) error {
 		}
 	}
 
-	if !v1.IsControllerMounted("systemd") {
+	mounted, err := v1.IsControllerMounted("systemd")
+	if err != nil {
+		return err
+	}
+	if !mounted {
 		if err := os.MkdirAll(systemdControllerPath, 0700); err != nil {
 			return err
 		}

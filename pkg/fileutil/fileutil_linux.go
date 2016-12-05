@@ -17,6 +17,7 @@
 package fileutil
 
 import (
+	"fmt"
 	"os"
 	"syscall"
 	"unsafe"
@@ -104,4 +105,36 @@ func Lsetxattr(path string, attr string, data []byte, flags int) error {
 		return errno
 	}
 	return nil
+}
+
+// GetDeviceInfo returns the type, major, and minor numbers of a device
+func GetDeviceInfo(path string) (kind rune, major uint64, minor uint64, err error) {
+	d, err := os.Lstat(path)
+	if err != nil {
+		return ' ', 0, 0, err
+	}
+	mode := d.Mode()
+
+	if mode&os.ModeDevice == 0 {
+		err = fmt.Errorf("not a device: %s", path)
+		return
+	}
+	stat_t, ok := d.Sys().(*syscall.Stat_t)
+	if !ok {
+		err = fmt.Errorf("Cannot determine device number")
+		return
+	}
+
+	kind = 'b'
+
+	if mode&os.ModeCharDevice != 0 {
+		kind = 'c'
+	}
+
+	devNum := stat_t.Rdev
+
+	major = (devNum >> 8) & 0xfff
+	minor = (devNum & 0xff) | ((devNum >> 12) & 0xfff00)
+
+	return
 }

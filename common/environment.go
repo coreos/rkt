@@ -26,7 +26,7 @@ import (
 
 const DefaultPath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-var defaultEnv = map[string]string{
+var DefaultEnv = map[string]string{
 	"PATH":    DefaultPath,
 	"SHELL":   "/bin/sh",
 	"USER":    "root",
@@ -40,7 +40,7 @@ var defaultEnv = map[string]string{
 func WriteEnvFile(env types.Environment, uidRange *user.UidRange, envFilePath string) error {
 	ef := bytes.Buffer{}
 
-	for dk, dv := range defaultEnv {
+	for dk, dv := range DefaultEnv {
 		if _, exists := env.Get(dk); !exists {
 			fmt.Fprintf(&ef, "%s=%s\n", dk, dv)
 		}

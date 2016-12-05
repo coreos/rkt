@@ -548,7 +548,7 @@ func TestCapsInsecureOption(t *testing.T) {
 		"sys_rawio",
 		"sys_chroot",
 		"sys_ptrace",
-		"sys_psacct",
+		"sys_pacct",
 		"sys_admin",
 		"sys_boot",
 		"sys_nice",
