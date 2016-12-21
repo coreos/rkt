@@ -20,7 +20,7 @@ $(TST_SHORT_TESTS_STAMP):
 	if [ -n "$${res}" ]; then echo -e "govet checking failed:\n$${res}"; exit 1; fi; \
 	$(call vb,vt,(C) CHECK) \
 	res=$$( \
-		for file in $$(find . -type f -iname '*.go' ! -path './vendor/*'); do \
+		for file in $$(find . -type f -iname '*.go' ! -path './vendor/*' ! -path '*tmp/runc*' ); do \
 			head -n1 "$${file}" | grep -Eq "(Copyright|generated)" || echo -e "  $${file}"; \
 		done; \
 	); \

@@ -35,6 +35,7 @@ $(call forward-vars,$(_GCL_FULL_PATH_), \
 $(_GCL_FULL_PATH_): | $(GCL_DIRECTORY)
 	$(VQ) \
 	set -e; \
+	mkdir -p $(GCL_DIRECTORY); \
 	$(_GCL_GIT_) init $(call vl3,--quiet); \
 	if ! $(_GCL_GIT_) remote | grep --silent origin; \
 	then \

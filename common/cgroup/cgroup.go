@@ -18,7 +18,6 @@ package cgroup
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 	"syscall"
 
@@ -53,18 +52,7 @@ func IsIsolatorSupported(isolator string) (bool, error) {
 		}
 		return false, nil
 	}
-
-	if files := v1.CgroupControllerRWFiles(isolator); len(files) > 0 {
-		for _, f := range files {
-			isolatorPath := filepath.Join("/sys/fs/cgroup/", isolator, f)
-			if _, err := os.Stat(isolatorPath); os.IsNotExist(err) {
-				return false, nil
-			}
-		}
-		return true, nil
-	}
-
-	return false, nil
+	return v1.IsControllerMounted(isolator)
 }
 
 // IsCgroupUnified checks if cgroup mounted at /sys/fs/cgroup is

@@ -12,3 +12,4 @@ lib64/libncurses.so.5.9
 lib64/libreadline.so
 lib64/libreadline.so.6
 lib64/libreadline.so.6.3
+bin/chroot

@@ -1,0 +1,23 @@
+diff --git a/libcontainer/configs/config.go b/libcontainer/configs/config.go
+index fdfe248..5c51752 100644
+--- a/libcontainer/configs/config.go
++++ b/libcontainer/configs/config.go
+@@ -4,6 +4,7 @@ import (
+ 	"bytes"
+ 	"encoding/json"
+ 	"fmt"
++	"os"
+ 	"os/exec"
+ 	"time"
+ 
+@@ -301,8 +302,8 @@ func (c Command) Run(s HookState) error {
+ 		Args:   c.Args,
+ 		Env:    c.Env,
+ 		Stdin:  bytes.NewReader(b),
+-		Stdout: &stdout,
+-		Stderr: &stderr,
++		Stdout: os.Stdout,
++		Stderr: os.Stderr,
+ 	}
+ 	if err := cmd.Start(); err != nil {
+ 		return err

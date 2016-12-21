@@ -201,7 +201,7 @@ import:
 - package: github.com/spf13/pflag
   version: 08b1a584251b5b62f458943640fc8ebd4d50aaa5
 - package: github.com/syndtr/gocapability
-  version: 8e4cdcb3c22b40d5e330ade0b68cb2e2a3cf6f98
+  version: e7cb7fa329f456b3855136a2642b197bad7366ba
   subpackages:
   - capability
 - package: github.com/vishvananda/netlink
@@ -280,3 +280,7 @@ import:
   version: v1.1.0
 - package: github.com/PuerkitoBio/urlesc
   version: 5bd2802263f21d8788851d5305584c82a5c75d7e
+- package: github.com/opencontainers/runtime-spec
+  version: v1.0.0-rc2
+  subpackages:
+    - specs-go

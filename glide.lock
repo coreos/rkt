@@ -1,5 +1,5 @@
-hash: cd7bf107f8962ba89c5471bc6d883112b33a7b2d91f97dc3057c3430f3b2cc42
-updated: 2016-12-09T16:05:25.074433175Z
+hash: 96f041824bece9750e2774df7f603b0bbbeaad54202327cdcd42c5dd0ce85a53
+updated: 2016-12-15T17:01:40.727063269+01:00
 imports:
 - name: github.com/appc/docker2aci
   version: 64543c1e0a7306b17d0d214549ec08049b234abc
@@ -44,6 +44,10 @@ imports:
   - aws/request
   - private/protocol/rest
   - private/signer/v4
+- name: github.com/Azure/go-ansiterm
+  version: fa152c58bc15761d0200cb75fe958b89a9d4888e
+  subpackages:
+  - winterm
 - name: github.com/containernetworking/cni
   version: 5c3c17164270150467498a32c71436c7cd5501be
   subpackages:
@@ -136,6 +140,17 @@ imports:
   subpackages:
   - digest
   - reference
+- name: github.com/docker/docker
+  version: b9f10c951893f9a00865890a5232e85d770c1087
+  subpackages:
+  - pkg/longpath
+  - pkg/mount
+  - pkg/symlink
+  - pkg/system
+  - pkg/term
+  - pkg/term/windows
+- name: github.com/docker/go-units
+  version: e30f1e79f3cd72542f2026ceec18d3bd67ab859c
 - name: github.com/dustin/go-humanize
   version: c20a8bde38c8f5ba06f6600edf473705c96829d1
 - name: github.com/go-ini/ini
@@ -198,11 +213,39 @@ imports:
   version: cfb55aafdaf3ec08f0db22699ab822c50091b1c4
 - name: github.com/kr/pty
   version: f7ee69f31298ecbe5d2b349c711e2547a617d398
+- name: github.com/mrunalp/fileutils
+  version: ed869b029674c0e9ce4c0dfa781405c2d9946d08
 - name: github.com/opencontainers/image-spec
   version: 6e820ec55259e89ccd7092f3131c63e8419a349b
   subpackages:
   - specs-go
   - specs-go/v1
+- name: github.com/opencontainers/runc
+  version: 083933fb9092a3d65d682ba34a08676104c95462
+  subpackages:
+  - libcontainer
+  - libcontainer/apparmor
+  - libcontainer/cgroups
+  - libcontainer/cgroups/fs
+  - libcontainer/cgroups/systemd
+  - libcontainer/configs
+  - libcontainer/configs/validate
+  - libcontainer/criurpc
+  - libcontainer/keys
+  - libcontainer/label
+  - libcontainer/nsenter
+  - libcontainer/seccomp
+  - libcontainer/selinux
+  - libcontainer/specconv
+  - libcontainer/stacktrace
+  - libcontainer/system
+  - libcontainer/user
+  - libcontainer/utils
+  - libcontainer/xattr
+- name: github.com/opencontainers/runtime-spec
+  version: 7dab1a245d3e13d0ad03b77409d0bf7e00a6ada4
+  subpackages:
+  - specs-go
 - name: github.com/pborman/uuid
   version: cccd189d45f7ac3368a0d127efb7f4d08ae0b655
 - name: github.com/peterbourgon/diskv
@@ -213,6 +256,8 @@ imports:
   version: 5bd2802263f21d8788851d5305584c82a5c75d7e
 - name: github.com/russross/blackfriday
   version: 300106c228d52c8941d4b3de6054a6062a86dda3
+- name: github.com/seccomp/libseccomp-golang
+  version: 32f571b70023028bd57d9288c20efbcb237f3ce0
 - name: github.com/shirou/gopsutil
   version: 1516eb9ddc5e61ba58874047a98f8b44b5e585e8
   subpackages:
@@ -227,6 +272,8 @@ imports:
   version: 3c9377fc6748f222729a8270fe2775d149a249ad
 - name: github.com/shurcooL/sanitized_anchor_name
   version: 10ef21a441db47d8b13ebcc5fd2310f636973c77
+- name: github.com/Sirupsen/logrus
+  version: 881bee4e20a5d11a6a88a5667c6f292072ac1963
 - name: github.com/spf13/cobra
   version: 4c05eb1145f16d0e6bb4a3e1b6d769f4713cb41f
   subpackages:
@@ -236,9 +283,11 @@ imports:
 - name: github.com/StackExchange/wmi
   version: f3e2bae1e0cb5aef83e319133eabfee30013a4a5
 - name: github.com/syndtr/gocapability
-  version: 8e4cdcb3c22b40d5e330ade0b68cb2e2a3cf6f98
+  version: e7cb7fa329f456b3855136a2642b197bad7366ba
   subpackages:
   - capability
+- name: github.com/urfave/cli
+  version: 0bdeddeeb0f650497d603c4ad7b20cfe685682f6
 - name: github.com/vishvananda/netlink
   version: ecf47fd5739b3d2c3daf7c89c4b9715a2605c21b
   subpackages:
@@ -300,7 +349,7 @@ imports:
 - name: gopkg.in/inf.v0
   version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4
 - name: k8s.io/kubernetes
-  version: fd8fac83034df346529c6e11aabceea2db48d663
+  version: ba5b2fcee9d938dae74d4474f68d9d0933f3ec04
   subpackages:
   - pkg/api/resource
 testImports:

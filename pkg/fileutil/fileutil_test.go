@@ -183,3 +183,47 @@ func TestFileIsExecutable(t *testing.T) {
 		}
 	}
 }
+
+func TestDeviceInfo(t *testing.T) {
+	for _, tt := range []struct {
+		path   string
+		kind   rune
+		major  uint64
+		minor  uint64
+		haserr bool
+	}{
+		{
+			"/dev/null",
+			'c',
+			1,
+			3,
+			false,
+		},
+		/*	{
+			"/dev/sdb1",
+			'b',
+			8,
+			11,
+			false,
+		}, */
+	} {
+		kind, major, minor, err := GetDeviceInfo(tt.path)
+		if (err != nil) != tt.haserr {
+			t.Errorf("GetDeviceInfo %s not as expected, got err %s", tt.path, err)
+		}
+		// don't care about result when err
+		if err != nil {
+			continue
+		}
+
+		if tt.kind != kind {
+			t.Errorf("GetDeviceInfo %s kind expected %v got %v", tt.path, tt.kind, kind)
+		}
+		if tt.major != major {
+			t.Errorf("GetDeviceInfo %s major expected %v got %v", tt.path, tt.major, major)
+		}
+		if tt.minor != minor {
+			t.Errorf("GetDeviceInfo %s minor expected %v got %v", tt.path, tt.minor, minor)
+		}
+	}
+}

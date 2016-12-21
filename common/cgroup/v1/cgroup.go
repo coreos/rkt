@@ -33,25 +33,6 @@ import (
 	"github.com/hashicorp/errwrap"
 )
 
-var (
-	cgroupControllerRWFiles = map[string][]string{
-		"memory": {
-			"memory.limit_in_bytes",
-			"cgroup.procs",
-		},
-		"cpu": {
-			"cpu.cfs_quota_us",
-			"cpu.shares",
-			"cgroup.procs",
-		},
-		"devices": {
-			"devices.allow",
-			"devices.deny",
-			"cgroup.procs",
-		},
-	}
-)
-
 // mountFsRO remounts the given mountPoint using the given flags read-only.
 func mountFsRO(m fs.Mounter, mountPoint string, flags uintptr) error {
 	flags = flags |
@@ -138,23 +119,6 @@ func getControllerSymlinks(cgroups map[int][]string) map[string]string {
 	}
 
 	return symlinks
-}
-
-func CgroupControllerRWFiles(isolator string) []string {
-	files, _ := cgroupControllerRWFiles[isolator]
-	return files
-}
-
-func getControllerRWFiles(controller string) []string {
-	parts := strings.Split(controller, ",")
-
-	for _, p := range parts {
-		if files, ok := cgroupControllerRWFiles[p]; ok {
-			return files
-		}
-	}
-
-	return nil
 }
 
 func parseCgroupController(cgroupPath, controller string) ([]string, error) {
@@ -248,13 +212,16 @@ func fixCpusetKnobs(cpusetPath string) {
 
 // IsControllerMounted returns whether a controller is mounted by checking that
 // cgroup.procs is accessible
-func IsControllerMounted(c string) bool {
+func IsControllerMounted(c string) (bool, error) {
 	cgroupProcsPath := filepath.Join("/sys/fs/cgroup", c, "cgroup.procs")
 	if _, err := os.Stat(cgroupProcsPath); err != nil {
-		return false
+		if !os.IsNotExist(err) {
+			return false, err
+		}
+		return false, nil
 	}
 
-	return true
+	return true, nil
 }
 
 // CreateCgroups mounts the v1 cgroup controllers hierarchy in /sys/fs/cgroup
@@ -349,6 +316,13 @@ func RemountCgroups(m fs.Mounter, root string, enabledCgroups map[int][]string, 
 		cPath := filepath.Join(cgroupTmpfs, c)
 		subcgroupPath := filepath.Join(cPath, subcgroup, "system.slice")
 
+		if err := os.MkdirAll(subcgroupPath, 0755); err != nil {
+			return err
+		}
+		if err := m.Mount(subcgroupPath, subcgroupPath, "", syscall.MS_BIND, ""); err != nil {
+			return errwrap.Wrap(fmt.Errorf("error bind mounting %q", subcgroupPath), err)
+		}
+
 		// Workaround for https://github.com/coreos/rkt/issues/1210
 		if c == "cpuset" {
 			fixCpusetKnobs(cPath)
@@ -356,28 +330,29 @@ func RemountCgroups(m fs.Mounter, root string, enabledCgroups map[int][]string, 
 
 		// Create cgroup directories and mount the files we need over
 		// themselves so they stay read-write
-		for _, serviceName := range serviceNames {
+		/*for _, serviceName := range serviceNames {
 			appCgroup := filepath.Join(subcgroupPath, serviceName)
 			if err := os.MkdirAll(appCgroup, 0755); err != nil {
 				return err
 			}
-			for _, f := range getControllerRWFiles(c) {
-				cgroupFilePath := filepath.Join(appCgroup, f)
-				// the file may not be there if kernel doesn't support the
-				// feature, skip it in that case
-				if _, err := os.Stat(cgroupFilePath); os.IsNotExist(err) {
-					continue
-				}
-				if err := m.Mount(cgroupFilePath, cgroupFilePath, "", syscall.MS_BIND, ""); err != nil {
-					return errwrap.Wrap(fmt.Errorf("error bind mounting %q", cgroupFilePath), err)
-				}
+
+			// the file may not be there if kernel doesn't support the
+			// feature, skip it in that case
+			if _, err := os.Stat(appCgroup); os.IsNotExist(err) {
+				continue
 			}
-		}
+			if err := m.Mount(appCgroup, appCgroup, "", syscall.MS_BIND, ""); err != nil {
+				return errwrap.Wrap(fmt.Errorf("error bind mounting %q", appCgroup), err)
+			}
+		}*/
 
 		// Re-mount controller read-only to prevent the container modifying host controllers
-		if err := mountFsRO(m, cPath, flags); err != nil {
-			return err
-		}
+		// XXX(cdc) Commented out for runc transition
+		// This was probably necessary before #2681, but now /sys/fs/cgroup
+		// is not available in the stage2
+		//if err := mountFsRO(m, cPath, flags); err != nil {
+		//	return err
+		//}
 	}
 
 	if readWrite {
@@ -399,42 +374,39 @@ func RemountCgroupKnobsRW(enabledCgroups map[int][]string, subcgroup string, ser
 		cPath := filepath.Join("/sys/fs/cgroup", c)
 		subcgroupPath := filepath.Join(cPath, subcgroup, "system.slice")
 
-		// Create cgroup directories and mount the files we need over
+		// Create cgroup directories and mount the directories we need over
 		// themselves so they stay read-write
 		appCgroup := filepath.Join(subcgroupPath, serviceName)
 		if err := os.MkdirAll(appCgroup, 0755); err != nil {
 			return err
 		}
-		for _, f := range getControllerRWFiles(c) {
-			cgroupFilePath := filepath.Join(appCgroup, f)
-			// the file may not be there if kernel doesn't support the
-			// feature, skip it in that case
-			if _, err := os.Stat(cgroupFilePath); os.IsNotExist(err) {
-				continue
-			}
+		// the file may not be there if kernel doesn't support the
+		// feature, skip it in that case
+		if _, err := os.Stat(appCgroup); os.IsNotExist(err) {
+			continue
+		}
 
-			// Go applications cannot be  reassociated  with a new mount
-			// namespace because they are multithreaded. Instead of
-			// syscall.Mount, uses the enter entrypoint.
-			argsMountBind := append(enterCmd, "/bin/mount", "--bind", cgroupFilePath, cgroupFilePath)
-			cmdMountBind := exec.Cmd{
-				Path: argsMountBind[0],
-				Args: argsMountBind,
-			}
+		// Go applications cannot be  reassociated  with a new mount
+		// namespace because they are multithreaded. Instead of
+		// syscall.Mount, uses the enter entrypoint.
+		argsMountBind := append(enterCmd, "/bin/mount", "--bind", appCgroup, appCgroup)
+		cmdMountBind := exec.Cmd{
+			Path: argsMountBind[0],
+			Args: argsMountBind,
+		}
 
-			if err := cmdMountBind.Run(); err != nil {
-				return err
-			}
+		if err := cmdMountBind.Run(); err != nil {
+			return err
+		}
 
-			argsRemountRW := append(enterCmd, "/bin/mount", "-o", "remount,bind,rw", cgroupFilePath)
-			cmdRemountRW := exec.Cmd{
-				Path: argsRemountRW[0],
-				Args: argsRemountRW,
-			}
+		argsRemountRW := append(enterCmd, "/bin/mount", "-o", "remount,bind,rw", appCgroup)
+		cmdRemountRW := exec.Cmd{
+			Path: argsRemountRW[0],
+			Args: argsRemountRW,
+		}
 
-			if err := cmdRemountRW.Run(); err != nil {
-				return err
-			}
+		if err := cmdRemountRW.Run(); err != nil {
+			return err
 		}
 	}
 
