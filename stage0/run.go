@@ -1061,5 +1061,13 @@ func prepareOverlay(lower, treeStoreID, cdir, dest, appName, lbl string,
 		return nil, err
 	}
 
+	support, err := overlay.DirSupportsOverlay(imgDir)
+	if err != nil {
+		return nil, err
+	}
+	if !support {
+		return nil, fmt.Errorf("filesystem without ftype=1 cannot be used for overlay (%q)", imgDir)
+	}
+
 	return &overlay.MountCfg{lower, upper, work, dst, lbl}, nil
 }

@@ -16,7 +16,9 @@ package overlay
 
 import (
 	"fmt"
+	"os"
 	"syscall"
+	"unsafe"
 
 	"github.com/coreos/rkt/pkg/label"
 	"github.com/hashicorp/errwrap"
@@ -32,6 +34,33 @@ type MountCfg struct {
 	Work,
 	Dest,
 	Lbl string
+}
+
+func DirSupportsOverlay(path string) (bool, error) {
+	dir, err := os.OpenFile(path, syscall.O_RDONLY|syscall.O_DIRECTORY, 0755)
+	if err != nil {
+		return false, errwrap.Wrap(fmt.Errorf("cannot open %q", dir), err)
+	}
+	defer dir.Close()
+
+	readDirentBuf := make([]byte, 4096)
+	var n int
+	n, err = syscall.ReadDirent(int(dir.Fd()), readDirentBuf)
+	if err != nil {
+		return false, errwrap.Wrap(fmt.Errorf("cannot read directory %q", dir), err)
+	}
+	readDirentOffset := 0
+	for readDirentOffset < n {
+		dirent := (*syscall.Dirent)(unsafe.Pointer(&readDirentBuf[readDirentOffset]))
+		readDirentOffset += int(dirent.Reclen)
+		if dirent.Ino == 0 { // File absent in directory.
+			continue
+		}
+		if dirent.Type == syscall.DT_UNKNOWN {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 // Mount mounts the upper and lower directories to the destination directory.
