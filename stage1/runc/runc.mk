@@ -66,4 +66,7 @@ AIB_BINARY := $(RUNC_BINARY)
 AIB_BUILD_STAMP := $(RUNC_BUILD_STAMP)
 include stage1/makelib/aci_install_bin.mk
 
+## Install runc-prepare binary
+$(call inc-one,runc-prepare/runc-prepare.mk)
+
 $(call undefine-namespaces,RUNC)

@@ -344,7 +344,11 @@ func (uw *UnitWriter) AppUnit(ra *schema.RuntimeApp, binPath string, opts ...*un
 	opts = append(opts, unit.NewUnitOption("Unit", "Requires", "sysusers.service"))
 	opts = append(opts, unit.NewUnitOption("Unit", "After", "sysusers.service"))
 
-	opts = uw.appSystemdUnit(pa, binPath, opts)
+	if runcEnabled() {
+		opts = uw.AppRuncUnit(pa, binPath, opts)
+	} else {
+		opts = uw.appSystemdUnit(pa, binPath, opts)
+	}
 
 	uw.WriteUnit(ServiceUnitPath(uw.p.Root, ra.Name), "failed to create service unit file", opts...)
 	uw.Activate(ServiceUnitName(ra.Name), ServiceWantPath(uw.p.Root, ra.Name))

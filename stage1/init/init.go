@@ -515,6 +515,38 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 		log.FatalE("failed to load pod", err)
 	}
 
+	flavor, _, err := stage1initcommon.GetFlavor(p)
+	if err != nil {
+		log.FatalE("failed to get stage1 flavor", err)
+	}
+
+	canMachinedRegister := false
+	if flavor != "kvm" {
+		// kvm doesn't register with systemd right now, see #2664.
+		canMachinedRegister = machinedRegister()
+	}
+	diag.Printf("canMachinedRegister %t", canMachinedRegister)
+
+	unifiedCgroup, err := cgroup.IsCgroupUnified("/")
+	if err != nil {
+		log.FatalE("error determining cgroup version", err)
+	}
+	diag.Printf("unifiedCgroup %t", unifiedCgroup)
+
+	machineID := stage1initcommon.GetMachineID(p)
+
+	subcgroup, err := getContainerSubCgroup(machineID, canMachinedRegister, unifiedCgroup)
+	if err != nil {
+		log.FatalE("error getting container subcgroup", err)
+	}
+	p.SubCgroupName = subcgroup
+	diag.Printf("subcgroup %q", subcgroup)
+
+	if err := ioutil.WriteFile(filepath.Join(p.Root, "subcgroup"),
+		[]byte(fmt.Sprintf("%s", subcgroup)), 0644); err != nil {
+		log.FatalE("cannot write subcgroup file", err)
+	}
+
 	if err := p.SaveRuntime(); err != nil {
 		log.FatalE("failed to save runtime parameters", err)
 	}
@@ -531,11 +563,6 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 	}
 
 	mirrorLocalZoneInfo(p.Root)
-
-	flavor, _, err := stage1initcommon.GetFlavor(p)
-	if err != nil {
-		log.FatalE("failed to get stage1 flavor", err)
-	}
 
 	var n *networking.Networking
 	if p.NetList.Contained() {
@@ -641,13 +668,6 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 		}
 	}
 
-	canMachinedRegister := false
-	if flavor != "kvm" {
-		// kvm doesn't register with systemd right now, see #2664.
-		canMachinedRegister = machinedRegister()
-	}
-	diag.Printf("canMachinedRegister %t", canMachinedRegister)
-
 	args, env, err := getArgsEnv(p, flavor, canMachinedRegister, debug, n)
 	if err != nil {
 		log.FatalE("cannot get environment", err)
@@ -671,25 +691,6 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 	}
 	if err := mnt.Mount("", "/", "none", syscall.MS_REC|syscall.MS_SHARED, ""); err != nil {
 		log.FatalE("error making / a shared and slave mount", err)
-	}
-
-	unifiedCgroup, err := cgroup.IsCgroupUnified("/")
-	if err != nil {
-		log.FatalE("error determining cgroup version", err)
-	}
-	diag.Printf("unifiedCgroup %t", unifiedCgroup)
-
-	machineID := stage1initcommon.GetMachineID(p)
-
-	subcgroup, err := getContainerSubCgroup(machineID, canMachinedRegister, unifiedCgroup)
-	if err != nil {
-		log.FatalE("error getting container subcgroup", err)
-	}
-	diag.Printf("subcgroup %q", subcgroup)
-
-	if err := ioutil.WriteFile(filepath.Join(p.Root, "subcgroup"),
-		[]byte(fmt.Sprintf("%s", subcgroup)), 0644); err != nil {
-		log.FatalE("cannot write subcgroup file", err)
 	}
 
 	if !unifiedCgroup {

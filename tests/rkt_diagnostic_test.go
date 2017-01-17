@@ -31,18 +31,18 @@ func TestDiagnostic(t *testing.T) {
 
 	img = getInspectImagePath()
 	runCmd = fmt.Sprintf("%s --insecure-options=image run %s --exec=/foo-not-there", ctx.Cmd(), img)
-	expectedRegex = ".*Error: Unable to open \"/foo-not-there\": No such file or directory"
+	expectedRegex = `.*/foo-not-there"?: .*o such file or directory`
 	runRktAndCheckRegexOutput(t, runCmd, expectedRegex)
 
 	runCmd = fmt.Sprintf("%s --insecure-options=image run %s --exec=/foo-not-there -- arg1 arg2", ctx.Cmd(), img)
-	expectedRegex = ".*Error: Unable to open \"/foo-not-there\": No such file or directory"
+	expectedRegex = `.*/foo-not-there"?: .*o such file or directory`
 	runRktAndCheckRegexOutput(t, runCmd, expectedRegex)
 
 	runCmd = fmt.Sprintf("%s --insecure-options=image run %s --exec=/foo-not-there\\ X -- arg1 arg2", ctx.Cmd(), img)
-	expectedRegex = ".*Error: Unable to open \"/foo-not-there X\": No such file or directory"
+	expectedRegex = `.*/foo-not-there X"?: .*o such file or directory`
 	runRktAndCheckRegexOutput(t, runCmd, expectedRegex)
 
 	runCmd = fmt.Sprintf("%s --insecure-options=image run --volume=host-bin,kind=host,source=/bin/ --mount volume=host-bin,target=/var/host-bin %s --exec=/var/host-bin/ls", ctx.Cmd(), img)
-	expectedRegex = ".*Error: Unable to open \".*lib.*\\.so\\.\\d\": No such file or directory"
+	expectedRegex = ".*[Nn]o such file or directory"
 	runRktAndCheckRegexOutput(t, runCmd, expectedRegex)
 }

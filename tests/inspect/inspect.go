@@ -214,12 +214,21 @@ func main() {
 		}
 
 		if err := syscall.Mknod(nodeName, mode, int(majorMinor)); err != nil {
-			fmt.Fprintf(os.Stderr, "mknod %s: fail: %v\n", nodeName, err)
+			fmt.Printf("mknod %s: fail: %v\n", nodeName, err)
 			os.Exit(254)
 		} else {
 			fmt.Printf("mknod %s: succeed\n", nodeName)
-			os.Exit(0)
 		}
+
+		// Next, try to open the device
+		fp, err := os.Open(nodeName)
+		if err != nil {
+			fmt.Printf("open %s: fail: %v\n", nodeName, err)
+			os.Exit(254)
+		} else {
+			fmt.Printf("open %s: succeed\n", nodeName)
+		}
+		fp.Close()
 	}
 
 	if globalFlags.CheckTty {

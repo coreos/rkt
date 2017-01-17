@@ -192,7 +192,7 @@ func fixCpusetKnobs(cpusetPath, subcgroup, knob string) error {
 		return err
 	}
 
-	dirs := filepath.SplitList(subcgroup)
+	dirs := strings.Split(subcgroup, "/")
 
 	// Loop over every entry in the hierarchy, putting in the parent's value
 	// unless there is one already there.
