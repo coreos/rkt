@@ -182,7 +182,7 @@ AC_ARG_ENABLE([runc],
               [AS_HELP_STRING([--enable-runc],
                               [enable runc as the stage2 isolation environment **experimental**])],
               [RKT_ENABLE_RUNC="${enableval}"],
-              [RKT_ENABLE_RUNC="no"])
+              [RKT_ENABLE_RUNC="yes"])
 #### CHECKING
 
 ## STAGE1 - initial verification and setup
