@@ -67,6 +67,9 @@ STAGE1_BUILT_FLAVORS := $(call commas-to-spaces,$(RKT_STAGE1_FLAVORS))
 # filter out the fly flavor - it is special
 STAGE1_FLAVORS := $(filter-out fly,$(STAGE1_FLAVORS))
 STAGE1_BUILT_FLAVORS := $(filter-out fly,$(STAGE1_BUILT_FLAVORS))
+# also filter out the skim flavor - it is special
+STAGE1_FLAVORS := $(filter-out skim,$(STAGE1_FLAVORS))
+STAGE1_BUILT_FLAVORS := $(filter-out skim,$(STAGE1_BUILT_FLAVORS))
 
 # hypervisors for kvm stage1
 STAGE1_BUILT_KVM_HV := $(call commas-to-spaces,$(RKT_STAGE1_KVM_HV))

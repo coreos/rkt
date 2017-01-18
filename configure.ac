@@ -79,7 +79,7 @@ AC_ARG_WITH([stage1-default-flavor],
 
 AC_ARG_WITH([stage1-flavors],
             [AS_HELP_STRING([--with-stage1-flavors],
-                            [comma-separated list of stage1 flavors; choose from 'src', 'coreos', 'host', 'kvm', 'fly'; default: 'coreos,kvm,fly'])],
+                            [comma-separated list of stage1 flavors; choose from 'src', 'coreos', 'host', 'kvm', 'fly', 'skim'; default: 'coreos,kvm,fly,skim'])],
             [RKT_STAGE1_FLAVORS="${withval}"],
             [RKT_STAGE1_FLAVORS=auto])
 
@@ -225,7 +225,7 @@ AS_CASE([${RKT_STAGE1_SETUP_KIND}],
                   dnl and set the first flavor in the list as a
                   dnl default unless specified.
                   [AS_VAR_IF([RKT_STAGE1_FLAVORS],[auto],
-                             [RKT_STAGE1_FLAVORS='coreos,kvm,fly'])
+                             [RKT_STAGE1_FLAVORS='coreos,kvm,fly,skim'])
                    AS_VAR_IF([RKT_STAGE1_DEFAULT_FLAVOR],[auto],
                              [RKT_STAGE1_DEFAULT_FLAVOR=`AS_ECHO([${RKT_STAGE1_FLAVORS}]) | cut -d, -f1`])
                    RKT_STAGE1_DEFAULT_NAME=''
@@ -266,7 +266,7 @@ AS_CASE([${RKT_STAGE1_DEFAULT_IMAGES_DIR}],
 ## Built stage1 flavors and hypervisors verification
 
 dnl a list of all flavors
-RKT_STAGE1_ALL_FLAVORS=coreos,kvm,host,src,fly
+RKT_STAGE1_ALL_FLAVORS=coreos,kvm,host,src,fly,skim
 
 dnl a list of all kvm hypervisors
 RKT_STAGE1_KVM_ALL_HV=lkvm,qemu
@@ -276,7 +276,7 @@ dnl additional string to an error message.
 AC_DEFUN([RKT_IS_VALID_FLAVOR],
          [AS_CASE([$1],
                   dnl Correct flavor, nothing to do.
-                  [coreos|kvm|host|src|fly],
+                  [coreos|kvm|host|src|fly|skim],
                           [],
                   dnl Bogus flavor, bail out.
                   [AC_MSG_ERROR([*** Unknown stage1 flavor "$1" $2])])])
@@ -354,6 +354,8 @@ RKT_ITERATE([${RKT_STAGE1_FLAVORS}],[flavor],
                                      [],
                              [fly],
                                      [AC_MSG_WARN([* fly is an experimental stage1 implementation with almost no isolation and less features])],
+                             [skim],
+                                     [AC_MSG_WARN([* skim is an experimental stage1 implementation with no isolation and even less features])],
                              [AC_MSG_ERROR([*** Unhandled flavor "${flavor}", should not happen])])])
 
 
