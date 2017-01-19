@@ -60,6 +60,12 @@ working on your contributions.
 CoreOS project docs should follow the [Documentation style and formatting
 guide](https://github.com/coreos/docs/tree/master/STYLE.md). Thank you for documenting!
 
+*Note*: rkt embeds footers which report data to Google Analytics. We encourage
+people to remove this code by running the python script
+`scripts/docs/analytics-footer.py remove` if you don't like that sort of thing.
+If you choose this route you will need to selectively add your changes, using
+`git add -e <filename>` or your git gui of choice, to avoid merge conflicts.
+
 ### Format of the Commit Message
 
 We follow a rough convention for commit messages that is designed to answer two
