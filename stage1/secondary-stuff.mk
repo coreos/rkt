@@ -19,6 +19,10 @@ _S1_SS_SUBDIRS_ := \
 	units \
 	aci
 
+ifeq ($(RKT_STAGE1_USE_RUNC),runc)
+	_S1_SS_SUBDIRS_ += runc
+endif
+
 $(call inc-many,$(foreach f,$(_S1_SS_SUBDIRS_),$f/$f.mk))
 
 $(call undefine-namespaces,S1_SS _S1_SS)

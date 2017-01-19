@@ -10,3 +10,4 @@ lib64/libc-2.21.so
 lib64/ld-linux-aarch64.so.1
 lib64/ld-2.21.so
 lib/ld-linux-aarch64.so.1
+bin/chroot

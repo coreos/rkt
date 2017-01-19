@@ -176,6 +176,13 @@ AC_ARG_ENABLE([insecure-go],
               [RKT_INSECURE_GO="${enableval}"],
               [RKT_INSECURE_GO="no"])
 
+## runc: use the runc stage2 engine
+
+AC_ARG_ENABLE([runc],
+              [AS_HELP_STRING([--enable-runc],
+                              [enable runc as the stage2 isolation environment **experimental**])],
+              [RKT_ENABLE_RUNC="${enableval}"],
+              [RKT_ENABLE_RUNC="yes"])
 #### CHECKING
 
 ## STAGE1 - initial verification and setup
@@ -711,6 +718,23 @@ AS_CASE([${RKT_ENABLE_SDJOURNAL}],
         [yes],
                 [RKT_ADD_FEATURE '+SDJOURNAL'])
 
+
+RUNC_TAGS=''
+AS_CASE([${RKT_ENABLE_RUNC}],
+        [no],
+                dnl nothing to do
+                [:],
+        [yes],
+                [RUNC_TAGS=runc],
+        [AC_MSG_ERROR([*** Invalid value passed to --enable-runc, should be either 'yes' or 'no'])])
+AS_CASE([${RKT_ENABLE_RUNC}],
+        [no],
+                [RKT_ADD_FEATURE '-RUNC'],
+        [yes],
+                [RKT_ADD_FEATURE '+RUNC'])
+
+
+
 AC_LANG_POP([C])
 
 AC_PROG_INSTALL
@@ -815,6 +839,9 @@ AC_SUBST(RKT_STAGE1_KVM_ALL_HV)
 AC_SUBST(RKT_STAGE1_KVM_HV)
 AC_SUBST(TPM_TAGS)
 AC_SUBST(SDJOURNAL_TAGS)
+
+AC_SUBST(RUNC_TAGS)
+AC_SUBST(RKT_ENABLE_RUNC)
 
 AC_SUBST(RKT_DEFINES_FOR_ENTER)
 

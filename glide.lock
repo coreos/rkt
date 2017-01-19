@@ -1,5 +1,5 @@
-hash: d4d89bbae9978ca0305ddeb4f80bf28a1e7697215fa3fe2e11271240d234038e
-updated: 2017-01-16T13:12:04.012198138+03:00
+hash: fe9efd3993dff58c87632007f13c1c1f9dbe0edf99bedfaf78645d9d3672bbc8
+updated: 2017-01-17T15:24:11.848625976+01:00
 imports:
 - name: github.com/appc/docker2aci
   version: cfd196b05e02185b34aa3a844eff07b943c7e3ec
@@ -203,6 +203,10 @@ imports:
   subpackages:
   - specs-go
   - specs-go/v1
+- name: github.com/opencontainers/runtime-spec
+  version: 1c7c27d043c2a5e513a44084d2b10d77d1402b8c
+  subpackages:
+  - specs-go
 - name: github.com/pborman/uuid
   version: cccd189d45f7ac3368a0d127efb7f4d08ae0b655
 - name: github.com/peterbourgon/diskv

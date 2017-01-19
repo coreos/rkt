@@ -40,22 +40,18 @@ func TestDevices(t *testing.T) {
 		{
 			rktArgs:        "--insecure-options=image",
 			rktAppArgs:     "",
-			execArgs:       "--check-mknod=c:1:3:/null",
-			expectedOutput: "mknod /null: succeed",
+			execArgs:       "--check-mknod=c:1:3:/dev/null2",
+			expectedOutput: "mknod /dev/null2: succeed",
 			expectErr:      false,
 		},
 
-		/* Test the old ptmx device node, before devpts filesystem
-		 * existed. It should be blocked. Containers should use the new
-		 * ptmx from devpts instead. It is created with
-		 * "mknod name c 5 2" according to:
-		 * https://github.com/torvalds/linux/blob/master/Documentation/filesystems/devpts.txt
+		/* Test /dev/kmem - it should be blocked
 		 */
 		{
 			rktArgs:        "--insecure-options=image",
 			rktAppArgs:     "",
-			execArgs:       "--check-mknod=c:5:2:/ptmx",
-			expectedOutput: "mknod /ptmx: fail",
+			execArgs:       "--check-mknod=c:1:2:/dev/kmem2",
+			expectedOutput: "/dev/kmem2: fail",
 			expectErr:      true,
 		},
 
@@ -65,8 +61,8 @@ func TestDevices(t *testing.T) {
 		{
 			rktArgs:        "--insecure-options=image",
 			rktAppArgs:     "",
-			execArgs:       "--check-mknod=c:10:237:/loop-control",
-			expectedOutput: "mknod /loop-control: fail",
+			execArgs:       "--check-mknod=c:10:237:/dev/loop-control2",
+			expectedOutput: "/dev/loop-control2: fail",
 			expectErr:      true,
 		},
 
@@ -76,8 +72,8 @@ func TestDevices(t *testing.T) {
 		{
 			rktArgs:        "--insecure-options=image,paths",
 			rktAppArgs:     "",
-			execArgs:       "--check-mknod=c:10:237:/loop-control",
-			expectedOutput: "mknod /loop-control: succeed",
+			execArgs:       "--check-mknod=c:10:237:/dev/loop-control2",
+			expectedOutput: "/dev/loop-control2: succeed",
 			expectErr:      false,
 		},
 
@@ -98,10 +94,10 @@ func TestDevices(t *testing.T) {
 		 * Let's try the old ptmx device again.
 		 */
 		{
-			rktArgs:        "--insecure-options=image,paths --volume loopcontrol,kind=host,source=/dev/loop-control --set-env=FILE=/tmp/loop-control",
+			rktArgs:        "--debug --insecure-options=image,paths --volume loopcontrol,kind=host,source=/dev/loop-control --set-env=FILE=/tmp/loop-control",
 			rktAppArgs:     "--mount volume=loopcontrol,target=/tmp/loop-control",
-			execArgs:       "--check-mknod=c:5:2:/ptmx",
-			expectedOutput: "mknod /ptmx: succeed",
+			execArgs:       "--check-mknod=c:5:2:/dev/ptmx2",
+			expectedOutput: "mknod /dev/ptmx2: succeed",
 			expectErr:      false,
 		},
 	} {

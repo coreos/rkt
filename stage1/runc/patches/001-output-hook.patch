@@ -1,0 +1,35 @@
+From 3583a4bcb78bb920c195151a20eefbe684e85aaa Mon Sep 17 00:00:00 2001
+From: Casey Callendrello <casey.Callendrello@coreos.com>
+Date: Fri, 23 Dec 2016 17:41:55 -0500
+Subject: [PATCH] output hooks
+
+---
+ libcontainer/configs/config.go | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/libcontainer/configs/config.go b/libcontainer/configs/config.go
+index a56d12b..75b6785 100644
+--- a/libcontainer/configs/config.go
++++ b/libcontainer/configs/config.go
+@@ -4,6 +4,7 @@ import (
+ 	"bytes"
+ 	"encoding/json"
+ 	"fmt"
++	"os"
+ 	"os/exec"
+ 	"time"
+ 
+@@ -306,8 +307,8 @@ func (c Command) Run(s HookState) error {
+ 		Args:   c.Args,
+ 		Env:    c.Env,
+ 		Stdin:  bytes.NewReader(b),
+-		Stdout: &stdout,
+-		Stderr: &stderr,
++		Stdout: os.Stdout,
++		Stderr: os.Stderr,
+ 	}
+ 	if err := cmd.Start(); err != nil {
+ 		return err
+-- 
+2.7.4
+

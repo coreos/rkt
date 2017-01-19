@@ -181,6 +181,7 @@ $(strip \
 	$(eval _MISC_GFD_FILES_ := $(shell $(GO_ENV) "$(GO)" list -f '{{.ImportPath}} $(_MISC_GFD_GO_LIST_ITEMS_)' $1 | \
 		grep '\[[^]]' | \
 		grep -v '/vendor' | \
+		grep -v '$(BUILDDIR)' | \
 		sed -e 's/.*$(_MISC_GFD_ESCAPED_SRCDIR)\///' -e 's/[[:space:]]*\[.*\]$$//' \
 		$(if $3,| grep --invert-match '^\($(subst $(_MISC_GFD_SPACE_),\|,$3)\)'))) \
 	$(_MISC_GFD_FILES_) \
