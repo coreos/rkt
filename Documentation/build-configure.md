@@ -163,3 +163,5 @@ This option to allow building rkt with go having known security issues is unset 
 
 [rkt-tpm]: devel/tpm.md
 [trousers]: http://trousers.sourceforge.net/
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/build-configure.md?pixel)]() <!-- END ANALYTICS -->

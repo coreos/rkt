@@ -130,3 +130,5 @@ git log v1.1.0..v1.2.0 --pretty=format:"%an" | sort | uniq | tr '\n' ',' | sed -
 [maintainers]: https://github.com/coreos/rkt/blob/master/MAINTAINERS
 [rkt-dev-list]: https://groups.google.com/forum/#!forum/rkt-dev
 [roadmap]: https://github.com/coreos/rkt/blob/master/ROADMAP.md
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/devel/release.md?pixel)]() <!-- END ANALYTICS -->

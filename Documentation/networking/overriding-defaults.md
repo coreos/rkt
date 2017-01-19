@@ -48,3 +48,5 @@ Please follow CNI issue [#56][cni-56] to track the progress of the documentation
 [cni-56]: https://github.com/appc/cni/issues/56
 [cni-plugin-parameters]: https://github.com/appc/cni/blob/master/SPEC.md#parameters
 [overview]: overview.md
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/networking/overriding-defaults.md?pixel)]() <!-- END ANALYTICS -->

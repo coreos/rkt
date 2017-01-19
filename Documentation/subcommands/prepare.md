@@ -92,3 +92,5 @@ See the table with [global options in general commands documentation][global-opt
 [run]: run.md
 [run-prepared]: run-prepared.md
 [vol-no-mount]: run.md#mounting-volumes-without-mount-points
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/subcommands/prepare.md?pixel)]() <!-- END ANALYTICS -->

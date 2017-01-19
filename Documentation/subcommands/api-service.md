@@ -36,3 +36,5 @@ See the table with [global options in general commands documentation][global-opt
 [global-options]: ../commands.md#global-options
 [grpc]: http://www.grpc.io/
 [rkt-api]: https://github.com/coreos/rkt/blob/master/dist/init/systemd/rkt-api.service
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/subcommands/api-service.md?pixel)]() <!-- END ANALYTICS -->

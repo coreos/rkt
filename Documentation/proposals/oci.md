@@ -142,3 +142,5 @@ Backwards compatibility: Currently the biggest concern identified is backwards c
 [app-container]: https://github.com/coreos/rkt/blob/v1.22.0/Documentation/app-container.md
 [image-lifecycle]: https://github.com/coreos/rkt/blob/v1.22.0/Documentation/devel/architecture.md#image-lifecycle
 [distribution-point]: https://github.com/coreos/rkt/blob/v1.22.0/Documentation/devel/distribution-point.md
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/proposals/oci.md?pixel)]() <!-- END ANALYTICS -->

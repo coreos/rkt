@@ -38,3 +38,5 @@ If you started rkt interactively:
 If you're using systemd on the host, you can also use `machinectl` with the `poweroff` or `terminate` subcommand.
 * For a stage1 with kvm, you can stop the pod by pressing Ctrl+A and then x.
 
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/subcommands/stop.md?pixel)]() <!-- END ANALYTICS -->

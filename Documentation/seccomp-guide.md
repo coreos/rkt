@@ -390,3 +390,5 @@ set of syscalls requirements and follow best practices:
 [man-socket]: http://man7.org/linux/man-pages/man2/socket.2.html
 [man-umount]: http://man7.org/linux/man-pages/man2/umount.2.html
 [systemd-seccomp]: https://www.freedesktop.org/software/systemd/man/systemd.exec.html#SystemCallFilter=
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/seccomp-guide.md?pixel)]() <!-- END ANALYTICS -->

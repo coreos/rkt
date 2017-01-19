@@ -526,3 +526,5 @@ $ systemd-cgls --all
 [systemd-unit]: https://www.freedesktop.org/software/systemd/man/systemd.unit.html
 [sd_notify]: https://www.freedesktop.org/software/systemd/man/sd_notify.html
 [sdnotify-go]: https://github.com/coreos/go-systemd/blob/master/daemon/sdnotify.go
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/using-rkt-with-systemd.md?pixel)]() <!-- END ANALYTICS -->

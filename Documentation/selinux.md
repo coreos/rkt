@@ -11,3 +11,5 @@ Individual Linux distributions may impose additional isolation constraints on th
 
 
 [svirt]: http://selinuxproject.org/page/SVirt
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/selinux.md?pixel)]() <!-- END ANALYTICS -->

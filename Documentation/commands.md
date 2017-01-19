@@ -164,3 +164,5 @@ On some distributions such as Ubuntu, persistent journal storage is not enabled 
 [metadata-spec]: https://github.com/appc/spec/blob/master/spec/ace.md#app-container-metadata-service
 [rkt-mds]: subcommands/metadata-service.md
 [sd-journal]: https://www.freedesktop.org/software/systemd/man/sd-journal.html
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/commands.md?pixel)]() <!-- END ANALYTICS -->

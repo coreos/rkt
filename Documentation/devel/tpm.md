@@ -14,3 +14,5 @@ This provides a cryptographically verifiable audit log of the containers execute
 [build-configure-tpm]: ../build-configure.md#security
 [go-tspi]: https://github.com/coreos/go-tspi
 [wiki-tpm]: https://en.wikipedia.org/wiki/Trusted_Platform_Module
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/devel/tpm.md?pixel)]() <!-- END ANALYTICS -->

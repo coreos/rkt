@@ -168,3 +168,5 @@ Then build and test again.
 
 
 [coreos-key]: https://coreos.com/security/image-signing-key/
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/devel/update-coreos-stage1.md?pixel)]() <!-- END ANALYTICS -->

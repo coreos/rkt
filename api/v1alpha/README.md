@@ -19,3 +19,5 @@ and execute from the top-level directory:
 ```
 $ make protobuf
 ```
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/api/v1alpha/README.md?pixel)]() <!-- END ANALYTICS -->

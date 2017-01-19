@@ -60,3 +60,5 @@ See the table with [global options in general commands documentation][global-opt
 
 [global-options]: ../commands.md#global-options
 [prepare]: prepare.md
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/subcommands/run-prepared.md?pixel)]() <!-- END ANALYTICS -->

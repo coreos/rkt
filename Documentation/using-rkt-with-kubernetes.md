@@ -46,3 +46,5 @@ Known issues and tips for using rkt with Kubernetes can be found in the [rktnete
 [minikube-quickstart]: https://github.com/kubernetes/minikube/blob/master/README.md#quickstart
 [rktnetes]: http://kubernetes.io/docs/getting-started-guides/rkt/
 [rktnetes-notes]: http://kubernetes.io/docs/getting-started-guides/rkt/notes/
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/using-rkt-with-kubernetes.md?pixel)]() <!-- END ANALYTICS -->

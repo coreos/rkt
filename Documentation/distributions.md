@@ -167,3 +167,5 @@ sudo dpkg -i rkt_1.22.0-1_amd64.deb
 [rkt-2325]: https://github.com/coreos/rkt/issues/2325
 [rkt-2326]: https://github.com/coreos/rkt/issues/2326
 [void-packages]: http://www.voidlinux.eu/packages/
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/distributions.md?pixel)]() <!-- END ANALYTICS -->

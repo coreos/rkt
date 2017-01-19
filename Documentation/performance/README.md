@@ -50,3 +50,5 @@ For more profiling tips, please see [Profiling Go Programs][profiling].
 
 
 [profiling]: https://blog.golang.org/profiling-go-programs
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/performance/README.md?pixel)]() <!-- END ANALYTICS -->

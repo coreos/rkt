@@ -22,3 +22,5 @@ See the table with [global options in general commands documentation][global-opt
 
 
 [global-options]: ../commands.md#global-options
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/subcommands/cat-manifest.md?pixel)]() <!-- END ANALYTICS -->

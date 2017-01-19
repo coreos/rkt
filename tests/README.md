@@ -126,3 +126,5 @@ parameters to `go test`:
 make check GO_TEST_FUNC_ARGS='-bench=. -run=Benchmark'
 make functional-check GO_TEST_FUNC_ARGS='-bench=. -run=Benchmark'
 ```
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/tests/README.md?pixel)]() <!-- END ANALYTICS -->

@@ -99,3 +99,5 @@ See the table with [global options in general commands documentation][global-opt
 
 [appc-discovery]: https://github.com/appc/spec/blob/master/spec/discovery.md
 [global-options]: ../commands.md#global-options
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/subcommands/trust.md?pixel)]() <!-- END ANALYTICS -->

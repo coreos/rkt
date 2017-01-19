@@ -37,3 +37,5 @@ When mounting a volume from the host into the pod, the ownership of the files is
 The same kernel support should help here too ([#1057][rkt-1057]).
 
 [rkt-1057]: https://github.com/coreos/rkt/issues/1057
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/devel/user-namespaces.md?pixel)]() <!-- END ANALYTICS -->

@@ -65,3 +65,5 @@ A few [example systemd unit files for rkt helper services][rkt-units] are includ
 [rkt-vendor]: https://github.com/coreos/rkt/tree/master/vendor
 [run-deps]: dependencies.md#run-time-dependencies
 [rkt-dirs]: https://github.com/coreos/rkt/blob/master/dist/init/systemd/tmpfiles.d/rkt.conf
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/packaging.md?pixel)]() <!-- END ANALYTICS -->

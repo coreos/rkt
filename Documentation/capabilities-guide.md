@@ -347,3 +347,5 @@ set of capabilities requirements and follow best practices:
 [default-caps]: https://github.com/appc/spec/blob/master/spec/ace.md#oslinuxcapabilities-remove-set
 [grsec-forums]: https://forums.grsecurity.net/viewtopic.php?f=7&t=2522
 [man-capabilities]: http://man7.org/linux/man-pages/man7/capabilities.7.html
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/capabilities-guide.md?pixel)]() <!-- END ANALYTICS -->

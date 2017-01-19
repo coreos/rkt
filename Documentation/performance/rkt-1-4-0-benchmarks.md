@@ -60,3 +60,5 @@ container start time: 528476ns
 container stop time: 4522346ns
 ```
 
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/performance/rkt-1-4-0-benchmarks.md?pixel)]() <!-- END ANALYTICS -->

@@ -73,3 +73,5 @@ After the image has been retrieved, it can be run by referencing this hash:
 [docker-hub]: https://hub.docker.com
 [quay]: https://quay.io/
 [quay-nginx]: https://quay.io/repository/zanui/nginx
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/running-docker-images.md?pixel)]() <!-- END ANALYTICS -->

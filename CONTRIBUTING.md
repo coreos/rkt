@@ -107,3 +107,5 @@ A large PR must be split into multiple commits, each with clear commit messages.
 Intermediate commits should compile and pass tests. Exceptions to non-compilable must have a valid reason, i.e. dependency bumps.
 
 Do not add entries in the changelog yourself. They will be overwritten when creating a new release.
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/CONTRIBUTING.md?pixel)]() <!-- END ANALYTICS -->

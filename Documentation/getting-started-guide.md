@@ -98,3 +98,5 @@ hello
 [rkt-releases]: https://github.com/containers/build/releases
 [rkt-vagrant]: https://github.com/coreos/rkt/blob/master/Documentation/trying-out-rkt.md#rkt-using-vagrant
 [signing-guide]: signing-and-verification-guide.md
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/getting-started-guide.md?pixel)]() <!-- END ANALYTICS -->

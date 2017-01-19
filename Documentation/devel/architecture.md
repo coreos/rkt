@@ -257,3 +257,5 @@ Given this 1:N relation between an ACI and their rendered images, the ACIStore a
 [systemd-onfailure]: http://www.freedesktop.org/software/systemd/man/systemd.unit.html#OnFailure=
 [systemd-remainafterexit]: http://www.freedesktop.org/software/systemd/man/systemd.service.html#RemainAfterExit=
 [systemd-stopwhenunneeded]: http://www.freedesktop.org/software/systemd/man/systemd.unit.html#StopWhenUnneeded=
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/devel/architecture.md?pixel)]() <!-- END ANALYTICS -->

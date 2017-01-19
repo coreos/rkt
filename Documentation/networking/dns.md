@@ -114,3 +114,5 @@ round-trip min/avg/max = 5.421/5.421/5.421 ms
 
 
 [standard-defaults]: https://github.com/coreos/rkt/blob/master/stage1/net/rootfs/etc/hosts-fallback
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/networking/dns.md?pixel)]() <!-- END ANALYTICS -->

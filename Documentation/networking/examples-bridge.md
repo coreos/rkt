@@ -51,3 +51,5 @@ Note that the _[default-restricted][default-restricted]_ network has been loaded
 
 [cni-bridge]: https://github.com/appc/cni/blob/master/Documentation/bridge.md
 [default-restricted]: overview.md#the-default-restricted-network
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/networking/examples-bridge.md?pixel)]() <!-- END ANALYTICS -->

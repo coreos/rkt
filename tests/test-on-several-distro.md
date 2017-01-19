@@ -38,3 +38,5 @@ $ tests/aws.sh centos
 The generated AMIs can then be used to configure Jenkins.
 
 If new packages are needed they can be added to the corresponding cloudinit files in `test/cloudinit`.
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/tests/test-on-several-distro.md?pixel)]() <!-- END ANALYTICS -->

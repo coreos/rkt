@@ -6,3 +6,5 @@ For more details, check out the [official Nomad documentation][rkt-driver].
 
 [nomad]: https://www.nomadproject.io/
 [rkt-driver]: https://www.nomadproject.io/docs/drivers/rkt.html
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/using-rkt-with-nomad.md?pixel)]() <!-- END ANALYTICS -->
