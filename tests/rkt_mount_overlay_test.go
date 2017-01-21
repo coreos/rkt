@@ -31,14 +31,14 @@ func overlayMount(cfg overlay.MountCfg) error {
 
 	// Lower and Upper directories will create two text files
 	// to ensure the merging completed successfully.
-	cfg.Lower = createTempDirOrPanic(cfg.Lower)
+	cfg.Lower = mustTempDir(cfg.Lower)
 	createFileOrPanic(cfg.Lower, "1.txt")
 
-	cfg.Upper = createTempDirOrPanic(cfg.Upper)
+	cfg.Upper = mustTempDir(cfg.Upper)
 	createFileOrPanic(cfg.Upper, "2.txt")
 
-	cfg.Work = createTempDirOrPanic(cfg.Work)
-	cfg.Dest = createTempDirOrPanic(cfg.Dest)
+	cfg.Work = mustTempDir(cfg.Work)
+	cfg.Dest = mustTempDir(cfg.Dest)
 
 	// Ensure temporary directories will be removed after tests.
 	defer os.RemoveAll(cfg.Lower)

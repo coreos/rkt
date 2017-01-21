@@ -58,7 +58,7 @@ func getMissingOrInvalidTests(t *testing.T, ctx *testutils.RktRunCtx) []osArchTe
 			WorkingDirectory: "/",
 		},
 		Labels: types.Labels{
-			{"version", "1.22.0"},
+			{"version", "1.23.0"},
 		},
 	}
 

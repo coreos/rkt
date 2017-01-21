@@ -7,7 +7,11 @@ FTST_IMAGE_ROOTFSDIR := $(FTST_IMAGE_DIR)/rootfs
 FTST_IMAGE := $(FTST_TMPDIR)/rkt-inspect.aci
 FTST_IMAGE_MANIFEST_SRC := $(MK_SRCDIR)/image/manifest
 FTST_IMAGE_MANIFEST := $(FTST_IMAGE_DIR)/manifest
-FTST_IMAGE_TEST_DIRS := $(FTST_IMAGE_ROOTFSDIR)/dir1 $(FTST_IMAGE_ROOTFSDIR)/dir2 $(FTST_IMAGE_ROOTFSDIR)/bin $(FTST_IMAGE_ROOTFSDIR)/etc
+FTST_IMAGE_TEST_DIRS := \
+	$(FTST_IMAGE_ROOTFSDIR)/dir1 \
+	$(FTST_IMAGE_ROOTFSDIR)/dir2 \
+	$(FTST_IMAGE_ROOTFSDIR)/bin \
+	$(FTST_IMAGE_ROOTFSDIR)/etc
 FTST_ACE_MAIN_IMAGE_DIR := $(FTST_TMPDIR)/ace-main
 FTST_ACE_MAIN_IMAGE := $(FTST_TMPDIR)/rkt-ace-validator-main.aci
 FTST_ACE_MAIN_IMAGE_MANIFEST_SRC := vendor/github.com/appc/spec/ace/image_manifest_main.json.in
@@ -59,6 +63,9 @@ CLEAN_FILES += \
 	$(FTST_EMPTY_IMAGE) \
 	$(FTST_IMAGE_ROOTFSDIR)/dir1/file \
 	$(FTST_IMAGE_ROOTFSDIR)/dir1/link_abs_dir2 \
+	$(FTST_IMAGE_ROOTFSDIR)/dir1/link_abs_dotdot_dir2 \
+	$(FTST_IMAGE_ROOTFSDIR)/dir1/link_abs_notexists \
+	$(FTST_IMAGE_ROOTFSDIR)/dir1/link_abs_root \
 	$(FTST_IMAGE_ROOTFSDIR)/dir1/link_rel_dir2 \
 	$(FTST_IMAGE_ROOTFSDIR)/dir1/link_invalid \
 	$(FTST_IMAGE_ROOTFSDIR)/dir2/file \
@@ -83,7 +90,7 @@ $(call forward-vars,$(FTST_FUNCTIONAL_TESTS_STAMP), \
 $(FTST_FUNCTIONAL_TESTS_STAMP): $(FTST_IMAGE) $(FTST_EMPTY_IMAGE) $(ACTOOL_STAMP) $(RKT_STAMP) $(FTST_ACE_MAIN_IMAGE) $(FTST_ACE_SIDEKICK_IMAGE) $(FTST_SS1_STAMP) | $(FTST_TEST_TMP) $(FTST_RKT_PATH) $(FTST_STAGE1_ALL_FLAVOR_SYMLINKS)
 	$(VQ) \
 	$(call vb,vt,GO TEST,$(REPO_PATH)/tests) \
-	sudo RKT_STAGE1_DEFAULT_FLAVOR="$(RKT_STAGE1_DEFAULT_FLAVOR)" \
+	sudo -E RKT_STAGE1_DEFAULT_FLAVOR="$(RKT_STAGE1_DEFAULT_FLAVOR)" \
 		RKT="$(FTST_RKT_PATH)" \
 		ACTOOL="$(ACTOOL)" \
 		RKT_INSPECT_IMAGE="$(FTST_IMAGE)" \
@@ -106,10 +113,14 @@ $(FTST_IMAGE): $(FTST_IMAGE_MANIFEST) $(FTST_ACI_INSPECT) $(FTST_ACI_ECHO_SERVER
 	echo -n dir1 >$(FTST_IMAGE_ROOTFSDIR)/dir1/file; \
 	$(call vb,v2,GEN,$(call vsp,$(FTST_IMAGE_ROOTFSDIR)/dir1/link_abs_dir2)) \
 	ln -sf /dir2 $(FTST_IMAGE_ROOTFSDIR)/dir1/link_abs_dir2; \
+	$(call vb,v2,GEN,$(call vsp,$(FTST_IMAGE_ROOTFSDIR)/dir1/link_abs_dotdot_dir2)) \
+	ln -sf /../dir2 $(FTST_IMAGE_ROOTFSDIR)/dir1/link_abs_dotdot_dir2; \
 	$(call vb,v2,GEN,$(call vsp,$(FTST_IMAGE_ROOTFSDIR)/dir1/link_rel_dir2)) \
 	ln -sf ../dir2 $(FTST_IMAGE_ROOTFSDIR)/dir1/link_rel_dir2; \
-	$(call vb,v2,GEN,$(call vsp,$(FTST_IMAGE_ROOTFSDIR)/dir1/link_invalid)) \
-	ln -sf /../dir2 $(FTST_IMAGE_ROOTFSDIR)/dir1/link_invalid; \
+	$(call vb,v2,GEN,$(call vsp,$(FTST_IMAGE_ROOTFSDIR)/dir1/link_abs_root)) \
+	ln -sf / $(FTST_IMAGE_ROOTFSDIR)/dir1/link_abs_root; \
+	$(call vb,v2,GEN,$(call vsp,$(FTST_IMAGE_ROOTFSDIR)/dir1/link_abs_notexists)) \
+	ln -sf /notexists $(FTST_IMAGE_ROOTFSDIR)/dir1/link_abs_notexists; \
 	$(call vb,v2,GEN,$(call vsp,$(FTST_IMAGE_ROOTFSDIR)/dir2/file)) \
 	echo -n dir2 >$(FTST_IMAGE_ROOTFSDIR)/dir2/file; \
 	$(call vb,v2,GEN,$(call vsp,$(FTST_IMAGE_ROOTFSDIR)/etc/group)) \

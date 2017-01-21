@@ -168,7 +168,7 @@ func TestImageSize(t *testing.T) {
 		spawnAndWaitOrFail(t, runCmd, 0)
 	}
 
-	tmpDir := createTempDirOrPanic("rkt_image_list_test")
+	tmpDir := mustTempDir("rkt_image_list_test")
 	defer os.RemoveAll(tmpDir)
 	imageRenderCmd := fmt.Sprintf("%s image render --overwrite %s %s", ctx.Cmd(), imageHash, tmpDir)
 	spawnAndWaitOrFail(t, imageRenderCmd, 0)
@@ -254,7 +254,7 @@ func TestShortHash(t *testing.T) {
 		runRktAndCheckOutput(t, imageListCmd, hash, false)
 	}
 
-	tmpDir := createTempDirOrPanic("rkt_image_list_test")
+	tmpDir := mustTempDir("rkt_image_list_test")
 	defer os.RemoveAll(tmpDir)
 
 	// Define tests

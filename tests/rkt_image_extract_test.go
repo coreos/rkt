@@ -35,7 +35,7 @@ func TestImageExtract(t *testing.T) {
 	inspectFile := testutils.GetValueFromEnvOrPanic("INSPECT_BINARY")
 	inspectHash := getHashOrPanic(inspectFile)
 
-	tmpDir := createTempDirOrPanic("rkt-TestImageRender-")
+	tmpDir := mustTempDir("rkt-TestImageRender-")
 	defer os.RemoveAll(tmpDir)
 
 	ctx := testutils.NewRktRunCtx()

@@ -51,7 +51,7 @@ func TestPodManifest(t *testing.T) {
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
 
-	tmpdir := createTempDirOrPanic("rkt-tests.")
+	tmpdir := mustTempDir("rkt-tests.")
 	defer os.RemoveAll(tmpdir)
 
 	boolFalse, boolTrue := false, true
@@ -1286,7 +1286,7 @@ func TestPodManifestWithEmptyApps(t *testing.T) {
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
 
-	tmpdir := createTempDirOrPanic("rkt-tests.")
+	tmpdir := mustTempDir("rkt-tests.")
 	defer os.RemoveAll(tmpdir)
 
 	manifest := &schema.PodManifest{

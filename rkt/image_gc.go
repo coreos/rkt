@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/appc/spec/schema"
 	"github.com/coreos/rkt/common"
 	"github.com/coreos/rkt/pkg/lock"
 	pkgPod "github.com/coreos/rkt/pkg/pod"
@@ -140,8 +141,15 @@ func gcStore(s *imagestore.Store, gracePeriod time.Duration) error {
 	if err != nil {
 		return errwrap.Wrap(errors.New("failed to get aciinfos"), err)
 	}
+	runningImages, err := getRunningImages()
+	if err != nil {
+		return errwrap.Wrap(errors.New("failed to get list of images for running pods"), err)
+	}
 	for _, ai := range aciinfos {
 		if time.Now().Sub(ai.LastUsed) <= gracePeriod {
+			break
+		}
+		if isInSet(ai.BlobKey, runningImages) {
 			break
 		}
 		imagesToRemove = append(imagesToRemove, ai.BlobKey)
@@ -152,4 +160,45 @@ func gcStore(s *imagestore.Store, gracePeriod time.Duration) error {
 	}
 
 	return nil
+}
+
+// getRunningImages will return the image IDs used to create any of the
+// currently running pods
+func getRunningImages() ([]string, error) {
+	var runningImages []string
+	var errors []error
+	err := pkgPod.WalkPods(getDataDir(), pkgPod.IncludeMostDirs, func(p *pkgPod.Pod) {
+		var pm schema.PodManifest
+		if p.State() != pkgPod.Running {
+			return
+		}
+		if !p.PodManifestAvailable() {
+			return
+		}
+		_, manifest, err := p.PodManifest()
+		if err != nil {
+			errors = append(errors, newPodListReadError(p, err))
+			return
+		}
+		pm = *manifest
+		for _, app := range pm.Apps {
+			runningImages = append(runningImages, app.Image.ID.String())
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(errors) > 0 {
+		return nil, errors[0]
+	}
+	return runningImages, nil
+}
+
+func isInSet(item string, set []string) bool {
+	for _, elem := range set {
+		if item == elem {
+			return true
+		}
+	}
+	return false
 }

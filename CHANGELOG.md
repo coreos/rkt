@@ -1,3 +1,36 @@
+## 1.23.0
+
+This release adds a lot of bugfixes around the rkt fly flavor, garbage collection, kvm, and the sandbox. The new experimental `app` subcommand now follows the semantic of CRI of not quitting prematurely if apps fail or exit. Finally docker2aci received an important update fixing issues with os/arch labels which caused issues on arm architectures, a big thanks here goes to @ybubnov for this contribution.
+
+### New features
+- sandbox: don't exit if an app fails ([#3478](https://github.com/coreos/rkt/pull/3478)). In contrast to regular `rkt run` behavior, the sandbox now does not quit if all or single apps fail or exit.
+
+### Bug fixes
+- stage1: fix incorrect splitting function ([#3541](https://github.com/coreos/rkt/pull/3541)).
+- sandbox/app-add: fix mount targets with absolute symlink targets ([#3490](https://github.com/coreos/rkt/pull/3490)).
+- namefetcher: fix nil pointer dereference ([#3536](https://github.com/coreos/rkt/pull/3536)).
+- Bump appc/docker2aci library version to 0.15.0 ([#3534](https://github.com/coreos/rkt/pull/3534)). This supports the conversion of images with various os/arch labels.
+- stage1: uid shift systemd files ([#3529](https://github.com/coreos/rkt/pull/3529)).
+- stage1/kvm/lkvm: chown files and dirs on creation ([#3485](https://github.com/coreos/rkt/pull/3485)).
+- stage1/fly: record pgid and let stop fallback to it ([#3523](https://github.com/coreos/rkt/pull/3523)).
+- common/overlay: allow data directory name with colon character ([#3505](https://github.com/coreos/rkt/pull/3505)).
+- api-service: stop erroring when a pod is running ([#3525](https://github.com/coreos/rkt/pull/3525)).
+- stage1/fly: clear FD_CLOEXEC only once ([#3521](https://github.com/coreos/rkt/pull/3521)).
+- stage1: Add hostname to /etc/hosts ([#3522](https://github.com/coreos/rkt/pull/3522)).
+- gc: avoid erroring in race to deletion ([#3515](https://github.com/coreos/rkt/pull/3515)).
+- tests/rkt_stop: Wait for 'stop' command to complete ([#3518](https://github.com/coreos/rkt/pull/3518)).
+- pkg/pod: avoid nil panic for missing pods ([#3514](https://github.com/coreos/rkt/pull/3514)).
+
+### Other changes
+- stage1: move more logic out of AppUnit ([#3496](https://github.com/coreos/rkt/pull/3496)).
+- tests: use appc schema instead of string templates ([#3520](https://github.com/coreos/rkt/pull/3520)).
+- stage1: kvm: Update kernel to 4.9.2 ([#3530](https://github.com/coreos/rkt/pull/3530)).
+- stage1: remount entire subcgroup r/w, instead of each knob ([#3494](https://github.com/coreos/rkt/pull/3494)).
+- tests: update AWS CI setup ([#3509](https://github.com/coreos/rkt/pull/3509)).
+- pkg/fileutil: helper function to get major, minor numbers of a device file ([#3500](https://github.com/coreos/rkt/pull/3500)). 
+- pkg/log: correctly handle var-arg printf params ([#3516](https://github.com/coreos/rkt/pull/3516)).
+- Documentation/stop: describe --uuid-file option ([#3511](https://github.com/coreos/rkt/pull/3511)).
+
 ## 1.22.0
 
 This is a stabilization release which includes better support for environments without systemd, improvements to GC behavior in complex scenarios, and several additional fixes.

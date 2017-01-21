@@ -84,7 +84,7 @@ func TestRmInvalid(t *testing.T) {
 	defer ctx.Cleanup()
 
 	nonexistentUUID := "0f746094-3438-42bc-ab37-3cf85f132e60"
-	tmpDir := createTempDirOrPanic("rkt_rm_test")
+	tmpDir := mustTempDir("rkt_rm_test")
 	defer os.RemoveAll(tmpDir)
 	uuidFile := filepath.Join(tmpDir, "uuid-file")
 	if err := ioutil.WriteFile(uuidFile, []byte(nonexistentUUID), 0600); err != nil {

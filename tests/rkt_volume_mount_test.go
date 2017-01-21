@@ -38,7 +38,7 @@ var (
 	mountDir                   = "/mnt"
 	mountFilePath              = "/mnt/subDirRW/file"
 
-	volDir      = createTempDirOrPanic("rkt-tests-volume-data")
+	volDir      = mustTempDir("rkt-tests-volume-data")
 	volSubDirRW = path.Join(volDir, "subDirRW")
 	volFilePath = path.Join(volSubDirRW, "file")
 

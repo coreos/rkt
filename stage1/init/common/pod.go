@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/coreos/rkt/pkg/acl"
 	stage1commontypes "github.com/coreos/rkt/stage1/common/types"
@@ -302,7 +303,7 @@ func FindBinPath(p *stage1commontypes.Pod, ra *schema.RuntimeApp) (string, error
 // node, we create a symlink to its target in "/rkt/volumes". Later,
 // prepare-app will copy those to "/dev/.rkt/" so that's what we use in the
 // DeviceAllow= line.
-func generateDeviceAllows(root string, appName types.ACName, mountPoints []types.MountPoint, mounts []mountWrapper, uidRange *user.UidRange) ([]string, error) {
+func generateDeviceAllows(root string, appName types.ACName, mountPoints []types.MountPoint, mounts []Mount, uidRange *user.UidRange) ([]string, error) {
 	var devAllow []string
 
 	rktVolumeLinksPath := filepath.Join(root, "rkt", "volumes")
@@ -412,48 +413,27 @@ func parseUserGroup(p *stage1commontypes.Pod, ra *schema.RuntimeApp) (int, int, 
 // It returns the actual path relative to the app rootfs for the given path.
 // This is needed for absolute symlinks - we are in a different rootfs.
 func EvaluateSymlinksInsideApp(appRootfs, path string) (string, error) {
-	link := appRootfs
-
-	paths := strings.Split(path, "/")
-	for i, p := range paths {
-		next := filepath.Join(link, p)
-
-		if !strings.HasPrefix(next, appRootfs) {
-			return "", fmt.Errorf("path escapes app's root: %q", path)
-		}
-
-		fi, err := os.Lstat(next)
-		if err != nil {
-			if os.IsNotExist(err) {
-				link = filepath.Join(append([]string{link}, paths[i:]...)...)
-				break
-			}
-			return "", err
-		}
-
-		if fi.Mode()&os.ModeType != os.ModeSymlink {
-			link = filepath.Join(link, p)
-			continue
-		}
-
-		// Evaluate the symlink.
-		target, err := os.Readlink(next)
-		if err != nil {
-			return "", err
-		}
-
-		if filepath.IsAbs(target) {
-			link = filepath.Join(appRootfs, target)
-		} else {
-			link = filepath.Join(link, target)
-		}
-
-		if !strings.HasPrefix(link, appRootfs) {
-			return "", fmt.Errorf("symlink %q escapes app's root with value %q", next, target)
-		}
+	chroot, err := newChroot(appRootfs)
+	if err != nil {
+		return "", errwrap.Wrapf(fmt.Sprintf("chroot to %q failed", appRootfs), err)
 	}
 
-	return strings.TrimPrefix(link, appRootfs), nil
+	target, err := fileutil.EvalSymlinksAlways(path)
+	if err != nil {
+		return "", errwrap.Wrapf(fmt.Sprintf("evaluating symlinks of %q failed", path), err)
+	}
+
+	// EvalSymlinksAlways might return a relative path
+	abs, err := filepath.Abs(target)
+	if err != nil {
+		return "", errwrap.Wrapf(fmt.Sprintf("failed to get absolute representation of %q", target), err)
+	}
+
+	if err := chroot.escape(); err != nil {
+		return "", errwrap.Wrapf(fmt.Sprintf("escaping chroot %q failed", appRootfs), err)
+	}
+
+	return abs, nil
 }
 
 // appToNspawnArgs transforms the given app manifest, with the given associated
@@ -724,4 +704,62 @@ func getAppNoNewPrivileges(isolators types.Isolators) bool {
 	}
 
 	return false
+}
+
+// chroot is the struct that represents a chroot environment
+type chroot struct {
+	wd   string   // the working directory in the outer root
+	root *os.File // the outer root directory
+}
+
+// newChroot creates a new chroot environment for the given path.
+// Unless the caller calls Escape() all system operations will be invoked in that environment.
+// It stores the working directory at the point it was invoked.
+func newChroot(path string) (*chroot, error) {
+	var err error
+	var c chroot
+
+	c.wd, err = os.Getwd()
+	if err != nil {
+		return nil, errwrap.Wrapf("getwd before chroot failed", err)
+	}
+
+	c.root, err = os.Open("/")
+	if err != nil {
+		return nil, errwrap.Wrapf("error opening outer root", err)
+	}
+
+	if err := syscall.Chroot(path); err != nil {
+		return nil, errwrap.Wrapf("chroot to "+path+" failed", err)
+	}
+
+	if err := os.Chdir("/"); err != nil {
+		return nil, errwrap.Wrapf("chdir to \"/\" failed", err)
+	}
+
+	return &c, nil
+}
+
+// Escape escapes the chroot environment changing back to the original working directory where newChroot was invoked.
+func (c *chroot) escape() error {
+	// change directory to outer root and close it
+	if err := syscall.Fchdir(int(c.root.Fd())); err != nil {
+		return errwrap.Wrapf("changing directory to outer root failed", err)
+	}
+
+	if err := c.root.Close(); err != nil {
+		return errwrap.Wrapf("closing outer root failed", err)
+	}
+
+	// chroot to current directory aka "." being the outer root
+	if err := syscall.Chroot("."); err != nil {
+		return errwrap.Wrapf("chroot to current directory failed", err)
+	}
+
+	// chdir into previous working directory
+	if err := os.Chdir(c.wd); err != nil {
+		return errwrap.Wrapf("chdir to working directory failed", err)
+	}
+
+	return nil
 }

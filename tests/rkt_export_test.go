@@ -117,7 +117,7 @@ var exportTestCases = map[string]ExportTestCase{
 }
 
 func (ct ExportTestCase) Execute(t *testing.T, ctx *testutils.RktRunCtx) {
-	tmpDir := createTempDirOrPanic("rkt-TestExport-tmp-")
+	tmpDir := mustTempDir("rkt-TestExport-tmp-")
 	defer os.RemoveAll(tmpDir)
 
 	tmpTestAci := filepath.Join(tmpDir, "test.aci")

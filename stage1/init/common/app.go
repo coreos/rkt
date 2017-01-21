@@ -40,7 +40,7 @@ type preparedApp struct {
 	gid             uint32
 	env             types.Environment
 	resources       appResources
-	mounts          []mountWrapper
+	mounts          []Mount
 	noNewPrivileges bool
 	capabilities    []string
 	seccomp         *seccompFilter

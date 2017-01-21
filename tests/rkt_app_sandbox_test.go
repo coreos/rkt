@@ -19,6 +19,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -43,17 +44,17 @@ func TestAppSandboxAddStartRemove(t *testing.T) {
 		aciHello := patchTestACI("rkt-inspect-hello.aci", "--name="+imageName, "--exec=/inspect --print-msg="+msg)
 		defer os.Remove(aciHello)
 
-		testCmd{ctx.ExecCmd("fetch", "--insecure-options=image", aciHello)}.CombinedOutput(t)
-		testCmd{ctx.ExecCmd("app", "add", "--debug", podUUID, imageName, "--name="+appName)}.CombinedOutput(t)
-		testCmd{ctx.ExecCmd("app", "start", "--debug", podUUID, "--app="+appName)}.CombinedOutput(t)
+		combinedOutput(t, ctx.ExecCmd("fetch", "--insecure-options=image", aciHello))
+		combinedOutput(t, ctx.ExecCmd("app", "add", "--debug", podUUID, imageName, "--name="+appName))
+		combinedOutput(t, ctx.ExecCmd("app", "start", "--debug", podUUID, "--app="+appName))
 
 		if err := expectTimeoutWithOutput(child, msg, actionTimeout); err != nil {
 			t.Fatalf("Expected %q but not found: %v", msg, err)
 		}
 
-		testCmd{ctx.ExecCmd("app", "rm", "--debug", podUUID, "--app="+appName)}.CombinedOutput(t)
+		combinedOutput(t, ctx.ExecCmd("app", "rm", "--debug", podUUID, "--app="+appName))
 
-		out := testCmd{ctx.ExecCmd("app", "list", "--no-legend", podUUID)}.CombinedOutput(t)
+		out := combinedOutput(t, ctx.ExecCmd("app", "list", "--no-legend", podUUID))
 		if out != "\n" {
 			t.Errorf("unexpected output %q", out)
 			return
@@ -65,7 +66,7 @@ func TestAppSandboxAddStartRemove(t *testing.T) {
 // one that exits successfully, one that exits with an error, and one that keeps running.
 func TestAppSandboxMultipleApps(t *testing.T) {
 	testSandbox(t, func(ctx *testutils.RktRunCtx, child *gexpect.ExpectSubprocess, podUUID string) {
-		actionTimeout := 60 * time.Second
+		actionTimeout := 30 * time.Second
 
 		type app struct {
 			name, image, exec, aci string
@@ -97,9 +98,9 @@ func TestAppSandboxMultipleApps(t *testing.T) {
 			aci := patchTestACI(app.aci, "--name="+app.image, "--exec="+app.exec)
 			defer os.Remove(aci)
 
-			testCmd{ctx.ExecCmd("fetch", "--insecure-options=image", aci)}.CombinedOutput(t)
-			testCmd{ctx.ExecCmd("app", "add", "--debug", podUUID, app.image, "--name="+app.name)}.CombinedOutput(t)
-			testCmd{ctx.ExecCmd("app", "start", "--debug", podUUID, "--app="+app.name)}.CombinedOutput(t)
+			combinedOutput(t, ctx.ExecCmd("fetch", "--insecure-options=image", aci))
+			combinedOutput(t, ctx.ExecCmd("app", "add", "--debug", podUUID, app.image, "--name="+app.name))
+			combinedOutput(t, ctx.ExecCmd("app", "start", "--debug", podUUID, "--app="+app.name))
 		}
 
 		// check for app output messages
@@ -121,7 +122,7 @@ func TestAppSandboxMultipleApps(t *testing.T) {
 
 		// assert `rkt app list` for the apps
 		if err := r.Retry(func() error {
-			got := testCmd{ctx.ExecCmd("app", "list", "--no-legend", podUUID)}.CombinedOutput(t)
+			got := combinedOutput(t, ctx.ExecCmd("app", "list", "--no-legend", podUUID))
 
 			if strings.Contains(got, "winner\texited") &&
 				strings.Contains(got, "loser\texited") &&
@@ -160,7 +161,7 @@ func TestAppSandboxMultipleApps(t *testing.T) {
 			},
 		} {
 			if err := r.Retry(func() error {
-				got := testCmd{ctx.ExecCmd("app", "status", podUUID, "--app="+app.name)}.CombinedOutput(t)
+				got := combinedOutput(t, ctx.ExecCmd("app", "status", podUUID, "--app="+app.name))
 				ok := true
 
 				if app.checkExitCode {
@@ -182,12 +183,12 @@ func TestAppSandboxMultipleApps(t *testing.T) {
 
 		// remove all apps
 		for _, app := range apps {
-			testCmd{ctx.ExecCmd("app", "rm", "--debug", podUUID, "--app="+app.name)}.CombinedOutput(t)
+			combinedOutput(t, ctx.ExecCmd("app", "rm", "--debug", podUUID, "--app="+app.name))
 		}
 
 		// assert empty `rkt app list`, no need for retrying,
 		// as after removal no leftovers are expected to be present
-		got := testCmd{ctx.ExecCmd("app", "list", "--no-legend", podUUID)}.CombinedOutput(t)
+		got := combinedOutput(t, ctx.ExecCmd("app", "list", "--no-legend", podUUID))
 		if got != "\n" {
 			t.Errorf("unexpected result, got %q", got)
 			return
@@ -222,9 +223,9 @@ func TestAppSandboxRestart(t *testing.T) {
 			aci := patchTestACI(app.aci, "--name="+app.image, "--exec="+app.exec)
 			defer os.Remove(aci)
 
-			testCmd{ctx.ExecCmd("fetch", "--insecure-options=image", aci)}.CombinedOutput(t)
-			testCmd{ctx.ExecCmd("app", "add", "--debug", podUUID, app.image, "--name="+app.name)}.CombinedOutput(t)
-			testCmd{ctx.ExecCmd("app", "start", "--debug", podUUID, "--app="+app.name)}.CombinedOutput(t)
+			combinedOutput(t, ctx.ExecCmd("fetch", "--insecure-options=image", aci))
+			combinedOutput(t, ctx.ExecCmd("app", "add", "--debug", podUUID, app.image, "--name="+app.name))
+			combinedOutput(t, ctx.ExecCmd("app", "start", "--debug", podUUID, "--app="+app.name))
 		}
 
 		// total retry timeout: 10s
@@ -235,7 +236,7 @@ func TestAppSandboxRestart(t *testing.T) {
 
 		// assert `rkt app list` for the apps
 		if err := r.Retry(func() error {
-			got := testCmd{ctx.ExecCmd("app", "list", "--no-legend", podUUID)}.CombinedOutput(t)
+			got := combinedOutput(t, ctx.ExecCmd("app", "list", "--no-legend", podUUID))
 
 			if strings.Contains(got, "app1\trunning") &&
 				strings.Contains(got, "app2\trunning") {
@@ -250,7 +251,7 @@ func TestAppSandboxRestart(t *testing.T) {
 
 		assertStatus := func(name, status string) error {
 			return r.Retry(func() error {
-				got := testCmd{ctx.ExecCmd("app", "status", podUUID, "--app="+name)}.CombinedOutput(t)
+				got := combinedOutput(t, ctx.ExecCmd("app", "status", podUUID, "--app="+name))
 
 				if !strings.Contains(got, status) {
 					return fmt.Errorf("unexpected result, got %q", got)
@@ -269,7 +270,7 @@ func TestAppSandboxRestart(t *testing.T) {
 		}
 
 		// stop app1
-		testCmd{ctx.ExecCmd("app", "stop", podUUID, "--app=app1")}.CombinedOutput(t)
+		combinedOutput(t, ctx.ExecCmd("app", "stop", podUUID, "--app=app1"))
 
 		// assert `rkt app status` for the apps
 		for _, app := range []struct {
@@ -293,7 +294,7 @@ func TestAppSandboxRestart(t *testing.T) {
 
 		// assert `rkt app list` for the apps
 		if err := r.Retry(func() error {
-			got := testCmd{ctx.ExecCmd("app", "list", "--no-legend", podUUID)}.CombinedOutput(t)
+			got := combinedOutput(t, ctx.ExecCmd("app", "list", "--no-legend", podUUID))
 
 			if strings.Contains(got, "app1\texited") &&
 				strings.Contains(got, "app2\trunning") {
@@ -307,7 +308,7 @@ func TestAppSandboxRestart(t *testing.T) {
 		}
 
 		// start app1
-		testCmd{ctx.ExecCmd("app", "start", podUUID, "--app=app1")}.CombinedOutput(t)
+		combinedOutput(t, ctx.ExecCmd("app", "start", podUUID, "--app=app1"))
 
 		// assert `rkt app status` for the apps
 		for _, app := range []struct {
@@ -331,7 +332,7 @@ func TestAppSandboxRestart(t *testing.T) {
 
 		// assert `rkt app list` for the apps
 		if err := r.Retry(func() error {
-			got := testCmd{ctx.ExecCmd("app", "list", "--no-legend", podUUID)}.CombinedOutput(t)
+			got := combinedOutput(t, ctx.ExecCmd("app", "list", "--no-legend", podUUID))
 
 			if strings.Contains(got, "app1\trunning") &&
 				strings.Contains(got, "app2\trunning") {
@@ -346,13 +347,86 @@ func TestAppSandboxRestart(t *testing.T) {
 	})
 }
 
+func TestAppSandboxMount(t *testing.T) {
+	// this test hast to be skipped on semaphore for now,
+	// because it uses an outdated kernel hindering mount propagation,
+	// letting this test fail.
+	if os.Getenv("SEMAPHORE") == "true" {
+		t.Skip("skipped on semaphore")
+	}
+
+	mntSrcDir := mustTempDir("rkt-mount-test-")
+	defer os.RemoveAll(mntSrcDir)
+
+	mntSrcFile := filepath.Join(mntSrcDir, "test")
+	if err := ioutil.WriteFile(mntSrcFile, []byte("content"), 0666); err != nil {
+		t.Fatalf("Cannot write file: %v", err)
+	}
+
+	testSandbox(t, func(ctx *testutils.RktRunCtx, child *gexpect.ExpectSubprocess, podUUID string) {
+		aci := patchTestACI(
+			"rkt-inspect-mounter.aci",
+			"--name=coreos.com/rkt-inspect/mounter",
+			"--exec=/inspect -read-file",
+		)
+		defer os.Remove(aci)
+		combinedOutput(t, ctx.ExecCmd("fetch", "--insecure-options=image", aci))
+
+		for _, tt := range []struct {
+			mntTarget    string
+			expectedFile string
+		}{
+			{
+				mntTarget:    "/dir2",
+				expectedFile: "/dir2/test",
+			},
+			{
+				mntTarget:    "/dir1/link_rel_dir2",
+				expectedFile: "/dir2/test",
+			},
+			{
+				mntTarget:    "/dir1/link_abs_dir2",
+				expectedFile: "/dir2/test",
+			},
+			{
+				mntTarget:    "/dir1/link_abs_root/notexists",
+				expectedFile: "/notexists/test",
+			},
+			{
+				mntTarget:    "/../../../../../../../../notexists",
+				expectedFile: "/notexists/test",
+			},
+			{
+				mntTarget:    "../../../../../../../../notexists",
+				expectedFile: "/notexists/test",
+			},
+		} {
+			combinedOutput(t, ctx.ExecCmd(
+				"app", "add", "--debug", podUUID,
+				"coreos.com/rkt-inspect/mounter",
+				"--name=mounter",
+				"--environment=FILE="+tt.expectedFile,
+				"--mnt-volume=name=test,kind=host,source="+mntSrcDir+",target="+tt.mntTarget,
+			))
+
+			combinedOutput(t, ctx.ExecCmd("app", "start", "--debug", podUUID, "--app=mounter"))
+
+			if err := expectTimeoutWithOutput(child, "content", 10*time.Second); err != nil {
+				t.Fatalf("Expected \"content\" but not found: %v", err)
+			}
+
+			combinedOutput(t, ctx.ExecCmd("app", "rm", "--debug", podUUID, "--app=mounter"))
+		}
+	})
+}
+
 func testSandbox(t *testing.T, testFunc func(*testutils.RktRunCtx, *gexpect.ExpectSubprocess, string)) {
 	if err := os.Setenv("RKT_EXPERIMENT_APP", "true"); err != nil {
 		panic(err)
 	}
 	defer os.Unsetenv("RKT_EXPERIMENT_APP")
 
-	tmpDir := createTempDirOrPanic("rkt-test-cri-")
+	tmpDir := mustTempDir("rkt-test-cri-")
 	uuidFile := filepath.Join(tmpDir, "uuid")
 	defer os.RemoveAll(tmpDir)
 
@@ -371,13 +445,13 @@ func testSandbox(t *testing.T, testFunc func(*testutils.RktRunCtx, *gexpect.Expe
 	testFunc(ctx, child, podUUID)
 
 	// assert that the pod is still running
-	got := testCmd{ctx.ExecCmd("status", podUUID)}.CombinedOutput(t)
+	got := combinedOutput(t, ctx.ExecCmd("status", podUUID))
 	if !strings.Contains(got, "state=running") {
 		t.Errorf("unexpected result, got %q", got)
 		return
 	}
 
-	testCmd{ctx.ExecCmd("stop", podUUID)}.CombinedOutput(t)
+	combinedOutput(t, ctx.ExecCmd("stop", podUUID))
 
 	waitOrFail(t, child, 0)
 }
@@ -405,13 +479,9 @@ func (r retry) Retry(f func() error) error {
 	return err
 }
 
-type testCmd struct {
-	*exec.Cmd
-}
-
-func (c testCmd) CombinedOutput(t *testing.T) string {
+func combinedOutput(t *testing.T, c *exec.Cmd) string {
 	t.Log("Running", c.Args)
-	out, err := c.Cmd.CombinedOutput()
+	out, err := c.CombinedOutput()
 
 	if err != nil {
 		t.Fatal(err, "output", string(out))

@@ -30,7 +30,7 @@ func TestGenerateMounts(t *testing.T) {
 		vols       []types.Volume
 		fromDocker bool
 		hasErr     bool
-		expected   []mountWrapper
+		expected   []Mount
 	}{
 		{ // Test matching ra.mount to volume via name w/o/ mountpoint
 			ra: &schema.RuntimeApp{
@@ -54,7 +54,7 @@ func TestGenerateMounts(t *testing.T) {
 			},
 			fromDocker: false,
 			hasErr:     false,
-			expected: []mountWrapper{
+			expected: []Mount{
 				{
 					Mount: schema.Mount{
 						Volume: *types.MustACName("foo-mount"),
@@ -100,7 +100,7 @@ func TestGenerateMounts(t *testing.T) {
 			},
 			fromDocker: false,
 			hasErr:     false,
-			expected: []mountWrapper{
+			expected: []Mount{
 				{
 					Mount: schema.Mount{
 						Volume: *types.MustACName("foo-mp"),
@@ -152,7 +152,7 @@ func TestGenerateMounts(t *testing.T) {
 			},
 			fromDocker: false,
 			hasErr:     false,
-			expected: []mountWrapper{
+			expected: []Mount{
 				{
 					Mount: schema.Mount{
 						Volume: *types.MustACName("foo-mount"),

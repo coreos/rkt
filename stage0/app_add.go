@@ -235,6 +235,7 @@ func AddApp(cfg AddConfig) error {
 		EntrypointArgs: args,
 		Interactive:    false,
 	}
+
 	if err := ce.Run(); err != nil {
 		return err
 	}

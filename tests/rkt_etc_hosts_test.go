@@ -43,9 +43,9 @@ func TestEtcHosts(t *testing.T) {
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
 
-	tmpdir := createTempDirOrPanic("rkt-tests.")
+	tmpdir := mustTempDir("rkt-tests.")
 	defer os.RemoveAll(tmpdir)
-	tmpetc := createTempDirOrPanic("rkt-tests-etc.")
+	tmpetc := mustTempDir("rkt-tests-etc.")
 	defer os.RemoveAll(tmpetc)
 
 	tmpfile := filepath.Join(tmpetc, "hosts")

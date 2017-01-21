@@ -27,7 +27,7 @@ import (
 )
 
 func TestMountSymlink(t *testing.T) {
-	tmpDir := createTempDirOrPanic("rkt-mount-test-")
+	tmpDir := mustTempDir("rkt-mount-test-")
 	defer os.RemoveAll(tmpDir)
 	mountSrcFile := filepath.Join(tmpDir, "hello")
 	if err := ioutil.WriteFile(mountSrcFile, []byte("world"), 0666); err != nil {
@@ -41,7 +41,7 @@ func TestMountSymlink(t *testing.T) {
 	defer ctx.Cleanup()
 
 	tests := []struct {
-		linkFile     string
+		targetFile   string
 		actualFile   string
 		expectedLine string
 		exitCode     int
@@ -67,27 +67,67 @@ func TestMountSymlink(t *testing.T) {
 			"world",
 			0,
 		},
-		// '/dir1/../../../foo' is invalid because it tries to escape rootfs.
 		{
 			"/dir1/../../../foo",
-			"/dir2/foo",
-			"path escapes app's root",
-			254,
+			"/foo",
+			"world",
+			0,
 		},
-		// '/dir1/link_invalid' is an invalid link because it tries to escape rootfs.
 		{
-			"/dir1/link_invalid/foo",
+			"/dir1/link_abs_dotdot_dir2/foo",
 			"/dir2/foo",
-			"escapes app's root with value",
-			254,
+			"world",
+			0,
+		},
+		{
+			"/dir1/../../../newdir/foo",
+			"/newdir/foo",
+			"world",
+			0,
+		},
+		{
+			"/dir1/link_rel_dir2/newdir/foo",
+			"/dir2/newdir/foo",
+			"world",
+			0,
+		},
+		{
+			"/dir1/link_abs_dir2/newdir/foo",
+			"/dir2/newdir/foo",
+			"world",
+			0,
+		},
+		{
+			"/dir1/link_abs_notexists/newdir1/newdir2/foo",
+			"/notexists/newdir1/newdir2/foo",
+			"world",
+			0,
+		},
+		{
+			"/dir1/link_abs_root/newdir1/newdir2/foo",
+			"/newdir1/newdir2/foo",
+			"world",
+			0,
+		},
+		{
+			"../../../../../../../../../../../../../../../foo",
+			"/foo",
+			"world",
+			0,
 		},
 	}
 
 	for _, tt := range tests {
-		paramMount := fmt.Sprintf("--volume=test,kind=host,source=%s --mount volume=test,target=%s", mountSrcFile, tt.linkFile)
+		paramMount := fmt.Sprintf(
+			"--volume=test,kind=host,source=%s --mount=volume=test,target=%s",
+			mountSrcFile, tt.targetFile,
+		)
 
 		// Read the actual file.
-		rktCmd := fmt.Sprintf("%s --insecure-options=image run %s --set-env=FILE=%s %s", ctx.Cmd(), paramMount, tt.actualFile, image)
+		rktCmd := fmt.Sprintf(
+			"%s --insecure-options=image run %s --set-env=FILE=%s %s",
+			ctx.Cmd(), paramMount, tt.actualFile, image,
+		)
 		t.Logf("%s\n", rktCmd)
 
 		if tt.exitCode == 0 {

@@ -553,7 +553,7 @@ func TestDifferentDiscoveryLabels(t *testing.T) {
 	}
 
 	emptyImage := getEmptyImagePath()
-	tmpDir := createTempDirOrPanic("rkt-TestDifferentDiscoveryLabels-")
+	tmpDir := mustTempDir("rkt-TestDifferentDiscoveryLabels-")
 	defer os.RemoveAll(tmpDir)
 
 	tmpManifest, err := ioutil.TempFile(tmpDir, "manifest")

@@ -66,7 +66,7 @@ func generateComplexDependencyTree(t *testing.T, ctx *testutils.RktRunCtx) (map[
 		},
 	}
 
-	tmpDir := createTempDirOrPanic("rkt-TestImageDeps-")
+	tmpDir := mustTempDir("rkt-TestImageDeps-")
 	defer os.RemoveAll(tmpDir)
 
 	baseImage := getInspectImagePath()

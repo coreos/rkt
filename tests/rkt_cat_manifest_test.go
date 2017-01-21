@@ -42,7 +42,7 @@ func TestCatManifest(t *testing.T) {
 	cmd := fmt.Sprintf("%s --insecure-options=image prepare %s", ctx.Cmd(), imgID.path)
 	podUuid := runRktAndGetUUID(t, cmd)
 
-	tmpDir := createTempDirOrPanic(imgName)
+	tmpDir := mustTempDir(imgName)
 	defer os.RemoveAll(tmpDir)
 
 	tests := []struct {

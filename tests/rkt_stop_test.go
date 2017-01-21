@@ -31,7 +31,7 @@ func TestRktStop(t *testing.T) {
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
 
-	tmpDir := createTempDirOrPanic("rkt-TestRktStop-")
+	tmpDir := mustTempDir("rkt-TestRktStop-")
 	defer os.RemoveAll(tmpDir)
 
 	// Define tests

@@ -162,7 +162,7 @@ func NewVolumesTest() testutils.Test {
 		ctx := testutils.NewRktRunCtx()
 		defer ctx.Cleanup()
 
-		tmpdir := createTempDirOrPanic("rkt-tests.")
+		tmpdir := mustTempDir("rkt-tests.")
 		defer os.RemoveAll(tmpdir)
 
 		tmpfile := filepath.Join(tmpdir, "file")

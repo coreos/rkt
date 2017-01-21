@@ -211,7 +211,7 @@ func getHash(filePath string) (string, error) {
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
-func createTempDirOrPanic(dirName string) string {
+func mustTempDir(dirName string) string {
 	tmpDir, err := ioutil.TempDir("", dirName)
 	if err != nil {
 		panic(fmt.Sprintf("Cannot create temp dir: %v", err))
