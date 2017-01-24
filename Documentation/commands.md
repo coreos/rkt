@@ -67,15 +67,30 @@ In addition to the flags used by individual `rkt` commands, `rkt` has a set of g
 
 | Flag | Default | Options | Description |
 | --- | --- | --- | --- |
-| `--cpuprofile (hidden flag)` | `` | A file path | Write CPU profile to the file |
+| `--cpuprofile (hidden flag)` | ''  | A file path | Write CPU profile to the file |
 | `--debug` |  `false` | `true` or `false` | Prints out more debug information to `stderr` |
 | `--dir` | `/var/lib/rkt` | A directory path | Path to the `rkt` data directory |
-| `--insecure-options` |  none | **none**: All security features are enabled<br/>**http**: Allow HTTP connections. Be warned that this will send any credentials as clear text.<br/>**image**: Disables verifying image signatures<br/>**tls**: Accept any certificate from the server and any host name in that certificate<br/>**ondisk**: Disables verifying the integrity of the on-disk, rendered image before running. This significantly speeds up start time.<br/>**pubkey**: Allow fetching pubkeys via insecure connections (via HTTP connections or from servers with unverified certificates). This slightly extends the meaning of the `--trust-keys-from-https` flag.<br/>**capabilities**: Gives all capabilities to apps<br/>**paths**: Disables inaccessible and read-only paths<br/>**seccomp**: Disables seccomp<br/>**all-fetch**: Disables the following security checks: image, tls, http<br/>**all-run**: Disables the following security checks: ondisk, capabilities, paths, seccomp<br/>**all**: Disables all security checks | Comma-separated list of security features to disable |
+| `--insecure-options` |  none | **none**, **http**, **image**, **tls**, **ondisk**, **pubkey**, **capabilities**, **paths**, **seccomp**, **all-fetch**, **all-run**, **all** <br/> More information below. | Comma-separated list of security features to disable |
 | `--local-config` |  `/etc/rkt` | A directory path | Path to the local configuration directory |
-| `--memprofile (hidden flag)` | `` | A file path | Write memory profile to the file |
+| `--memprofile (hidden flag)` | '' | A file path | Write memory profile to the file |
 | `--system-config` |  `/usr/lib/rkt` | A directory path | Path to the system configuration directory |
 | `--trust-keys-from-https` |  `false` | `true` or `false` | Automatically trust gpg keys fetched from HTTPS (or HTTP if the insecure `pubkey` option is also specified) |
-| `--user-config` |  `` | A directory path | Path to the user configuration directory |
+| `--user-config` | '' | A directory path | Path to the user configuration directory |
+
+### `--insecure-options`
+
+- **none**: All security features are enabled
+- **http**: Allow HTTP connections. Be warned that this will send any credentials as clear text, allowing anybody with access to your network to obtain them. It will also perform no validation of the remote server, making it possible for an attacker to impersonate the remote server. This applies specifically to fetching images, signatures, and gpg pubkeys.
+- **image**: Disables verifying image signatures. If someone is able to replace the image on the server with a modified one or is in a position to impersonate the server, they will be able to force you to run arbitrary code.
+- **tls**: Accept any certificate from the server and any host name in that certificate. This will make it possible for attackers to spoof the remote server and provide malicious images.
+- **ondisk**: Disables verifying the integrity of the on-disk, rendered image before running. This significantly speeds up start time. If an attacker is able to modify the contents of your local filesystem, this will allow them to cause you to run arbitrary malicious code.
+- **pubkey**: Allow fetching pubkeys via insecure connections (via HTTP connections or from servers with unverified certificates). This slightly extends the meaning of the `--trust-keys-from-https` flag. This will make it possible for an attacker to spoof the remote server, potentially providing fake keys and allowing them to provide container images that have been tampered with.
+- **capabilities**: Gives all [capabilities][capabilities] to apps. This allows an attacker that is able to execute code in the container to trivially escalate to root privileges on the host. 
+- **paths**: Disables inaccessible and read-only paths. This makes it easier for an attacker who can gain control over a single container to execute code in the host system, potentially allowing them to escape from the container. This also leaks additional information.
+- **seccomp**: Disables [seccomp][seccomp]. This increases the attack surface available to an attacker who can gain control over a single container, potentially making it easier for them to escape from the container.
+- **all-fetch**: Disables the following security checks: image, tls, http
+- **all-run**: Disables the following security checks: ondisk, capabilities, paths, seccomp
+- **all**: Disables all security checks
 
 ## Logging
 
@@ -164,5 +179,7 @@ On some distributions such as Ubuntu, persistent journal storage is not enabled 
 [metadata-spec]: https://github.com/appc/spec/blob/master/spec/ace.md#app-container-metadata-service
 [rkt-mds]: subcommands/metadata-service.md
 [sd-journal]: https://www.freedesktop.org/software/systemd/man/sd-journal.html
+[capabilities]: capabilities-guide.md
+[seccomp]: seccomp-guide.md
 
 <!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/commands.md?pixel)]() <!-- END ANALYTICS -->
