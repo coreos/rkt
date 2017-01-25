@@ -2,7 +2,7 @@ SKIM_ACIDIR := $(BUILDDIR)/aci-for-skim-flavor
 SKIM_ACIROOTFSDIR := $(SKIM_ACIDIR)/rootfs
 SKIM_TOOLSDIR := $(TARGET_TOOLSDIR)/skim
 SKIM_STAMPS :=
-SKIM_SUBDIRS := run gc enter aci
+SKIM_SUBDIRS := run gc enter sync aci
 SKIM_STAGE1 := $(TARGET_BINDIR)/stage1-skim.aci
 
 $(call setup-stamp-file,SKIM_STAMP,aci-build)
