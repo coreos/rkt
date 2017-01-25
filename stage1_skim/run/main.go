@@ -15,12 +15,14 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
+	"os/signal"
     "strings"
 	"syscall"
 
@@ -46,9 +48,12 @@ var (
 	discardBool    bool
 	discardString  string
 
+	pids	[]int
+
 	log  *rktlog.Logger
 	diag *rktlog.Logger
 )
+
 
 func parseFlags() *stage1commontypes.RuntimePod {
 	rp := stage1commontypes.RuntimePod{}
@@ -89,7 +94,39 @@ func parseFlags() *stage1commontypes.RuntimePod {
 	return &rp
 }
 
+/**
+ * Reap all processes that belong to this pod. I don't believe this should be
+ * necessary once we migrate towards systemd
+ */
+func reapChildren() {
+	/* remove the SIGCHLD handler so we don't trip over it inadvertently */
+	signal.Reset(syscall.SIGCHLD)
+
+	for _, p := range pids {
+		proc, err := os.FindProcess(p)
+		if err != nil {
+			fmt.Printf("Cannot find: %d skipping\n", p)
+			continue
+		}
+
+		err = proc.Kill(); if err != nil {
+			fmt.Printf("Error killing: %d skipping\n", p)
+		}
+	}
+}
+
+func savePids() error {
+	result := ""
+	for _, v := range pids {
+		result += fmt.Sprintf("%d\n", v)
+	}
+
+	return ioutil.WriteFile("childpids", bytes.NewBufferString(result).Bytes(), 644)
+}
+
 func stage1(rp *stage1commontypes.RuntimePod) int {
+	rootDir,_ := os.Getwd()
+
 	uuid, err := types.NewUUID(flag.Arg(0))
 	if err != nil {
 		log.Print("UUID is missing or malformed\n")
@@ -107,20 +144,13 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 		log.FatalE("failed to save runtime parameters", err)
 	}
 
-	// Sanity checks
-	if len(p.Manifest.Apps) != 1 {
-		log.Printf("flavor %q only supports 1 application per Pod for now", flavor)
-		return 254
-	}
+	// CAB: Generate the rkt-UUID-system.slice
+	// From there, the following daemons will want this particular slice
 
-	ra := p.Manifest.Apps[0]
-
-	imgName := p.AppNameToImageName(ra.Name)
-	args := ra.App.Exec
-	if len(args) == 0 {
-		log.Printf(`image %q has an empty "exec" (try --exec=BINARY)`, imgName)
-		return 254
-	}
+	// lock the current goroutine to its current OS thread.
+	// This will force the subsequent syscalls to be executed in the same OS thread as Setresuid, and Setresgid,
+	// see https://github.com/golang/go/issues/1435#issuecomment-66054163.
+	runtime.LockOSThread()
 
 	lfd, err := common.GetRktLockFD()
 	if err != nil {
@@ -128,107 +158,128 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 		return 254
 	}
 
-	// set close-on-exec flag on RKT_LOCK_FD so it gets correctly closed after execution is finished
-	if err := sys.CloseOnExec(lfd, true); err != nil {
-		log.PrintE("can't set FD_CLOEXEC on rkt lock", err)
+	defer reapChildren()
+	childChannel := make(chan os.Signal, 1)
+	signal.Notify(childChannel, syscall.SIGCHLD, os.Interrupt)
+
+	for _, ra := range p.Manifest.Apps {
+		imgName := p.AppNameToImageName(ra.Name)
+		args := ra.App.Exec
+		if len(args) == 0 {
+			log.Printf(`image %q has an empty "exec" (try --exec=BINARY)`, imgName)
+			return 254
+		}
+
+	    // change permissions for the root directory to be world readable/executable
+	    // This is to ensure external ancillary scripts work without having to be
+	    // root or setuid-root
+	    err = os.Chmod(common.AppPath(p.Root, ra.Name), 0755); if err != nil {
+	        log.Error(err)
+	        return 254
+	    }
+
+		workDir := "/"
+		if ra.App.WorkingDirectory != "" {
+			workDir = ra.App.WorkingDirectory
+		}
+
+		rfs := filepath.Join(common.AppPath(p.Root, ra.Name), "rootfs")
+		pid := os.Getpid()
+
+		if err = stage1common.WritePid(pid, "pid"); err != nil {
+			log.Error(err)
+			return 254
+		}
+
+		var uidResolver, gidResolver user.Resolver
+		var uid, gid int
+
+		uidResolver, err = user.NumericIDs(ra.App.User)
+		if err != nil {
+			uidResolver, err = user.IDsFromStat(rfs, ra.App.User, nil)
+		}
+
+		if err != nil { // give up
+			log.PrintE(fmt.Sprintf("invalid user %q", ra.App.User), err)
+			return 254
+		}
+
+		if uid, _, err = uidResolver.IDs(); err != nil {
+			log.PrintE(fmt.Sprintf("failed to configure user %q", ra.App.User), err)
+			return 254
+		}
+
+		gidResolver, err = user.NumericIDs(ra.App.Group)
+		if err != nil {
+			gidResolver, err = user.IDsFromStat(rfs, ra.App.Group, nil)
+		}
+
+		if err != nil { // give up
+			log.PrintE(fmt.Sprintf("invalid group %q", ra.App.Group), err)
+			return 254
+		}
+
+		if _, gid, err = gidResolver.IDs(); err != nil {
+			log.PrintE(fmt.Sprintf("failed to configure group %q", ra.App.Group), err)
+			return 254
+		}
+
+		diag.Printf("setting uid %d gid %d", uid, gid)
+
+		if err := syscall.Setresgid(gid, gid, gid); err != nil {
+			log.PrintE(fmt.Sprintf("can't set gid %d", gid), err)
+			return 254
+		}
+
+		if err := syscall.Setresuid(uid, uid, uid); err != nil {
+			log.PrintE(fmt.Sprintf("can't set uid %d", uid), err)
+			return 254
+		}
+
+	    // Update the runtime path to reflect the absolute path of the container
+		path := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+		execDir := filepath.Join(rootDir, rfs)
+
+	    var containerPath string
+	    for _, p := range strings.Split(path, ":") {
+	        containerPath += execDir + workDir + p + ":"
+	    }
+
+		env := []string{"PATH=" + containerPath + path}
+		for _, e := range ra.App.Environment {
+			env = append(env, e.Name+"="+e.Value)
+		}
+
+		diag.Printf("spawning %q in %q", args, execDir)
+		var procAttr syscall.ProcAttr
+		procAttr.Env = env
+		procAttr.Files = [](uintptr){os.Stdin.Fd(), os.Stdout.Fd(), os.Stderr.Fd()}
+		procAttr.Dir = execDir
+		pid, err = syscall.ForkExec(filepath.Join(execDir,args[0]), args, &procAttr)
+		if err != nil {
+			log.PrintE(fmt.Sprintf("can't execute %q/%q", execDir, args[0]), err)
+			return 254
+		}
+
+		pids = append(pids, pid)
+	}
+
+	/* Reset our working directory */
+	err = savePids(); if err != nil {
+		log.PrintE("can't save pids", err)
+	}
+
+	// clear close-on-exec flag on RKT_LOCK_FD, to keep pod status as running after exec().
+	if err := sys.CloseOnExec(lfd, false); err != nil {
+		log.PrintE("unable to clear FD_CLOEXEC on pod lock", err)
 		return 254
 	}
 
-    // change permissions for the root directory to be world readable/executable
-    // This is to ensure external ancillary scripts work without having to be
-    // root or setuid-root
-    err = os.Chmod(common.AppPath(p.Root, ra.Name), 0755); if err != nil {
-        log.Error(err)
-        return 254
-    }
-
-	workDir := "/"
-	if ra.App.WorkingDirectory != "" {
-		workDir = ra.App.WorkingDirectory
-	}
-
-	rfs := filepath.Join(common.AppPath(p.Root, ra.Name), "rootfs")
-
-	if err = stage1common.WritePid(os.Getpid(), "pid"); err != nil {
-		log.Error(err)
-		return 254
-	}
-
-	var uidResolver, gidResolver user.Resolver
-	var uid, gid int
-
-	uidResolver, err = user.NumericIDs(ra.App.User)
-	if err != nil {
-		uidResolver, err = user.IDsFromStat(rfs, ra.App.User, nil)
-	}
-
-	if err != nil { // give up
-		log.PrintE(fmt.Sprintf("invalid user %q", ra.App.User), err)
-		return 254
-	}
-
-	if uid, _, err = uidResolver.IDs(); err != nil {
-		log.PrintE(fmt.Sprintf("failed to configure user %q", ra.App.User), err)
-		return 254
-	}
-
-	gidResolver, err = user.NumericIDs(ra.App.Group)
-	if err != nil {
-		gidResolver, err = user.IDsFromStat(rfs, ra.App.Group, nil)
-	}
-
-	if err != nil { // give up
-		log.PrintE(fmt.Sprintf("invalid group %q", ra.App.Group), err)
-		return 254
-	}
-
-	if _, gid, err = gidResolver.IDs(); err != nil {
-		log.PrintE(fmt.Sprintf("failed to configure group %q", ra.App.Group), err)
-		return 254
-	}
-
-	if err := os.Chdir(rfs + workDir); err != nil {
-		log.PrintE(fmt.Sprintf("can't change to working directory %q", workDir), err)
-		return 254
-	}
-
-	// lock the current goroutine to its current OS thread.
-	// This will force the subsequent syscalls to be executed in the same OS thread as Setresuid, and Setresgid,
-	// see https://github.com/golang/go/issues/1435#issuecomment-66054163.
-	runtime.LockOSThread()
-
-	diag.Printf("setting uid %d gid %d", uid, gid)
-
-	if err := syscall.Setresgid(gid, gid, gid); err != nil {
-		log.PrintE(fmt.Sprintf("can't set gid %d", gid), err)
-		return 254
-	}
-
-	if err := syscall.Setresuid(uid, uid, uid); err != nil {
-		log.PrintE(fmt.Sprintf("can't set uid %d", uid), err)
-		return 254
-	}
-
-    // Update the runtime path to reflect the absolute path of the container
-    cwd, _ := os.Getwd()
-	path := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-
-    var containerPath string
-    for _, p := range strings.Split(path, ":") {
-        containerPath += cwd + p + ":"
-    }
-
-	env := []string{"PATH=" + containerPath + path}
-	for _, e := range ra.App.Environment {
-		env = append(env, e.Name+"="+e.Value)
-	}
-
-	diag.Printf("execing %q in %q", args, rfs)
-	err = stage1common.WithClearedCloExec(lfd, func() error {
-		return syscall.Exec(cwd + args[0], args, env)
-	})
-	if err != nil {
-		log.PrintE(fmt.Sprintf("can't execute %q", args[0]), err)
+	// exec into our stage1-sync program to allow everything else to bind to it
+	syncCmd := filepath.Join(common.Stage1RootfsPath(rootDir), "sync")
+	diag.Printf("execing stage1-sync: %q\n", syncCmd)
+	if err = syscall.Exec(syncCmd, nil, nil); err != nil {
+		log.PrintE("can't execute stage1-sync:", err)
 		return 254
 	}
 
