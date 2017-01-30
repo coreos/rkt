@@ -1,5 +1,5 @@
+include stage1/usr_from_kvm/kernel-version.mk
 # custom kernel compilation
-KERNEL_VERSION := 4.9.2
 KERNEL_TMPDIR := $(UFK_TMPDIR)/kernel
 KERNEL_NAME := linux-$(KERNEL_VERSION)
 KERNEL_TARBALL := $(KERNEL_NAME).tar.xz
@@ -15,6 +15,8 @@ KERNEL_PATCHES := $(abspath $(KERNEL_PATCHESDIR)/*.patch)
 KERNEL_BUILD_CONFIG := $(KERNEL_BUILDDIR)/.config
 KERNEL_BZIMAGE := $(KERNEL_BUILDDIR)/arch/x86/boot/bzImage
 KERNEL_ACI_BZIMAGE := $(S1_RF_ACIROOTFSDIR)/bzImage
+KERNEL_SYSMAP := $(KERNEL_BUILDDIR)/System.map
+KERNEL_ACI_SYSMAP := $(S1_RF_ACIROOTFSDIR)/System.map
 
 $(call setup-stamp-file,KERNEL_STAMP,/build_kernel)
 $(call setup-stamp-file,KERNEL_BZIMAGE_STAMP,/bzimage)
@@ -27,14 +29,17 @@ CREATE_DIRS += $(KERNEL_TMPDIR) $(KERNEL_BUILDDIR)
 CLEAN_DIRS += $(KERNEL_SRCDIR)
 INSTALL_FILES += $(KERNEL_SRC_CONFIG):$(KERNEL_BUILD_CONFIG):-
 S1_RF_INSTALL_FILES += $(KERNEL_BZIMAGE):$(KERNEL_ACI_BZIMAGE):-
+S1_RF_INSTALL_FILES += $(KERNEL_SYSMAP):$(KERNEL_ACI_SYSMAP):-
 S1_RF_SECONDARY_STAMPS += $(KERNEL_STAMP)
 CLEAN_FILES += $(KERNEL_TARGET_FILE)
 
-$(call generate-stamp-rule,$(KERNEL_STAMP),$(KERNEL_ACI_BZIMAGE) $(KERNEL_DEPS_STAMP))
+$(call generate-stamp-rule,$(KERNEL_STAMP),$(KERNEL_ACI_BZIMAGE),$(KERNEL_ACI_SYSMAP) $(KERNEL_DEPS_STAMP))
 
 # $(KERNEL_ACI_BZIMAGE) has a dependency on $(KERNEL_BZIMAGE), which
 # is actually provided by $(KERNEL_BZIMAGE_STAMP)
 $(KERNEL_BZIMAGE): $(KERNEL_BZIMAGE_STAMP)
+
+$(KERNEL_SYSMAP): $(KERNEL_BZIMAGE_STAMP)
 
 # This stamp is to make sure that building linux kernel has finished.
 $(call generate-stamp-rule,$(KERNEL_BZIMAGE_STAMP),$(KERNEL_BUILD_CONFIG) $(KERNEL_PATCH_STAMP),, \

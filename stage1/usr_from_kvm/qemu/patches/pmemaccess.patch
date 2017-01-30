@@ -1,0 +1,402 @@
+commit 8a0c30aa56cb72c905e444b10cb407eed412970f
+Author: Matthew Garrett <mjg59@coreos.com>
+Date:   Tue Oct 25 14:03:09 2016 -0700
+
+    Add pmemaccess
+
+diff --git a/Makefile.target b/Makefile.target
+index a440bcb..a891f81 100644
+--- a/Makefile.target
++++ b/Makefile.target
+@@ -133,7 +133,7 @@ endif #CONFIG_BSD_USER
+ #########################################################
+ # System emulator target
+ ifdef CONFIG_SOFTMMU
+-obj-y += arch_init.o cpus.o monitor.o gdbstub.o balloon.o ioport.o numa.o
++obj-y += arch_init.o cpus.o monitor.o gdbstub.o balloon.o ioport.o numa.o memory-access.o
+ obj-y += qtest.o bootdevice.o
+ obj-y += hw/
+ obj-$(CONFIG_KVM) += kvm-all.o
+diff --git a/hmp-commands.hx b/hmp-commands.hx
+index 848efee..3ac59d6 100644
+--- a/hmp-commands.hx
++++ b/hmp-commands.hx
+@@ -1758,5 +1758,18 @@ ETEXI
+     },
+ 
+ STEXI
++@item physical-memory-access @var{path}
++Expose guest physical memory at @var{path}
++ETEXI
++
++    {
++        .name       = "pmemaccess",
++        .args_type  = "path:s?",
++        .params     = "path",
++        .help       = "mount guest physical memory image at 'path'",
++        .mhandler.cmd = hmp_pmemaccess,
++    },
++
++STEXI
+ @end table
+ ETEXI
+diff --git a/hmp.c b/hmp.c
+index cc2056e..2838f1a 100644
+--- a/hmp.c
++++ b/hmp.c
+@@ -36,6 +36,7 @@
+ #include "qemu-io.h"
+ #include "qemu/cutils.h"
+ #include "qemu/error-report.h"
++#include "memory-access.h"
+ 
+ #ifdef CONFIG_SPICE
+ #include <spice/enums.h>
+@@ -2446,3 +2447,11 @@ void hmp_hotpluggable_cpus(Monitor *mon, const QDict *qdict)
+ 
+     qapi_free_HotpluggableCPUList(saved);
+ }
++
++void hmp_pmemaccess(Monitor *mon, const QDict *qdict)
++{
++    const char *path = qdict_get_str(qdict, "path");
++    Error *err = NULL;
++    qmp_pmemaccess(path, &err);
++    hmp_handle_error(mon, &err);
++}
+diff --git a/hmp.h b/hmp.h
+index 0876ec0..0f1c854 100644
+--- a/hmp.h
++++ b/hmp.h
+@@ -134,5 +134,5 @@ void hmp_rocker_of_dpa_flows(Monitor *mon, const QDict *qdict);
+ void hmp_rocker_of_dpa_groups(Monitor *mon, const QDict *qdict);
+ void hmp_info_dump(Monitor *mon, const QDict *qdict);
+ void hmp_hotpluggable_cpus(Monitor *mon, const QDict *qdict);
+-
++void hmp_pmemaccess(Monitor *mon, const QDict *qdict);
+ #endif
+diff --git a/memory-access.c b/memory-access.c
+new file mode 100644
+index 0000000..1b36caa
+--- /dev/null
++++ b/memory-access.c
+@@ -0,0 +1,206 @@
++/*
++ * Access guest physical memory via a domain socket.
++ *
++ * Copyright (C) 2011 Sandia National Laboratories
++ * Author: Bryan D. Payne (bdpayne@acm.org)
++ */
++
++#include "qemu/osdep.h"
++#include "sysemu/accel.h"
++#include "hw/boards.h"
++#include "memory-access.h"
++#include "qemu-common.h"
++#include "exec/cpu-common.h"
++#include "qmp-commands.h"
++
++#include <stdlib.h>
++#include <stdio.h>
++#include <string.h>
++#include <pthread.h>
++#include <sys/types.h>
++#include <sys/socket.h>
++#include <sys/un.h>
++#include <unistd.h>
++#include <signal.h>
++#include <stdint.h>
++
++struct request{
++    uint8_t type;      // 0 quit, 1 read, 2 write, ... rest reserved
++    uint64_t address;  // address to read from OR write to
++    uint64_t length;   // number of bytes to read OR write
++};
++
++void qmp_pmemaccess(const char *path, Error **errp)
++{
++    memory_access_start(path);
++}
++
++static uint64_t
++connection_read_memory (uint64_t user_paddr, void *buf, uint64_t user_len)
++{
++    hwaddr paddr = (hwaddr) user_paddr;
++    hwaddr len = (hwaddr) user_len;
++    void *guestmem = cpu_physical_memory_map(paddr, &len, 0);
++    if (!guestmem){
++        return 0;
++    }
++    memcpy(buf, guestmem, len);
++    cpu_physical_memory_unmap(guestmem, len, 0, len);
++
++    return len;
++}
++
++static uint64_t
++connection_write_memory (uint64_t user_paddr, void *buf, uint64_t user_len)
++{
++    hwaddr paddr = (hwaddr) user_paddr;
++    hwaddr len = (hwaddr) user_len;
++    void *guestmem = cpu_physical_memory_map(paddr, &len, 1);
++    if (!guestmem){
++        return 0;
++    }
++    memcpy(guestmem, buf, len);
++    cpu_physical_memory_unmap(guestmem, len, 0, len);
++
++    return len;
++}
++
++static void
++send_success_ack (int connection_fd)
++{
++    uint8_t success = 1;
++    int nbytes = write(connection_fd, &success, 1);
++    if (1 != nbytes){
++        printf("QemuMemoryAccess: failed to send success ack\n");
++    }
++}
++
++static void
++send_fail_ack (int connection_fd)
++{
++    uint8_t fail = 0;
++    int nbytes = write(connection_fd, &fail, 1);
++    if (1 != nbytes){
++        printf("QemuMemoryAccess: failed to send fail ack\n");
++    }
++}
++
++static void
++connection_handler (int connection_fd)
++{
++    int nbytes;
++    struct request req;
++
++    while (1){
++        // client request should match the struct request format
++        nbytes = read(connection_fd, &req, sizeof(struct request));
++        if (nbytes != sizeof(struct request)){
++            // error
++            continue;
++        }
++        else if (req.type == 0){
++            // request to quit, goodbye
++            break;
++        }
++        else if (req.type == 1){
++            // request to read
++            char *buf = malloc(req.length + 1);
++            nbytes = connection_read_memory(req.address, buf, req.length);
++            if (nbytes != req.length){
++                // read failure, return failure message
++                buf[req.length] = 0; // set last byte to 0 for failure
++                nbytes = write(connection_fd, buf, 1);
++            }
++            else{
++                // read success, return bytes
++                buf[req.length] = 1; // set last byte to 1 for success
++                nbytes = write(connection_fd, buf, nbytes + 1);
++            }
++            free(buf);
++        }
++        else if (req.type == 2){
++            // request to write
++            void *write_buf = malloc(req.length);
++            nbytes = read(connection_fd, write_buf, req.length);
++            if (nbytes != req.length){
++                // failed reading the message to write
++                send_fail_ack(connection_fd);
++            }
++            else{
++                // do the write
++                nbytes = connection_write_memory(req.address, write_buf, req.length);
++                if (nbytes == req.length){
++                    send_success_ack(connection_fd);
++                }
++                else{
++                    send_fail_ack(connection_fd);
++                }
++            }
++            free(write_buf);
++        }
++        else{
++            // unknown command
++            printf("QemuMemoryAccess: ignoring unknown command (%d)\n", req.type);
++            char *buf = malloc(1);
++            buf[0] = 0;
++            nbytes = write(connection_fd, buf, 1);
++            free(buf);
++        }
++    }
++
++    close(connection_fd);
++}
++
++static void *
++memory_access_thread (void *path)
++{
++    struct sockaddr_un address;
++    int socket_fd, connection_fd;
++    socklen_t address_length;
++
++    socket_fd = socket(PF_UNIX, SOCK_STREAM, 0);
++    if (socket_fd < 0){
++        printf("QemuMemoryAccess: socket failed\n");
++        goto error_exit;
++    }
++    unlink(path);
++    address.sun_family = AF_UNIX;
++    address_length = sizeof(address.sun_family) + sprintf(address.sun_path, "%s", (char *) path);
++
++    if (bind(socket_fd, (struct sockaddr *) &address, address_length) != 0){
++        printf("QemuMemoryAccess: bind failed\n");
++        goto error_exit;
++    }
++    if (listen(socket_fd, 0) != 0){
++        printf("QemuMemoryAccess: listen failed\n");
++        goto error_exit;
++    }
++
++    connection_fd = accept(socket_fd, (struct sockaddr *) &address, &address_length);
++    connection_handler(connection_fd);
++
++    close(socket_fd);
++    unlink(path);
++error_exit:
++    return NULL;
++}
++
++int
++memory_access_start (const char *path)
++{
++    pthread_t thread;
++    sigset_t set, oldset;
++    int ret;
++
++    // create a copy of path that we can safely use
++    char *pathcopy = malloc(strlen(path) + 1);
++    memcpy(pathcopy, path, strlen(path) + 1);
++
++    // start the thread
++    sigfillset(&set);
++    pthread_sigmask(SIG_SETMASK, &set, &oldset);
++    ret = pthread_create(&thread, NULL, memory_access_thread, pathcopy);
++    pthread_sigmask(SIG_SETMASK, &oldset, NULL);
++
++    return ret;
++}
+diff --git a/memory-access.h b/memory-access.h
+new file mode 100644
+index 0000000..e538134
+--- /dev/null
++++ b/memory-access.h
+@@ -0,0 +1,8 @@
++/*
++ * Mount guest physical memory using FUSE.
++ *
++ * Copyright (C) 2011 Sandia National Laboratories
++ * Author: Bryan D. Payne (bdpayne@acm.org)
++ */
++
++int memory_access_start (const char *path);
+diff --git a/monitor.c b/monitor.c
+index 5c00373..3a208af 100644
+--- a/monitor.c
++++ b/monitor.c
+@@ -79,6 +79,7 @@
+ #include "sysemu/block-backend.h"
+ #include "sysemu/qtest.h"
+ #include "qemu/cutils.h"
++#include "memory-access.h"
+ 
+ /* for hmp_info_irq/pic */
+ #if defined(TARGET_SPARC)
+diff --git a/qapi-schema.json b/qapi-schema.json
+index 5658723..1f03260 100644
+--- a/qapi-schema.json
++++ b/qapi-schema.json
+@@ -4338,3 +4338,19 @@
+ # Since: 2.7
+ ##
+ { 'command': 'query-hotpluggable-cpus', 'returns': ['HotpluggableCPU'] }
++
++##
++# @pmemaccess:
++#
++# Expose guest physical memory
++#
++# @path: the path to expose the memory at
++#
++# Returns: Nothing on success
++#
++# Since: 0.14.0
++#
++# Notes: Errors were not reliably returned until 1.1
++##
++{ 'command': 'pmemaccess',
++  'data': {'path': 'str'} }
+diff --git a/qmp-commands.hx b/qmp-commands.hx
+index 6866264..ae31c93 100644
+--- a/qmp-commands.hx
++++ b/qmp-commands.hx
+@@ -638,6 +638,58 @@ Example:
+ EQMP
+ 
+     {
++        .name       = "pmemaccess",
++        .args_type  = "path:s",
++        .params     = "path",
++        .help       = "mount guest physical memory image at 'path'",
++        .mhandler.cmd_new = qmp_marshal_pmemaccess,
++    },
++
++SQMP
++pmemaccess
++----------
++
++Mount guest physical memory image at 'path'.
++
++Arguments:
++
++- "path": mount point path (json-string)
++
++Example:
++
++-> { "execute": "pmemaccess",
++             "arguments": { "path": "/tmp/guestname" } }
++<- { "return": {} }
++
++EQMP
++
++    {
++        .name       = "pmemaccess",
++        .args_type  = "path:s",
++        .params     = "path",
++        .help       = "mount guest physical memory image at 'path'",
++        .mhandler.cmd_new = qmp_marshal_pmemaccess,
++    },
++
++SQMP
++pmemaccess
++----------
++
++Mount guest physical memory image at 'path'.
++
++Arguments:
++
++- "path": mount point path (json-string)
++
++Example:
++
++-> { "execute": "pmemaccess",
++             "arguments": { "path": "/tmp/guestname" } }
++<- { "return": {} }
++
++EQMP
++
++    {
+         .name       = "migrate",
+         .args_type  = "detach:-d,blk:-b,inc:-i,uri:s",
+         .mhandler.cmd_new = qmp_marshal_migrate,

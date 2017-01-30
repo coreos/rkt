@@ -103,6 +103,7 @@ func mirrorLocalZoneInfo(root string) {
 
 var (
 	debug       bool
+	monitor     bool
 	localhostIP net.IP
 	localConfig string
 	log         *rktlog.Logger
@@ -114,6 +115,7 @@ func parseFlags() *stage1commontypes.RuntimePod {
 	rp := stage1commontypes.RuntimePod{}
 
 	flag.BoolVar(&debug, "debug", false, "Run in debug mode")
+	flag.BoolVar(&monitor, "monitor", false, "Run with process monitoring")
 	flag.StringVar(&localConfig, "local-config", common.DefaultLocalConfigDir, "Local config path")
 
 	// These flags are persisted in the PodRuntime
@@ -309,6 +311,7 @@ func getArgsEnv(p *stage1commontypes.Pod, flavor string, canMachinedRegister boo
 			cpu,
 			mem,
 			debug,
+			monitor,
 		)
 
 		if hvStartCmd == nil {

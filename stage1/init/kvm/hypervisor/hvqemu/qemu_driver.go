@@ -26,10 +26,16 @@ import (
 
 // StartCmd takes path to stage1, name of the machine, path to kernel, network describers, memory in megabytes
 // and quantity of cpus and prepares command line to run QEMU process
-func StartCmd(wdPath, name, kernelPath string, nds []kvm.NetDescriber, cpu, mem int64, debug bool) []string {
+func StartCmd(wdPath, name, kernelPath string, nds []kvm.NetDescriber, cpu, mem int64, debug bool, monitor bool) []string {
+	hypervisorcmd := "./qemu"
+
+	if monitor == true {
+		hypervisorcmd = "./monitor"
+	}
+
 	var (
 		driverConfiguration = hypervisor.KvmHypervisor{
-			Bin: "./qemu",
+			Bin: hypervisorcmd,
 			KernelParams: []string{
 				"root=/dev/root",
 				"rootfstype=9p",
@@ -59,6 +65,13 @@ func StartCmd(wdPath, name, kernelPath string, nds []kvm.NetDescriber, cpu, mem 
 		"-device", "virtio-serial",
 		"-device", "virtconsole,chardev=virtiocon0",
 	}
+	if monitor == true {
+		cmd = append(cmd, []string{
+			"-qmp", "unix:./qmp,server",
+			"-hypercall-monitor",
+		}...)
+	}
+
 	return append(cmd, kvmNetArgs(nds)...)
 }
 

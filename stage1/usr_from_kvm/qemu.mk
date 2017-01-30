@@ -1,7 +1,15 @@
 $(call setup-stamp-file,QEMU_STAMP)
+
+UFK_INCLUDES := libvmi.mk
+
+$(call inc-many,$(UFK_INCLUDES))
+
 QEMU_TMPDIR := $(UFK_TMPDIR)/qemu
 QEMU_SRCDIR := $(QEMU_TMPDIR)/src
 QEMU_BINARY := $(QEMU_SRCDIR)/x86_64-softmmu/qemu-system-x86_64
+QEMU_STUFFDIR := $(MK_SRCDIR)/qemu
+QEMU_PATCHESDIR := $(QEMU_STUFFDIR)/patches
+QEMU_PATCHES := $(abspath $(QEMU_PATCHESDIR)/*.patch)
 QEMU_BIOS_BINARIES := bios-256k.bin \
     kvmvapic.bin \
     linuxboot.bin \
@@ -24,8 +32,11 @@ QEMU_GIT_COMMIT := v2.7.0
 $(call setup-stamp-file,QEMU_BUILD_STAMP,/build)
 $(call setup-stamp-file,QEMU_BIOS_BUILD_STAMP,/bios_build)
 $(call setup-stamp-file,QEMU_CONF_STAMP,/conf)
+$(call setup-stamp-file,QEMU_PATCH_STAMP,/patch)
 $(call setup-stamp-file,QEMU_DIR_CLEAN_STAMP,/dir-clean)
 $(call setup-filelist-file,QEMU_DIR_FILELIST,/dir)
+$(call setup-dep-file,QEMU_PATCHES_DEPMK)
+$(call setup-filelist-file,QEMU_PATCHES_FILELIST,/patches)
 $(call setup-clean-file,QEMU_CLEANMK,/src)
 
 S1_RF_SECONDARY_STAMPS += $(QEMU_STAMP)
@@ -47,11 +58,25 @@ $(call generate-stamp-rule,$(QEMU_BIOS_BUILD_STAMP),$(QEMU_CONF_STAMP) $(UFK_CBU
 		cp $(QEMU_SRCDIR)/pc-bios/$$$${bios} $(HV_ACIROOTFSDIR)/$$$${bios} $(call vl2,>/dev/null); \
 	done)
 
+$(call generate-stamp-rule,$(QEMU_PATCH_STAMP),$(QEMU_CLONE_STAMP),, \
+        shopt -s nullglob; \
+        for p in $(QEMU_PATCHES); do \
+                $(call vb,v2,PATCH,$$$${p#$(MK_TOPLEVEL_ABS_SRCDIR)/}) \
+                patch $(call vl3,--silent )--directory="$(QEMU_SRCDIR)" --strip=1 --forward <"$$$${p}"; \
+        done)
+
+# Generate a filelist of patches. Can happen anytime.
+$(call generate-patches-filelist,$(QEMU_PATCHES_FILELIST),$(QEMU_PATCHESDIR))
+
+# Generate dep.mk on patches, so if they change, the project has to be
+# reset to original checkout and patches reapplied.
+$(call generate-glob-deps,$(QEMU_DEPS_STAMP),$(QEMU_SRCDIR)/Makefile,$(QEMU_PATCHES_DEPMK),.patch,$(QEMU_PATCHES_FILELIST),$(QEMU_PATCHESDIR),normal)
+
 $(call generate-stamp-rule,$(QEMU_BUILD_STAMP),$(QEMU_CONF_STAMP),, \
     $(call vb,vt,BUILD EXT,qemu) \
 	$$(MAKE) $(call vl2,--silent) -C "$(QEMU_SRCDIR)" $(call vl2,>/dev/null))
 
-$(call generate-stamp-rule,$(QEMU_CONF_STAMP),,, \
+$(call generate-stamp-rule,$(QEMU_CONF_STAMP),$(QEMU_PATCH_STAMP),, \
 	$(call vb,vt,CONFIG EXT,qemu) \
 	cd $(QEMU_SRCDIR); ./configure $(QEMU_CONFIGURATION_OPTS) $(call vl2,>/dev/null))
 
@@ -67,7 +92,7 @@ GCL_REPOSITORY := $(QEMU_GIT)
 GCL_DIRECTORY := $(QEMU_SRCDIR)
 GCL_COMMITTISH := $(QEMU_GIT_COMMIT)
 GCL_EXPECTED_FILE := Makefile
-GCL_TARGET := $(QEMU_CONF_STAMP)
+GCL_TARGET := $(QEMU_PATCH_STAMP)
 GCL_DO_CHECK :=
 
 include makelib/git.mk

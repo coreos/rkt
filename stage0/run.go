@@ -92,6 +92,7 @@ type RunConfig struct {
 	InsecureSeccomp      bool           // Do not add seccomp restrictions
 	UseOverlay           bool           // run pod with overlay fs
 	HostsEntries         HostsEntries   // The entries in /etc/hosts
+	Monitor              bool           // Whether to run under a process monitor
 }
 
 // CommonConfig defines the configuration shared by both Run and Prepare
@@ -662,6 +663,9 @@ func Run(cfg RunConfig, dir string, dataDir string) {
 
 	if cfg.Interactive {
 		args = append(args, "--interactive")
+	}
+	if cfg.Monitor {
+		args = append(args, "--monitor")
 	}
 	if len(privateUsers) > 0 {
 		args = append(args, "--private-users="+privateUsers)

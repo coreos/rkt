@@ -1,0 +1,1618 @@
+diff --git a/configure.ac b/configure.ac
+index 591a4e4..1e22314 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -101,6 +101,13 @@ AC_ARG_ENABLE([file],
+       [enable_file=yes])
+ AM_CONDITIONAL([FILE], [test x"$enable_file" = xyes])
+ 
++AC_ARG_ENABLE([qemu],
++      [AS_HELP_STRING([--disable-qemu],
++         [Support memory introspection with live qemu VMs (default is yes)])],
++      [enable_qemu=$enableval],
++      [enable_qemu=yes])
++AM_CONDITIONAL([QEMU], [test x"$enable_qemu" = xyes])
++
+ AC_ARG_ENABLE([windows],
+       [AS_HELP_STRING([--disable-windows],
+          [Support introspecting Windows (XP - 8)])],
+@@ -276,6 +283,16 @@ file_space='      '
+ [fi]
+ AM_CONDITIONAL([HAVE_FILE], [test x"$have_file" = "xyes"])
+ 
++have_qemu='no'
++file_space='      '
++[if test "$enable_qemu" = "yes"]
++[then]
++    AC_DEFINE([ENABLE_QEMU], [1], [Define to 1 to enable raw qemu support.])
++    qemu_space='     '
++    have_qemu='yes'
++[fi]
++AM_CONDITIONAL([HAVE_QEMU], [test x"$have_qemu" = "xyes"])
++
+ [if test "$enable_windows" = "yes"]
+ [then]
+     AC_DEFINE([ENABLE_WINDOWS], [1], [Define to 1 to Windows support.])
+@@ -359,6 +376,31 @@ AM_CONDITIONAL([REKALL_PROFILES], [test x$rekall = xyes])
+         AC_DEFINE_UNQUOTED([MAX_PAGE_CACHE_SIZE], [$enable_page_cache], [Max number of pages held in page cache])
+ [fi]
+ 
++AC_ARG_WITH([vmlinux], [AS_HELP_STRING([--with-vmlinux=path],[Path to vmlinux])],[],[])
++echo "*************"
++echo $with_vmlinux
++echo "*************"
++[if test x"$with_vmlinux" != "x"]
++[then]
++	VMLINUX=$with_vmlinux
++	VMI_STACK_OFFSET=`pahole $VMLINUX -C task_struct | grep ' stack;' | awk '{print $5}'`
++	VMI_PID_OFFSET=`pahole $VMLINUX -C task_struct | grep ' pid;' | awk '{print $4}'`
++	VMI_PARENT_OFFSET=`pahole $VMLINUX -C task_struct | grep ' parent;' | awk '{print $6}'`
++	VMI_CRED_OFFSET=`pahole $VMLINUX -C task_struct | grep ' cred;' | awk '{print $7}'`
++	VMI_THREAD_OFFSET=`pahole $VMLINUX -C task_struct | grep ' thread;' | awk '{print $6}'`
++	VMI_NOTIFICATION_OFFSET=`pahole $VMLINUX -C task_struct | grep ' notification_in_progress;' | awk '{print $5}'`
++	VMI_TASKS_OFFSET=`pahole $VMLINUX -C task_struct | grep ' tasks;' | awk '{print $5}'`
++	VMI_SP_OFFSET=`pahole $VMLINUX -C thread_struct | grep ' sp;' | awk '{print $6}'`
++	AC_DEFINE_UNQUOTED([VMI_STACK_OFFSET], [$VMI_STACK_OFFSET], [Offset to stack in task_struct])
++	AC_DEFINE_UNQUOTED([VMI_PID_OFFSET], [$VMI_PID_OFFSET], [Offset to pid in task_struct])
++	AC_DEFINE_UNQUOTED([VMI_PARENT_OFFSET], [$VMI_PARENT_OFFSET], [Offset to parent in task_struct])
++	AC_DEFINE_UNQUOTED([VMI_CRED_OFFSET], [$VMI_CRED_OFFSET], [Offset to creds in task_struct])
++	AC_DEFINE_UNQUOTED([VMI_THREAD_OFFSET], [$VMI_THREAD_OFFSET], [Offset to thread_struct in task_struct])
++	AC_DEFINE_UNQUOTED([VMI_TASKS_OFFSET], [$VMI_THREAD_OFFSET], [Offset to tasks in task_struct])
++	AC_DEFINE_UNQUOTED([VMI_NOTIFICATION_OFFSET], [$VMI_NOTIFICATION_OFFSET], [Offset to notification_in_progress in task_struct])
++	AC_DEFINE_UNQUOTED([VMI_SP_OFFSET], [$VMI_SP_OFFSET], [Offset to sp in thread_struct])
++[fi]
++
+ dnl -----------------------------------------------
+ dnl Generates Makefile's, configuration files and scripts
+ dnl -----------------------------------------------
+@@ -404,6 +446,7 @@ Feature      | Option                    | Reason
+ Xen Support  | --enable-xen=$enable_xen$xen_space     | $have_xen
+ KVM Support  | --enable-kvm=$enable_kvm$kvm_space     | $have_kvm
+ File Support | --enable-file=$enable_file$file_space    | $have_file
++QEMU Support | --enable-qemu=$enable_qemu$qemu_space    | $have_qemu
+ Shm-snapshot | --enable-shm-snapshot=$enable_shm_snapshot$shm_snapshot_space | $have_shm_snapshot
+ -------------|---------------------------|----------------------------
+ 
+diff --git a/examples/Makefile.am b/examples/Makefile.am
+index 2422113..add22da 100644
+--- a/examples/Makefile.am
++++ b/examples/Makefile.am
+@@ -1,9 +1,9 @@
+-## Source directory
++## Source directoryno
+ 
+ SUBDIRS =
+ 
+ AM_CFLAGS = -I$(top_srcdir) $(GLIB_CFLAGS)
+-AM_CFLAGS += -Wall -Wextra
++AM_CFLAGS += -Wall -Wextra -Wno-missing-field-initializers
+ 
+ if DEBUG
+ AM_CFLAGS += -Werror
+@@ -26,7 +26,8 @@ bin_PROGRAMS =  module-list \
+                 interrupt-event-example \
+                 step-event-example \
+                 va-pages \
+-                xen-emulate-response
++                xen-emulate-response \
++		process-state-monitor
+ 
+ module_list_SOURCES = module-list.c
+ process_list_SOURCES = process-list.c
+@@ -42,3 +43,4 @@ win_guid_SOURCES = win-guid.c win-guid.h
+ step_event_example_SOURCES = step-event-example.c
+ va_pages_SOURCES = va-pages.c
+ xen_emulate_response_SOURCES = xen-emulate-response.c
++process_state_monitor_SOURCES = process-state-monitor.c
+diff --git a/examples/process-state-monitor.c b/examples/process-state-monitor.c
+new file mode 100644
+index 0000000..ccfb8b4
+--- /dev/null
++++ b/examples/process-state-monitor.c
+@@ -0,0 +1,354 @@
++/* The LibVMI Library is an introspection library that simplifies access to 
++ * memory in a target virtual machine or in a file containing a dump of 
++ * a system's physical memory.  LibVMI is based on the XenAccess Library.
++ *
++ * Copyright 2011 Sandia Corporation. Under the terms of Contract
++ * DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government
++ * retains certain rights in this software.
++ *
++ * Author: Bryan D. Payne (bdpayne@acm.org)
++ *
++ * This file is part of LibVMI.
++ *
++ * LibVMI is free software: you can redistribute it and/or modify it under
++ * the terms of the GNU Lesser General Public License as published by the
++ * Free Software Foundation, either version 3 of the License, or (at your
++ * option) any later version.
++ *
++ * LibVMI is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
++ * License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public License
++ * along with LibVMI.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include <errno.h>
++#include <fcntl.h>
++#include <inttypes.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/mman.h>
++#include <sys/socket.h>
++#include <sys/stat.h>
++#include <sys/types.h>
++#include <sys/un.h>
++#include <unistd.h>
++
++#include <glib.h>
++#include <libvmi/libvmi.h>
++
++#include "config.h"
++
++struct state_event {
++	int event;
++	void *task;
++	uint64_t r12;
++};
++
++struct process_info {
++	int parent;
++	int uid;
++	int gid;
++	int euid;
++	int egid;
++	int suid;
++	int sgid;
++	uint64_t cap_inheritable;
++	uint64_t cap_permitted;
++	uint64_t cap_effective;
++	uint64_t cap_bset;
++	uint64_t cap_ambient;
++};
++
++int main (int argc, char **argv)
++{
++    vmi_instance_t vmi;
++    vmi_pid_t pid, parent_pid;
++    int32_t uid, gid, euid, egid, suid, sgid;
++    uint64_t creds, parent_task, cap_inheritable, cap_permitted, cap_effective, cap_bset, cap_ambient;
++    unsigned long pid_offset = 0, cred_offset, parent_offset, notify_offset;
++    int sock_fd, notify_fd = -1;
++    struct sockaddr_un addr;
++    int inited = 0;
++    struct state_event event;
++    GHashTable *processes;
++    struct process_info *process_info, *parent_info;
++    pid_t fork_ret;
++    uint8_t zero = 0;
++    char *buffer;
++
++    fork_ret = fork();
++    if (fork_ret == 0) {
++	    execv("./stage1/rootfs/qemu", argv);
++    } else if (fork_ret < 0) {
++	    perror("Failed to fork");
++    }
++    processes = g_hash_table_new(NULL, NULL);
++
++    process_info = malloc(sizeof(struct process_info));
++    process_info->parent = 0;
++    process_info->uid = 0;
++    process_info->gid = 0;
++    process_info->euid = 0;
++    process_info->egid = 0;
++    process_info->suid = 0;
++    process_info->sgid = 0;
++    process_info->cap_inheritable = -1;
++    process_info->cap_permitted = -1;
++    process_info->cap_effective = -1;
++    process_info->cap_bset = -1;
++    process_info->cap_ambient = -1;
++
++    g_hash_table_insert(processes, (gpointer)0, process_info);
++
++    /* Trigger qemu into booting */
++    sock_fd = socket(AF_UNIX, SOCK_STREAM, 0);
++    memset(&addr, 0, sizeof(addr));
++    addr.sun_family = AF_UNIX;
++    strncpy(addr.sun_path, "qmp", sizeof(addr.sun_path)-1);
++    while (1) {
++	    if (connect(sock_fd, (struct sockaddr *)&addr, sizeof(addr)) == 0) {
++		    close(sock_fd);
++		    break;
++	    } else {
++		    usleep(1000);
++	    }
++    }
++
++    while (notify_fd == -1) {
++	    notify_fd = open("hypercall_fd", O_RDONLY);
++    }
++
++    /* init the offset values */
++    pid_offset = VMI_PID_OFFSET;
++    parent_offset = VMI_PARENT_OFFSET;
++    cred_offset = VMI_CRED_OFFSET;
++    notify_offset = VMI_NOTIFICATION_OFFSET;
++
++    buffer = malloc(8192);
++
++    while (1) {
++	    int count;
++
++	    count = read(notify_fd, &event, sizeof(event));
++	    if (count < 0) {
++		    perror("Failed to read from notification handle");
++		    return 2;
++	    }
++	    if (count != sizeof(event)) {
++		    fprintf(stderr, "Short read\n");
++		    return 3;
++	    }
++	    if (!inited) {
++		    /* initial setup of the libvmi library */
++		    GHashTable *config = g_hash_table_new(g_str_hash, g_str_equal);
++		    char *task_offset = g_strdup_printf("%d", VMI_TASKS_OFFSET);
++		    g_hash_table_insert(config, "ostype", "Linux");
++		    g_hash_table_insert(config, "name", "qmp");
++		    g_hash_table_insert(config, "sysmap", "stage1/rootfs/System.map");
++		    g_hash_table_insert(config, "linux_tasks", task_offset);
++		    if (vmi_init_custom(&vmi, VMI_AUTO | VMI_INIT_COMPLETE | VMI_CONFIG_GHASHTABLE, config) == VMI_FAILURE) {
++			    fprintf(stderr, "Failed to init LibVMI library.\n");
++			    return 1;
++		    }
++		    inited = 1;
++	    }
++
++	    switch (event.event) {
++	    case 1: // New process
++		    vmi_read_va(vmi, (unsigned long)event.task, 0, buffer, 8192);
++		    memcpy(&pid, buffer + pid_offset, sizeof(pid));
++		    memcpy(&parent_task, buffer + parent_offset, sizeof(parent_task));
++		    memcpy(&creds, buffer + cred_offset, sizeof(creds));
++		    vmi_read_va(vmi, (unsigned long)creds, 0, buffer, 8192);
++		    memcpy(&uid, buffer + 4, sizeof(uid));
++		    memcpy(&gid, buffer + 8, sizeof(gid));
++		    memcpy(&suid, buffer + 12, sizeof(suid));
++		    memcpy(&sgid, buffer + 16, sizeof(sgid));
++		    memcpy(&euid, buffer + 20, sizeof(euid));
++		    memcpy(&egid, buffer + 24, sizeof(egid));
++		    memcpy(&cap_inheritable, buffer + 40, sizeof(cap_inheritable));
++		    memcpy(&cap_permitted, buffer + 48, sizeof(cap_permitted));
++		    memcpy(&cap_effective, buffer + 56, sizeof(cap_effective));
++		    memcpy(&cap_bset, buffer + 64, sizeof(cap_bset));
++		    memcpy(&cap_ambient, buffer + 72, sizeof(cap_ambient));
++
++		    vmi_read_32_va(vmi, (unsigned long)parent_task + pid_offset, 0, (uint32_t*)&parent_pid);
++
++		    process_info = g_hash_table_lookup(processes, (gpointer)(unsigned long)pid);
++
++		    if (process_info) {
++			    fprintf(stderr, "Inconsistent state detected - process %d already exists\n", pid);
++			    kill(fork_ret, 9);
++		    }
++
++		    process_info = malloc(sizeof(struct process_info));
++		    process_info->parent = parent_pid;
++		    process_info->uid = uid;
++		    process_info->gid = gid;
++		    process_info->euid = euid;
++		    process_info->egid = egid;
++		    process_info->suid = suid;
++		    process_info->sgid = sgid;
++		    process_info->cap_inheritable = cap_inheritable;
++		    process_info->cap_permitted = cap_permitted;
++		    process_info->cap_effective = cap_effective;
++		    process_info->cap_bset = cap_bset;
++		    process_info->cap_ambient = cap_ambient;
++
++		    g_hash_table_insert(processes, (gpointer)(unsigned long)pid, process_info);
++
++		    parent_info = g_hash_table_lookup(processes, (gpointer)(unsigned long)parent_pid);
++		    if (parent_info) {
++			    if (uid != parent_info->uid && parent_info->uid != 0) {
++				    fprintf(stderr, "UID privilege escalation detected\n");
++				    kill(fork_ret, 9);
++			    }
++			    if (gid != parent_info->gid && parent_info->gid != 0) {
++				    fprintf(stderr, "GID privilege escalation detected\n");
++				    kill(fork_ret, 9);
++			    }
++			    if (uid != 0 && (cap_permitted & ~(parent_info->cap_inheritable))) {
++				    fprintf(stderr, "Capability privilege escalation detected\n");
++				    kill(fork_ret, 9);
++			    }
++			    if (uid != 0 && (cap_permitted & ~(parent_info->cap_permitted))) {
++				    fprintf(stderr, "Capability privilege escalation detected\n");
++				    kill(fork_ret, 9);
++			    }
++			    if (uid != 0 && (cap_effective & ~(cap_permitted))) {
++				    fprintf(stderr, "Capability privilege escalation detected\n");
++				    kill(fork_ret, 9);
++			    }
++			    if (uid != 0 && ((cap_ambient & ~(cap_permitted)) || (cap_ambient & ~(cap_inheritable)))) {
++				    fprintf(stderr, "Capability privilege escalation detected\n");
++				    kill(fork_ret, 9);
++			    }
++		    } else {
++			    fprintf(stderr, "Missing parent %d!\n", parent_pid);
++			    kill(fork_ret, 9);
++		    }
++		    
++		    break;
++	    case 2: // Process exit
++		    vmi_read_32_va(vmi, (unsigned long)event.task + pid_offset, 0, (uint32_t*)&pid);
++		    process_info = g_hash_table_lookup(processes, (gpointer)(unsigned long)pid);
++		    g_hash_table_remove(processes, process_info);
++		    free(process_info);
++		    break;
++	    case 3: // execve
++		    vmi_read_va(vmi, (unsigned long)event.task, 0, buffer, 8192);
++		    memcpy(&pid, buffer + pid_offset, sizeof(pid));
++		    memcpy(&creds, buffer + cred_offset, sizeof(creds));
++		    if (pid != event.r12) {
++			    fprintf(stderr, "Exec notification from invalid code path\n");
++			    kill(fork_ret, 9);
++		    }
++		    process_info = g_hash_table_lookup(processes, (gpointer)(unsigned long)pid);
++		    if (!process_info) {
++			    fprintf(stderr, "Exec from non-existent process %d\n", pid);
++			    kill(fork_ret, 9);
++		    }
++
++		    vmi_read_va(vmi, (unsigned long)creds, 0, buffer, 8192);
++		    memcpy(&uid, buffer + 4, sizeof(uid));
++		    memcpy(&gid, buffer + 8, sizeof(gid));
++		    memcpy(&suid, buffer + 12, sizeof(suid));
++		    memcpy(&sgid, buffer + 16, sizeof(sgid));
++		    memcpy(&euid, buffer + 20, sizeof(euid));
++		    memcpy(&egid, buffer + 24, sizeof(egid));
++		    memcpy(&cap_inheritable, buffer + 40, sizeof(cap_inheritable));
++		    memcpy(&cap_permitted, buffer + 48, sizeof(cap_permitted));
++		    memcpy(&cap_effective, buffer + 56, sizeof(cap_effective));
++		    memcpy(&cap_bset, buffer + 64, sizeof(cap_bset));
++		    memcpy(&cap_ambient, buffer + 72, sizeof(cap_ambient));
++
++		    process_info->uid = uid;
++		    process_info->euid = euid;
++		    process_info->suid = suid;
++		    process_info->gid = gid;
++		    process_info->egid = egid;
++		    process_info->sgid = sgid;
++		    process_info->cap_inheritable = cap_inheritable;
++		    process_info->cap_permitted = cap_permitted;
++		    process_info->cap_effective = cap_effective;
++		    process_info->cap_bset = cap_bset;
++		    process_info->cap_ambient = cap_ambient;
++		    break;
++	    case 4: // general capability check
++		    vmi_read_va(vmi, (unsigned long)event.task, 0, buffer, 8192);
++		    memcpy(&pid, buffer + pid_offset, sizeof(pid));
++		    memcpy(&creds, buffer + cred_offset, sizeof(creds));
++		    vmi_read_va(vmi, (unsigned long)creds, 0, buffer, 8192);
++		    memcpy(&uid, buffer + 4, sizeof(uid));
++		    memcpy(&gid, buffer + 8, sizeof(gid));
++		    memcpy(&euid, buffer + 20, sizeof(euid));
++		    memcpy(&egid, buffer + 24, sizeof(egid));
++		    memcpy(&cap_inheritable, buffer + 40, sizeof(cap_inheritable));
++		    memcpy(&cap_permitted, buffer + 48, sizeof(cap_permitted));
++		    memcpy(&cap_effective, buffer + 56, sizeof(cap_effective));
++		    memcpy(&cap_bset, buffer + 64, sizeof(cap_bset));
++		    memcpy(&cap_ambient, buffer + 72, sizeof(cap_ambient));
++
++		    process_info = g_hash_table_lookup(processes, (gpointer)(unsigned long)pid);
++		    if (process_info) {
++			    if ((uid != process_info->uid && process_info->uid != 0)
++				|| (euid != process_info->euid && process_info->euid != 0)
++				|| (gid != process_info->gid && process_info->euid != 0)
++				|| (egid != process_info->egid && process_info->euid != 0)
++				|| ((cap_effective & ~process_info->cap_effective) != 0)) {
++				    fprintf(stderr, "Privilege change detected at syscall time for pid %d\n", pid);
++				    fprintf(stderr, "UID %d, old UID %d\n", euid, process_info->euid);
++				    fprintf(stderr, "GID %d, old GID %d\n", egid, process_info->egid);
++				    fprintf(stderr, "Old caps %lx, new caps %lx, intersection %lx\n", process_info->cap_effective, cap_effective, cap_effective & ~(process_info->cap_effective));
++				    kill(fork_ret, 9);
++			    }
++		    } else {
++			    fprintf(stderr, "Inconsistent state - syscall notification from non-existing process %d\n", pid);
++			    kill(fork_ret, 9);
++		    }
++		    break;
++	    case 5: // setuid/setgid family of syscalls
++		    vmi_read_va(vmi, (unsigned long)event.task, 0, buffer, 8192);
++		    memcpy(&pid, buffer + pid_offset, sizeof(pid));
++		    memcpy(&creds, buffer + cred_offset, sizeof(creds));
++		    process_info = g_hash_table_lookup(processes, (gpointer)(unsigned long)pid);
++		    if (!process_info) {
++			    fprintf(stderr, "Setuid from non-existent process %d\n", pid);
++			    kill(fork_ret, 9);
++		    }
++
++		    vmi_read_va(vmi, (unsigned long)creds, 0, buffer, 8192);
++		    memcpy(&uid, buffer + 4, sizeof(uid));
++		    memcpy(&gid, buffer + 8, sizeof(gid));
++		    memcpy(&suid, buffer + 12, sizeof(suid));
++		    memcpy(&sgid, buffer + 16, sizeof(sgid));
++		    memcpy(&euid, buffer + 20, sizeof(euid));
++		    memcpy(&egid, buffer + 24, sizeof(egid));
++
++		    if (process_info->euid && euid != process_info->euid && euid != process_info->suid) {
++			    fprintf(stderr, "Invalid SUID transition from process %d\n", pid);
++			    kill(fork_ret, 9);
++		    }
++
++		    if (process_info->euid && process_info->egid && egid != process_info->egid && egid != process_info->sgid) {
++			    fprintf(stderr, "Invalid SGID transition from process %d - process egid %d, sgid %d, new egid %d\n", pid, process_info->egid, process_info->sgid, egid);
++			    kill(fork_ret, 9);
++		    }
++
++		    process_info->uid = uid;
++		    process_info->euid = euid;
++		    process_info->suid = suid;
++		    process_info->gid = gid;
++		    process_info->egid = egid;
++		    process_info->sgid = sgid;
++		    break;
++	    }
++	    vmi_write_8_va(vmi, (unsigned long)event.task + notify_offset, 0, &zero);
++    }
++
++    return 0;
++}
+diff --git a/examples/win-guid.c b/examples/win-guid.c
+index 9ccbd3c..170915c 100644
+--- a/examples/win-guid.c
++++ b/examples/win-guid.c
+@@ -31,6 +31,7 @@
+ #include <inttypes.h>
+ #include <glib.h>
+ 
++#ifdef ENABLE_WINDOWS
+ #include "win-guid.h"
+ 
+ #define PAGE_SIZE           0x1000
+@@ -385,3 +386,8 @@ int main(int argc, char **argv) {
+     if(found) return 0;
+     return 1;
+ }
++#else
++int main() {
++	return 0;
++}
++#endif
+diff --git a/libvmi/Makefile.am b/libvmi/Makefile.am
+index 78009a8..979baa6 100644
+--- a/libvmi/Makefile.am
++++ b/libvmi/Makefile.am
+@@ -69,6 +69,12 @@ drivers     += driver/kvm/kvm_shm.h
+ endif
+ endif
+ 
++if HAVE_QEMU
++drivers     += driver/qemu/qemu.h \
++               driver/qemu/qemu_private.h \
++               driver/qemu/qemu.c
++endif
++
+ if HAVE_XEN
+ h_public    += events.h
+ drivers     += driver/xen/altp2m.c \
+@@ -113,6 +119,7 @@ libvmi_la_SOURCES= $(h_public) $(h_private) $(drivers) $(os) $(c_sources)
+ libvmi_la_LIBADD= config/libconfig.la
+ libvmi_la_CFLAGS= -fvisibility=hidden $(GLIB_CFLAGS)
+ libvmi_la_CFLAGS+= -Wall -Wextra
++libvmi_la_CFLAGS+= -Wno-missing-field-initializers -Wno-unused-but-set-variable 
+ libvmi_la_LDFLAGS= -release $(RELEASE) $(GLIB_LIBS)
+ 
+ if DEBUG
+diff --git a/libvmi/driver/driver_interface.c b/libvmi/driver/driver_interface.c
+index 326bb20..d7bb50e 100644
+--- a/libvmi/driver/driver_interface.c
++++ b/libvmi/driver/driver_interface.c
+@@ -43,6 +43,10 @@
+ #include "driver/kvm/kvm.h"
+ #endif
+ 
++#if ENABLE_QEMU == 1
++#include "driver/qemu/qemu.h"
++#endif
++
+ status_t driver_init_mode(vmi_instance_t vmi, uint64_t domainid, const char *name)
+ {
+     unsigned long count = 0;
+@@ -55,6 +59,13 @@ status_t driver_init_mode(vmi_instance_t vmi, uint64_t domainid, const char *nam
+         count++;
+     }
+ #endif
++#if ENABLE_QEMU == 1
++    if (VMI_SUCCESS == qemu_test(domainid, name)) {
++        dbprint(VMI_DEBUG_DRIVER, "--found QEMU\n");
++        vmi->mode = VMI_QEMU;
++        count++;
++    }
++#endif
+ #if ENABLE_KVM == 1
+     if (VMI_SUCCESS == kvm_test(domainid, name)) {
+         dbprint(VMI_DEBUG_DRIVER, "--found KVM\n");
+@@ -104,6 +115,11 @@ status_t driver_init(vmi_instance_t vmi)
+         rc = driver_xen_setup(vmi);
+         break;
+ #endif
++#if ENABLE_QEMU == 1
++    case VMI_QEMU:
++	rc = driver_qemu_setup(vmi);
++        break;
++#endif
+ #if ENABLE_KVM == 1
+     case VMI_KVM:
+         rc = driver_kvm_setup(vmi);
+diff --git a/libvmi/driver/qemu/qemu.c b/libvmi/driver/qemu/qemu.c
+new file mode 100644
+index 0000000..c39ac96
+--- /dev/null
++++ b/libvmi/driver/qemu/qemu.c
+@@ -0,0 +1,855 @@
++/* The LibVMI Library is an introspection library that simplifies access to
++ * memory in a target virtual machine or in a file containing a dump of
++ * a system's physical memory.  LibVMI is based on the XenAccess Library.
++ *
++ * Copyright 2011 Sandia Corporation. Under the terms of Contract
++ * DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government
++ * retains certain rights in this software.
++ *
++ * Author: Bryan D. Payne (bdpayne@acm.org)
++ * Author: Tamas K Lengyel (tamas.lengyel@zentific.com)
++ *
++ * This file is part of LibVMI.
++ *
++ * LibVMI is free software: you can redistribute it and/or modify it under
++ * the terms of the GNU Lesser General Public License as published by the
++ * Free Software Foundation, either version 3 of the License, or (at your
++ * option) any later version.
++ *
++ * LibVMI is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
++ * License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public License
++ * along with LibVMI.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#define _GNU_SOURCE
++#include <string.h>
++#include <stdio.h>
++#include <stdint.h>
++#include <stdlib.h>
++#include <sys/un.h>
++#include <sys/mman.h>
++#include <sys/types.h>
++#include <sys/stat.h>
++#include <sys/socket.h>
++#include <unistd.h>
++#include <fcntl.h>
++#include <glib.h>
++#include <math.h>
++#include <glib/gstdio.h>
++
++#include "private.h"
++#include "driver/driver_wrapper.h"
++#include "driver/memory_cache.h"
++#include "driver/qemu/qemu.h"
++#include "driver/qemu/qemu_private.h"
++
++#define QMP_CMD_LENGTH 256
++
++// request struct matches a definition in qemu source code
++struct request {
++    uint8_t type;   // 0 quit, 1 read, 2 write, ... rest reserved
++    uint64_t address;   // address to read from OR write to
++    uint64_t length;    // number of bytes to read OR write
++};
++
++enum segment_type {
++  SEGMENT_SELECTOR,
++  SEGMENT_BASE,
++  SEGMENT_LIMIT,
++  SEGMENT_ATTR
++};
++
++//----------------------------------------------------------------------------
++// Helper functions
++
++static char *
++read_caps(
++    qemu_instance_t *qemu)
++{
++    char *output = safe_malloc(20000);
++    size_t length =0 ;
++
++    length = read(qemu->mon_fd, output, 20000);
++    if (length == 0) {
++	free(output);
++	return NULL;
++    }
++    return output;
++}
++
++//
++// QMP Command Interactions
++static char *
++exec_qmp_cmd(
++    qemu_instance_t *qemu,
++    char *query)
++{
++    char *output = safe_malloc(20000);
++    size_t length = 0;
++
++    write(qemu->mon_fd, query, strlen(query));
++    length = read(qemu->mon_fd, output, 20000);
++
++    if (length == 0) {
++        free(output);
++        return NULL;
++    }
++    else {
++        return output;
++    }
++}
++
++static char *
++exec_info_registers(
++    qemu_instance_t *qemu)
++{
++    char *query =
++        "{\"execute\": \"human-monitor-command\", \"arguments\": {\"command-line\": \"info registers\"}}";
++    return exec_qmp_cmd(qemu, query);
++}
++
++static char *
++exec_xp(
++    qemu_instance_t *qemu,
++    int numwords,
++    addr_t paddr)
++{
++    char *query = (char *) safe_malloc(QMP_CMD_LENGTH);
++
++    int rc = snprintf(query,
++            QMP_CMD_LENGTH,
++            "{\"execute\": \"human-monitor-command\", \"arguments\": {\"command-line\": \"xp /%dwx 0x%lx\"}}",
++            numwords, paddr);
++    if (rc < 0 || rc >= QMP_CMD_LENGTH) {
++        errprint("Failed to properly format `human-monitor-command` command\n");
++        return NULL;
++    }
++
++    char *output = exec_qmp_cmd(qemu, query);
++
++    free(query);
++    return output;
++}
++
++static reg_t
++parse_reg_value(
++    char *regname,
++    char *ir_output)
++{
++    if (NULL == ir_output || NULL == regname) {
++        return 0;
++    }
++
++    char *ptr = strcasestr(ir_output, regname);
++
++    if (NULL != ptr) {
++        ptr += strlen(regname) + 1;
++        return (reg_t) strtoull(ptr, NULL, 16);
++    }
++    else {
++        return 0;
++    }
++}
++
++static reg_t
++parse_seg_reg_value(
++    char *regname,
++    char *ir_output,
++    int type)
++{
++    int offset;
++    char *ptr, *tmp_ptr;
++    char keyword[4];
++
++    if (NULL == ir_output || NULL == regname) {
++        return 0;
++    }
++
++    strcpy(keyword, regname);
++    if(strlen(regname) == 2)
++        strcat(keyword, " =");
++    else
++        strcat(keyword, "=");
++
++    if(NULL == (ptr = strcasestr(ir_output, keyword)))
++         return 0;
++
++    tmp_ptr = ptr;
++    switch(type) {
++        case SEGMENT_SELECTOR:
++            offset = 4;
++            break;
++        case SEGMENT_BASE:
++            offset = 9;
++            break;
++        case SEGMENT_LIMIT:
++            tmp_ptr += 9;
++            if(8 == strlen(tmp_ptr))
++                offset = 18;
++            else
++                offset = 26;
++            break;
++        case SEGMENT_ATTR:
++            tmp_ptr += 9;
++            if(8 == strlen(tmp_ptr))
++                offset = 27;
++            else
++                offset = 35;
++            break;
++        default:
++            return 0;
++    }
++
++    ptr += offset;
++    return (reg_t) strtoll(ptr, (char **) NULL, 16);
++}
++
++status_t
++exec_memory_access_success(
++    char *status)
++{
++    if (NULL == status) {
++        return VMI_FAILURE;
++    }
++
++    char *ptr = strcasestr(status, "CommandNotFound");
++
++    if (NULL == ptr) {
++        return VMI_SUCCESS;
++    }
++    else {
++        return VMI_FAILURE;
++    }
++}
++
++void *
++qemu_get_memory_native(
++    vmi_instance_t vmi,
++    addr_t paddr,
++    uint32_t length)
++{
++    int numwords = ceil(length / 4);
++    char *buf = safe_malloc(numwords * 4);
++    char *bufstr = exec_xp(qemu_get_instance(vmi), numwords, paddr);
++    char *paddrstr = safe_malloc(32);
++
++    int rc = snprintf(paddrstr, 32, "%.16lx", paddr);
++    if (rc < 0 || rc >= 32) {
++        errprint("Failed to properly format physical address\n");
++        return NULL;
++    }
++
++    char *ptr = strcasestr(bufstr, paddrstr);
++    int i = 0, j = 0;
++
++    while (i < numwords && NULL != ptr) {
++        ptr += strlen(paddrstr) + 2;
++
++        for (j = 0; j < 4; ++j) {
++            uint32_t value = strtol(ptr, (char **) NULL, 16);
++
++            memcpy(buf + i * 4, &value, 4);
++            ptr += 11;
++            i++;
++        }
++
++        rc = snprintf(paddrstr, 32, "%.16lx", paddr + i * 4);
++        if (rc < 0 || rc >= 32) {
++            errprint("Failed to properly format physical address\n");
++            return NULL;
++        }
++        ptr = strcasestr(ptr, paddrstr);
++    }
++    if (bufstr)
++        free(bufstr);
++    if (paddrstr)
++        free(paddrstr);
++    return buf;
++}
++
++void
++qemu_release_memory(
++    void *memory,
++    size_t UNUSED(length))
++{
++    if (memory)
++        free(memory);
++}
++
++status_t
++qemu_put_memory(
++    vmi_instance_t vmi,
++    addr_t paddr,
++    uint32_t length,
++    void *buf)
++{
++    struct request req;
++
++    req.type = 2;   // write request
++    req.address = (uint64_t) paddr;
++    req.length = (uint64_t) length;
++
++    int nbytes =
++        write(qemu_get_instance(vmi)->socket_fd, &req,
++              sizeof(struct request));
++    if (nbytes != sizeof(struct request)) {
++        goto error_exit;
++    }
++    else {
++        uint8_t status = 0;
++
++        write(qemu_get_instance(vmi)->socket_fd, buf, length);
++        read(qemu_get_instance(vmi)->socket_fd, &status, 1);
++        if (0 == status) {
++            goto error_exit;
++        }
++    }
++
++    return VMI_SUCCESS;
++error_exit:
++    return VMI_FAILURE;
++}
++
++void *
++qemu_get_memory_direct(
++    vmi_instance_t vmi,
++    addr_t paddr,
++    uint32_t length)
++{
++    char *buf = safe_malloc(length + 1);
++    struct request req;
++
++    req.type = 1;   // read request
++    req.address = (uint64_t) paddr;
++    req.length = (uint64_t) length;
++
++    int nbytes =
++        write(qemu_get_instance(vmi)->socket_fd, &req,
++              sizeof(struct request));
++    if (nbytes != sizeof(struct request)) {
++        goto error_exit;
++    }
++    else {
++        // get the data from kvm
++        nbytes = read(qemu_get_instance(vmi)->socket_fd, buf, length + 1);
++        if ( nbytes <= 0 )
++            goto error_exit;
++
++        if ( (uint32_t)nbytes != (length + 1) )
++            goto error_exit;
++
++        // check that qemu thinks everything is ok by looking at the last byte
++        // of the buffer, 0 is failure and 1 is success
++        if (buf[length]) {
++            // success, return pointer to buf
++            return buf;
++        }
++    }
++
++    // default failure
++error_exit:
++    if (buf)
++        free(buf);
++    return NULL;
++}
++
++
++static status_t
++setup_direct_memory(vmi_instance_t vmi)
++{
++    qemu_instance_t *qemu = qemu_get_instance(vmi);
++    char *path = (char *) safe_malloc(QMP_CMD_LENGTH);
++    char *query = (char *) safe_malloc(QMP_CMD_LENGTH);
++    status_t ret = VMI_FAILURE;
++    struct sockaddr_un address;
++    int socket_fd;
++    size_t address_length;
++
++    int rc = snprintf(path, QMP_CMD_LENGTH, "%s.mem", qemu->name);
++    if (rc < 0 || rc >= QMP_CMD_LENGTH) {
++	errprint("Path too long\n");
++	return false;
++    }
++    rc = snprintf(query, QMP_CMD_LENGTH,
++	    "{\"execute\": \"pmemaccess\", \"arguments\": {\"path\": \"%s\"}}",
++		  path);
++    if (rc < 0 || rc >= QMP_CMD_LENGTH) {
++	errprint("Query too long\n");
++	return false;
++    }
++
++    char *output = exec_qmp_cmd(qemu, query);
++    fprintf(stderr, "Got %s\n", output);
++    char *ptr = strcasestr(output, "CommandNotFound");
++    if (ptr != NULL) {
++	    fprintf(stderr, "Unknown command\n");
++	    goto out;
++    }
++
++    socket_fd = socket(PF_UNIX, SOCK_STREAM, 0);
++    if (socket_fd < 0) {
++	    fprintf(stderr, "socket() failed\n");
++	    dbprint(VMI_DEBUG_KVM, "--socket() failed\n");
++	goto out;
++    }
++    sleep(1);
++    address.sun_family = AF_UNIX;
++    address_length =
++	    sizeof(address.sun_family) + sprintf(address.sun_path, "%s",
++						 path);
++
++    if (connect(socket_fd, (struct sockaddr *) &address, address_length)
++        != 0) {
++	    perror("Connect");
++        dbprint(VMI_DEBUG_KVM, "--connect() failed to %s\n", path);
++	goto out;
++    }
++
++    qemu->socket_fd = socket_fd;
++    ret = VMI_SUCCESS;
++
++out:
++    free(output);
++    free(query);
++    free(path);
++    return ret;
++}
++
++status_t
++qemu_setup_live_mode(
++    vmi_instance_t vmi)
++{
++    memory_cache_destroy(vmi);
++    if (setup_direct_memory(vmi) == VMI_SUCCESS) {
++	    fprintf(stderr, "Using direct mode\n");
++	    memory_cache_init(vmi, qemu_get_memory_direct,
++			      qemu_release_memory, 1);
++    } else {
++	    fprintf(stderr, "Using native mode\n");
++	    memory_cache_init(vmi, qemu_get_memory_native,
++			      qemu_release_memory, 1);
++    }
++    return VMI_SUCCESS;
++}
++
++//----------------------------------------------------------------------------
++// General Interface Functions (1-1 mapping to driver_* function)
++
++status_t
++qemu_init(
++    vmi_instance_t vmi)
++{
++    qemu_instance_t *qemu = g_malloc0(sizeof(qemu_instance_t));
++
++    vmi->driver.driver_data = (void*)qemu;
++    return VMI_SUCCESS;
++}
++
++status_t
++qemu_init_vmi(
++    vmi_instance_t vmi)
++{
++    qemu_instance_t *qemu = qemu_get_instance(vmi);
++    struct sockaddr_un addr;
++    char *query =
++        "{\"execute\": \"qmp_capabilities\"}";
++
++    qemu->mon_fd = socket(AF_UNIX, SOCK_STREAM, 0);
++    vmi->hvm = 1;
++    memset(&addr, 0, sizeof(addr));
++    addr.sun_family = AF_UNIX;
++    strncpy(addr.sun_path, qemu->name, sizeof(addr.sun_path)-1);
++    connect(qemu->mon_fd, (struct sockaddr*)&addr, sizeof(addr));
++    vmi->num_vcpus = 1;
++
++    read_caps(qemu);
++    exec_qmp_cmd(qemu, query);
++
++    return qemu_setup_live_mode(vmi);
++}
++
++void
++qemu_destroy(
++    vmi_instance_t UNUSED(vmi))
++{
++}
++
++uint64_t
++qemu_get_id(
++    vmi_instance_t vmi)
++{
++    return qemu_get_instance(vmi)->id;
++}
++
++void
++qemu_set_id(
++    vmi_instance_t vmi,
++    uint64_t domainid)
++{
++    qemu_get_instance(vmi)->id = domainid;
++}
++
++status_t
++qemu_check_id(
++    vmi_instance_t vmi,
++    uint64_t domainid)
++{
++    if (qemu_get_instance(vmi)->id == domainid)
++	return VMI_SUCCESS;
++
++    return VMI_FAILURE;
++}
++
++status_t
++qemu_get_name(
++    vmi_instance_t vmi,
++    char **name)
++{
++    *name = strdup(qemu_get_instance(vmi)->name);;
++    return VMI_SUCCESS;
++}
++
++void
++qemu_set_name(
++    vmi_instance_t vmi,
++    const char *name)
++{
++    qemu_get_instance(vmi)->name = strndup(name, 500);
++}
++
++status_t
++qemu_get_memsize(
++    vmi_instance_t UNUSED(vmi),
++    uint64_t *allocated_ram_size,
++    addr_t *maximum_physical_address)
++{
++    //FIXME
++    *allocated_ram_size = 1024 * 1024 * 1024; // convert KBytes to bytes
++    *maximum_physical_address = *allocated_ram_size;
++
++    return VMI_SUCCESS;
++}
++
++status_t
++qemu_get_vcpureg(
++    vmi_instance_t vmi,
++    reg_t *value,
++    registers_t reg,
++    unsigned long UNUSED(vcpu))
++{
++    // TODO: vCPU specific registers
++    char *regs = NULL;
++
++    if (NULL == regs)
++        regs = exec_info_registers(qemu_get_instance(vmi));
++    regs = exec_info_registers(qemu_get_instance(vmi));
++    regs = exec_info_registers(qemu_get_instance(vmi));
++
++    status_t ret = VMI_SUCCESS;
++
++    if (VMI_PM_IA32E == vmi->page_mode) {
++        switch (reg) {
++        case RAX:
++            *value = parse_reg_value("RAX", regs);
++            break;
++        case RBX:
++            *value = parse_reg_value("RBX", regs);
++            break;
++        case RCX:
++            *value = parse_reg_value("RCX", regs);
++            break;
++        case RDX:
++            *value = parse_reg_value("RDX", regs);
++            break;
++        case RBP:
++            *value = parse_reg_value("RBP", regs);
++            break;
++        case RSI:
++            *value = parse_reg_value("RSI", regs);
++            break;
++        case RDI:
++            *value = parse_reg_value("RDI", regs);
++            break;
++        case RSP:
++            *value = parse_reg_value("RSP", regs);
++            break;
++        case R8:
++            *value = parse_reg_value("R8", regs);
++            break;
++        case R9:
++            *value = parse_reg_value("R9", regs);
++            break;
++        case R10:
++            *value = parse_reg_value("R10", regs);
++            break;
++        case R11:
++            *value = parse_reg_value("R11", regs);
++            break;
++        case R12:
++            *value = parse_reg_value("R12", regs);
++            break;
++        case R13:
++            *value = parse_reg_value("R13", regs);
++            break;
++        case R14:
++            *value = parse_reg_value("R14", regs);
++            break;
++        case R15:
++            *value = parse_reg_value("R15", regs);
++            break;
++        case RIP:
++            *value = parse_reg_value("RIP", regs);
++            break;
++        case RFLAGS:
++            *value = parse_reg_value("RFL", regs);
++            break;
++        case CR0:
++            *value = parse_reg_value("CR0", regs);
++            break;
++        case CR2:
++            *value = parse_reg_value("CR2", regs);
++            break;
++        case CR3:
++            *value = parse_reg_value("CR3", regs);
++            break;
++        case CR4:
++            *value = parse_reg_value("CR4", regs);
++            break;
++        case DR0:
++            *value = parse_reg_value("DR0", regs);
++            break;
++        case DR1:
++            *value = parse_reg_value("DR1", regs);
++            break;
++        case DR2:
++            *value = parse_reg_value("DR2", regs);
++            break;
++        case DR3:
++            *value = parse_reg_value("DR3", regs);
++            break;
++        case DR6:
++            *value = parse_reg_value("DR6", regs);
++            break;
++        case DR7:
++            *value = parse_reg_value("DR7", regs);
++            break;
++        case MSR_EFER:
++            *value = parse_reg_value("EFER", regs);
++            break;
++        default:
++            ret = VMI_FAILURE;
++            break;
++        }
++    }
++    else {
++        switch (reg) {
++        case RAX:
++            *value = parse_reg_value("EAX", regs);
++            break;
++        case RBX:
++            *value = parse_reg_value("EBX", regs);
++            break;
++        case RCX:
++            *value = parse_reg_value("ECX", regs);
++            break;
++        case RDX:
++            *value = parse_reg_value("EDX", regs);
++            break;
++        case RBP:
++            *value = parse_reg_value("EBP", regs);
++            break;
++        case RSI:
++            *value = parse_reg_value("ESI", regs);
++            break;
++        case RDI:
++            *value = parse_reg_value("EDI", regs);
++            break;
++        case RSP:
++            *value = parse_reg_value("ESP", regs);
++            break;
++        case RIP:
++            *value = parse_reg_value("EIP", regs);
++            break;
++        case RFLAGS:
++            *value = parse_reg_value("EFL", regs);
++            break;
++        case CR0:
++            *value = parse_reg_value("CR0", regs);
++            break;
++        case CR2:
++            *value = parse_reg_value("CR2", regs);
++            break;
++        case CR3:
++            *value = parse_reg_value("CR3", regs);
++            break;
++        case CR4:
++            *value = parse_reg_value("CR4", regs);
++            break;
++        case DR0:
++            *value = parse_reg_value("DR0", regs);
++            break;
++        case DR1:
++            *value = parse_reg_value("DR1", regs);
++            break;
++        case DR2:
++            *value = parse_reg_value("DR2", regs);
++            break;
++        case DR3:
++            *value = parse_reg_value("DR3", regs);
++            break;
++        case DR6:
++            *value = parse_reg_value("DR6", regs);
++            break;
++        case DR7:
++            *value = parse_reg_value("DR7", regs);
++            break;
++        case CS_SEL:
++            *value = parse_seg_reg_value("CS", regs, SEGMENT_SELECTOR);
++            break;
++        case DS_SEL:
++            *value = parse_seg_reg_value("DS", regs, SEGMENT_SELECTOR);
++            break;
++        case ES_SEL:
++            *value = parse_seg_reg_value("ES", regs, SEGMENT_SELECTOR);
++            break;
++        case FS_SEL:
++            *value = parse_seg_reg_value("FS", regs, SEGMENT_SELECTOR);
++            break;
++        case GS_SEL:
++            *value = parse_seg_reg_value("GS", regs, SEGMENT_SELECTOR);
++            break;
++        case SS_SEL:
++            *value = parse_seg_reg_value("SS", regs, SEGMENT_SELECTOR);
++            break;
++        case TR_SEL:
++            *value = parse_seg_reg_value("TR", regs, SEGMENT_SELECTOR);
++            break;
++        case LDTR_SEL:
++            *value = parse_seg_reg_value("LDT", regs, SEGMENT_SELECTOR);
++            break;
++        case CS_BASE:
++            *value = parse_seg_reg_value("CS", regs, SEGMENT_BASE);
++            break;
++        case DS_BASE:
++            *value = parse_seg_reg_value("DS", regs, SEGMENT_BASE);
++            break;
++        case ES_BASE:
++            *value = parse_seg_reg_value("ES", regs, SEGMENT_BASE);
++            break;
++        case FS_BASE:
++            *value = parse_seg_reg_value("FS", regs, SEGMENT_BASE);
++            break;
++        case GS_BASE:
++            *value = parse_seg_reg_value("GS", regs, SEGMENT_BASE);
++            break;
++        case SS_BASE:
++            *value = parse_seg_reg_value("SS", regs, SEGMENT_BASE);
++            break;
++        case TR_BASE:
++            *value = parse_seg_reg_value("TR", regs, SEGMENT_BASE);
++            break;
++        case LDTR_BASE:
++            *value = parse_seg_reg_value("LDT", regs, SEGMENT_BASE);
++            break;
++        case IDTR_BASE:
++            *value = parse_seg_reg_value("IDT", regs, SEGMENT_BASE);
++            break;
++        case GDTR_BASE:
++            *value = parse_seg_reg_value("GDT", regs, SEGMENT_BASE);
++            break;
++        case CS_ARBYTES:
++            *value = parse_seg_reg_value("CS", regs, SEGMENT_ATTR);
++            break;
++        case DS_ARBYTES:
++            *value = parse_seg_reg_value("DS", regs, SEGMENT_ATTR);
++            break;
++        case ES_ARBYTES:
++            *value = parse_seg_reg_value("ES", regs, SEGMENT_ATTR);
++            break;
++        case FS_ARBYTES:
++            *value = parse_seg_reg_value("FS", regs, SEGMENT_ATTR);
++            break;
++        case GS_ARBYTES:
++            *value = parse_seg_reg_value("GS", regs, SEGMENT_ATTR);
++            break;
++        case SS_ARBYTES:
++            *value = parse_seg_reg_value("SS", regs, SEGMENT_ATTR);
++            break;
++        case TR_ARBYTES:
++            *value = parse_seg_reg_value("TR", regs, SEGMENT_ATTR);
++            break;
++        case LDTR_ARBYTES:
++            *value = parse_seg_reg_value("LDT", regs, SEGMENT_ATTR);
++            break;
++        case MSR_EFER:
++            *value = parse_reg_value("EFER", regs);
++            break;
++        default:
++            ret = VMI_FAILURE;
++            break;
++        }
++    }
++
++    if (regs)
++        free(regs);
++    return ret;
++}
++
++void *
++qemu_read_page(
++    vmi_instance_t vmi,
++    addr_t page)
++{
++    addr_t paddr = page << vmi->page_shift;
++
++    return memory_cache_insert(vmi, paddr);
++}
++
++status_t
++qemu_write(
++    vmi_instance_t vmi,
++    addr_t paddr,
++    void *buf,
++    uint32_t length)
++{
++    return qemu_put_memory(vmi, paddr, length, buf);
++}
++
++int
++qemu_is_pv(
++    vmi_instance_t UNUSED(vmi))
++{
++    return 0;
++}
++
++status_t
++qemu_test(
++    uint64_t UNUSED(domainid),
++    const char *name)
++{
++    int ret = access(name, O_RDWR);
++    if (ret != 0)
++	return VMI_FAILURE;
++
++    return VMI_SUCCESS;
++}
++
++status_t
++qemu_pause_vm(
++    vmi_instance_t UNUSED(vmi))
++{
++    // FIXME
++    return VMI_SUCCESS;
++}
++
++status_t
++qemu_resume_vm(
++    vmi_instance_t UNUSED(vmi))
++{
++    // FIXME
++    return VMI_SUCCESS;
++}
+diff --git a/libvmi/driver/qemu/qemu.h b/libvmi/driver/qemu/qemu.h
+new file mode 100644
+index 0000000..3be50e2
+--- /dev/null
++++ b/libvmi/driver/qemu/qemu.h
+@@ -0,0 +1,134 @@
++/* The LibVMI Library is an introspection library that simplifies access to
++ * memory in a target virtual machine or in a file containing a dump of
++ * a system's physical memory.  LibVMI is based on the XenAccess Library.
++ *
++ * Copyright 2011 Sandia Corporation. Under the terms of Contract
++ * DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government
++ * retains certain rights in this software.
++ *
++ * Author: Bryan D. Payne (bdpayne@acm.org)
++ * Author: Tamas K Lengyel (tamas.lengyel@zentific.com)
++ *
++ * This file is part of LibVMI.
++ *
++ * LibVMI is free software: you can redistribute it and/or modify it under
++ * the terms of the GNU Lesser General Public License as published by the
++ * Free Software Foundation, either version 3 of the License, or (at your
++ * option) any later version.
++ *
++ * LibVMI is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
++ * License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public License
++ * along with LibVMI.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#ifndef QEMU_H
++#define QEMU_H
++
++status_t qemu_init(
++    vmi_instance_t vmi);
++status_t qemu_init_vmi(
++    vmi_instance_t vmi);
++void qemu_destroy(
++    vmi_instance_t vmi);
++uint64_t qemu_get_id_from_name(
++    vmi_instance_t vmi,
++    const char *name);
++status_t qemu_get_name_from_id(
++    vmi_instance_t vmi,
++    uint64_t domainid,
++    char **name);
++uint64_t qemu_get_id(
++    vmi_instance_t vmi);
++void qemu_set_id(
++    vmi_instance_t vmi,
++    uint64_t domainid);
++status_t qemu_check_id(
++    vmi_instance_t vmi,
++    uint64_t domainid);
++status_t qemu_get_name(
++    vmi_instance_t vmi,
++    char **name);
++void qemu_set_name(
++    vmi_instance_t vmi,
++    const char *name);
++status_t qemu_get_memsize(
++    vmi_instance_t vmi,
++    uint64_t *allocate_ram_size,
++    addr_t *maximum_physical_address);
++status_t qemu_get_vcpureg(
++    vmi_instance_t vmi,
++    reg_t *value,
++    registers_t reg,
++    unsigned long vcpu);
++addr_t qemu_pfn_to_mfn(
++    vmi_instance_t vmi,
++    addr_t pfn);
++void *qemu_read_page(
++    vmi_instance_t vmi,
++    addr_t page);
++status_t qemu_write(
++    vmi_instance_t vmi,
++    addr_t paddr,
++    void *buf,
++    uint32_t length);
++int qemu_is_pv(
++    vmi_instance_t vmi);
++status_t qemu_test(
++    uint64_t domainid,
++    const char *name);
++status_t qemu_pause_vm(
++    vmi_instance_t vmi);
++status_t qemu_resume_vm(
++    vmi_instance_t vmi);
++
++status_t qemu_create_shm_snapshot(
++    vmi_instance_t vmi);
++status_t qemu_destroy_shm_snapshot(
++    vmi_instance_t vmi);
++size_t qemu_get_dgpma(
++    vmi_instance_t vmi,
++    addr_t paddr,
++    void** medial_addr_ptr,
++    size_t count);
++size_t qemu_get_dgvma(
++    vmi_instance_t vmi,
++    addr_t vaddr,
++    pid_t pid,
++    void** medial_addr_ptr,
++    size_t count);
++
++static inline status_t
++driver_qemu_setup(vmi_instance_t vmi)
++{
++    driver_interface_t driver = { 0 };
++    driver.initialized = true;
++    driver.init_ptr = &qemu_init;
++    driver.init_vmi_ptr = &qemu_init_vmi;
++    driver.destroy_ptr = &qemu_destroy;
++    driver.get_id_ptr = &qemu_get_id;
++    driver.set_id_ptr = &qemu_set_id;
++    driver.check_id_ptr = &qemu_check_id;
++    driver.get_name_ptr = &qemu_get_name;
++    driver.set_name_ptr = &qemu_set_name;
++    driver.get_memsize_ptr = &qemu_get_memsize;
++    driver.get_vcpureg_ptr = &qemu_get_vcpureg;
++    driver.read_page_ptr = &qemu_read_page;
++    driver.write_ptr = &qemu_write;
++    driver.is_pv_ptr = &qemu_is_pv;
++    driver.pause_vm_ptr = &qemu_pause_vm;
++    driver.resume_vm_ptr = &qemu_resume_vm;
++#ifdef ENABLE_SHM_SNAPSHOT
++    driver.create_shm_snapshot_ptr = &qemu_create_shm_snapshot;
++    driver.destroy_shm_snapshot_ptr = &qemu_destroy_shm_snapshot;
++    driver.get_dgpma_ptr = &qemu_get_dgpma;
++    driver.get_dgvma_ptr = &qemu_get_dgvma;
++#endif
++    vmi->driver = driver;
++    return VMI_SUCCESS;
++}
++
++#endif /* QEMU_H */
+diff --git a/libvmi/driver/qemu/qemu_private.h b/libvmi/driver/qemu/qemu_private.h
+new file mode 100644
+index 0000000..3312b83
+--- /dev/null
++++ b/libvmi/driver/qemu/qemu_private.h
+@@ -0,0 +1,45 @@
++/* The LibVMI Library is an introspection library that simplifies access to
++ * memory in a target virtual machine or in a file containing a dump of
++ * a system's physical memory.  LibVMI is based on the XenAccess Library.
++ *
++ * Copyright 2011 Sandia Corporation. Under the terms of Contract
++ * DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government
++ * retains certain rights in this software.
++ *
++ * Author: Bryan D. Payne (bdpayne@acm.org)
++ * Author: Tamas K Lengyel (tamas.lengyel@zentific.com)
++ *
++ * This file is part of LibVMI.
++ *
++ * LibVMI is free software: you can redistribute it and/or modify it under
++ * the terms of the GNU Lesser General Public License as published by the
++ * Free Software Foundation, either version 3 of the License, or (at your
++ * option) any later version.
++ *
++ * LibVMI is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
++ * License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public License
++ * along with LibVMI.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#ifndef KVM_PRIVATE_H
++#define KVM_PRIVATE_H
++
++typedef struct qemu_instance {
++    uint32_t id;
++    char *name;
++    int socket_fd;
++    int mon_fd;
++} qemu_instance_t;
++
++static inline qemu_instance_t *
++qemu_get_instance(
++    vmi_instance_t vmi)
++{
++    return ((qemu_instance_t *) vmi->driver.driver_data);
++}
++
++#endif
+diff --git a/libvmi/libvmi.h b/libvmi/libvmi.h
+index d2d2285..863dc90 100644
+--- a/libvmi/libvmi.h
++++ b/libvmi/libvmi.h
+@@ -59,6 +59,8 @@ typedef uint32_t vmi_mode_t;
+ 
+ #define VMI_FILE (1 << 3)  /**< libvmi is viewing a file on disk */
+ 
++#define VMI_QEMU (1 << 4)  /**< libvmi is monitoring raw qemu */
++
+ #define VMI_INIT_PARTIAL  (1 << 16) /**< init enough to view physical addresses */
+ 
+ #define VMI_INIT_COMPLETE (1 << 17) /**< full initialization */

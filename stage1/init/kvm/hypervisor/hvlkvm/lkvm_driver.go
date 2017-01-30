@@ -27,7 +27,7 @@ import (
 // StartCmd takes path to stage1, UUID of the pod, path to kernel, network
 // describers, memory in megabytes and quantity of cpus and prepares command
 // line to run LKVM process
-func StartCmd(wdPath, uuid, kernelPath string, nds []kvm.NetDescriber, cpu, mem int64, debug bool) []string {
+func StartCmd(wdPath, uuid, kernelPath string, nds []kvm.NetDescriber, cpu, mem int64, debug bool, monitor bool) []string {
 	machineID := strings.Replace(uuid, "-", "", -1)
 	driverConfiguration := hypervisor.KvmHypervisor{
 		Bin: "./lkvm",

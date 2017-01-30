@@ -1,0 +1,155 @@
+diff --git a/hw/i386/pc.c b/hw/i386/pc.c
+index 022dd1b..1481758 100644
+--- a/hw/i386/pc.c
++++ b/hw/i386/pc.c
+@@ -68,6 +68,10 @@
+ #include "qapi-visit.h"
+ #include "qom/cpu.h"
+ #include "hw/nmi.h"
++#include "exec/ram_addr.h"
++
++static int hypercall_fd;
++bool hypercall_monitor = false;
+ 
+ /* debug PC/ISA interrupts */
+ //#define DEBUG_IRQ
+@@ -124,6 +128,48 @@ static uint64_t ioport80_read(void *opaque, hwaddr addr, unsigned size)
+     return 0xffffffffffffffffULL;
+ }
+ 
++static void* ram_base;
++
++struct state_event {
++    int event;
++    void *task;
++    uint64_t r12;
++};
++
++static uint64_t hypercall_read(void *opaque, hwaddr addr, unsigned size)
++{
++    int err = 0;
++    unsigned long r12;
++    unsigned long type;
++    unsigned long address;
++    struct state_event event;
++
++    if (hypercall_monitor) {
++        kvm_arch_get_registers(current_cpu);
++        r12 = X86_CPU(current_cpu)->env.regs[12];
++        type = X86_CPU(current_cpu)->env.regs[13];
++        address = X86_CPU(current_cpu)->env.regs[14];
++
++        if (type > 0x80000000) {
++            type -= 0x80000000;
++            address = address * 4096;
++            mprotect(ram_base + type, address, PROT_READ|PROT_EXEC);
++            return 0;
++        }
++        event.event = type;
++        event.task = (void *)address;
++        event.r12 = r12;
++        err = write(hypercall_fd, &event, sizeof(event));
++        if (err < 0) {
++            fprintf(stderr, "Failed to contact process monitor\n");
++            perror("Write:");
++            exit(1);
++        }
++        return 1;
++    }
++    return 0;
++}
++
+ /* MSDOS compatibility mode FPU exception support */
+ static qemu_irq ferr_irq;
+ 
+@@ -1371,6 +1417,7 @@ void pc_memory_init(PCMachineState *pcms,
+     ram = g_malloc(sizeof(*ram));
+     memory_region_allocate_system_memory(ram, NULL, "pc.ram",
+                                          machine->ram_size);
++    ram_base = ram->ram_block->host;
+     *ram_memory = ram;
+     ram_below_4g = g_malloc(sizeof(*ram_below_4g));
+     memory_region_init_alias(ram_below_4g, NULL, "ram-below-4g", ram,
+@@ -1509,6 +1556,16 @@ static const MemoryRegionOps ioport80_io_ops = {
+     },
+ };
+ 
++static const MemoryRegionOps hypercall_io_ops = {
++    .write = ioport80_write,
++    .read = hypercall_read,
++    .endianness = DEVICE_NATIVE_ENDIAN,
++    .impl = {
++        .min_access_size = 1,
++        .max_access_size = 1,
++    },
++};
++
+ static const MemoryRegionOps ioportF0_io_ops = {
+     .write = ioportF0_write,
+     .read = ioportF0_read,
+@@ -1535,6 +1592,7 @@ void pc_basic_device_init(ISABus *isa_bus, qemu_irq *gsi,
+     ISADevice *i8042, *port92, *vmmouse, *pit = NULL;
+     MemoryRegion *ioport80_io = g_new(MemoryRegion, 1);
+     MemoryRegion *ioportF0_io = g_new(MemoryRegion, 1);
++    MemoryRegion *hypercall_io = g_new(MemoryRegion, 1);
+ 
+     memory_region_init_io(ioport80_io, NULL, &ioport80_io_ops, NULL, "ioport80", 1);
+     memory_region_add_subregion(isa_bus->address_space_io, 0x80, ioport80_io);
+@@ -1542,6 +1600,13 @@ void pc_basic_device_init(ISABus *isa_bus, qemu_irq *gsi,
+     memory_region_init_io(ioportF0_io, NULL, &ioportF0_io_ops, NULL, "ioportF0", 1);
+     memory_region_add_subregion(isa_bus->address_space_io, 0xf0, ioportF0_io);
+ 
++    memory_region_init_io(hypercall_io, NULL, &hypercall_io_ops, NULL, "hypercall", 1);
++    memory_region_add_subregion(isa_bus->address_space_io, 0x220, hypercall_io);
++
++    if (hypercall_monitor) {
++        mkfifo("hypercall_fd", 0660);
++        hypercall_fd = open("hypercall_fd", O_WRONLY);
++    }
+     /*
+      * Check if an HPET shall be created.
+      *
+diff --git a/include/sysemu/sysemu.h b/include/sysemu/sysemu.h
+index ee7c760..153d626 100644
+--- a/include/sysemu/sysemu.h
++++ b/include/sysemu/sysemu.h
+@@ -167,6 +167,7 @@ extern uint8_t qemu_extra_params_fw[2];
+ extern QEMUClockType rtc_clock;
+ extern const char *mem_path;
+ extern int mem_prealloc;
++extern bool hypercall_monitor;
+ 
+ #define MAX_NODES 128
+ #define NUMA_NODE_UNASSIGNED MAX_NODES
+diff --git a/qemu-options.hx b/qemu-options.hx
+index a71aaf8..d5c4830 100644
+--- a/qemu-options.hx
++++ b/qemu-options.hx
+@@ -3968,6 +3968,13 @@ contents of @code{iv.b64} to the second secret
+ 
+ ETEXI
+ 
++DEF("hypercall-monitor", 0, QEMU_OPTION_hypercall_monitor, \
++    "-hypercall-monitor     Provide a hypercall for system state monitoring\n", QEMU_ARCH_ALL)
++STEXI
++@item -hypercall-monitor
++@findex -hypercall-monitor
++Provide a hypercall for system state monitoring
++ETEXI
+ 
+ HXCOMM This is the last statement. Insert new options before this line!
+ STEXI
+diff --git a/vl.c b/vl.c
+index b3c80d5..7a4e426 100644
+--- a/vl.c
++++ b/vl.c
+@@ -3970,6 +3970,9 @@ int main(int argc, char **argv, char **envp)
+                     exit(1);
+                 }
+                 break;
++            case QEMU_OPTION_hypercall_monitor:
++                hypercall_monitor = true;
++                break;
+             default:
+                 os_parse_cmd_args(popt->index, optarg);
+             }

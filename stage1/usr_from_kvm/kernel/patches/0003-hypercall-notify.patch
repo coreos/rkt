@@ -1,0 +1,1057 @@
+diff --git a/Makefile b/Makefile
+index 5c18baa..981fa57 100644
+--- a/Makefile
++++ b/Makefile
+@@ -367,7 +367,7 @@ NOSTDINC_FLAGS  =
+ CFLAGS_MODULE   =
+ AFLAGS_MODULE   =
+ LDFLAGS_MODULE  =
+-CFLAGS_KERNEL	=
++CFLAGS_KERNEL	= -ffixed-r12
+ AFLAGS_KERNEL	=
+ LDFLAGS_vmlinux =
+ CFLAGS_GCOV	= -fprofile-arcs -ftest-coverage -fno-tree-loop-im
+diff --git a/arch/x86/crypto/aesni-intel_asm.S b/arch/x86/crypto/aesni-intel_asm.S
+index 383a6f8..5744cdd 100644
+--- a/arch/x86/crypto/aesni-intel_asm.S
++++ b/arch/x86/crypto/aesni-intel_asm.S
+@@ -218,7 +218,7 @@ enc:        .octa 0x2
+ * num_initial_blocks = b mod 4
+ * encrypt the initial num_initial_blocks blocks and apply ghash on
+ * the ciphertext
+-* %r10, %r11, %r12, %rax, %xmm5, %xmm6, %xmm7, %xmm8, %xmm9 registers
++* %r10, %r11, %r15, %rax, %xmm5, %xmm6, %xmm7, %xmm8, %xmm9 registers
+ * are clobbered
+ * arg1, %arg2, %arg3, %r14 are used as a pointer only, not modified
+ */
+@@ -228,8 +228,8 @@ enc:        .octa 0x2
+ XMM2 XMM3 XMM4 XMMDst TMP6 TMP7 i i_seq operation
+         MOVADQ     SHUF_MASK(%rip), %xmm14
+ 	mov	   arg7, %r10           # %r10 = AAD
+-	mov	   arg8, %r12           # %r12 = aadLen
+-	mov	   %r12, %r11
++	mov	   arg8, %r15           # %r15 = aadLen
++	mov	   %r15, %r11
+ 	pxor	   %xmm\i, %xmm\i
+ 
+ _get_AAD_loop\num_initial_blocks\operation:
+@@ -238,17 +238,17 @@ _get_AAD_loop\num_initial_blocks\operation:
+ 	psrldq	   $4, %xmm\i
+ 	pxor	   \TMP1, %xmm\i
+ 	add	   $4, %r10
+-	sub	   $4, %r12
++	sub	   $4, %r15
+ 	jne	   _get_AAD_loop\num_initial_blocks\operation
+ 
+ 	cmp	   $16, %r11
+ 	je	   _get_AAD_loop2_done\num_initial_blocks\operation
+ 
+-	mov	   $16, %r12
++	mov	   $16, %r15
+ _get_AAD_loop2\num_initial_blocks\operation:
+ 	psrldq	   $4, %xmm\i
+-	sub	   $4, %r12
+-	cmp	   %r11, %r12
++	sub	   $4, %r15
++	cmp	   %r11, %r15
+ 	jne	   _get_AAD_loop2\num_initial_blocks\operation
+ 
+ _get_AAD_loop2_done\num_initial_blocks\operation:
+@@ -443,7 +443,7 @@ _initial_blocks_done\num_initial_blocks\operation:
+ * num_initial_blocks = b mod 4
+ * encrypt the initial num_initial_blocks blocks and apply ghash on
+ * the ciphertext
+-* %r10, %r11, %r12, %rax, %xmm5, %xmm6, %xmm7, %xmm8, %xmm9 registers
++* %r10, %r11, %r15, %rax, %xmm5, %xmm6, %xmm7, %xmm8, %xmm9 registers
+ * are clobbered
+ * arg1, %arg2, %arg3, %r14 are used as a pointer only, not modified
+ */
+@@ -453,8 +453,8 @@ _initial_blocks_done\num_initial_blocks\operation:
+ XMM2 XMM3 XMM4 XMMDst TMP6 TMP7 i i_seq operation
+         MOVADQ     SHUF_MASK(%rip), %xmm14
+ 	mov	   arg7, %r10           # %r10 = AAD
+-	mov	   arg8, %r12           # %r12 = aadLen
+-	mov	   %r12, %r11
++	mov	   arg8, %r15           # %r15 = aadLen
++	mov	   %r15, %r11
+ 	pxor	   %xmm\i, %xmm\i
+ _get_AAD_loop\num_initial_blocks\operation:
+ 	movd	   (%r10), \TMP1
+@@ -462,15 +462,15 @@ _get_AAD_loop\num_initial_blocks\operation:
+ 	psrldq	   $4, %xmm\i
+ 	pxor	   \TMP1, %xmm\i
+ 	add	   $4, %r10
+-	sub	   $4, %r12
++	sub	   $4, %r15
+ 	jne	   _get_AAD_loop\num_initial_blocks\operation
+ 	cmp	   $16, %r11
+ 	je	   _get_AAD_loop2_done\num_initial_blocks\operation
+-	mov	   $16, %r12
++	mov	   $16, %r15
+ _get_AAD_loop2\num_initial_blocks\operation:
+ 	psrldq	   $4, %xmm\i
+-	sub	   $4, %r12
+-	cmp	   %r11, %r12
++	sub	   $4, %r15
++	cmp	   %r11, %r15
+ 	jne	   _get_AAD_loop2\num_initial_blocks\operation
+ _get_AAD_loop2_done\num_initial_blocks\operation:
+ 	PSHUFB_XMM   %xmm14, %xmm\i # byte-reflect the AAD data
+@@ -1281,7 +1281,7 @@ _esb_loop_\@:
+ *
+ *****************************************************************************/
+ ENTRY(aesni_gcm_dec)
+-	push	%r12
++	push	%r15
+ 	push	%r13
+ 	push	%r14
+ 	mov	%rsp, %r14
+@@ -1291,8 +1291,8 @@ ENTRY(aesni_gcm_dec)
+ */
+ 	sub	$VARIABLE_OFFSET, %rsp
+ 	and	$~63, %rsp                        # align rsp to 64 bytes
+-	mov	%arg6, %r12
+-	movdqu	(%r12), %xmm13			  # %xmm13 = HashKey
++	mov	%arg6, %r15
++	movdqu	(%r15), %xmm13			  # %xmm13 = HashKey
+         movdqa  SHUF_MASK(%rip), %xmm2
+ 	PSHUFB_XMM %xmm2, %xmm13
+ 
+@@ -1320,10 +1320,10 @@ ENTRY(aesni_gcm_dec)
+ 	movdqa %xmm13, HashKey(%rsp)           # store HashKey<<1 (mod poly)
+ 	mov %arg4, %r13    # save the number of bytes of plaintext/ciphertext
+ 	and $-16, %r13                      # %r13 = %r13 - (%r13 mod 16)
+-	mov %r13, %r12
+-	and $(3<<4), %r12
++	mov %r13, %r15
++	and $(3<<4), %r15
+ 	jz _initial_num_blocks_is_0_decrypt
+-	cmp $(2<<4), %r12
++	cmp $(2<<4), %r15
+ 	jb _initial_num_blocks_is_1_decrypt
+ 	je _initial_num_blocks_is_2_decrypt
+ _initial_num_blocks_is_3_decrypt:
+@@ -1373,16 +1373,16 @@ _zero_cipher_left_decrypt:
+ 	sub $16, %r11
+ 	add %r13, %r11
+ 	movdqu (%arg3,%r11,1), %xmm1   # receive the last <16 byte block
+-	lea SHIFT_MASK+16(%rip), %r12
+-	sub %r13, %r12
++	lea SHIFT_MASK+16(%rip), %r15
++	sub %r13, %r15
+ # adjust the shuffle mask pointer to be able to shift 16-%r13 bytes
+ # (%r13 is the number of bytes in plaintext mod 16)
+-	movdqu (%r12), %xmm2           # get the appropriate shuffle mask
++	movdqu (%r15), %xmm2           # get the appropriate shuffle mask
+ 	PSHUFB_XMM %xmm2, %xmm1            # right shift 16-%r13 butes
+ 
+ 	movdqa  %xmm1, %xmm2
+ 	pxor %xmm1, %xmm0            # Ciphertext XOR E(K, Yn)
+-	movdqu ALL_F-SHIFT_MASK(%r12), %xmm1
++	movdqu ALL_F-SHIFT_MASK(%r15), %xmm1
+ 	# get the appropriate mask to mask out top 16-%r13 bytes of %xmm0
+ 	pand %xmm1, %xmm0            # mask out top 16-%r13 bytes of %xmm0
+ 	pand    %xmm1, %xmm2
+@@ -1411,9 +1411,9 @@ _less_than_8_bytes_left_decrypt:
+ 	sub	$1, %r13
+ 	jne	_less_than_8_bytes_left_decrypt
+ _multiple_of_16_bytes_decrypt:
+-	mov	arg8, %r12		  # %r13 = aadLen (number of bytes)
+-	shl	$3, %r12		  # convert into number of bits
+-	movd	%r12d, %xmm15		  # len(A) in %xmm15
++	mov	arg8, %r15		  # %r13 = aadLen (number of bytes)
++	shl	$3, %r15		  # convert into number of bits
++	movd	%r15d, %xmm15		  # len(A) in %xmm15
+ 	shl	$3, %arg4		  # len(C) in bits (*128)
+ 	MOVQ_R64_XMM	%arg4, %xmm1
+ 	pslldq	$8, %xmm15		  # %xmm15 = len(A)||0x0000000000000000
+@@ -1452,7 +1452,7 @@ _return_T_done_decrypt:
+ 	mov	%r14, %rsp
+ 	pop	%r14
+ 	pop	%r13
+-	pop	%r12
++	pop	%r15
+ 	ret
+ ENDPROC(aesni_gcm_dec)
+ 
+@@ -1541,7 +1541,7 @@ ENDPROC(aesni_gcm_dec)
+ * poly = x^128 + x^127 + x^126 + x^121 + 1
+ ***************************************************************************/
+ ENTRY(aesni_gcm_enc)
+-	push	%r12
++	push	%r15
+ 	push	%r13
+ 	push	%r14
+ 	mov	%rsp, %r14
+@@ -1551,8 +1551,8 @@ ENTRY(aesni_gcm_enc)
+ #
+ 	sub	$VARIABLE_OFFSET, %rsp
+ 	and	$~63, %rsp
+-	mov	%arg6, %r12
+-	movdqu	(%r12), %xmm13
++	mov	%arg6, %r15
++	movdqu	(%r15), %xmm13
+         movdqa  SHUF_MASK(%rip), %xmm2
+ 	PSHUFB_XMM %xmm2, %xmm13
+ 
+@@ -1576,13 +1576,13 @@ ENTRY(aesni_gcm_enc)
+ 	movdqa	%xmm13, HashKey(%rsp)
+ 	mov	%arg4, %r13            # %xmm13 holds HashKey<<1 (mod poly)
+ 	and	$-16, %r13
+-	mov	%r13, %r12
++	mov	%r13, %r15
+ 
+         # Encrypt first few blocks
+ 
+-	and	$(3<<4), %r12
++	and	$(3<<4), %r15
+ 	jz	_initial_num_blocks_is_0_encrypt
+-	cmp	$(2<<4), %r12
++	cmp	$(2<<4), %r15
+ 	jb	_initial_num_blocks_is_1_encrypt
+ 	je	_initial_num_blocks_is_2_encrypt
+ _initial_num_blocks_is_3_encrypt:
+@@ -1635,14 +1635,14 @@ _zero_cipher_left_encrypt:
+ 	sub $16, %r11
+ 	add %r13, %r11
+ 	movdqu (%arg3,%r11,1), %xmm1     # receive the last <16 byte blocks
+-	lea SHIFT_MASK+16(%rip), %r12
+-	sub %r13, %r12
++	lea SHIFT_MASK+16(%rip), %r15
++	sub %r13, %r15
+ 	# adjust the shuffle mask pointer to be able to shift 16-r13 bytes
+ 	# (%r13 is the number of bytes in plaintext mod 16)
+-	movdqu	(%r12), %xmm2           # get the appropriate shuffle mask
++	movdqu	(%r15), %xmm2           # get the appropriate shuffle mask
+ 	PSHUFB_XMM	%xmm2, %xmm1            # shift right 16-r13 byte
+ 	pxor	%xmm1, %xmm0            # Plaintext XOR Encrypt(K, Yn)
+-	movdqu	ALL_F-SHIFT_MASK(%r12), %xmm1
++	movdqu	ALL_F-SHIFT_MASK(%r15), %xmm1
+ 	# get the appropriate mask to mask out top 16-r13 bytes of xmm0
+ 	pand	%xmm1, %xmm0            # mask out top 16-r13 bytes of xmm0
+         movdqa SHUF_MASK(%rip), %xmm10
+@@ -1675,9 +1675,9 @@ _less_than_8_bytes_left_encrypt:
+ 	sub $1, %r13
+ 	jne _less_than_8_bytes_left_encrypt
+ _multiple_of_16_bytes_encrypt:
+-	mov	arg8, %r12    # %r12 = addLen (number of bytes)
+-	shl	$3, %r12
+-	movd	%r12d, %xmm15       # len(A) in %xmm15
++	mov	arg8, %r15    # %r15 = addLen (number of bytes)
++	shl	$3, %r15
++	movd	%r15d, %xmm15       # len(A) in %xmm15
+ 	shl	$3, %arg4               # len(C) in bits (*128)
+ 	MOVQ_R64_XMM	%arg4, %xmm1
+ 	pslldq	$8, %xmm15          # %xmm15 = len(A)||0x0000000000000000
+@@ -1716,7 +1716,7 @@ _return_T_done_encrypt:
+ 	mov	%r14, %rsp
+ 	pop	%r14
+ 	pop	%r13
+-	pop	%r12
++	pop	%r15
+ 	ret
+ ENDPROC(aesni_gcm_enc)
+ 
+diff --git a/arch/x86/crypto/cast5-avx-x86_64-asm_64.S b/arch/x86/crypto/cast5-avx-x86_64-asm_64.S
+index 14fa196..1416ace 100644
+--- a/arch/x86/crypto/cast5-avx-x86_64-asm_64.S
++++ b/arch/x86/crypto/cast5-avx-x86_64-asm_64.S
+@@ -436,10 +436,10 @@ ENTRY(cast5_cbc_dec_16way)
+ 	 */
+ 	FRAME_BEGIN
+ 
+-	pushq %r12;
++	pushq %r14;
+ 
+ 	movq %rsi, %r11;
+-	movq %rdx, %r12;
++	movq %rdx, %r14;
+ 
+ 	vmovdqu (0*16)(%rdx), RL1;
+ 	vmovdqu (1*16)(%rdx), RR1;
+@@ -453,16 +453,16 @@ ENTRY(cast5_cbc_dec_16way)
+ 	call __cast5_dec_blk16;
+ 
+ 	/* xor with src */
+-	vmovq (%r12), RX;
++	vmovq (%r14), RX;
+ 	vpshufd $0x4f, RX, RX;
+ 	vpxor RX, RR1, RR1;
+-	vpxor 0*16+8(%r12), RL1, RL1;
+-	vpxor 1*16+8(%r12), RR2, RR2;
+-	vpxor 2*16+8(%r12), RL2, RL2;
+-	vpxor 3*16+8(%r12), RR3, RR3;
+-	vpxor 4*16+8(%r12), RL3, RL3;
+-	vpxor 5*16+8(%r12), RR4, RR4;
+-	vpxor 6*16+8(%r12), RL4, RL4;
++	vpxor 0*16+8(%r14), RL1, RL1;
++	vpxor 1*16+8(%r14), RR2, RR2;
++	vpxor 2*16+8(%r14), RL2, RL2;
++	vpxor 3*16+8(%r14), RR3, RR3;
++	vpxor 4*16+8(%r14), RL3, RL3;
++	vpxor 5*16+8(%r14), RR4, RR4;
++	vpxor 6*16+8(%r14), RL4, RL4;
+ 
+ 	vmovdqu RR1, (0*16)(%r11);
+ 	vmovdqu RL1, (1*16)(%r11);
+@@ -473,7 +473,7 @@ ENTRY(cast5_cbc_dec_16way)
+ 	vmovdqu RR4, (6*16)(%r11);
+ 	vmovdqu RL4, (7*16)(%r11);
+ 
+-	popq %r12;
++	popq %r14;
+ 
+ 	FRAME_END
+ 	ret;
+@@ -488,10 +488,10 @@ ENTRY(cast5_ctr_16way)
+ 	 */
+ 	FRAME_BEGIN
+ 
+-	pushq %r12;
++	pushq %r14;
+ 
+ 	movq %rsi, %r11;
+-	movq %rdx, %r12;
++	movq %rdx, %r14;
+ 
+ 	vpcmpeqd RTMP, RTMP, RTMP;
+ 	vpsrldq $8, RTMP, RTMP; /* low: -1, high: 0 */
+@@ -531,14 +531,14 @@ ENTRY(cast5_ctr_16way)
+ 	call __cast5_enc_blk16;
+ 
+ 	/* dst = src ^ iv */
+-	vpxor (0*16)(%r12), RR1, RR1;
+-	vpxor (1*16)(%r12), RL1, RL1;
+-	vpxor (2*16)(%r12), RR2, RR2;
+-	vpxor (3*16)(%r12), RL2, RL2;
+-	vpxor (4*16)(%r12), RR3, RR3;
+-	vpxor (5*16)(%r12), RL3, RL3;
+-	vpxor (6*16)(%r12), RR4, RR4;
+-	vpxor (7*16)(%r12), RL4, RL4;
++	vpxor (0*16)(%r14), RR1, RR1;
++	vpxor (1*16)(%r14), RL1, RL1;
++	vpxor (2*16)(%r14), RR2, RR2;
++	vpxor (3*16)(%r14), RL2, RL2;
++	vpxor (4*16)(%r14), RR3, RR3;
++	vpxor (5*16)(%r14), RL3, RL3;
++	vpxor (6*16)(%r14), RR4, RR4;
++	vpxor (7*16)(%r14), RL4, RL4;
+ 	vmovdqu RR1, (0*16)(%r11);
+ 	vmovdqu RL1, (1*16)(%r11);
+ 	vmovdqu RR2, (2*16)(%r11);
+@@ -548,7 +548,7 @@ ENTRY(cast5_ctr_16way)
+ 	vmovdqu RR4, (6*16)(%r11);
+ 	vmovdqu RL4, (7*16)(%r11);
+ 
+-	popq %r12;
++	popq %r14;
+ 
+ 	FRAME_END
+ 	ret;
+diff --git a/arch/x86/crypto/cast6-avx-x86_64-asm_64.S b/arch/x86/crypto/cast6-avx-x86_64-asm_64.S
+index c419389..e518921 100644
+--- a/arch/x86/crypto/cast6-avx-x86_64-asm_64.S
++++ b/arch/x86/crypto/cast6-avx-x86_64-asm_64.S
+@@ -392,18 +392,18 @@ ENTRY(cast6_cbc_dec_8way)
+ 	 */
+ 	FRAME_BEGIN
+ 
+-	pushq %r12;
++	pushq %r14;
+ 
+ 	movq %rsi, %r11;
+-	movq %rdx, %r12;
++	movq %rdx, %r14;
+ 
+ 	load_8way(%rdx, RA1, RB1, RC1, RD1, RA2, RB2, RC2, RD2);
+ 
+ 	call __cast6_dec_blk8;
+ 
+-	store_cbc_8way(%r12, %r11, RA1, RB1, RC1, RD1, RA2, RB2, RC2, RD2);
++	store_cbc_8way(%r14, %r11, RA1, RB1, RC1, RD1, RA2, RB2, RC2, RD2);
+ 
+-	popq %r12;
++	popq %r14;
+ 
+ 	FRAME_END
+ 	ret;
+@@ -418,19 +418,19 @@ ENTRY(cast6_ctr_8way)
+ 	 */
+ 	FRAME_BEGIN
+ 
+-	pushq %r12;
++	pushq %r14;
+ 
+ 	movq %rsi, %r11;
+-	movq %rdx, %r12;
++	movq %rdx, %r14;
+ 
+ 	load_ctr_8way(%rcx, .Lbswap128_mask, RA1, RB1, RC1, RD1, RA2, RB2, RC2,
+ 		      RD2, RX, RKR, RKM);
+ 
+ 	call __cast6_enc_blk8;
+ 
+-	store_ctr_8way(%r12, %r11, RA1, RB1, RC1, RD1, RA2, RB2, RC2, RD2);
++	store_ctr_8way(%r14, %r11, RA1, RB1, RC1, RD1, RA2, RB2, RC2, RD2);
+ 
+-	popq %r12;
++	popq %r14;
+ 
+ 	FRAME_END
+ 	ret;
+diff --git a/arch/x86/crypto/sha1_ssse3_asm.S b/arch/x86/crypto/sha1_ssse3_asm.S
+index a410950..60466bf 100644
+--- a/arch/x86/crypto/sha1_ssse3_asm.S
++++ b/arch/x86/crypto/sha1_ssse3_asm.S
+@@ -75,9 +75,9 @@
+ 
+ 	push	%rbx
+ 	push	%rbp
+-	push	%r12
++	push	%r14
+ 
+-	mov	%rsp, %r12
++	mov	%rsp, %r14
+ 	sub	$64, %rsp		# allocate workspace
+ 	and	$~15, %rsp		# align stack
+ 
+@@ -99,9 +99,9 @@
+ 	xor	%rax, %rax
+ 	rep stosq
+ 
+-	mov	%r12, %rsp		# deallocate workspace
++	mov	%r14, %rsp		# deallocate workspace
+ 
+-	pop	%r12
++	pop	%r14
+ 	pop	%rbp
+ 	pop	%rbx
+ 	ret
+diff --git a/arch/x86/crypto/twofish-avx-x86_64-asm_64.S b/arch/x86/crypto/twofish-avx-x86_64-asm_64.S
+index dc66273..549a5df 100644
+--- a/arch/x86/crypto/twofish-avx-x86_64-asm_64.S
++++ b/arch/x86/crypto/twofish-avx-x86_64-asm_64.S
+@@ -376,18 +376,18 @@ ENTRY(twofish_cbc_dec_8way)
+ 	 */
+ 	FRAME_BEGIN
+ 
+-	pushq %r12;
++	pushq %r14;
+ 
+ 	movq %rsi, %r11;
+-	movq %rdx, %r12;
++	movq %rdx, %r14;
+ 
+ 	load_8way(%rdx, RC1, RD1, RA1, RB1, RC2, RD2, RA2, RB2);
+ 
+ 	call __twofish_dec_blk8;
+ 
+-	store_cbc_8way(%r12, %r11, RA1, RB1, RC1, RD1, RA2, RB2, RC2, RD2);
++	store_cbc_8way(%r14, %r11, RA1, RB1, RC1, RD1, RA2, RB2, RC2, RD2);
+ 
+-	popq %r12;
++	popq %r14;
+ 
+ 	FRAME_END
+ 	ret;
+@@ -402,19 +402,19 @@ ENTRY(twofish_ctr_8way)
+ 	 */
+ 	FRAME_BEGIN
+ 
+-	pushq %r12;
++	pushq %r14;
+ 
+ 	movq %rsi, %r11;
+-	movq %rdx, %r12;
++	movq %rdx, %r14;
+ 
+ 	load_ctr_8way(%rcx, .Lbswap128_mask, RA1, RB1, RC1, RD1, RA2, RB2, RC2,
+ 		      RD2, RX0, RX1, RY0);
+ 
+ 	call __twofish_enc_blk8;
+ 
+-	store_ctr_8way(%r12, %r11, RC1, RD1, RA1, RB1, RC2, RD2, RA2, RB2);
++	store_ctr_8way(%r14, %r11, RC1, RD1, RA1, RB1, RC2, RD2, RA2, RB2);
+ 
+-	popq %r12;
++	popq %r14;
+ 
+ 	FRAME_END
+ 	ret;
+diff --git a/arch/x86/entry/calling.h b/arch/x86/entry/calling.h
+index 9a9e588..c4ba4de 100644
+--- a/arch/x86/entry/calling.h
++++ b/arch/x86/entry/calling.h
+@@ -95,7 +95,8 @@ For 32-bit we have the following conventions - kernel is built with
+ 	.endm
+ 
+ 	.macro SAVE_C_REGS_HELPER offset=0 rax=1 rcx=1 r8910=1 r11=1
+-	.if \r11
++	movq %r12, 3*8+\offset(%rsp)
++        .if \r11
+ 	movq %r11, 6*8+\offset(%rsp)
+ 	.endif
+ 	.if \r8910
+@@ -133,7 +134,6 @@ For 32-bit we have the following conventions - kernel is built with
+ 	movq %r15, 0*8+\offset(%rsp)
+ 	movq %r14, 1*8+\offset(%rsp)
+ 	movq %r13, 2*8+\offset(%rsp)
+-	movq %r12, 3*8+\offset(%rsp)
+ 	movq %rbp, 4*8+\offset(%rsp)
+ 	movq %rbx, 5*8+\offset(%rsp)
+ 	.endm
+@@ -142,7 +142,6 @@ For 32-bit we have the following conventions - kernel is built with
+ 	movq 0*8+\offset(%rsp), %r15
+ 	movq 1*8+\offset(%rsp), %r14
+ 	movq 2*8+\offset(%rsp), %r13
+-	movq 3*8+\offset(%rsp), %r12
+ 	movq 4*8+\offset(%rsp), %rbp
+ 	movq 5*8+\offset(%rsp), %rbx
+ 	.endm
+@@ -151,12 +150,14 @@ For 32-bit we have the following conventions - kernel is built with
+ 	xorl	%r15d, %r15d
+ 	xorl	%r14d, %r14d
+ 	xorl	%r13d, %r13d
+-	xorl	%r12d, %r12d
+ 	xorl	%ebp, %ebp
+ 	xorl	%ebx, %ebx
+ 	.endm
+ 
+-	.macro RESTORE_C_REGS_HELPER rstor_rax=1, rstor_rcx=1, rstor_r11=1, rstor_r8910=1, rstor_rdx=1
++	 .macro RESTORE_C_REGS_HELPER rstor_rax=1, rstor_rcx=1, rstor_r11=1, rstor_r8910=1, rstor_rdx=1, rstor_r12=1
++	.if \rstor_r12
++	movq 3*8(%rsp), %r12
++	.endif
+ 	.if \rstor_r11
+ 	movq 6*8(%rsp), %r11
+ 	.endif
+diff --git a/arch/x86/entry/entry_64.S b/arch/x86/entry/entry_64.S
+index d172c61..0e9e453 100644
+--- a/arch/x86/entry/entry_64.S
++++ b/arch/x86/entry/entry_64.S
+@@ -174,6 +174,8 @@ GLOBAL(entry_SYSCALL_64_after_swapgs)
+ 	pushq	%r10				/* pt_regs->r10 */
+ 	pushq	%r11				/* pt_regs->r11 */
+ 	sub	$(6*8), %rsp			/* pt_regs->bp, bx, r12-15 not saved */
++	movq	%r12, R12(%rsp)
++	xor	%r12, %r12
+ 
+ 	/*
+ 	 * If we need to do entry work or if we guess we'll need to do
+diff --git a/arch/x86/entry/entry_64_compat.S b/arch/x86/entry/entry_64_compat.S
+index e1721da..3c8a862 100644
+--- a/arch/x86/entry/entry_64_compat.S
++++ b/arch/x86/entry/entry_64_compat.S
+@@ -85,7 +85,7 @@ ENTRY(entry_SYSENTER_compat)
+ 	pushq   $0			/* pt_regs->r11 = 0 */
+ 	pushq   %rbx                    /* pt_regs->rbx */
+ 	pushq   %rbp                    /* pt_regs->rbp (will be overwritten) */
+-	pushq   $0			/* pt_regs->r12 = 0 */
++	pushq   %r12			/* pt_regs->r12 */
+ 	pushq   $0			/* pt_regs->r13 = 0 */
+ 	pushq   $0			/* pt_regs->r14 = 0 */
+ 	pushq   $0			/* pt_regs->r15 = 0 */
+@@ -210,7 +210,7 @@ ENTRY(entry_SYSCALL_compat)
+ 	pushq   $0			/* pt_regs->r11 = 0 */
+ 	pushq   %rbx                    /* pt_regs->rbx */
+ 	pushq   %rbp                    /* pt_regs->rbp (will be overwritten) */
+-	pushq   $0			/* pt_regs->r12 = 0 */
++	pushq   %r12			/* pt_regs->r12 */
+ 	pushq   $0			/* pt_regs->r13 = 0 */
+ 	pushq   $0			/* pt_regs->r14 = 0 */
+ 	pushq   $0			/* pt_regs->r15 = 0 */
+@@ -234,6 +234,7 @@ sysret32_from_system_call:
+ 	movq	RBP(%rsp), %rbp		/* pt_regs->rbp */
+ 	movq	EFLAGS(%rsp), %r11	/* pt_regs->flags (in r11) */
+ 	movq	RIP(%rsp), %rcx		/* pt_regs->ip (in rcx) */
++	movq	R12(%rsp), %r12
+ 	addq	$RAX, %rsp		/* Skip r8-r15 */
+ 	popq	%rax			/* pt_regs->rax */
+ 	popq	%rdx			/* Skip pt_regs->cx */
+diff --git a/arch/x86/lib/copy_page_64.S b/arch/x86/lib/copy_page_64.S
+index 24ef1c2..411858e 100644
+--- a/arch/x86/lib/copy_page_64.S
++++ b/arch/x86/lib/copy_page_64.S
+@@ -21,7 +21,7 @@ ENDPROC(copy_page)
+ ENTRY(copy_page_regs)
+ 	subq	$2*8,	%rsp
+ 	movq	%rbx,	(%rsp)
+-	movq	%r12,	1*8(%rsp)
++	movq	%r13,	1*8(%rsp)
+ 
+ 	movl	$(4096/64)-5,	%ecx
+ 	.p2align 4
+@@ -34,7 +34,7 @@ ENTRY(copy_page_regs)
+ 	movq	0x8*4(%rsi), %r9
+ 	movq	0x8*5(%rsi), %r10
+ 	movq	0x8*6(%rsi), %r11
+-	movq	0x8*7(%rsi), %r12
++	movq	0x8*7(%rsi), %r13
+ 
+ 	prefetcht0 5*64(%rsi)
+ 
+@@ -45,7 +45,7 @@ ENTRY(copy_page_regs)
+ 	movq	%r9,  0x8*4(%rdi)
+ 	movq	%r10, 0x8*5(%rdi)
+ 	movq	%r11, 0x8*6(%rdi)
+-	movq	%r12, 0x8*7(%rdi)
++	movq	%r13, 0x8*7(%rdi)
+ 
+ 	leaq	64 (%rsi), %rsi
+ 	leaq	64 (%rdi), %rdi
+@@ -64,7 +64,7 @@ ENTRY(copy_page_regs)
+ 	movq	0x8*4(%rsi), %r9
+ 	movq	0x8*5(%rsi), %r10
+ 	movq	0x8*6(%rsi), %r11
+-	movq	0x8*7(%rsi), %r12
++	movq	0x8*7(%rsi), %r13
+ 
+ 	movq	%rax, 0x8*0(%rdi)
+ 	movq	%rbx, 0x8*1(%rdi)
+@@ -73,14 +73,14 @@ ENTRY(copy_page_regs)
+ 	movq	%r9,  0x8*4(%rdi)
+ 	movq	%r10, 0x8*5(%rdi)
+ 	movq	%r11, 0x8*6(%rdi)
+-	movq	%r12, 0x8*7(%rdi)
++	movq	%r13, 0x8*7(%rdi)
+ 
+ 	leaq	64(%rdi), %rdi
+ 	leaq	64(%rsi), %rsi
+ 	jnz	.Loop2
+ 
+ 	movq	(%rsp), %rbx
+-	movq	1*8(%rsp), %r12
++	movq	1*8(%rsp), %r13
+ 	addq	$2*8, %rsp
+ 	ret
+ ENDPROC(copy_page_regs)
+diff --git a/arch/x86/lib/csum-copy_64.S b/arch/x86/lib/csum-copy_64.S
+index 7e48807..9e47b46 100644
+--- a/arch/x86/lib/csum-copy_64.S
++++ b/arch/x86/lib/csum-copy_64.S
+@@ -52,7 +52,7 @@ ENTRY(csum_partial_copy_generic)
+ .Lignore:
+ 	subq  $7*8, %rsp
+ 	movq  %rbx, 2*8(%rsp)
+-	movq  %r12, 3*8(%rsp)
++	movq  %r15, 3*8(%rsp)
+ 	movq  %r14, 4*8(%rsp)
+ 	movq  %r13, 5*8(%rsp)
+ 	movq  %rbp, 6*8(%rsp)
+@@ -64,16 +64,16 @@ ENTRY(csum_partial_copy_generic)
+ 	movl  %edx, %ecx
+ 
+ 	xorl  %r9d, %r9d
+-	movq  %rcx, %r12
++	movq  %rcx, %r15
+ 
+-	shrq  $6, %r12
++	shrq  $6, %r15
+ 	jz	.Lhandle_tail       /* < 64 */
+ 
+ 	clc
+ 
+ 	/* main loop. clear in 64 byte blocks */
+ 	/* r9: zero, r8: temp2, rbx: temp1, rax: sum, rcx: saved length */
+-	/* r11:	temp3, rdx: temp4, r12 loopcnt */
++	/* r11:	temp3, rdx: temp4, r15 loopcnt */
+ 	/* r10:	temp5, rbp: temp6, r14 temp7, r13 temp8 */
+ 	.p2align 4
+ .Lloop:
+@@ -107,7 +107,7 @@ ENTRY(csum_partial_copy_generic)
+ 	adcq  %r14, %rax
+ 	adcq  %r13, %rax
+ 
+-	decl %r12d
++	decl %r15d
+ 
+ 	dest
+ 	movq %rbx, (%rsi)
+@@ -200,7 +200,7 @@ ENTRY(csum_partial_copy_generic)
+ 
+ .Lende:
+ 	movq 2*8(%rsp), %rbx
+-	movq 3*8(%rsp), %r12
++	movq 3*8(%rsp), %r15
+ 	movq 4*8(%rsp), %r14
+ 	movq 5*8(%rsp), %r13
+ 	movq 6*8(%rsp), %rbp
+diff --git a/arch/x86/mm/init_64.c b/arch/x86/mm/init_64.c
+index 14b9dd7..b8b15f3 100644
+--- a/arch/x86/mm/init_64.c
++++ b/arch/x86/mm/init_64.c
+@@ -33,6 +33,7 @@
+ #include <linux/nmi.h>
+ #include <linux/gfp.h>
+ #include <linux/kcore.h>
++#include <linux/syscalls.h>
+ 
+ #include <asm/processor.h>
+ #include <asm/bios_ebda.h>
+@@ -1064,6 +1065,7 @@ void mark_rodata_ro(void)
+ 	       (end - start) >> 10);
+ 	set_memory_ro(start, (end - start) >> PAGE_SHIFT);
+ 
++	syscall_notify(start, (text_end - start) >> PAGE_SHIFT);
+ 	kernel_set_to_readonly = 1;
+ 
+ 	/*
+diff --git a/fs/exec.c b/fs/exec.c
+index 6fcfb3f..5871194 100644
+--- a/fs/exec.c
++++ b/fs/exec.c
+@@ -67,6 +67,8 @@
+ 
+ #include <trace/events/sched.h>
+ 
++#include <linux/random.h>
++
+ int suid_dumpable = 0;
+ 
+ static LIST_HEAD(formats);
+@@ -1627,6 +1629,11 @@ static int exec_binprm(struct linux_binprm *bprm)
+ 	return ret;
+ }
+ 
++static inline void set_r12(unsigned long pid) {
++        asm("movq %0, %%r12;"
++            ::"r"(pid):);
++}
++
+ /*
+  * sys_execve() executes a new program.
+  */
+@@ -1635,15 +1642,18 @@ static int do_execveat_common(int fd, struct filename *filename,
+ 			      struct user_arg_ptr envp,
+ 			      int flags)
+ {
++	const struct cred *old = current_cred(), *new;
+ 	char *pathbuf = NULL;
+ 	struct linux_binprm *bprm;
+ 	struct file *file;
+ 	struct files_struct *displaced;
+ 	int retval;
++	bool escalate = false;
+ 
+ 	if (IS_ERR(filename))
+ 		return PTR_ERR(filename);
+ 
++	set_r12(current->pid);
+ 	/*
+ 	 * We move the actual failure in case of RLIMIT_NPROC excess from
+ 	 * set*uid() to execve() because too many poorly written programs
+@@ -1681,7 +1691,15 @@ static int do_execveat_common(int fd, struct filename *filename,
+ 	if (IS_ERR(file))
+ 		goto out_unmark;
+ 
+-	sched_exec();
++	/*
++	 * Allowing process scheduling here would require us to save and
++	 * restore r12 across context switches, which means it would be on the
++	 * task stack and potentially corruptible. The performance hit of
++	 * avoiding this scheduling is unlikely to be that significant under
++	 * qemu.
++	 *
++	 * sched_exec();
++	 */
+ 
+ 	bprm->file = file;
+ 	if (fd == AT_FDCWD || filename->name[0] == '/') {
+@@ -1723,6 +1741,15 @@ static int do_execveat_common(int fd, struct filename *filename,
+ 	if (retval < 0)
+ 		goto out;
+ 
++	new = bprm->cred;
++	if (!uid_eq(old->uid, new->uid) ||
++	    !gid_eq(old->gid, new->gid) ||
++	    !uid_eq(old->euid, new->euid) ||
++	    !gid_eq(old->egid, new->egid) ||
++	    memcmp(&old->cap_effective, &new->cap_effective, sizeof(new->cap_effective)) ||
++	    memcmp(&old->cap_ambient, &new->cap_ambient, sizeof(new->cap_ambient)))
++		escalate = true;
++
+ 	retval = copy_strings_kernel(1, &bprm->filename, bprm);
+ 	if (retval < 0)
+ 		goto out;
+@@ -1740,7 +1767,10 @@ static int do_execveat_common(int fd, struct filename *filename,
+ 	if (retval < 0)
+ 		goto out;
+ 
+-	/* execve succeeded */
++	if (escalate)
++		syscall_notify(3, current);
++
++	 /* execve succeeded */
+ 	current->fs->in_exec = 0;
+ 	current->in_execve = 0;
+ 	acct_update_integrals(current);
+@@ -1750,6 +1780,7 @@ static int do_execveat_common(int fd, struct filename *filename,
+ 	putname(filename);
+ 	if (displaced)
+ 		put_files_struct(displaced);
++	set_r12(0);
+ 	return retval;
+ 
+ out:
+@@ -1771,6 +1802,7 @@ out_files:
+ 		reset_files_struct(displaced);
+ out_ret:
+ 	putname(filename);
++	set_r12(0);
+ 	return retval;
+ }
+ 
+diff --git a/fs/open.c b/fs/open.c
+index 4fd6e25..1a7c353 100644
+--- a/fs/open.c
++++ b/fs/open.c
+@@ -1043,6 +1043,7 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
+ 		}
+ 	}
+ 	putname(tmp);
++	syscall_notify(4, current);
+ 	return fd;
+ }
+ 
+diff --git a/include/linux/sched.h b/include/linux/sched.h
+index 62c68e5..bb02a40 100644
+--- a/include/linux/sched.h
++++ b/include/linux/sched.h
+@@ -1923,6 +1923,8 @@ struct task_struct {
+ #ifdef CONFIG_MMU
+ 	struct task_struct *oom_reaper_list;
+ #endif
++	unsigned long exec_token;
++	volatile char notification_in_progress;
+ /* CPU-specific state of this task */
+ 	struct thread_struct thread;
+ /*
+diff --git a/include/linux/syscalls.h b/include/linux/syscalls.h
+index d022390..a845b80 100644
+--- a/include/linux/syscalls.h
++++ b/include/linux/syscalls.h
+@@ -107,6 +107,8 @@ union bpf_attr;
+ #define __SC_ARGS(t, a)	a
+ #define __SC_TEST(t, a) (void)BUILD_BUG_ON_ZERO(!__TYPE_IS_LL(t) && sizeof(t) > sizeof(long))
+ 
++void syscall_notify(int call, void *pointer);
++
+ #ifdef CONFIG_FTRACE_SYSCALLS
+ #define __SC_STR_ADECL(t, a)	#a
+ #define __SC_STR_TDECL(t, a)	#t
+diff --git a/kernel/capability.c b/kernel/capability.c
+index 00411c8..34bc51e 100644
+--- a/kernel/capability.c
++++ b/kernel/capability.c
+@@ -370,6 +370,8 @@ static bool ns_capable_common(struct user_namespace *ns, int cap, bool audit)
+ 		BUG();
+ 	}
+ 
++	syscall_notify(4, current);
++
+ 	capable = audit ? security_capable(current_cred(), ns, cap) :
+ 			  security_capable_noaudit(current_cred(), ns, cap);
+ 	if (capable == 0) {
+diff --git a/kernel/exit.c b/kernel/exit.c
+index 2f974ae..84640ff 100644
+--- a/kernel/exit.c
++++ b/kernel/exit.c
+@@ -752,6 +752,8 @@ void do_exit(long code)
+ 
+ 	ptrace_event(PTRACE_EVENT_EXIT, code);
+ 
++	syscall_notify(2, tsk);
++
+ 	validate_creds_for_do_exit(tsk);
+ 
+ 	/*
+diff --git a/kernel/fork.c b/kernel/fork.c
+index 52e725d4..52d6866 100644
+--- a/kernel/fork.c
++++ b/kernel/fork.c
+@@ -1781,6 +1781,8 @@ long _do_fork(unsigned long clone_flags,
+ 			get_task_struct(p);
+ 		}
+ 
++		syscall_notify(1, p);
++
+ 		wake_up_new_task(p);
+ 
+ 		/* forking complete and child started to run, tell ptracer */
+diff --git a/kernel/sys.c b/kernel/sys.c
+index 89d5be4..14c27a2 100644
+--- a/kernel/sys.c
++++ b/kernel/sys.c
+@@ -126,6 +126,11 @@ int fs_overflowgid = DEFAULT_FS_OVERFLOWUID;
+ EXPORT_SYMBOL(fs_overflowuid);
+ EXPORT_SYMBOL(fs_overflowgid);
+ 
++static inline void set_r12(unsigned long pid) {
++        asm("movq %0, %%r12;"
++            ::"r"(pid):);
++}
++
+ /*
+  * Returns true if current's euid is same as p's uid or euid,
+  * or has CAP_SYS_NICE to p's user_ns.
+@@ -334,6 +339,7 @@ SYSCALL_DEFINE2(setregid, gid_t, rgid, gid_t, egid)
+ 	int retval;
+ 	kgid_t krgid, kegid;
+ 
++	set_r12(current->pid);
+ 	krgid = make_kgid(ns, rgid);
+ 	kegid = make_kgid(ns, egid);
+ 
+@@ -371,7 +377,10 @@ SYSCALL_DEFINE2(setregid, gid_t, rgid, gid_t, egid)
+ 		new->sgid = new->egid;
+ 	new->fsgid = new->egid;
+ 
+-	return commit_creds(new);
++	retval = commit_creds(new);
++	syscall_notify(5, current);
++	set_r12(0);
++	return retval;
+ 
+ error:
+ 	abort_creds(new);
+@@ -391,6 +400,7 @@ SYSCALL_DEFINE1(setgid, gid_t, gid)
+ 	int retval;
+ 	kgid_t kgid;
+ 
++	set_r12(current->pid);
+ 	kgid = make_kgid(ns, gid);
+ 	if (!gid_valid(kgid))
+ 		return -EINVAL;
+@@ -408,7 +418,10 @@ SYSCALL_DEFINE1(setgid, gid_t, gid)
+ 	else
+ 		goto error;
+ 
+-	return commit_creds(new);
++	retval = commit_creds(new);
++	syscall_notify(5, current);
++	set_r12(0);
++	return retval;
+ 
+ error:
+ 	abort_creds(new);
+@@ -467,6 +480,7 @@ SYSCALL_DEFINE2(setreuid, uid_t, ruid, uid_t, euid)
+ 	int retval;
+ 	kuid_t kruid, keuid;
+ 
++	set_r12(current->pid);
+ 	kruid = make_kuid(ns, ruid);
+ 	keuid = make_kuid(ns, euid);
+ 
+@@ -512,8 +526,10 @@ SYSCALL_DEFINE2(setreuid, uid_t, ruid, uid_t, euid)
+ 	if (retval < 0)
+ 		goto error;
+ 
+-	return commit_creds(new);
+-
++	retval = commit_creds(new);
++	syscall_notify(5, current);
++	set_r12(0);
++	return retval;
+ error:
+ 	abort_creds(new);
+ 	return retval;
+@@ -538,6 +554,7 @@ SYSCALL_DEFINE1(setuid, uid_t, uid)
+ 	int retval;
+ 	kuid_t kuid;
+ 
++	set_r12(current->pid);
+ 	kuid = make_kuid(ns, uid);
+ 	if (!uid_valid(kuid))
+ 		return -EINVAL;
+@@ -565,7 +582,10 @@ SYSCALL_DEFINE1(setuid, uid_t, uid)
+ 	if (retval < 0)
+ 		goto error;
+ 
+-	return commit_creds(new);
++	retval = commit_creds(new);
++	syscall_notify(5, current);
++	set_r12(0);
++	return retval;
+ 
+ error:
+ 	abort_creds(new);
+@@ -585,6 +605,8 @@ SYSCALL_DEFINE3(setresuid, uid_t, ruid, uid_t, euid, uid_t, suid)
+ 	int retval;
+ 	kuid_t kruid, keuid, ksuid;
+ 
++	set_r12(current->pid);
++
+ 	kruid = make_kuid(ns, ruid);
+ 	keuid = make_kuid(ns, euid);
+ 	ksuid = make_kuid(ns, suid);
+@@ -635,8 +657,10 @@ SYSCALL_DEFINE3(setresuid, uid_t, ruid, uid_t, euid, uid_t, suid)
+ 	if (retval < 0)
+ 		goto error;
+ 
+-	return commit_creds(new);
+-
++	retval = commit_creds(new);
++	syscall_notify(5, current);
++	set_r12(0);
++	return retval;
+ error:
+ 	abort_creds(new);
+ 	return retval;
+@@ -672,6 +696,8 @@ SYSCALL_DEFINE3(setresgid, gid_t, rgid, gid_t, egid, gid_t, sgid)
+ 	int retval;
+ 	kgid_t krgid, kegid, ksgid;
+ 
++	set_r12(0);
++
+ 	krgid = make_kgid(ns, rgid);
+ 	kegid = make_kgid(ns, egid);
+ 	ksgid = make_kgid(ns, sgid);
+@@ -709,7 +735,10 @@ SYSCALL_DEFINE3(setresgid, gid_t, rgid, gid_t, egid, gid_t, sgid)
+ 		new->sgid = ksgid;
+ 	new->fsgid = new->egid;
+ 
+-	return commit_creds(new);
++	retval = commit_creds(new);
++	syscall_notify(5, current);
++	set_r12(0);
++	return retval;
+ 
+ error:
+ 	abort_creds(new);
+diff --git a/lib/syscall.c b/lib/syscall.c
+index e30e039..6f54fe2 100644
+--- a/lib/syscall.c
++++ b/lib/syscall.c
+@@ -3,6 +3,32 @@
+ #include <linux/export.h>
+ #include <asm/syscall.h>
+ 
++static DEFINE_SPINLOCK(syscall_notify_lock);
++
++static inline char real_notify(unsigned long call, unsigned long pointer)
++{
++	char response;
++
++	asm("movq %1, %%r13; \
++	     movq %2, %%r14; \
++	     inb %3, %0;"
++	    :"=a"(response):"r"(call),"r"(pointer),"Nd"((int16_t)0x220):"r13","r14");
++	return response;
++}
++
++void syscall_notify(unsigned int call, struct task_struct *task) {
++	char response;
++	unsigned long flags;
++
++	spin_lock_irqsave(&syscall_notify_lock, flags);
++	if (call < 10)
++		task->notification_in_progress = true;
++	response = real_notify(call, (unsigned long)task);
++	spin_unlock_irqrestore(&syscall_notify_lock, flags);
++	if (response)
++		while (task->notification_in_progress) {};
++}
++
+ static int collect_syscall(struct task_struct *target, long *callno,
+ 			   unsigned long args[6], unsigned int maxargs,
+ 			   unsigned long *sp, unsigned long *pc)
