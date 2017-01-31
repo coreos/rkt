@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"strconv"
-	"strings"
 	"syscall"
 )
 
@@ -42,32 +40,6 @@ func readIntFromFile(path string) (i int, err error) {
 	_, err = fmt.Sscanf(string(b), "%d", &i)
 	return
 }
-
-func cleanupChildren() {
-	b, err := ioutil.ReadFile("childpids"); if err != nil {
-		fmt.Fprintf(os.Stderr, "error finding children: %v\n", err)
-		return
-	}
-
-	pids := strings.Split(string(b), "\n")
-	for _, p := range pids {
-		if p == "" {
-			// Skip new-lines
-			continue
-		}
-
-		pid, err := strconv.ParseInt(p, 10, 64); if err != nil {
-			fmt.Fprintf(os.Stderr, "error getting child process %d: %v\n", pid, err)
-			os.Exit(254)
-		}
-
-		err = syscall.Kill(int(pid), syscall.SIGTERM); if err != nil {
-			fmt.Fprintf(os.Stderr, "error stopping child process %d: %v\n", pid, err)
-			os.Exit(254)
-		}
-	}
-}
-
 
 func main() {
 	flag.Parse()
@@ -93,9 +65,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "error stopping process %d: %v\n", pid, err)
 			os.Exit(254)
 		}
-		cleanupChildren()
 	} else {
-		defer cleanupChildren()
 		pgid, err := readIntFromFile("pgid")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error reading pgid: %v\n", err)
@@ -107,4 +77,6 @@ func main() {
 			os.Exit(254)
 		}
 	}
+
+	// invoke systemd stop targets for the pod
 }
