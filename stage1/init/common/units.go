@@ -644,3 +644,9 @@ func appendOptionsList(opts []*unit.UnitOption, section, property, prefix string
 	}
 	return opts
 }
+
+// Take a pod name with encoded UUID string, and escape the hyphens for use as
+// a systemd slice
+func SystemdSanitizeSlice(base string) string {
+	return strings.Replace(base, "-", "\\x2d",-1)
+}

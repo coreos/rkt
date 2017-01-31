@@ -107,16 +107,12 @@ func parseFlags() *stage1commontypes.RuntimePod {
  * need another way of grouping services together.
  **/
 
-func systemdSanitize(base string) string {
-	return strings.Replace(base, "-", "\\x2d",-1)
-}
-
 func getName(p *stage1commontypes.Pod) string {
 	return "rkt-" + p.UUID.String()
 }
 
 func createSlice(path string, p *stage1commontypes.Pod) (string, error) {
-	sliceName := "system-" + systemdSanitize(getName(p)) + ".slice"
+	sliceName := "system-" + stage1init.SystemdSanitizeSlice(getName(p)) + ".slice"
 	writer := stage1init.NewUnitWriter(p)
 
 	writer.WriteUnit(filepath.Join(path, sliceName),
