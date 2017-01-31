@@ -16,16 +16,18 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
-	"os/signal"
     "strings"
 	"syscall"
 
+	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
 
 	"github.com/coreos/rkt/common"
@@ -33,12 +35,16 @@ import (
 	rktlog "github.com/coreos/rkt/pkg/log"
 	"github.com/coreos/rkt/pkg/sys"
 	"github.com/coreos/rkt/pkg/user"
+	stage1init "github.com/coreos/rkt/stage1/init/common"
 	stage1common "github.com/coreos/rkt/stage1/common"
 	stage1commontypes "github.com/coreos/rkt/stage1/common/types"
+	"github.com/coreos/go-systemd/unit"
+
 )
 
 const (
 	flavor = "skim"
+	systemdPath = "/run/systemd/system"
 )
 
 var (
@@ -48,12 +54,11 @@ var (
 	discardBool    bool
 	discardString  string
 
-	pids	[]int
+	serviceDependencies []string
 
 	log  *rktlog.Logger
 	diag *rktlog.Logger
 )
-
 
 func parseFlags() *stage1commontypes.RuntimePod {
 	rp := stage1commontypes.RuntimePod{}
@@ -95,33 +100,116 @@ func parseFlags() *stage1commontypes.RuntimePod {
 }
 
 /**
- * Reap all processes that belong to this pod. I don't believe this should be
- * necessary once we migrate towards systemd
- */
-func reapChildren() {
-	/* remove the SIGCHLD handler so we don't trip over it inadvertently */
-	signal.Reset(syscall.SIGCHLD)
+ * Borrow some of the stage1 systemd service generation components so that our
+ * processes can make use of systemd too.
+ *
+ * Since this particular flavor cannot make use of the chroot environment, we
+ * need another way of grouping services together.
+ **/
 
-	for _, p := range pids {
-		proc, err := os.FindProcess(p)
-		if err != nil {
-			fmt.Printf("Cannot find: %d skipping\n", p)
-			continue
-		}
-
-		err = proc.Kill(); if err != nil {
-			fmt.Printf("Error killing: %d skipping\n", p)
-		}
-	}
+func systemdSanitize(base string) string {
+	return strings.Replace(base, "-", "\\x2d",-1)
 }
 
-func savePids() error {
-	result := ""
-	for _, v := range pids {
-		result += fmt.Sprintf("%d\n", v)
+func getName(p *stage1commontypes.Pod) string {
+	return "rkt-" + p.UUID.String()
+}
+
+func createSlice(path string, p *stage1commontypes.Pod) (string, error) {
+	sliceName := "system-" + systemdSanitize(getName(p)) + ".slice"
+	writer := stage1init.NewUnitWriter(p)
+
+	writer.WriteUnit(filepath.Join(path, sliceName),
+		"Failed to write slice: " + sliceName,
+		unit.NewUnitOption("Unit", "Description", "slice for " + getName(p)),
+		unit.NewUnitOption("Unit", "Requires", "system.slice"),
+		unit.NewUnitOption("Install", "WantedBy", "slices.target"))
+
+	return sliceName, writer.Error()
+}
+
+func createService(ra schema.RuntimeApp, slice string, interactive bool, p *stage1commontypes.Pod) (string, error) {
+	suffix := "-" + getName(p)
+	writer := stage1init.NewUnitWriter(p)
+
+	serviceName := ra.Name.String() + suffix + ".service"
+
+	imgName := p.AppNameToImageName(ra.Name)
+	args := ra.App.Exec
+	if len(args) == 0 {
+		return serviceName, errors.New(fmt.Sprintf(`image %q has an empty "exec" (try --exec=BINARY)`, imgName))
 	}
 
-	return ioutil.WriteFile("childpids", bytes.NewBufferString(result).Bytes(), 644)
+	workDir := "/"
+	if ra.App.WorkingDirectory != "" {
+		workDir = ra.App.WorkingDirectory
+	}
+
+	rfs := filepath.Join(common.AppPath(p.Root, ra.Name), "rootfs")
+	rootDir,_ := os.Getwd()
+	execDir := filepath.Join(rootDir, rfs)
+
+	/* Mangle arg[0] to target the preferred path */
+	args[0] = filepath.Join(execDir, args[0])
+
+	execArgs := stage1init.QuoteExec(args)
+
+	opts := []*unit.UnitOption{
+		unit.NewUnitOption("Unit", "Description", "service for " + serviceName),
+		unit.NewUnitOption("Unit", "DefaultDependencies", "false"),
+		unit.NewUnitOption("Unit", "BindsTo", getName(p) + ".scope"),
+		unit.NewUnitOption("Service", "Slice",  slice),
+		unit.NewUnitOption("Service", "Restart", "no"),
+		unit.NewUnitOption("Service", "ExecStart", execArgs),
+	}
+
+	/* In this case, loading order for the images does matter */
+	for _, v := range serviceDependencies {
+		opts = append(opts, unit.NewUnitOption("Unit", "Requires", v))
+		opts = append(opts, unit.NewUnitOption("Unit", "After", v))
+	}
+
+	if interactive {
+		opts = append(opts, unit.NewUnitOption("Service", "StandardInput", "tty"))
+		opts = append(opts, unit.NewUnitOption("Service", "StandardOutput", "tty"))
+		opts = append(opts, unit.NewUnitOption("Service", "StandardError", "tty"))
+	} else {
+		opts = append(opts, unit.NewUnitOption("Service", "StandardOutput", "journal+console"))
+		opts = append(opts, unit.NewUnitOption("Service", "StandardError", "journal+console"))
+	}
+
+	opts = append(opts, unit.NewUnitOption("Service", "User", ra.App.User))
+	opts = append(opts, unit.NewUnitOption("Service", "Group", ra.App.Group))
+	opts = append(opts, unit.NewUnitOption("Service", "WorkingDirectory", execDir))
+
+	/* CAB: PATH is being set multiple times */
+	/* env support */
+	path := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+    var containerPath string
+    for _, p := range strings.Split(path, ":") {
+        containerPath += execDir + workDir + p + ":"
+    }
+
+	env := []string{"PATH=" + containerPath + path}
+	for _, e := range ra.App.Environment {
+		env = append(env, e.Name+"="+e.Value)
+	}
+	env = append(env, "AC_APP_NAME=" + ra.Name.String())
+
+	envFilePath := filepath.Join(execDir, serviceName + ".env")
+	envBuffer := bytes.NewBufferString(strings.Join(env, "\n"))
+
+	err := ioutil.WriteFile(envFilePath, envBuffer.Bytes(), 0644); if err != nil {
+		return serviceName, err
+	}
+
+	opts = append(opts, unit.NewUnitOption("Service", "EnvironmentFile", envFilePath))
+
+	writer.WriteUnit(filepath.Join(systemdPath, serviceName),
+		"Failed to write service: " + serviceName, opts...)
+
+	return serviceName, writer.Error()
 }
 
 func stage1(rp *stage1commontypes.RuntimePod) int {
@@ -142,10 +230,17 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 
 	if err := p.SaveRuntime(); err != nil {
 		log.FatalE("failed to save runtime parameters", err)
+		return 254
 	}
 
 	// CAB: Generate the rkt-UUID-system.slice
-	// From there, the following daemons will want this particular slice
+	// From there, the following daemons will bind to this particular slice
+	// Will also create a special target for the services to bind to as well
+	sliceName, err := createSlice(systemdPath, p); if err != nil {
+		log.FatalE("Error creating pod slice", err)
+		return 254
+	}
+	log.Printf("Creating slice at: /" + systemdPath + "/" + sliceName)
 
 	// lock the current goroutine to its current OS thread.
 	// This will force the subsequent syscalls to be executed in the same OS thread as Setresuid, and Setresgid,
@@ -157,10 +252,6 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 		log.PrintE("can't get rkt lock fd", err)
 		return 254
 	}
-
-	defer reapChildren()
-	childChannel := make(chan os.Signal, 1)
-	signal.Notify(childChannel, syscall.SIGCHLD, os.Interrupt)
 
 	for _, ra := range p.Manifest.Apps {
 		imgName := p.AppNameToImageName(ra.Name)
@@ -178,10 +269,12 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 	        return 254
 	    }
 
+	    /*
 		workDir := "/"
 		if ra.App.WorkingDirectory != "" {
 			workDir = ra.App.WorkingDirectory
 		}
+		*/
 
 		rfs := filepath.Join(common.AppPath(p.Root, ra.Name), "rootfs")
 		pid := os.Getpid()
@@ -237,19 +330,20 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 		}
 
 	    // Update the runtime path to reflect the absolute path of the container
-		path := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-		execDir := filepath.Join(rootDir, rfs)
+		// path := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+		// execDir := filepath.Join(rootDir, rfs)
 
-	    var containerPath string
-	    for _, p := range strings.Split(path, ":") {
-	        containerPath += execDir + workDir + p + ":"
-	    }
+	 //    var containerPath string
+	 //    for _, p := range strings.Split(path, ":") {
+	 //        containerPath += execDir + workDir + p + ":"
+	 //    }
 
-		env := []string{"PATH=" + containerPath + path}
-		for _, e := range ra.App.Environment {
-			env = append(env, e.Name+"="+e.Value)
-		}
+		// env := []string{"PATH=" + containerPath + path}
+		// for _, e := range ra.App.Environment {
+		// 	env = append(env, e.Name+"="+e.Value)
+		// }
 
+		/*
 		diag.Printf("spawning %q in %q", args, execDir)
 		var procAttr syscall.ProcAttr
 		procAttr.Env = env
@@ -260,13 +354,14 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 			log.PrintE(fmt.Sprintf("can't execute %q/%q", execDir, args[0]), err)
 			return 254
 		}
-
 		pids = append(pids, pid)
-	}
+		*/
 
-	/* Reset our working directory */
-	err = savePids(); if err != nil {
-		log.PrintE("can't save pids", err)
+		svc, err := createService(ra, sliceName, false, p); if err != nil {
+			log.PrintE(fmt.Sprintf("Error generating service: %q", svc), err)
+		}
+		diag.Printf("Generating service: %q\n", svc)
+		serviceDependencies = append(serviceDependencies, svc)
 	}
 
 	// clear close-on-exec flag on RKT_LOCK_FD, to keep pod status as running after exec().
@@ -275,10 +370,26 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 		return 254
 	}
 
+	// reload the systemd's world of unit files
+	reloadCmd := exec.Command("/usr/bin/systemctl", "daemon-reload")
+	err = reloadCmd.Run(); if err != nil {
+		log.PrintE("cannot reload system daemon: ", err)
+		return 254
+	}
+
 	// exec into our stage1-sync program to allow everything else to bind to it
 	syncCmd := filepath.Join(common.Stage1RootfsPath(rootDir), "sync")
-	diag.Printf("execing stage1-sync: %q\n", syncCmd)
-	if err = syscall.Exec(syncCmd, nil, nil); err != nil {
+	systemdCmd := "/usr/bin/systemd-run"
+	systemdArgs := []string{
+		systemdCmd,
+		"--slice=" + sliceName,
+		"--unit=" + getName(p),
+		"--scope",
+		syncCmd,
+		serviceDependencies[len(serviceDependencies)-1],
+	}
+	diag.Printf("execing stage1-sync: %q: %q\n", systemdCmd, strings.Join(systemdArgs, " "))
+	if err = syscall.Exec(systemdCmd, systemdArgs, nil); err != nil {
 		log.PrintE("can't execute stage1-sync:", err)
 		return 254
 	}
