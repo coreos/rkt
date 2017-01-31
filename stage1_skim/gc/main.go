@@ -18,14 +18,24 @@ import (
 	"flag"
 	"io/ioutil"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 
+	"github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/common"
+	stage1init "github.com/coreos/rkt/stage1/init/common"
 	rktlog "github.com/coreos/rkt/pkg/log"
+)
+
+const (
+	systemdPath = "/run/systemd"
 )
 
 var (
 	debug       bool
 
+	log         *rktlog.Logger
 	diag        *rktlog.Logger
 	localConfig string
 )
@@ -38,10 +48,55 @@ func init() {
 func main() {
 	flag.Parse()
 
-	diag = rktlog.New(os.Stderr, "gc", debug)
+	log, diag, _ = rktlog.NewLogSet("gc", debug)
 	if !debug {
 		diag.SetOutput(ioutil.Discard)
 	}
-	diag.Printf("not doing anything since stage0 is cleaning up the mounts")
-	return
+
+	diag.Println("remove all dynamically generated systemd service/slice/scope files")
+	podID, err := types.NewUUID(flag.Arg(0))
+	if err != nil {
+		log.Fatal("UUID is missing or malformed")
+	}
+
+	podBase := "rkt-" + podID.String()
+
+	diag.Println("removing transient/*.scope")
+	transBase := filepath.Join(systemdPath, "transient")
+	transDir, err := ioutil.ReadDir(transBase); if err != nil {
+		log.FatalE("Unable to read transient dir", err)
+	}
+
+	for _, f := range transDir {
+		absFile := filepath.Join(transBase, f.Name())
+		if f.Name() == podBase + ".scope" {
+			diag.Println("Purging scope: " + absFile)
+			os.Remove(absFile)
+		}
+	}
+
+	diag.Println("removing system/*.[service|slice]")
+	sliceName := "system-" + stage1init.SystemdSanitizeSlice(podBase) + ".slice"
+	systemBase := filepath.Join(systemdPath, "system")
+	systemDir, err := ioutil.ReadDir(systemBase); if err != nil {
+		log.FatalE("Unable to read system dir", err)
+	}
+
+	for _, f := range systemDir {
+		absFile := filepath.Join(systemBase, f.Name())
+		if strings.HasSuffix(f.Name(), podBase + ".service") {
+			diag.Println("Purging service: " + absFile)
+			os.Remove(absFile)
+		} else if f.Name() == sliceName {
+			diag.Println("Purging slice: " + sliceName)
+			os.Remove(absFile)
+		}
+	}
+
+	diag.Println("reload systemd daemon")
+	// reload the systemd's world of unit files
+	reloadCmd := exec.Command("/usr/bin/systemctl", "daemon-reload")
+	err = reloadCmd.Run(); if err != nil {
+		log.FatalE("cannot reload system daemon: ", err)
+	}
 }
