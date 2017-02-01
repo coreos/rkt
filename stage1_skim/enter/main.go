@@ -58,14 +58,14 @@ func main() {
 		diag.SetOutput(ioutil.Discard)
 	}
 
-    cwd, err := os.Getwd()
-    if err != nil {
-        log.FatalE("Failed to get current working directory", err)
-    }
+	cwd, err := os.Getwd()
+	if err != nil {
+		log.FatalE("Failed to get current working directory", err)
+	}
 
-    if err := os.Chdir(cwd + "/stage1/rootfs/opt/stage2/" + appName + "/rootfs"); err != nil {
-        log.FatalE("Failed to change to new root", err)
-    }
+	if err := os.Chdir(cwd + "/stage1/rootfs/opt/stage2/" + appName + "/rootfs"); err != nil {
+		log.FatalE("Failed to change to new root", err)
+	}
 
 	diag.Println("PID:", podPid)
 	diag.Println("APP:", appName)

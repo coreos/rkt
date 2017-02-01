@@ -24,31 +24,30 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-    "strings"
+	"strings"
 	"syscall"
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
 
+	"github.com/coreos/go-systemd/unit"
 	"github.com/coreos/rkt/common"
 	pkgflag "github.com/coreos/rkt/pkg/flag"
 	rktlog "github.com/coreos/rkt/pkg/log"
 	"github.com/coreos/rkt/pkg/sys"
 	"github.com/coreos/rkt/pkg/user"
-	stage1init "github.com/coreos/rkt/stage1/init/common"
 	stage1common "github.com/coreos/rkt/stage1/common"
 	stage1commontypes "github.com/coreos/rkt/stage1/common/types"
-	"github.com/coreos/go-systemd/unit"
-
+	stage1init "github.com/coreos/rkt/stage1/init/common"
 )
 
 const (
-	flavor = "skim"
+	flavor      = "skim"
 	systemdPath = "/run/systemd/system"
 )
 
 var (
-	debug bool
+	debug       bool
 	interactive bool
 
 	discardNetlist common.NetList
@@ -76,14 +75,14 @@ func parseFlags() *stage1commontypes.RuntimePod {
 
 	// These are discarded with a warning
 	// TODO either implement these, or stop passing them
-	
+
 	flag.Var(pkgflag.NewDiscardFlag("mds-token"), "mds-token", "MDS auth token (not implemented)")
 	flag.Var(pkgflag.NewDiscardFlag("hostname"), "hostname", "Set hostname (not implemented)")
 	flag.Bool("disable-capabilities-restriction", true, "ignored")
 	flag.Bool("disable-paths", true, "ignored")
 	flag.Bool("disable-seccomp", true, "ignored")
 
-    // Since we're running on the host natively, we wll also ingnore tweaking dns/host
+	// Since we're running on the host natively, we wll also ingnore tweaking dns/host
 	dnsConfMode := pkgflag.MustNewPairList(map[string][]string{
 		"resolv": {"host", "stage0", "none", "default"},
 		"hosts":  {"host", "stage0", "default"},
@@ -117,8 +116,8 @@ func createSlice(path string, p *stage1commontypes.Pod) (string, error) {
 	writer := stage1init.NewUnitWriter(p)
 
 	writer.WriteUnit(filepath.Join(path, sliceName),
-		"Failed to write slice: " + sliceName,
-		unit.NewUnitOption("Unit", "Description", "slice for " + getName(p)),
+		"Failed to write slice: "+sliceName,
+		unit.NewUnitOption("Unit", "Description", "slice for "+getName(p)),
 		unit.NewUnitOption("Unit", "Requires", "system.slice"),
 		unit.NewUnitOption("Install", "WantedBy", "slices.target"))
 
@@ -143,7 +142,7 @@ func createService(ra schema.RuntimeApp, slice string, p *stage1commontypes.Pod)
 	}
 
 	rfs := filepath.Join(common.AppPath(p.Root, ra.Name), "rootfs")
-	rootDir,_ := os.Getwd()
+	rootDir, _ := os.Getwd()
 	execDir := filepath.Join(rootDir, rfs)
 
 	/* Mangle arg[0] to target the preferred path */
@@ -152,10 +151,10 @@ func createService(ra schema.RuntimeApp, slice string, p *stage1commontypes.Pod)
 	execArgs := stage1init.QuoteExec(args)
 
 	opts := []*unit.UnitOption{
-		unit.NewUnitOption("Unit", "Description", "service for " + serviceName),
+		unit.NewUnitOption("Unit", "Description", "service for "+serviceName),
 		unit.NewUnitOption("Unit", "DefaultDependencies", "false"),
-		unit.NewUnitOption("Unit", "BindsTo", getName(p) + ".scope"),
-		unit.NewUnitOption("Service", "Slice",  slice),
+		unit.NewUnitOption("Unit", "BindsTo", getName(p)+".scope"),
+		unit.NewUnitOption("Service", "Slice", slice),
 		unit.NewUnitOption("Service", "Restart", "no"),
 		unit.NewUnitOption("Service", "ExecStart", execArgs),
 	}
@@ -176,34 +175,35 @@ func createService(ra schema.RuntimeApp, slice string, p *stage1commontypes.Pod)
 	/* env support */
 	path := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-    var containerPath string
-    for _, p := range strings.Split(path, ":") {
-        containerPath += execDir + workDir + p + ":"
-    }
+	var containerPath string
+	for _, p := range strings.Split(path, ":") {
+		containerPath += execDir + workDir + p + ":"
+	}
 
 	env := []string{"PATH=" + containerPath + path}
 	for _, e := range ra.App.Environment {
 		env = append(env, e.Name+"="+e.Value)
 	}
-	env = append(env, "AC_APP_NAME=" + ra.Name.String())
+	env = append(env, "AC_APP_NAME="+ra.Name.String())
 
-	envFilePath := filepath.Join(execDir, serviceName + ".env")
+	envFilePath := filepath.Join(execDir, serviceName+".env")
 	envBuffer := bytes.NewBufferString(strings.Join(env, "\n"))
 
-	err := ioutil.WriteFile(envFilePath, envBuffer.Bytes(), 0644); if err != nil {
+	err := ioutil.WriteFile(envFilePath, envBuffer.Bytes(), 0644)
+	if err != nil {
 		return serviceName, err
 	}
 
 	opts = append(opts, unit.NewUnitOption("Service", "EnvironmentFile", envFilePath))
 
 	writer.WriteUnit(filepath.Join(systemdPath, serviceName),
-		"Failed to write service: " + serviceName, opts...)
+		"Failed to write service: "+serviceName, opts...)
 
 	return serviceName, writer.Error()
 }
 
 func stage1(rp *stage1commontypes.RuntimePod) int {
-	rootDir,_ := os.Getwd()
+	rootDir, _ := os.Getwd()
 
 	uuid, err := types.NewUUID(flag.Arg(0))
 	if err != nil {
@@ -231,7 +231,8 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 
 	// From there, the following daemons will bind to this particular slice
 	// Will also create a special target for the services to bind to as well
-	sliceName, err := createSlice(systemdPath, p); if err != nil {
+	sliceName, err := createSlice(systemdPath, p)
+	if err != nil {
 		log.FatalE("Error creating pod slice", err)
 		return 254
 	}
@@ -257,13 +258,14 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 				return 254
 			}
 
-		    // change permissions for the root directory to be world readable/executable
-		    // This is to ensure external ancillary scripts work without having to be
-		    // root or setuid-root
-		    err = os.Chmod(common.AppPath(p.Root, ra.Name), 0755); if err != nil {
-		        log.Error(err)
-		        return 254
-		    }
+			// change permissions for the root directory to be world readable/executable
+			// This is to ensure external ancillary scripts work without having to be
+			// root or setuid-root
+			err = os.Chmod(common.AppPath(p.Root, ra.Name), 0755)
+			if err != nil {
+				log.Error(err)
+				return 254
+			}
 
 			pid := os.Getpid()
 
@@ -272,7 +274,8 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 				return 254
 			}
 
-			svc, err := createService(ra, sliceName, p); if err != nil {
+			svc, err := createService(ra, sliceName, p)
+			if err != nil {
 				log.PrintE(fmt.Sprintf("Error generating service: %q", svc), err)
 			}
 			diag.Printf("Generating service: %q\n", svc)
@@ -287,18 +290,20 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 		}
 
 		reloadCmd := exec.Command("/usr/bin/systemctl", "daemon-reload")
-		err = reloadCmd.Run(); if err != nil {
+		err = reloadCmd.Run()
+		if err != nil {
 			log.PrintE("cannot reload system daemon: ", err)
 			return 254
 		}
 
-	    // change permissions for the root directory to be world readable/executable
-	    // This is to ensure external ancillary scripts work without having to be
-	    // root or setuid-root
-	    err = os.Chmod(common.AppPath(p.Root, ra.Name), 0755); if err != nil {
-	        log.Error(err)
-	        return 254
-	    }
+		// change permissions for the root directory to be world readable/executable
+		// This is to ensure external ancillary scripts work without having to be
+		// root or setuid-root
+		err = os.Chmod(common.AppPath(p.Root, ra.Name), 0755)
+		if err != nil {
+			log.Error(err)
+			return 254
+		}
 
 		workDir := "/"
 		if ra.App.WorkingDirectory != "" {
@@ -357,13 +362,13 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 			return 254
 		}
 
-	    // Update the runtime path to reflect the absolute path of the container
+		// Update the runtime path to reflect the absolute path of the container
 		path := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 		execDir := filepath.Join(rootDir, rfs)
 
 		var containerPath string
 		for _, p := range strings.Split(path, ":") {
-		    containerPath += execDir + workDir + p + ":"
+			containerPath += execDir + workDir + p + ":"
 		}
 
 		env := []string{"PATH=" + containerPath + path}
@@ -398,7 +403,8 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 
 	// reload the systemd's world of unit files
 	reloadCmd := exec.Command("/usr/bin/systemctl", "daemon-reload")
-	err = reloadCmd.Run(); if err != nil {
+	err = reloadCmd.Run()
+	if err != nil {
 		log.PrintE("cannot reload system daemon: ", err)
 		return 254
 	}
