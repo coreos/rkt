@@ -49,6 +49,7 @@ const (
 
 var (
 	debug bool
+	interactive bool
 
 	discardNetlist common.NetList
 	discardBool    bool
@@ -64,6 +65,7 @@ func parseFlags() *stage1commontypes.RuntimePod {
 	rp := stage1commontypes.RuntimePod{}
 
 	flag.BoolVar(&debug, "debug", false, "Run in debug mode")
+	flag.BoolVar(&interactive, "interactive", false, "The pod is interactive (single image only)")
 
 	// The following flags need to be supported by stage1 according to
 	// https://github.com/coreos/rkt/blob/master/Documentation/devel/stage1-implementors-guide.md
@@ -74,9 +76,8 @@ func parseFlags() *stage1commontypes.RuntimePod {
 
 	// These are discarded with a warning
 	// TODO either implement these, or stop passing them
-	flag.Bool("interactive", true, "The pod is interactive (ignored, always true)")
+	
 	flag.Var(pkgflag.NewDiscardFlag("mds-token"), "mds-token", "MDS auth token (not implemented)")
-
 	flag.Var(pkgflag.NewDiscardFlag("hostname"), "hostname", "Set hostname (not implemented)")
 	flag.Bool("disable-capabilities-restriction", true, "ignored")
 	flag.Bool("disable-paths", true, "ignored")
@@ -124,7 +125,7 @@ func createSlice(path string, p *stage1commontypes.Pod) (string, error) {
 	return sliceName, writer.Error()
 }
 
-func createService(ra schema.RuntimeApp, slice string, interactive bool, p *stage1commontypes.Pod) (string, error) {
+func createService(ra schema.RuntimeApp, slice string, p *stage1commontypes.Pod) (string, error) {
 	suffix := "-" + getName(p)
 	writer := stage1init.NewUnitWriter(p)
 
@@ -165,15 +166,8 @@ func createService(ra schema.RuntimeApp, slice string, interactive bool, p *stag
 		opts = append(opts, unit.NewUnitOption("Unit", "After", v))
 	}
 
-	if interactive {
-		opts = append(opts, unit.NewUnitOption("Service", "StandardInput", "tty"))
-		opts = append(opts, unit.NewUnitOption("Service", "StandardOutput", "tty"))
-		opts = append(opts, unit.NewUnitOption("Service", "StandardError", "tty"))
-	} else {
-		opts = append(opts, unit.NewUnitOption("Service", "StandardOutput", "journal+console"))
-		opts = append(opts, unit.NewUnitOption("Service", "StandardError", "journal+console"))
-	}
-
+	opts = append(opts, unit.NewUnitOption("Service", "StandardOutput", "journal+console"))
+	opts = append(opts, unit.NewUnitOption("Service", "StandardError", "journal+console"))
 	opts = append(opts, unit.NewUnitOption("Service", "User", ra.App.User))
 	opts = append(opts, unit.NewUnitOption("Service", "Group", ra.App.Group))
 	opts = append(opts, unit.NewUnitOption("Service", "WorkingDirectory", execDir))
@@ -229,7 +223,12 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 		return 254
 	}
 
-	// CAB: Generate the rkt-UUID-system.slice
+	// If we're running in interactive mode, we can support only 1 app per pod
+	if interactive && len(p.Manifest.Apps) != 1 {
+		log.FatalE("too many apps to support interactive mode", nil)
+		return 254
+	}
+
 	// From there, the following daemons will bind to this particular slice
 	// Will also create a special target for the services to bind to as well
 	sliceName, err := createSlice(systemdPath, p); if err != nil {
@@ -249,11 +248,47 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 		return 254
 	}
 
-	for _, ra := range p.Manifest.Apps {
-		imgName := p.AppNameToImageName(ra.Name)
+	if !interactive {
+		for _, ra := range p.Manifest.Apps {
+			imgName := p.AppNameToImageName(ra.Name)
+			args := ra.App.Exec
+			if len(args) == 0 {
+				log.Printf(`image %q has an empty "exec" (try --exec=BINARY)`, imgName)
+				return 254
+			}
+
+		    // change permissions for the root directory to be world readable/executable
+		    // This is to ensure external ancillary scripts work without having to be
+		    // root or setuid-root
+		    err = os.Chmod(common.AppPath(p.Root, ra.Name), 0755); if err != nil {
+		        log.Error(err)
+		        return 254
+		    }
+
+			pid := os.Getpid()
+
+			if err = stage1common.WritePid(pid, "pid"); err != nil {
+				log.Error(err)
+				return 254
+			}
+
+			svc, err := createService(ra, sliceName, p); if err != nil {
+				log.PrintE(fmt.Sprintf("Error generating service: %q", svc), err)
+			}
+			diag.Printf("Generating service: %q\n", svc)
+			serviceDependencies = append(serviceDependencies, svc)
+		}
+	} else {
+		ra := p.Manifest.Apps[0]
 		args := ra.App.Exec
 		if len(args) == 0 {
-			log.Printf(`image %q has an empty "exec" (try --exec=BINARY)`, imgName)
+			log.Printf(`image %q has an empty "exec" (try --exec=BINARY)`, p.AppNameToImageName(ra.Name))
+			return 254
+		}
+
+		reloadCmd := exec.Command("/usr/bin/systemctl", "daemon-reload")
+		err = reloadCmd.Run(); if err != nil {
+			log.PrintE("cannot reload system daemon: ", err)
 			return 254
 		}
 
@@ -265,12 +300,10 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 	        return 254
 	    }
 
-	    /*
 		workDir := "/"
 		if ra.App.WorkingDirectory != "" {
 			workDir = ra.App.WorkingDirectory
 		}
-		*/
 
 		rfs := filepath.Join(common.AppPath(p.Root, ra.Name), "rootfs")
 		pid := os.Getpid()
@@ -314,7 +347,6 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 		}
 
 		diag.Printf("setting uid %d gid %d", uid, gid)
-
 		if err := syscall.Setresgid(gid, gid, gid); err != nil {
 			log.PrintE(fmt.Sprintf("can't set gid %d", gid), err)
 			return 254
@@ -326,44 +358,42 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 		}
 
 	    // Update the runtime path to reflect the absolute path of the container
-		// path := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-		// execDir := filepath.Join(rootDir, rfs)
+		path := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+		execDir := filepath.Join(rootDir, rfs)
 
-	 //    var containerPath string
-	 //    for _, p := range strings.Split(path, ":") {
-	 //        containerPath += execDir + workDir + p + ":"
-	 //    }
+		var containerPath string
+		for _, p := range strings.Split(path, ":") {
+		    containerPath += execDir + workDir + p + ":"
+		}
 
-		// env := []string{"PATH=" + containerPath + path}
-		// for _, e := range ra.App.Environment {
-		// 	env = append(env, e.Name+"="+e.Value)
-		// }
+		env := []string{"PATH=" + containerPath + path}
+		for _, e := range ra.App.Environment {
+			env = append(env, e.Name+"="+e.Value)
+		}
 
-		/*
-		diag.Printf("spawning %q in %q", args, execDir)
-		var procAttr syscall.ProcAttr
-		procAttr.Env = env
-		procAttr.Files = [](uintptr){os.Stdin.Fd(), os.Stdout.Fd(), os.Stderr.Fd()}
-		procAttr.Dir = execDir
-		pid, err = syscall.ForkExec(filepath.Join(execDir,args[0]), args, &procAttr)
-		if err != nil {
-			log.PrintE(fmt.Sprintf("can't execute %q/%q", execDir, args[0]), err)
+		systemdCmd := "/usr/bin/systemd-run"
+		systemdArgs := []string{
+			systemdCmd,
+			"--slice=" + sliceName,
+			"--unit=" + getName(p),
+			"--property=WorkingDirectory=" + execDir,
+			"--pty",
+			filepath.Join(execDir, args[0]),
+		}
+
+		// clear close-on-exec flag on RKT_LOCK_FD, to keep pod status as running after exec().
+		if err := sys.CloseOnExec(lfd, false); err != nil {
+			log.PrintE("unable to clear FD_CLOEXEC on pod lock", err)
 			return 254
 		}
-		pids = append(pids, pid)
-		*/
 
-		svc, err := createService(ra, sliceName, false, p); if err != nil {
-			log.PrintE(fmt.Sprintf("Error generating service: %q", svc), err)
+		diag.Printf("Starting service: %q\n", filepath.Join(execDir, args[0]))
+		if err = syscall.Exec(systemdCmd, systemdArgs, env); err != nil {
+			log.PrintE("cannot exec systemctl", err)
+			return 254
 		}
-		diag.Printf("Generating service: %q\n", svc)
-		serviceDependencies = append(serviceDependencies, svc)
-	}
 
-	// clear close-on-exec flag on RKT_LOCK_FD, to keep pod status as running after exec().
-	if err := sys.CloseOnExec(lfd, false); err != nil {
-		log.PrintE("unable to clear FD_CLOEXEC on pod lock", err)
-		return 254
+		return 0
 	}
 
 	// reload the systemd's world of unit files
@@ -385,6 +415,12 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 		serviceDependencies[len(serviceDependencies)-1],
 	}
 	diag.Printf("execing stage1-sync: %q: %q\n", systemdCmd, strings.Join(systemdArgs, " "))
+	// clear close-on-exec flag on RKT_LOCK_FD, to keep pod status as running after exec().
+	if err := sys.CloseOnExec(lfd, false); err != nil {
+		log.PrintE("unable to clear FD_CLOEXEC on pod lock", err)
+		return 254
+	}
+
 	if err = syscall.Exec(systemdCmd, systemdArgs, nil); err != nil {
 		log.PrintE("can't execute stage1-sync:", err)
 		return 254
