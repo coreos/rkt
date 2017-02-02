@@ -85,3 +85,5 @@ This could be implemented with cgroups.
 [rkt-1757]: https://github.com/coreos/rkt/issues/1757
 [rkt-1844]: https://github.com/coreos/rkt/pull/1844
 [rkt-systemd]: ../using-rkt-with-systemd.md
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/devel/cgroups.md?pixel)]() <!-- END ANALYTICS -->

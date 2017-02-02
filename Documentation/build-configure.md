@@ -173,3 +173,5 @@ For this reason the incremental build option must not be used for release builds
 
 [rkt-tpm]: devel/tpm.md
 [trousers]: http://trousers.sourceforge.net/
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/build-configure.md?pixel)]() <!-- END ANALYTICS -->

@@ -25,3 +25,5 @@ Since rkt v1.2.0, if /dev/log does not exist in the image, it will be created as
 
 [networking-dns]: networking/dns.md
 [os-spec]: https://github.com/appc/spec/blob/master/spec/OS-SPEC.md
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/app-environment.md?pixel)]() <!-- END ANALYTICS -->

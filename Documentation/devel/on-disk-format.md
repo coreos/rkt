@@ -31,3 +31,5 @@ The [configuration][configuration] on-disk format is documented separately.
 [pod-lifecycle]: pod-lifecycle.md
 [rkt-706]: https://github.com/coreos/rkt/issues/706
 [rktkind-paths]: ../configuration.md#rktkind-paths
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/devel/on-disk-format.md?pixel)]() <!-- END ANALYTICS -->

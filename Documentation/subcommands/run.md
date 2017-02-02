@@ -449,3 +449,5 @@ See the table with [global options in general commands documentation][global-opt
 [rkt-arch]: ../devel/architecture.md
 [rkt-hacking]: ../hacking.md
 [systemd-run]: ../using-rkt-with-systemd.md#systemd-run
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/subcommands/run.md?pixel)]() <!-- END ANALYTICS -->

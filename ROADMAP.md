@@ -25,3 +25,5 @@ Up-to-date planning at https://github.com/coreos/rkt/milestone/59.
 ### Upcoming
 
 Future tasks without a specific timeline are tracked at https://github.com/coreos/rkt/milestone/30.
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/ROADMAP.md?pixel)]() <!-- END ANALYTICS -->

@@ -162,3 +162,5 @@ Simply ignoring ENOENT errors propagated from the loser's rename calls can suffi
 [man-flock]: http://man7.org/linux/man-pages/man2/flock.2.html
 [man-rename]: http://man7.org/linux/man-pages/man2/rename.2.html
 [rkt-arch]: ../devel/architecture.md
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/devel/pod-lifecycle.md?pixel)]() <!-- END ANALYTICS -->

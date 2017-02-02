@@ -213,3 +213,5 @@ If something looks awry, restart, pray to your preferred deity, and try again.
 [rkt-builder]: https://github.com/coreos/rkt-builder
 [run-time-dependencies]: dependencies.md#run-time-dependencies
 [update-coreos-stage1]: devel/update-coreos-stage1.md
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/hacking.md?pixel)]() <!-- END ANALYTICS -->

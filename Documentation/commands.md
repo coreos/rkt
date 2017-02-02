@@ -181,3 +181,5 @@ On some distributions such as Ubuntu, persistent journal storage is not enabled 
 [sd-journal]: https://www.freedesktop.org/software/systemd/man/sd-journal.html
 [capabilities]: capabilities-guide.md
 [seccomp]: seccomp-guide.md
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/commands.md?pixel)]() <!-- END ANALYTICS -->

@@ -122,3 +122,5 @@ gofmt -s -w file.go
 [rkt-hacking]: ../hacking.md
 [rkt-dependencies]: ../dependencies.md
 [rkt-tests-readme]: ../../tests/README.md
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/devel/quickstart-dev.md?pixel)]() <!-- END ANALYTICS -->

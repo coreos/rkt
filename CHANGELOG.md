@@ -1512,3 +1512,5 @@ Numerous improvements and fixes over v0.1.0:
 ## v0.0.0
 
 Initial release.
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/CHANGELOG.md?pixel)]() <!-- END ANALYTICS -->

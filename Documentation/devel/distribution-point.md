@@ -166,3 +166,5 @@ For example there may exist multiple transport plugins (file, http, s3, bittorre
 [oci_image_spec_readme]: https://github.com/opencontainers/image-spec#running-an-oci-imag://github.com/appc/docker2aci
 [oci_layout]: https://github.com/opencontainers/image-spec/blob/master/image-layout.md
 [rkt-2964]: https://github.com/coreos/rkt/pull/2964
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/devel/distribution-point.md?pixel)]() <!-- END ANALYTICS -->

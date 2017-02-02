@@ -50,16 +50,18 @@ There are a number of different avenues for seeking help and communicating with 
 - For general discussion about both using and developing rkt, join the [rkt-dev][rkt-dev] mailing list
 - For real-time discussion, join us on IRC: #[rkt-dev][irc] on freenode.org
 - For more details on rkt development plans, check out the GitHub [milestones][milestones]
+- For a complete set of rkt documentation, refer to the [rkt docs hosted on coreos.com][coreos-docs]
 
 Most discussion about rkt development happens on GitHub via issues and pull requests.
 The rkt developers also host a semi-regular community sync meeting open to the public.
 This sync usually features demos, updates on the roadmap, and time for anyone from the community to ask questions of the developers or share users stories with others.
 For more details, including how to join and recordings of previous syncs, see the [sync doc on Google Docs][sync-doc].
 
-[new-issue]: https://github.com/coreos/rkt/issues/new
-[rkt-dev]: https://groups.google.com/forum/?hl=en#!forum/rkt-dev
+[coreos-docs]: https://coreos.com/rkt/docs/latest/
 [irc]: irc://irc.freenode.org:6667/#rkt-dev
 [milestones]: https://github.com/coreos/rkt/milestones
+[new-issue]: https://github.com/coreos/rkt/issues/new
+[rkt-dev]: https://groups.google.com/forum/?hl=en#!forum/rkt-dev
 [sync-doc]: https://docs.google.com/document/d/1NT_J5X2QErtKgd8Y3TFXNknWhJx_yOCMJnq3Iy2jPgE/edit#
 
 ## Contributing to rkt
@@ -90,3 +92,5 @@ Due to a bug in the Linux kernel, using rkt when `/var/lib/rkt` is on btrfs requ
 Due to a bug in the Linux kernel, using rkt's overlay support in conjunction with SELinux requires a set of patches that are only currently available on some Linux distributions (for example, [CoreOS Linux](https://github.com/coreos/coreos-overlay/tree/master/sys-kernel/coreos-sources/files)). Work is ongoing to merge this work into the mainline Linux kernel ([#1727](https://github.com/coreos/rkt/issues/1727#issuecomment-173203129)).
 
 Linux 3.18+ is required to successfully garbage collect rkt pods when system services such as udevd are in a slave mount namespace (see [lazy umounts on unlinked files and directories](https://github.com/torvalds/linux/commit/8ed936b) and [#1922](https://github.com/coreos/rkt/issues/1922)).
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/README.md?pixel)]() <!-- END ANALYTICS -->

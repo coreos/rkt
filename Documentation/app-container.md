@@ -50,3 +50,5 @@ To validate that `rkt` successfully implements the ACE part of the spec, use the
 [goaci]: https://github.com/appc/goaci
 [k8s-pods]: http://kubernetes.io/docs/user-guide/pods/
 [running-docker-images]: running-docker-images.md
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/app-container.md?pixel)]() <!-- END ANALYTICS -->

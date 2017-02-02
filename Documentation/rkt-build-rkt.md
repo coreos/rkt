@@ -21,3 +21,5 @@ Start the container which will run the [rkt builder](https://github.com/coreos/r
 ```
 
 You should see rkt building in your rkt container, and once it's finished, the output should be in `$BUILD_DIR` on your host.
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/rkt-build-rkt.md?pixel)]() <!-- END ANALYTICS -->

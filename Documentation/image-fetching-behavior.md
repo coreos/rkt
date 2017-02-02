@@ -33,3 +33,5 @@ remote       | image name         | Execute [discovery logic][discovery-logic]. 
 
 
 [discovery-logic]: https://github.com/appc/spec/blob/master/spec/discovery.md#app-container-image-discovery
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/image-fetching-behavior.md?pixel)]() <!-- END ANALYTICS -->

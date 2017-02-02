@@ -60,6 +60,12 @@ working on your contributions.
 CoreOS project docs should follow the [Documentation style and formatting
 guide](https://github.com/coreos/docs/tree/master/STYLE.md). Thank you for documenting!
 
+*Note*: Some rkt documentation contains a footer that collects data for Google
+Analytics. The script at `scripts/docs/analytics-footer.py` accepts a `remove`
+subcommand to delete these footers. It's a good idea to exclude the
+`Documentation` directory from your git commits to avoid merge conflicts
+afterwards.
+
 ### Format of the Commit Message
 
 We follow a rough convention for commit messages that is designed to answer two
@@ -107,3 +113,5 @@ A large PR must be split into multiple commits, each with clear commit messages.
 Intermediate commits should compile and pass tests. Exceptions to non-compilable must have a valid reason, i.e. dependency bumps.
 
 Do not add entries in the changelog yourself. They will be overwritten when creating a new release.
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/CONTRIBUTING.md?pixel)]() <!-- END ANALYTICS -->

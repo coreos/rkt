@@ -98,3 +98,5 @@ For more information please consult the systemd manual.
 [systemd.directives]: http://www.freedesktop.org/software/systemd/man/systemd.directives.html
 [systemd.resource-control]: http://www.freedesktop.org/software/systemd/man/systemd.resource-control.html
 [systemd-unit]: using-rkt-with-systemd.md#advanced-unit-file
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/running-fly-stage1.md?pixel)]() <!-- END ANALYTICS -->

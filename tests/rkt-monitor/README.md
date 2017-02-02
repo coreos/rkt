@@ -74,3 +74,5 @@ load average: Load1: 2.270000 Load5: 1.600000 Load15: 1.120000
 container start time: 2641.468717ms
 container stop time: 14.610641ms
 ```
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/tests/rkt-monitor/README.md?pixel)]() <!-- END ANALYTICS -->

@@ -141,3 +141,5 @@ rkt can optionally use lkvm or qemu-kvm as an additional security measure over a
 [oci]: https://www.opencontainers.org/
 [oci-spec-github]: https://github.com/opencontainers/specs
 [runc-github]: https://github.com/opencontainers/runc
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/rkt-vs-other-projects.md?pixel)]() <!-- END ANALYTICS -->

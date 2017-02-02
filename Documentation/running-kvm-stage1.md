@@ -133,3 +133,5 @@ host OS
 [rkt-arch-stage1]: devel/architecture.md#stage-1
 [rkt-run]: subcommands/run.md#use-a-custom-stage-1
 [stage1-implementers-guide]: devel/stage1-implementors-guide.md
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/running-kvm-stage1.md?pixel)]() <!-- END ANALYTICS -->

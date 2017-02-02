@@ -481,3 +481,5 @@ Note that _within_ a particular configuration directory (either system or local)
 ##### Command line flags
 
 The `name`, `version` and `location` fields are ignored in favor of a value coming from `--stage1-url`, `--stage1-path`, `--stage1-name`, `--stage1-hash`, or `--stage1-from-dir` flags.
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/configuration.md?pixel)]() <!-- END ANALYTICS -->

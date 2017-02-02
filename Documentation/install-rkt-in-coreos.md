@@ -36,3 +36,5 @@ installed.
 [rkt-releases]: https://github.com/coreos/rkt/releases
 [ignition]: https://coreos.com/ignition/docs/latest/
 [cloud-config]: https://coreos.com/os/docs/latest/cloud-config.html
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/install-rkt-in-coreos.md?pixel)]() <!-- END ANALYTICS -->

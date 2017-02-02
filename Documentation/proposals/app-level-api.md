@@ -232,3 +232,5 @@ Allow users to inject debug applications into a pod in production.
 
 
 [k8s-25899]: https://github.com/yujuhong/kubernetes/blob/08dc66113399c89e31f6872f3c638695a6ec6a8d/docs/proposals/container-runtime-interface-v1.md
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/proposals/app-level-api.md?pixel)]() <!-- END ANALYTICS -->

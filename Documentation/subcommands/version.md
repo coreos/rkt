@@ -10,3 +10,5 @@ rkt Version: 1.23.0
 appc Version: 0.8.10
 Go Version: go1.5.3
 Go OS/Arch: linux/amd64
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/subcommands/version.md?pixel)]() <!-- END ANALYTICS -->

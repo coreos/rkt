@@ -98,3 +98,5 @@ See the table with [global options in general commands documentation][global-opt
 [configuration]: ../configuration.md
 [global-options]: ../commands.md#global-options
 [img-fetch]: ../image-fetching-behavior.md
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/subcommands/fetch.md?pixel)]() <!-- END ANALYTICS -->

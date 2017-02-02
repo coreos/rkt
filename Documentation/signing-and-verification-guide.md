@@ -363,3 +363,5 @@ sha512-b3f138e10482d4b5f334294d69ae5c40
 [getting-started]: getting-started-guide.md
 [rkt-fetch]: subcommands/fetch.md
 [rkt-trust]: subcommands/trust.md
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/signing-and-verification-guide.md?pixel)]() <!-- END ANALYTICS -->

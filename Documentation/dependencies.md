@@ -90,3 +90,5 @@ For the most part the codebase is self-contained (e.g. all dependencies are vend
   * systemd-journald
 
 [kernel-build-deps]: https://www.kernel.org/doc/Documentation/Changes
+
+<!-- BEGIN ANALYTICS --> [![Analytics](http://ga-beacon.prod.coreos.systems/UA-42684979-9/github.com/coreos/rkt/Documentation/dependencies.md?pixel)]() <!-- END ANALYTICS -->
