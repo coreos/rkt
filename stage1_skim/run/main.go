@@ -143,20 +143,27 @@ func createService(ra schema.RuntimeApp, slice string, p *stage1commontypes.Pod)
 
 	rfs := filepath.Join(common.AppPath(p.Root, ra.Name), "rootfs")
 	rootDir, _ := os.Getwd()
+    fifoLoc := filepath.Join(rootDir, "sync.fifo")
 	execDir := filepath.Join(rootDir, rfs)
+	envFilePath := filepath.Join(execDir, serviceName+".env")
 
 	/* Mangle arg[0] to target the preferred path */
-	args[0] = filepath.Join(execDir, args[0])
+    if filepath.IsAbs(args[0]) {
+        args[0] = filepath.Join(execDir, args[0])
+    }
 
 	execArgs := stage1init.QuoteExec(args)
 
 	opts := []*unit.UnitOption{
 		unit.NewUnitOption("Unit", "Description", "service for "+serviceName),
-		unit.NewUnitOption("Unit", "DefaultDependencies", "false"),
 		unit.NewUnitOption("Unit", "BindsTo", getName(p)+".scope"),
+        unit.NewUnitOption("Service", "Type", "simple"),
 		unit.NewUnitOption("Service", "Slice", slice),
 		unit.NewUnitOption("Service", "Restart", "no"),
-		unit.NewUnitOption("Service", "ExecStart", execArgs),
+		unit.NewUnitOption("Service", "ExecStart", "/bin/sh -c '" + execArgs + " > " + fifoLoc + " 2>&1'"),
+        unit.NewUnitOption("Service", "ExecStop", "/bin/sh -c '/usr/bin/kill -USR1 `/usr/bin/cat " + filepath.Join(rootDir, "pid") + "`'"),
+        unit.NewUnitOption("Service", "StandardOutput", "journal+console"),
+        unit.NewUnitOption("Service", "StandardError", "journal+console"),
 	}
 
 	/* In this case, loading order for the images does matter */
@@ -165,8 +172,6 @@ func createService(ra schema.RuntimeApp, slice string, p *stage1commontypes.Pod)
 		opts = append(opts, unit.NewUnitOption("Unit", "After", v))
 	}
 
-	opts = append(opts, unit.NewUnitOption("Service", "StandardOutput", "journal+console"))
-	opts = append(opts, unit.NewUnitOption("Service", "StandardError", "journal+console"))
 	opts = append(opts, unit.NewUnitOption("Service", "User", ra.App.User))
 	opts = append(opts, unit.NewUnitOption("Service", "Group", ra.App.Group))
 	opts = append(opts, unit.NewUnitOption("Service", "WorkingDirectory", execDir))
@@ -174,20 +179,52 @@ func createService(ra schema.RuntimeApp, slice string, p *stage1commontypes.Pod)
 	/* CAB: PATH is being set multiple times */
 	/* env support */
 	path := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    libpath := "/usr/local/lib:/usr/lib64:/usr/lib:/lib64:/lib"
 
 	var containerPath string
 	for _, p := range strings.Split(path, ":") {
 		containerPath += execDir + workDir + p + ":"
 	}
 
-	env := []string{"PATH=" + containerPath + path}
-	for _, e := range ra.App.Environment {
-		env = append(env, e.Name+"="+e.Value)
-	}
-	env = append(env, "AC_APP_NAME="+ra.Name.String())
+    var containerLibPath string
+    for _, l := range strings.Split(libpath, ":") {
+        containerLibPath += execDir + workDir + l + ":"
+    }
 
-	envFilePath := filepath.Join(execDir, serviceName+".env")
+	env := []string{}
+    foundPath, foundLib := false, false
+	for _, e := range ra.App.Environment {
+        if e.Name == "PATH" {
+            foundPath = true
+            for _, p := range strings.Split(e.Value, ":") {
+                containerPath += execDir + workDir + p + ":"
+            }
+
+            env = append(env, e.Name + "=" + containerPath)
+        } else if e.Name == "LD_LIBRARY_PATH" {
+            foundLib = true
+            for _, l := range strings.Split(e.Value, ":") {
+                containerLibPath += execDir + workDir + l + ":"
+            }
+
+            env = append(env, e.Name + "=" + containerLibPath)
+        } else {
+            env = append(env, e.Name + "=" + e.Value)
+        }
+	}
+
+    if !foundPath {
+        env = append(env, "PATH=" + containerPath)
+    }
+
+    if !foundLib {
+        env = append(env, "LD_LIBRARY_PATH=" + containerLibPath)
+    }
+
+	env = append(env, "AC_APP_NAME=" + ra.Name.String())
+
 	envBuffer := bytes.NewBufferString(strings.Join(env, "\n"))
+    diag.Printf("ENV: %q\n", envBuffer)
 
 	err := ioutil.WriteFile(envFilePath, envBuffer.Bytes(), 0644)
 	if err != nil {
@@ -236,7 +273,7 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 		log.FatalE("Error creating pod slice", err)
 		return 254
 	}
-	log.Printf("Creating slice at: /" + systemdPath + "/" + sliceName)
+	diag.Printf("Creating slice at: " + systemdPath + "/" + sliceName)
 
 	// lock the current goroutine to its current OS thread.
 	// This will force the subsequent syscalls to be executed in the same OS thread as Setresuid, and Setresgid,
@@ -364,6 +401,7 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 
 		// Update the runtime path to reflect the absolute path of the container
 		path := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        libpath := "/usr/local/lib:/usr/lib64:/usr/lib:/lib64:/lib"
 		execDir := filepath.Join(rootDir, rfs)
 
 		var containerPath string
@@ -371,10 +409,44 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 			containerPath += execDir + workDir + p + ":"
 		}
 
-		env := []string{"PATH=" + containerPath + path}
+        var containerLibPath string
+        for _, l := range strings.Split(libpath, ":") {
+            containerLibPath += execDir + workDir + l + ":"
+        }
+
+		env := []string{}
+        foundPath, foundLib := false, false
 		for _, e := range ra.App.Environment {
-			env = append(env, e.Name+"="+e.Value)
+            if e.Name == "PATH" {
+                foundPath = true
+                for _, p := range strings.Split(e.Value, ":") {
+                    containerPath += execDir + workDir + p + ":"
+                }
+
+                env = append(env, e.Name + "=" + containerPath)
+            } else if e.Name == "LD_LIBRARY_PATH" {
+                foundLib = true
+                for _, l := range strings.Split(e.Value, ":") {
+                    containerLibPath += execDir + workDir + l + ":"
+                }
+
+                env = append(env, e.Name + "=" + containerLibPath)
+            } else {
+                env = append(env, e.Name + "=" + e.Value)
+            }
 		}
+
+        if !foundPath {
+            env = append(env, "PATH=" + containerPath)
+        }
+
+        if !foundLib {
+            env = append(env, "LD_LIBRARY_PATH=" + containerLibPath)
+        }
+
+        if filepath.IsAbs(args[0]) {
+            args[0] = filepath.Join(execDir, args[0])
+        }
 
 		systemdCmd := "/usr/bin/systemd-run"
 		systemdArgs := []string{
@@ -383,7 +455,7 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 			"--unit=" + getName(p),
 			"--property=WorkingDirectory=" + execDir,
 			"--pty",
-			filepath.Join(execDir, args[0]),
+			args[0],
 		}
 
 		// clear close-on-exec flag on RKT_LOCK_FD, to keep pod status as running after exec().
@@ -419,6 +491,7 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 		"--scope",
 		syncCmd,
 		serviceDependencies[len(serviceDependencies)-1],
+        rootDir,
 	}
 	diag.Printf("execing stage1-sync: %q: %q\n", systemdCmd, strings.Join(systemdArgs, " "))
 	// clear close-on-exec flag on RKT_LOCK_FD, to keep pod status as running after exec().
