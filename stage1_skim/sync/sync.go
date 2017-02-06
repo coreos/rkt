@@ -20,31 +20,31 @@ package main
 
 import (
 	"fmt"
-    "io"
+	"io"
 	"os"
-    "path/filepath"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 )
 
 func dumpOutput(f *os.File) {
-    for ;; {
-        _, err := io.Copy(os.Stdout, f)
-        if (err != nil) && (err == io.EOF) {
-            break
-        } else if err != nil {
-            fmt.Printf("Error encountered while reading from fifo: %q\n", err)
-            os.Exit(254)
-        }
-    }
+	for {
+		_, err := io.Copy(os.Stdout, f)
+		if (err != nil) && (err == io.EOF) {
+			break
+		} else if err != nil {
+			fmt.Printf("Error encountered while reading from fifo: %q\n", err)
+			os.Exit(254)
+		}
+	}
 }
 
 func cleanup() {
-    c := make(chan os.Signal, 1)
-    signal.Notify(c, syscall.SIGUSR1)
-    _ = <-c
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGUSR1)
+	_ = <-c
 
-    os.Exit(0)
+	os.Exit(0)
 }
 
 func main() {
@@ -53,18 +53,18 @@ func main() {
 		os.Exit(254)
 	}
 
-    /* Setup the fifo queue */
-    serverFifo := filepath.Join(os.Args[2], "sync.fifo")
-    err := syscall.Mkfifo(serverFifo, syscall.S_IRUSR|syscall.S_IWUSR|syscall.S_IWGRP)
-    if err != nil {
-        fmt.Printf("ERROR: Cannot create %s: %q\n", serverFifo, err)
-        os.Exit(254)
-    }
+	/* Setup the fifo queue */
+	serverFifo := filepath.Join(os.Args[2], "sync.fifo")
+	err := syscall.Mkfifo(serverFifo, syscall.S_IRUSR|syscall.S_IWUSR|syscall.S_IWGRP)
+	if err != nil {
+		fmt.Printf("ERROR: Cannot create %s: %q\n", serverFifo, err)
+		os.Exit(254)
+	}
 
-    /* Get everything ready */
+	/* Get everything ready */
 	systemctlCmd := "/usr/bin/systemctl"
 	systemctlArgs := []string{systemctlCmd, "start", os.Args[1]}
-    go cleanup()
+	go cleanup()
 
 	_, err = syscall.ForkExec(systemctlCmd, systemctlArgs, nil)
 	if err != nil {
@@ -72,13 +72,13 @@ func main() {
 		os.Exit(254)
 	}
 
-    fd, err := os.Open(serverFifo)
-    if err != nil {
-        fmt.Printf("ERROR: Cannot open %s: %q\n", serverFifo, err)
-        os.Exit(254)
-    }
+	fd, err := os.Open(serverFifo)
+	if err != nil {
+		fmt.Printf("ERROR: Cannot open %s: %q\n", serverFifo, err)
+		os.Exit(254)
+	}
 
-    defer fd.Close()
+	defer fd.Close()
 
-    dumpOutput(fd)
+	dumpOutput(fd)
 }
