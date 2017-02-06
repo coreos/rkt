@@ -249,6 +249,7 @@ int main(int argc, char *argv[])
 		"/dev/tty",
 		"/dev/net/tun",
 		"/dev/console",
+		"/dev/ptmx",
 		NULL
 	};
 	static const mount_point dirs_mount_table[] = {
@@ -384,11 +385,6 @@ int main(int argc, char *argv[])
 				"Mounting \"%s\" on \"%s\" failed", mnt->source, to);
 	}
 
-	/* /dev/ptmx -> /dev/pts/ptmx */
-	exit_if(snprintf(to, sizeof(to), "%s/dev/ptmx", root) >= sizeof(to),
-		"Path too long: \"%s\"", to);
-	pexit_if(symlink("/dev/pts/ptmx", to) == -1 && errno != EEXIST,
-		"Failed to create /dev/ptmx symlink");
 
 	/* Copy symlinks to device node volumes to "/dev/.rkt" so they can be
 	 * used in the DeviceAllow= option of the app's unit file (systemd
