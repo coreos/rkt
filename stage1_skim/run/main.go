@@ -214,7 +214,7 @@ func createService(ra schema.RuntimeApp, slice string, p *stage1commontypes.Pod)
 	}
 
 	if !foundPath {
-		env = append(env, "PATH="+containerPath)
+		env = append(env, "PATH="+containerPath+path)
 	}
 
 	if !foundLib {
@@ -437,7 +437,7 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 		}
 
 		if !foundPath {
-			env = append(env, "PATH="+containerPath)
+			env = append(env, "PATH="+containerPath+path)
 		}
 
 		if !foundLib {
