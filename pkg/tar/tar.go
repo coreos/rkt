@@ -98,6 +98,8 @@ func ExtractTarInsecure(tr *tar.Reader, target string, overwrite bool, pwl PathW
 	defer syscall.Umask(um)
 
 	var dirhdrs []*tar.Header
+	// Have we chroot'ed into "rootfs"?
+	var isChroot = false
 Tar:
 	for {
 		hdr, err := tr.Next()
@@ -111,10 +113,33 @@ Tar:
 					continue
 				}
 			}
-			err = extractFile(tr, target, hdr, overwrite, editor)
-			if err != nil {
-				return fmt.Errorf("could not extract file %q in %q: %v", hdr.Name, target, err)
+
+			if strings.HasPrefix(hdr.Name, "rootfs") {
+				if !isChroot {
+					if err := os.Mkdir("rootfs", DEFAULT_DIR_MODE); err != nil {
+						return fmt.Errorf("could not create 'rootfs' dir: %v", err)
+					}
+					syscall.Chroot("/rootfs")
+					os.Chdir("/")
+					isChroot = true
+				}
+				hdr.Name = strings.TrimPrefix(hdr.Name, "rootfs/")
+
+				if hdr.Typeflag == tar.TypeLink || hdr.Typeflag == tar.TypeSymlink {
+					hdr.Linkname = strings.TrimPrefix(hdr.Linkname, "rootfs/")
+				}
+				err = extractFile(tr, "/", hdr, overwrite, editor)
+				if err != nil {
+					return fmt.Errorf("could not extract file %q in %q: %v", hdr.Name, target, err)
+				}
+			} else {
+				// This is the manifest file
+				err = extractFile(tr, target, hdr, overwrite, editor)
+				if err != nil {
+					return fmt.Errorf("could not extract file %q in %q: %v", hdr.Name, target, err)
+				}
 			}
+
 			if hdr.Typeflag == tar.TypeDir {
 				dirhdrs = append(dirhdrs, hdr)
 			}
@@ -189,8 +214,7 @@ func extractFile(tr *tar.Reader, target string, hdr *tar.Header, overwrite bool,
 		}
 		dir.Close()
 	case typ == tar.TypeLink:
-		dest := filepath.Join(target, hdr.Linkname)
-		if err := os.Link(dest, p); err != nil {
+		if err := os.Link(hdr.Linkname, p); err != nil {
 			return err
 		}
 	case typ == tar.TypeSymlink:
