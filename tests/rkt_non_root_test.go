@@ -84,7 +84,7 @@ func TestNonRootReadInfo(t *testing.T) {
 
 	imgListCmd := fmt.Sprintf("%s image list", ctx.Cmd())
 	t.Logf("Running %s", imgListCmd)
-	runRktAsUidGidAndCheckOutput(t, imgListCmd, "inspect-", false, uid, rktGid)
+	runRktAsUidGidAndCheckOutput(t, imgListCmd, "inspect-", false, false, uid, rktGid)
 }
 
 // TestNonRootFetchRmGCImage tests that non-root users can remove all images but
