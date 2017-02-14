@@ -179,17 +179,14 @@ func createService(ra schema.RuntimeApp, slice string, p *stage1commontypes.Pod)
 	/* CAB: PATH is being set multiple times */
 	/* env support */
 	path := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-	libpath := "/usr/local/lib:/usr/lib64:/usr/lib:/lib64:/lib"
 
 	var containerPath string
 	for _, p := range strings.Split(path, ":") {
 		containerPath += execDir + workDir + p + ":"
 	}
 
-	var containerLibPath string
-	for _, l := range strings.Split(libpath, ":") {
-		containerLibPath += execDir + workDir + l + ":"
-	}
+    containerLibPath := generateLibpath(execDir + workDir)
+    diag.Printf("## containerLibPath: %s\n", containerLibPath)
 
 	env := []string{}
 	foundPath, foundLib := false, false
@@ -237,6 +234,60 @@ func createService(ra schema.RuntimeApp, slice string, p *stage1commontypes.Pod)
 		"Failed to write service: "+serviceName, opts...)
 
 	return serviceName, writer.Error()
+}
+
+func walkPath(dir string) (string) {
+    path := ""
+
+    dl, err := ioutil.ReadDir(dir); if err != nil {
+        return path
+    }
+
+    for _, p := range dl {
+        if (p.Name() == ".") || (p.Name() == "..") {
+            continue
+        }
+
+        if p.IsDir() {
+            path += path + ":" + walkPath(filepath.Join(dir, p.Name()))
+        }
+    }
+
+    return path
+}
+
+func generateLibpath(basedir string) (string) {
+    libpath := ""
+    predefinedLibpath := []string{
+        "/usr/local/lib64",
+        "/usr/local/lib",
+        "/usr/lib64",
+        "/usr/lib",
+        "/lib64",
+        "/lib",
+    }
+
+    for _, k := range predefinedLibpath {
+        dirListing, err := ioutil.ReadDir(filepath.Join(basedir, k))
+        if err != nil {
+            continue
+        }
+
+        base := filepath.Join(basedir, k)
+        libpath += base + ":"
+
+        for _, d := range dirListing {
+            if (d.Name() == ".") || (d.Name() == "..") {
+                continue
+            }
+
+            if d.IsDir() {
+                libpath += filepath.Join(base, d.Name()) + walkPath(filepath.Join(basedir, d.Name())) + ":"
+            }
+        }
+    }
+
+    return libpath
 }
 
 func stage1(rp *stage1commontypes.RuntimePod) int {
@@ -401,7 +452,6 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 
 		// Update the runtime path to reflect the absolute path of the container
 		path := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-		libpath := "/usr/local/lib:/usr/lib64:/usr/lib:/lib64:/lib"
 		execDir := filepath.Join(rootDir, rfs)
 
 		var containerPath string
@@ -409,10 +459,7 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 			containerPath += execDir + workDir + p + ":"
 		}
 
-		var containerLibPath string
-		for _, l := range strings.Split(libpath, ":") {
-			containerLibPath += execDir + workDir + l + ":"
-		}
+        containerLibPath := generateLibpath(execDir + workDir)
 
 		env := []string{}
 		foundPath, foundLib := false, false
