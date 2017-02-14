@@ -185,8 +185,8 @@ func createService(ra schema.RuntimeApp, slice string, p *stage1commontypes.Pod)
 		containerPath += execDir + workDir + p + ":"
 	}
 
-    containerLibPath := generateLibpath(execDir + workDir)
-    diag.Printf("## containerLibPath: %s\n", containerLibPath)
+	containerLibPath := generateLibpath(execDir + workDir)
+	diag.Printf("## containerLibPath: %s\n", containerLibPath)
 
 	env := []string{}
 	foundPath, foundLib := false, false
@@ -236,58 +236,59 @@ func createService(ra schema.RuntimeApp, slice string, p *stage1commontypes.Pod)
 	return serviceName, writer.Error()
 }
 
-func walkPath(dir string) (string) {
-    path := ""
+func walkPath(dir string) string {
+	path := ""
 
-    dl, err := ioutil.ReadDir(dir); if err != nil {
-        return path
-    }
+	dl, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return path
+	}
 
-    for _, p := range dl {
-        if (p.Name() == ".") || (p.Name() == "..") {
-            continue
-        }
+	for _, p := range dl {
+		if (p.Name() == ".") || (p.Name() == "..") {
+			continue
+		}
 
-        if p.IsDir() {
-            path += path + ":" + walkPath(filepath.Join(dir, p.Name()))
-        }
-    }
+		if p.IsDir() {
+			path += path + ":" + walkPath(filepath.Join(dir, p.Name()))
+		}
+	}
 
-    return path
+	return path
 }
 
-func generateLibpath(basedir string) (string) {
-    libpath := ""
-    predefinedLibpath := []string{
-        "/usr/local/lib64",
-        "/usr/local/lib",
-        "/usr/lib64",
-        "/usr/lib",
-        "/lib64",
-        "/lib",
-    }
+func generateLibpath(basedir string) string {
+	libpath := ""
+	predefinedLibpath := []string{
+		"/usr/local/lib64",
+		"/usr/local/lib",
+		"/usr/lib64",
+		"/usr/lib",
+		"/lib64",
+		"/lib",
+	}
 
-    for _, k := range predefinedLibpath {
-        dirListing, err := ioutil.ReadDir(filepath.Join(basedir, k))
-        if err != nil {
-            continue
-        }
+	for _, k := range predefinedLibpath {
+		dirListing, err := ioutil.ReadDir(filepath.Join(basedir, k))
+		if err != nil {
+			continue
+		}
 
-        base := filepath.Join(basedir, k)
-        libpath += base + ":"
+		base := filepath.Join(basedir, k)
+		libpath += base + ":"
 
-        for _, d := range dirListing {
-            if (d.Name() == ".") || (d.Name() == "..") {
-                continue
-            }
+		for _, d := range dirListing {
+			if (d.Name() == ".") || (d.Name() == "..") {
+				continue
+			}
 
-            if d.IsDir() {
-                libpath += filepath.Join(base, d.Name()) + walkPath(filepath.Join(basedir, d.Name())) + ":"
-            }
-        }
-    }
+			if d.IsDir() {
+				libpath += filepath.Join(base, d.Name()) + walkPath(filepath.Join(basedir, d.Name())) + ":"
+			}
+		}
+	}
 
-    return libpath
+	return libpath
 }
 
 func stage1(rp *stage1commontypes.RuntimePod) int {
@@ -377,13 +378,6 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 			return 254
 		}
 
-		reloadCmd := exec.Command("/usr/bin/systemctl", "daemon-reload")
-		err = reloadCmd.Run()
-		if err != nil {
-			log.PrintE("cannot reload system daemon: ", err)
-			return 254
-		}
-
 		// change permissions for the root directory to be world readable/executable
 		// This is to ensure external ancillary scripts work without having to be
 		// root or setuid-root
@@ -459,10 +453,10 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 			containerPath += execDir + workDir + p + ":"
 		}
 
-        containerLibPath := generateLibpath(execDir + workDir)
+		//containerLibPath := generateLibpath(execDir + workDir)
 
 		env := []string{}
-		foundPath, foundLib := false, false
+		foundPath := false
 		for _, e := range ra.App.Environment {
 			if e.Name == "PATH" {
 				foundPath = true
@@ -472,12 +466,14 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 
 				env = append(env, e.Name+"="+containerPath)
 			} else if e.Name == "LD_LIBRARY_PATH" {
+                /*
 				foundLib = true
 				for _, l := range strings.Split(e.Value, ":") {
 					containerLibPath += execDir + workDir + l + ":"
 				}
 
 				env = append(env, e.Name+"="+containerLibPath)
+                */
 			} else {
 				env = append(env, e.Name+"="+e.Value)
 			}
@@ -487,23 +483,22 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 			env = append(env, "PATH="+containerPath+path)
 		}
 
+        /*
 		if !foundLib {
 			env = append(env, "LD_LIBRARY_PATH="+containerLibPath)
 		}
+        */
 
-		if filepath.IsAbs(args[0]) {
-			args[0] = filepath.Join(execDir, args[0])
-		}
+        diag.Printf("env\n")
+        for i := range env {
+            diag.Printf("## %d: %s\n", i, env[i])
+        }
 
-		systemdCmd := "/usr/bin/systemd-run"
-		systemdArgs := []string{
-			systemdCmd,
-			"--slice=" + sliceName,
-			"--unit=" + getName(p),
-			"--property=WorkingDirectory=" + execDir,
-			"--pty",
-			args[0],
-		}
+        diag.Printf("args\n")
+        for i := range args{
+            diag.Printf("## %d: %s\n", i, args[i])
+        }
+		_ = os.Chdir(execDir)
 
 		// clear close-on-exec flag on RKT_LOCK_FD, to keep pod status as running after exec().
 		if err := sys.CloseOnExec(lfd, false); err != nil {
@@ -512,8 +507,8 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 		}
 
 		diag.Printf("Starting service: %q\n", filepath.Join(execDir, args[0]))
-		if err = syscall.Exec(systemdCmd, systemdArgs, env); err != nil {
-			log.PrintE("cannot exec systemctl", err)
+		if err = syscall.Exec(args[0], args, env); err != nil {
+			log.PrintE("cannot exec", err)
 			return 254
 		}
 
