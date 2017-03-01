@@ -64,6 +64,10 @@ func TryExclusiveLock(path string, lockType LockType) (*FileLock, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err = verifySameFile(l, path); err != nil {
+		l.Close()
+		return nil, err
+	}
 	return l, err
 }
 
@@ -83,6 +87,10 @@ func ExclusiveLock(path string, lockType LockType) (*FileLock, error) {
 		err = l.ExclusiveLock()
 	}
 	if err != nil {
+		return nil, err
+	}
+	if err = verifySameFile(l, path); err != nil {
+		l.Close()
 		return nil, err
 	}
 	return l, nil
@@ -111,6 +119,10 @@ func TrySharedLock(path string, lockType LockType) (*FileLock, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err = verifySameFile(l, path); err != nil {
+		l.Close()
+		return nil, err
+	}
 	return l, nil
 }
 
@@ -131,6 +143,10 @@ func SharedLock(path string, lockType LockType) (*FileLock, error) {
 	}
 	err = l.SharedLock()
 	if err != nil {
+		return nil, err
+	}
+	if err = verifySameFile(l, path); err != nil {
+		l.Close()
 		return nil, err
 	}
 	return l, nil
@@ -187,4 +203,36 @@ func NewLock(path string, lockType LockType) (*FileLock, error) {
 	}
 
 	return l, nil
+}
+
+// verifySameFile verifies that the file pointed to by the lock is
+// same as existing file referred by the given path to avoid the race
+// condition where the file has been unlinked between the Open and
+// Flock system calls.
+func verifySameFile(l *FileLock, path string) error {
+	var newStat syscall.Stat_t
+	if err := syscall.Stat(path, &newStat); err != nil {
+		if err == syscall.ENOENT {
+			err = ErrNotExist
+		} else if err == syscall.EACCES {
+			err = ErrPermission
+		}
+		return err
+	}
+
+	oldFd, err := l.Fd()
+	if err != nil {
+		return err
+	}
+
+	var oldStat syscall.Stat_t
+	if err = syscall.Fstat(oldFd, &oldStat); err != nil {
+		return err
+	}
+
+	if newStat.Ino != oldStat.Ino || newStat.Dev != oldStat.Dev {
+		return ErrNotExist
+	}
+
+	return nil
 }

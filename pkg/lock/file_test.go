@@ -17,7 +17,9 @@ package lock
 import (
 	"io/ioutil"
 	"os"
+	"runtime"
 	"testing"
+	"time"
 )
 
 func TestNewLock(t *testing.T) {
@@ -153,4 +155,125 @@ func TestSharedLock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating lock: %v", err)
 	}
+}
+
+func TestVerifySameFile(t *testing.T) {
+	testDir, err := ioutil.TempDir("", "")
+	if err != nil {
+		t.Fatalf("error creating tmpdir: %v", err)
+	}
+	defer os.Remove(testDir)
+
+	l, err := NewLock(testDir, Dir)
+	if err != nil {
+		t.Fatalf("error creating NewFileLock: %v", err)
+	}
+	defer l.Close()
+
+	err = verifySameFile(l, testDir)
+	if err != nil {
+		t.Fatalf("error verifying that dir exists: %v", err)
+	}
+
+	err = os.Remove(testDir)
+	if err != nil {
+		t.Fatalf("error deleting dir: %v", err)
+	}
+
+	err = verifySameFile(l, testDir)
+	if err != ErrNotExist {
+		t.Fatalf("expected %v error got: %v", ErrNotExist, err)
+	}
+}
+
+func TestFileDeletedBetweenLocks(t *testing.T) {
+	testDir, err := ioutil.TempDir("", "")
+	if err != nil {
+		t.Fatalf("error creating tmpdir: %v", err)
+	}
+	defer os.Remove(testDir)
+
+	// Take exclusive lock on the file.
+	excLock, err := ExclusiveLock(testDir, Dir)
+	if err != nil {
+		t.Fatalf("error creating exclusive lock: %v", err)
+	}
+
+	start := make(chan bool)
+	finish := make(chan bool)
+	go func() {
+		close(start)
+		defer close(finish)
+		// This should block as exclusive lock is taken.
+		// It should error because the file descriptor in lock
+		// handle would be invalid once exclusive lock will be
+		// released after deleting the testDir.
+		_, err := SharedLock(testDir, Dir)
+		if err == nil {
+			t.Fatal("Should have received error in SharedLock")
+		}
+		if err != ErrNotExist {
+			t.Fatalf("Expected %v error", ErrNotExist)
+		}
+	}()
+
+	<-start
+	// Let shared lock call be blocked.
+	runtime.Gosched()
+	time.Sleep(1 * time.Second)
+
+	// Remove the file, SharedLock() inside above
+	// goroutine should error.
+	os.Remove(testDir)
+	excLock.Close()
+
+	<-finish
+}
+
+func TestFileRcreatedBetweenLocks(t *testing.T) {
+	testDir, err := ioutil.TempDir("", "")
+	if err != nil {
+		t.Fatalf("error creating tmpdir: %v", err)
+	}
+	defer os.Remove(testDir)
+
+	excLock, err := TryExclusiveLock(testDir, Dir)
+	if err != nil {
+		t.Fatalf("error creating exclusive lock: %v", err)
+	}
+
+	start := make(chan bool)
+	finish := make(chan bool)
+	go func() {
+		close(start)
+		defer close(finish)
+
+		// This should block as exclusive lock is taken.
+		// It should error because the file descriptor in lock
+		// handle would be invalid once exclusive lock will be
+		// released after deleting and recreating the testDir.
+		_, err := SharedLock(testDir, Dir)
+		if err == nil {
+			t.Fatal("should have received error in SharedLock")
+		}
+		if err != ErrNotExist {
+			t.Fatalf("expected %v error", ErrNotExist)
+		}
+	}()
+
+	<-start
+	// Let shared lock call be blocked.
+	runtime.Gosched()
+	time.Sleep(1 * time.Second)
+
+	// Delete and recreate the testDir to invalidate the FD
+	// held by shared lock.
+	os.Remove(testDir)
+	err = os.Mkdir(testDir, os.FileMode(0755))
+	if err != nil {
+		t.Fatalf("error recreating the dir: %v", err)
+	}
+	excLock.Close()
+
+	<-finish
 }
