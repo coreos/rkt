@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"syscall"
+	"time"
 	"unsafe"
 )
 
@@ -141,4 +142,19 @@ func getDeviceInfo(mode os.FileMode, rdev uint64) (kind rune, major uint64, mino
 	minor = (rdev & 0xff) | ((rdev >> 12) & 0xfff00)
 
 	return
+}
+
+// pathToTimespec returns Timespecs that can be passed to syscall.UtimesNano
+// utimensat(2):
+// times[0] specifies the new "last access time" (atime)
+// times[1] specifies the new "last modification time" (mtime)
+func pathToTimespec(name string) ([]syscall.Timespec, error) {
+	fi, err := os.Lstat(name)
+	if err != nil {
+		return nil, err
+	}
+	mtime := fi.ModTime()
+	stat := fi.Sys().(*syscall.Stat_t)
+	atime := time.Unix(int64(stat.Atim.Sec), int64(stat.Atim.Nsec))
+	return []syscall.Timespec{TimeToTimespec(atime), TimeToTimespec(mtime)}, nil
 }
