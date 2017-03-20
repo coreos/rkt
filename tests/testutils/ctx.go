@@ -102,8 +102,20 @@ func NewRktRunCtx() *RktRunCtx {
 	}
 }
 
-func (ctx *RktRunCtx) SetupDataDir() error {
-	return setupDataDir(ctx.DataDir())
+// SetupRktDirs adjust permissions on ancillary directories for rkt execution
+func (ctx *RktRunCtx) SetupRktDirs() error {
+	err := setupDataDir(ctx.DataDir())
+	if err != nil {
+		return err
+	}
+
+	for i := 1; i <= 3; i++ {
+		err = setDirPermissions(ctx.dir(i), nil, "rkt-admin", os.FileMode(0750|os.ModeSetgid))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (ctx *RktRunCtx) LaunchMDS() error {

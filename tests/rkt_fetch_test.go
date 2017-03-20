@@ -73,6 +73,9 @@ func testFetchFromFile(t *testing.T, arg string, image string) {
 
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
+	if err := ctx.SetupRktDirs(); err != nil {
+		t.Fatalf("failed to setup ancillary dirs: %v", err)
+	}
 
 	cmd := fmt.Sprintf("%s %s %s", ctx.Cmd(), arg, image)
 
@@ -130,6 +133,9 @@ func TestFetchFullHash(t *testing.T) {
 
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
+	if err := ctx.SetupRktDirs(); err != nil {
+		t.Fatalf("failed to setup ancillary dirs: %v", err)
+	}
 
 	tests := []struct {
 		fetchArgs          string
@@ -161,6 +167,9 @@ func testFetchNew(t *testing.T, arg string, image string, imageArgs string, fina
 
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
+	if err := ctx.SetupRktDirs(); err != nil {
+		t.Fatalf("failed to setup ancillary dirs: %v", err)
+	}
 
 	cmd := fmt.Sprintf("%s --pull-policy=new %s %s %s", ctx.Cmd(), arg, image, imageArgs)
 
@@ -184,6 +193,9 @@ func testFetchNever(t *testing.T, args string, image string, imageArgs string, f
 
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
+	if err := ctx.SetupRktDirs(); err != nil {
+		t.Fatalf("failed to setup ancillary dirs: %v", err)
+	}
 
 	cmd := fmt.Sprintf("%s --pull-policy=never %s %s %s", ctx.Cmd(), args, image, imageArgs)
 
@@ -204,6 +216,9 @@ func testFetchUpdate(t *testing.T, args string, image string, imageArgs string, 
 
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
+	if err := ctx.SetupRktDirs(); err != nil {
+		t.Fatalf("failed to setup ancillary dirs: %v", err)
+	}
 
 	if _, err := importImageAndFetchHash(t, ctx, "", image); err != nil {
 		t.Skip(fmt.Sprintf("%v, probably a network failure. Skipping...", err))
@@ -314,6 +329,9 @@ func TestResumedFetch(t *testing.T) {
 
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
+	if err := ctx.SetupRktDirs(); err != nil {
+		t.Fatalf("failed to setup ancillary dirs: %v", err)
+	}
 
 	cmd := fmt.Sprintf("%s --no-store --insecure-options=image fetch %s", ctx.Cmd(), server.URL+"/image.aci")
 	child := spawnOrFail(t, cmd)
@@ -349,6 +367,9 @@ func TestResumedFetchInvalidCache(t *testing.T) {
 
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
+	if err := ctx.SetupRktDirs(); err != nil {
+		t.Fatalf("failed to setup ancillary dirs: %v", err)
+	}
 
 	shouldInterrupt := &synchronizedBool{}
 	shouldInterrupt.Write(true)
@@ -519,6 +540,9 @@ func TestDeferredSignatureDownload(t *testing.T) {
 
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
+	if err := ctx.SetupRktDirs(); err != nil {
+		t.Fatalf("failed to setup ancillary dirs: %v", err)
+	}
 
 	runRktTrust(t, ctx, "", 1)
 
@@ -601,6 +625,9 @@ func TestDifferentDiscoveryLabels(t *testing.T) {
 func testDifferentDiscoveryNameLabels(t *testing.T, imageName string, expectedMessage string) {
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
+	if err := ctx.SetupRktDirs(); err != nil {
+		t.Fatalf("failed to setup ancillary dirs: %v", err)
+	}
 
 	runRktTrust(t, ctx, "", 1)
 

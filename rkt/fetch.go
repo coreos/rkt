@@ -15,10 +15,16 @@
 package main
 
 import (
+	"os"
+	"os/exec"
+	"os/user"
 	"runtime"
+	"strconv"
+	"syscall"
 
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/rkt/common/apps"
+	"github.com/coreos/rkt/pkg/group"
 	"github.com/coreos/rkt/rkt/image"
 	"github.com/coreos/rkt/store/imagestore"
 	"github.com/coreos/rkt/store/treestore"
@@ -70,6 +76,12 @@ func init() {
 }
 
 func runFetch(cmd *cobra.Command, args []string) (exit int) {
+	// drop privileges and re-exec
+	if os.Geteuid() == 0 {
+		stderr.Print(`invoked as root, dropping privileges before proceeding`)
+		return dropPrivsAndExec()
+	}
+
 	if err := parseApps(&rktApps, args, cmd.Flags(), false); err != nil {
 		stderr.PrintE("unable to parse arguments", err)
 		return 254
@@ -146,4 +158,41 @@ func runFetch(cmd *cobra.Command, args []string) (exit int) {
 	}
 
 	return
+}
+
+// dropPrivsAndExec drops privileges and re-execute as unprivileged
+func dropPrivsAndExec() int {
+	nobodyUser, err := user.Lookup(`nobody`)
+	if err != nil {
+		stderr.Print(`unable to find system user "nobody"`)
+		return 1
+	}
+	nobodyUid, err := strconv.Atoi(nobodyUser.Uid)
+	if err != nil {
+		stderr.Print(`cannot get uid for user nobody`)
+		return 1
+	}
+	rktGid, err := group.LookupGid(`rkt`)
+	if err != nil {
+		stderr.Print(`unable to find system group "rkt"`)
+		return 1
+	}
+	rktAdminGid, err := group.LookupGid(`rkt-admin`)
+	if err != nil {
+		stderr.Print(`unable to find system group "rkt-admin"`)
+		return 1
+	}
+	cmd := exec.Command(os.Args[0], os.Args[1:]...)
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Credential: &syscall.Credential{
+			Uid:    uint32(nobodyUid),
+			Gid:    uint32(rktGid),
+			Groups: []uint32{uint32(rktGid), uint32(rktAdminGid)},
+		},
+	}
+	_ = cmd.Run()
+	return int(cmd.ProcessState.Sys().(syscall.WaitStatus))
 }

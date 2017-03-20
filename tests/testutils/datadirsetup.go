@@ -19,7 +19,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/user"
 	"path/filepath"
+	"strconv"
 
 	"github.com/coreos/rkt/pkg/group"
 	"github.com/hashicorp/errwrap"
@@ -156,6 +158,36 @@ func setupDataDir(dataDir string) error {
 	}
 
 	if err := createDbFiles(casDbPath, gid, casDbPerm); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func setDirPermissions(dir string, usr *user.User, grpname string, perms os.FileMode) error {
+	uid := 0
+	if usr != nil {
+		id, err := strconv.Atoi(usr.Uid)
+		if err != nil {
+			uid = id
+		}
+	} else {
+		curusr, err := user.Current()
+		if err != nil {
+			id, err := strconv.Atoi(curusr.Uid)
+			if err != nil {
+				uid = id
+			}
+		}
+	}
+
+	gid, err := group.LookupGid(grpname)
+	if err != nil {
+		return err
+	}
+
+	setPermissions(dir, uid, gid, perms)
+	if err != nil {
 		return err
 	}
 

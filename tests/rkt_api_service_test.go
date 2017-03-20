@@ -44,8 +44,8 @@ func startAPIService(t *testing.T, ctx *testutils.RktRunCtx) *gexpect.ExpectSubp
 		t.Logf("no %q group, will run api service with root, ONLY DO THIS FOR TESTING!", common.RktGroup)
 		noRktGid = true
 	} else {
-		if err := ctx.SetupDataDir(); err != nil {
-			t.Fatalf("failed to setup data directory: %v", err)
+		if err := ctx.SetupRktDirs(); err != nil {
+			t.Fatalf("failed to setup ancillary dirs: %v", err)
 		}
 	}
 

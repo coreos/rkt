@@ -45,8 +45,8 @@ func TestNonRootReadInfo(t *testing.T) {
 		t.Skipf("Skipping the test because there's no %q group", common.RktGroup)
 	}
 
-	if err := ctx.SetupDataDir(); err != nil {
-		t.Fatalf("failed to setup data dir: %v", err)
+	if err := ctx.SetupRktDirs(); err != nil {
+		t.Fatalf("failed to setup ancillary dirs: %v", err)
 	}
 
 	// Launch some pods, this creates the environment for later testing.
@@ -100,8 +100,8 @@ func TestNonRootFetchRmGCImage(t *testing.T) {
 		t.Skipf("Skipping the test because there's no %q group", common.RktGroup)
 	}
 
-	if err := ctx.SetupDataDir(); err != nil {
-		t.Fatalf("failed to setup data dir: %v", err)
+	if err := ctx.SetupRktDirs(); err != nil {
+		t.Fatalf("failed to setup ancillary dirs: %v", err)
 	}
 
 	rootImg := patchTestACI("rkt-inspect-root-rm.aci", "--exec=/inspect --print-msg=foobar")

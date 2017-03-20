@@ -240,6 +240,8 @@ function prepareBuildEnv {
         sudo rm -rf "builds/${BUILD_DIR}"
     fi
     mkdir -p builds
+    sudo groupadd --force --system rkt
+    sudo groupadd --force --system rkt-admin
 }
 
 # Run docs scan
