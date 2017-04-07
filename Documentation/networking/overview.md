@@ -332,7 +332,14 @@ The pod's TCP port 80 can be mapped to an arbitrary port on the host during rkt 
 # rkt run --port=http:8888 myapp.aci
 ```
 
-Now, any traffic arriving on host's TCP port 8888 will be forwarded to the pod on port 80.
+Now, any traffic arriving on host's TCP port 8888 on any IP will be forwarded to the pod on port 80.
+
+
+You can also forward a port that is not referenced at the app time with the `--raw-port` option.  The syntax is Name, Protocol (`tcp` or `udp`), Pod port, Host IP (use 0.0.0.0 for all IPs), Host port.
+
+```
+# rkt run --raw-port=http:tcp:80:0.0.0.0:8888
+```
 
 ### Network used for forwarded ports
 

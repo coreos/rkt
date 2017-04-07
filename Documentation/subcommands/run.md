@@ -408,8 +408,9 @@ This feature will be disabled automatically if the underlying filesystem does no
 | `--net` | `default` | A comma-separated list of networks. (e.g. `--net[=n[:args], ...]`) | Configure the pod's networking. Optionally, pass a list of user-configured networks to load and set arguments to pass to each network, respectively. |
 | `--no-overlay` | `false` | `true` or `false` | Disable the overlay filesystem. |
 | `--pod-manifest` | none | A path | The path to the pod manifest. If it's non-empty, then only `--net`, `--no-overlay` and `--interactive` will have effect. |
-| `--port` | none | A port name and number pair | Container port name to expose through host port number. Requires [contained network][contained]. Syntax: `--port=NAME:HOSTPORT` The NAME is that given in the ACI. By convention, Docker containers' EXPOSEd ports are given a name formed from the port number, a hyphen, and the protocol, e.g., `80-tcp`, giving something like `--port=80-tcp:8080`. |
+| `--port` | none | A port name and number pair | Container port name to expose through host port number. Requires [contained network][contained]. Syntax: `--port=NAME:<HOSTIP>:HOSTPORT` The NAME is that given in the ACI. By convention, Docker containers' EXPOSEd ports are given a name formed from the port number, a hyphen, and the protocol, e.g., `80-tcp`, giving something like `--port=80-tcp:8080`. The HOSTIP is optional. |
 | `--private-users` | `false` | `true` or `false` | Run within user namespaces. |
+| `--raw-port` | none | A port to forward from the host to the pod | Syntax: `--raw-port=name:proto:podPort:hostIP:hostPort`, e.g. `http:tcp:80:0.0.0.0:8080` |
 | `--set-env` | none | An environment variable (e.g. `--set-env=NAME=VALUE`) | An environment variable to set for apps. |
 | `--set-env-file` | none | Path of an environment variables file (e.g. `--set-env-file=/path/to/env/file`) | Environment variables to set for apps. |
 | `--signature` | none | A file path | Local signature file to use in validating the preceding image. |

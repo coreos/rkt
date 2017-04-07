@@ -65,8 +65,9 @@ c9fad0e6-8236-4fc2-ad17-55d0a4c7d742
 | `--no-overlay` | `false` | `true` or `false` | Disable the overlay filesystem. |
 | `--pull-policy` | `new` | `never`, `new`, or `update` | Sets the policy for when to fetch an image. See [image fetching behavior][img-fetch] |
 | `--pod-manifest` | none | A path | The path to the pod manifest. If it's non-empty, then only `--net`, `--no-overlay` and `--interactive` will have effect. |
-| `--port` | none | A port name and number pair | Container port name to expose through host port number. Requires [contained network][contained]. Syntax: `--port=NAME:HOSTPORT` The NAME is that given in the ACI. By convention, Docker containers' EXPOSEd ports are given a name formed from the port number, a hyphen, and the protocol, e.g., `80-tcp`, giving something like `--port=80-tcp:8080` |
+| `--port` | none | A port name and number pair | Container port name to expose through host port number. Requires [contained network][contained]. Syntax: `--port=NAME:<HOSTIP>:HOSTPORT` The NAME is that given in the ACI. By convention, Docker containers' EXPOSEd ports are given a name formed from the port number, a hyphen, and the protocol, e.g., `80-tcp`, giving something like `--port=80-tcp:8080`. The HOSTIP is optional. |
 | `--private-users` |  `false` | `true` or `false` | Run within user namespaces |
+| `--raw-port` | none | A port to forward from the host to the pod | Syntax: `--raw-port=name:proto:podPort:hostIP:hostPort`, e.g. `http:tcp:80:0.0.0.0:8080` |
 | `--quiet` |  `false` | `true` or `false` | Suppress superfluous output on stdout, print only the UUID on success |
 | `--set-env` |  `` | An environment variable. Syntax `NAME=VALUE` | An environment variable to set for apps |
 | `--set-env-file` |  `` | Path of an environment variables file | Environment variables to set for apps |

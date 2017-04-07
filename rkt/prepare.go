@@ -56,7 +56,8 @@ func init() {
 	cmdRkt.AddCommand(cmdPrepare)
 
 	addStage1ImageFlags(cmdPrepare.Flags())
-	cmdPrepare.Flags().Var(&flagPorts, "port", "ports to expose on the host (requires contained network). Syntax: --port=NAME:HOSTPORT")
+	cmdPrepare.Flags().Var(&flagPorts, "port", (*portList)(nil).Help())
+	cmdPrepare.Flags().Var((*rawPortList)(&flagPorts), "raw-port", (*rawPortList)(nil).Help())
 	cmdPrepare.Flags().BoolVar(&flagQuiet, "quiet", false, "suppress superfluous output on stdout, print only the UUID on success")
 	cmdPrepare.Flags().BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
 	cmdPrepare.Flags().BoolVar(&flagNoOverlay, "no-overlay", false, "disable overlay filesystem")
@@ -80,6 +81,7 @@ func init() {
 	// argument. This is need to permit to correctly handle
 	// multiple "IMAGE -- imageargs ---"  options
 	cmdPrepare.Flags().SetInterspersed(false)
+	flagPorts = portList{}
 }
 
 func runPrepare(cmd *cobra.Command, args []string) (exit int) {

@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/appc/spec/schema/types"
@@ -35,7 +34,6 @@ import (
 	"github.com/coreos/rkt/stage0"
 	"github.com/coreos/rkt/store/imagestore"
 	"github.com/coreos/rkt/store/treestore"
-	"github.com/hashicorp/errwrap"
 	"github.com/spf13/cobra"
 )
 
@@ -129,7 +127,8 @@ func init() {
 	*/
 
 	addStage1ImageFlags(cmdRun.Flags())
-	cmdRun.Flags().Var(&flagPorts, "port", "ports to expose on the host (requires contained network). Syntax: --port=NAME:[HOSTIP:]HOSTPORT")
+	cmdRun.Flags().Var(&flagPorts, "port", (*portList)(nil).Help())
+	cmdRun.Flags().Var((*rawPortList)(&flagPorts), "raw-port", (*rawPortList)(nil).Help())
 	cmdRun.Flags().Var(&flagNet, "net", "configure the pod's networking. Optionally, pass a list of user-configured networks to load and set arguments to pass to each network, respectively. Syntax: --net[=n[:args], ...]")
 	cmdRun.Flags().Lookup("net").NoOptDefVal = "default"
 	cmdRun.Flags().BoolVar(&flagInheritEnv, "inherit-env", false, "inherit all environment variables not set by apps")
@@ -411,74 +410,6 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 	stage0.Run(rcfg, p.Path(), getDataDir()) // execs, never returns
 
 	return 254
-}
-
-// portList implements the flag.Value interface to contain a set of mappings
-// from port name --> host port
-type portList []types.ExposedPort
-
-func (pl *portList) Set(s string) error {
-	parts := strings.SplitN(s, ":", 3)
-	if len(parts) < 2 {
-		return fmt.Errorf("%q is not in name:[ip:]port format", s)
-	}
-
-	name, err := types.NewACName(parts[0])
-	if err != nil {
-		return errwrap.Wrap(fmt.Errorf("%q is not a valid port name", parts[0]), err)
-	}
-
-	portStr := parts[1]
-	var ip net.IP
-	if len(parts) == 3 {
-		portStr = parts[2]
-		ip = net.ParseIP(parts[1])
-		if ip == nil {
-			return fmt.Errorf("%q is not a valid IP", parts[1])
-		}
-	}
-
-	port, err := strconv.ParseUint(portStr, 10, 16)
-	if err != nil {
-		return fmt.Errorf("%q is not a valid port number", parts[1])
-	}
-
-	p := types.ExposedPort{
-		Name:     *name,
-		HostPort: uint(port),
-		HostIP:   ip,
-	}
-
-	*pl = append(*pl, p)
-	return nil
-}
-
-func (pl *portList) String() string {
-	var ps []string
-	for _, p := range []types.ExposedPort(*pl) {
-		ps = append(ps, fmt.Sprintf("%v:%v", p.Name, p.HostPort))
-	}
-	return strings.Join(ps, " ")
-}
-
-func (pl *portList) Type() string {
-	return "portList"
-}
-
-// flagStringList implements the flag.Value interface to contain a set of strings
-type flagStringList []string
-
-func (dns *flagStringList) Set(s string) error {
-	*dns = append(*dns, s)
-	return nil
-}
-
-func (dns *flagStringList) String() string {
-	return strings.Join(*dns, " ")
-}
-
-func (dns *flagStringList) Type() string {
-	return "flagStringList"
 }
 
 // kvMap implements the flag.Value interface to contain a set of key=value mappings
