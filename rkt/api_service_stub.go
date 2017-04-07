@@ -19,7 +19,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/coreos/rkt/api/v1alpha"
+	"github.com/rkt/rkt/api/v1alpha"
 )
 
 func (s *v1AlphaAPIServer) constrainedGetLogs(request *v1alpha.GetLogsRequest, server v1alpha.PublicAPI_GetLogsServer) error {

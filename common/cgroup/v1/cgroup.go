@@ -28,8 +28,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/coreos/rkt/pkg/fs"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/pkg/fs"
 )
 
 // mountFsRO remounts the given mountPoint using the given flags read-only.
@@ -183,7 +183,7 @@ func JoinSubcgroup(controller string, subcgroup string) error {
 // This may fail; since this is "fixup" code, we should ignore
 // the error and proceed.
 //
-// This was originally a workaround for https://github.com/coreos/rkt/issues/1210
+// This was originally a workaround for https://github.com/rkt/rkt/issues/1210
 // but is actually useful to have around
 //
 // cpuSetPath should be <stage1rootfs>/sys/fs/cgroup/cpuset
@@ -348,7 +348,7 @@ func RemountCgroups(m fs.Mounter, root string, enabledCgroups map[int][]string, 
 			return errwrap.Wrap(fmt.Errorf("error bind mounting %q", subcgroupPath), err)
 		}
 
-		// Workaround for https://github.com/coreos/rkt/issues/1210
+		// Workaround for https://github.com/rkt/rkt/issues/1210
 		// It is OK to ignore errors here.
 		if c == "cpuset" {
 			_ = fixCpusetKnobs(cPath, subcgroup, "cpuset.mems")

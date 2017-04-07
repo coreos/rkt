@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/tests/testutils"
 )
 
 // TestDNS is checking how rkt fills /etc/resolv.conf

@@ -21,8 +21,8 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/pkg/user"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/pkg/user"
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"

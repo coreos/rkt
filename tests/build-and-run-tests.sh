@@ -50,7 +50,7 @@ function semaphoreCIConfiguration {
     # Set up go environment on Semaphore
     if [ -f /opt/change-go-version.sh ]; then
         . /opt/change-go-version.sh
-        change-go-version 1.5
+        change-go-version 1.7
         
 	# systemd v229 doesn't build on gcc-4.8, set the compiler to gcc-5
         export CC=gcc-5

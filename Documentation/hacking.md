@@ -7,7 +7,7 @@ For more information on the rkt internals, see the [`devel`](devel/) documentati
 
 ## Building rkt
 
-The easiest way to build rkt is by using the coreos.com/rkt/builder ACI image. See instructions for how to use it in the README at [github.com/coreos/rkt-builder][rkt-builder].
+The easiest way to build rkt is by using the coreos.com/rkt/builder ACI image. See instructions for how to use it in the README at [github.com/rkt/rkt-builder][rkt-builder].
 
 Alternatively, you should be able build rkt on any modern Linux system with [Go](https://golang.org/) (1.5+) installed.
 For the most part the codebase is self-contained (e.g. all dependencies are vendored), but assembly of the stage1 requires some other tools to be installed on the system.
@@ -15,7 +15,7 @@ Please see [the list of the build-time dependencies][build-time-dependencies].
 Once the dependencies have been satisfied you can build rkt with a default configuration by running the following commands:
 
 ```
-git clone https://github.com/coreos/rkt.git
+git clone https://github.com/rkt/rkt.git
 cd rkt
 ./autogen.sh && ./configure && make
 ```
@@ -210,6 +210,6 @@ If something looks awry, restart, pray to your preferred deity, and try again.
 [glide-vc]: https://github.com/sgotti/glide-vc
 [glide-versioning]: https://glide.readthedocs.io/en/latest/versions/
 [go]: https://golang.org/
-[rkt-builder]: https://github.com/coreos/rkt-builder
+[rkt-builder]: https://github.com/rkt/rkt-builder
 [run-time-dependencies]: dependencies.md#run-time-dependencies
 [update-coreos-stage1]: devel/update-coreos-stage1.md

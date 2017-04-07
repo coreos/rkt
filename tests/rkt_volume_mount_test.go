@@ -25,7 +25,7 @@ import (
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/tests/testutils"
 )
 
 // TODO: unite these tests with rkt_run_pod_manifest_test.go

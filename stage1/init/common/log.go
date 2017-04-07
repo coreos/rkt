@@ -17,7 +17,7 @@ package common
 import (
 	"io/ioutil"
 
-	rktlog "github.com/coreos/rkt/pkg/log"
+	rktlog "github.com/rkt/rkt/pkg/log"
 )
 
 var (

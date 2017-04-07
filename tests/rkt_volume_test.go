@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/tests/testutils"
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"

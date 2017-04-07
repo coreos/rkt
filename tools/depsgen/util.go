@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/coreos/rkt/tools/common"
+	"github.com/rkt/rkt/tools/common"
 )
 
 // toMap creates a map from passed strings. This function expects an

@@ -33,13 +33,13 @@ import (
 	"github.com/appc/spec/pkg/acirenderer"
 	"github.com/appc/spec/pkg/tarheader"
 	"github.com/appc/spec/schema/types"
-	"github.com/coreos/rkt/pkg/aci"
-	"github.com/coreos/rkt/pkg/fileutil"
-	"github.com/coreos/rkt/pkg/lock"
-	"github.com/coreos/rkt/pkg/sys"
-	"github.com/coreos/rkt/pkg/user"
-	"github.com/coreos/rkt/store/imagestore"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/pkg/aci"
+	"github.com/rkt/rkt/pkg/fileutil"
+	"github.com/rkt/rkt/pkg/lock"
+	"github.com/rkt/rkt/pkg/sys"
+	"github.com/rkt/rkt/pkg/user"
+	"github.com/rkt/rkt/store/imagestore"
 )
 
 const (

@@ -23,9 +23,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/coreos/rkt/pkg/lock"
-	"github.com/coreos/rkt/store/imagestore"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/pkg/lock"
+	"github.com/rkt/rkt/store/imagestore"
 
 	"github.com/coreos/ioprogress"
 )

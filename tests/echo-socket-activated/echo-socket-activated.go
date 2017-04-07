@@ -21,7 +21,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/coreos/rkt/pkg/sys"
+	"github.com/rkt/rkt/pkg/sys"
 )
 
 const (

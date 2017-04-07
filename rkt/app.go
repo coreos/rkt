@@ -15,7 +15,7 @@
 package main
 
 import (
-	"github.com/coreos/rkt/common"
+	"github.com/rkt/rkt/common"
 	"github.com/spf13/cobra"
 )
 

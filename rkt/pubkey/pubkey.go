@@ -28,10 +28,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/rkt/pkg/keystore"
-	rktlog "github.com/coreos/rkt/pkg/log"
-	"github.com/coreos/rkt/rkt/config"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/pkg/keystore"
+	rktlog "github.com/rkt/rkt/pkg/log"
+	"github.com/rkt/rkt/rkt/config"
 
 	"github.com/appc/spec/discovery"
 	"golang.org/x/crypto/openpgp"

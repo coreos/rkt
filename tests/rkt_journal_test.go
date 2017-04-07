@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	sd_util "github.com/coreos/go-systemd/util"
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/tests/testutils"
 )
 
 const journalDir = "/var/log/journal"

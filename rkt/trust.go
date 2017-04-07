@@ -14,14 +14,14 @@
 
 //+build linux
 
-// implements https://github.com/coreos/rkt/issues/367
+// implements https://github.com/rkt/rkt/issues/367
 
 package main
 
 import (
 	"net/url"
 
-	"github.com/coreos/rkt/rkt/pubkey"
+	"github.com/rkt/rkt/rkt/pubkey"
 
 	"github.com/spf13/cobra"
 )

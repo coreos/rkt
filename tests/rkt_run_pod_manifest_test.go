@@ -24,10 +24,10 @@ import (
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/tests/testutils"
 	"github.com/syndtr/gocapability/capability"
 
-	"github.com/coreos/rkt/common/cgroup"
+	"github.com/rkt/rkt/common/cgroup"
 )
 
 func intP(i int) *int {

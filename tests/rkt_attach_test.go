@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/coreos/gexpect"
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/tests/testutils"
 )
 
 // TestAttachSmoke is a smoke test for rkt-attach. It exercises several

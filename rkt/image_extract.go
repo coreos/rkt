@@ -20,10 +20,10 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/coreos/rkt/pkg/fileutil"
-	"github.com/coreos/rkt/pkg/tar"
-	"github.com/coreos/rkt/pkg/user"
-	"github.com/coreos/rkt/store/imagestore"
+	"github.com/rkt/rkt/pkg/fileutil"
+	"github.com/rkt/rkt/pkg/tar"
+	"github.com/rkt/rkt/pkg/user"
+	"github.com/rkt/rkt/store/imagestore"
 
 	"github.com/spf13/cobra"
 )

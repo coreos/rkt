@@ -17,7 +17,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/coreos/rkt/store/imagestore"
+	"github.com/rkt/rkt/store/imagestore"
 	"github.com/spf13/cobra"
 )
 

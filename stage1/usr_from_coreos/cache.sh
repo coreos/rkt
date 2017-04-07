@@ -301,7 +301,7 @@ function do_wget() {
 	if [ "${quiet}" ]; then
 		# strip the working directory from output path, so we get
 		# something like build-rkt/tmp/coreos-common/pxe.img
-		# instead of /home/foo/projects/coreos/rkt/build-rkt/...
+		# instead of /home/foo/projects/rkt/rkt/build-rkt/...
 		short_out="${out#${PWD}/}"
 		printf '  %-12s %s\n' 'WGET' "${url} => ${short_out}"
 	fi

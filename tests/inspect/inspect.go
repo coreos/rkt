@@ -34,10 +34,10 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/appc/spec/pkg/device"
-	"github.com/coreos/rkt/common/cgroup"
-	"github.com/coreos/rkt/common/cgroup/v1"
-	"github.com/coreos/rkt/common/cgroup/v2"
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/common/cgroup"
+	"github.com/rkt/rkt/common/cgroup/v1"
+	"github.com/rkt/rkt/common/cgroup/v2"
+	"github.com/rkt/rkt/tests/testutils"
 	"github.com/syndtr/gocapability/capability"
 )
 

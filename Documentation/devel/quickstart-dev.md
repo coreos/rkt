@@ -8,10 +8,10 @@ In this example ~/Repos is a personal workspace where all repos are stored
 
 ```sh
 $ mkdir ~/Repos && cd ~/Repos
-$ mkdir -p ~/.local/gopath/src/github.com/coreos
+$ mkdir -p ~/.local/gopath/src/github.com/rkt
 $ sudo apt-get install git
-$ git -C ~/.local/gopath/src/github.com/coreos clone https://github.com/coreos/rkt.git
-$ ln -s ~/.local/gopath/src/github.com/coreos/rkt rkt
+$ git -C ~/.local/gopath/src/github.com/rkt clone https://github.com/rkt/rkt.git
+$ ln -s ~/.local/gopath/src/github.com/rkt/rkt rkt
 ```
 
 On a fresh system installation, few additional software packages are needed to correctly build rkt:

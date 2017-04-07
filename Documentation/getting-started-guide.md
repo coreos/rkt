@@ -96,5 +96,5 @@ hello
 [appc-spec]: https://github.com/appc/spec
 [rkt-daemon]: subcommands/run.md#run-rkt-as-a-daemon
 [rkt-releases]: https://github.com/containers/build/releases
-[rkt-vagrant]: https://github.com/coreos/rkt/blob/master/Documentation/trying-out-rkt.md#rkt-using-vagrant
+[rkt-vagrant]: https://github.com/rkt/rkt/blob/master/Documentation/trying-out-rkt.md#rkt-using-vagrant
 [signing-guide]: signing-and-verification-guide.md

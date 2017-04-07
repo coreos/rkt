@@ -23,7 +23,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/tests/testutils"
 )
 
 func getPodCgroups(shortUUID string) ([]string, error) {

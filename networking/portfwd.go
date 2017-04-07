@@ -21,7 +21,7 @@ import (
 
 	"github.com/coreos/go-iptables/iptables"
 
-	commonnet "github.com/coreos/rkt/common/networking"
+	commonnet "github.com/rkt/rkt/common/networking"
 )
 
 type iptablesRule struct {

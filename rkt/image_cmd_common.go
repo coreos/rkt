@@ -18,8 +18,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/coreos/rkt/store/imagestore"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/store/imagestore"
 
 	"github.com/appc/spec/discovery"
 	"github.com/appc/spec/schema/types"

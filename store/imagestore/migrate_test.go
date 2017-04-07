@@ -24,9 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/rkt/store/db"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/jonboulle/clockwork"
+	"github.com/rkt/rkt/store/db"
 )
 
 type testdb interface {

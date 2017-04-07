@@ -25,8 +25,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/coreos/rkt/common"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/common"
 )
 
 // Headerer is an interface for getting additional HTTP headers to use

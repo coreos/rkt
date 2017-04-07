@@ -15,7 +15,7 @@
 package common
 
 import (
-	"github.com/coreos/rkt/pkg/group"
+	"github.com/rkt/rkt/pkg/group"
 )
 
 const (

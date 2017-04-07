@@ -1,4 +1,4 @@
-package: github.com/coreos/rkt
+package: github.com/rkt/rkt
 import:
 - package: github.com/StackExchange/wmi
   version: f3e2bae1e0cb5aef83e319133eabfee30013a4a5

@@ -21,9 +21,9 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/coreos/rkt/rkt/config"
-	"github.com/coreos/rkt/store/imagestore"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/rkt/config"
+	"github.com/rkt/rkt/store/imagestore"
 )
 
 // httpOps is a kind of facade around a downloader and a

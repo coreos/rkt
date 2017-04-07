@@ -26,11 +26,11 @@ if [ ! -z "${GITHUB_AUTH}" ]; then
 fi
 
 for pr in $(git log --pretty=%s --first-parent "${RANGE}" | egrep -o '#\w+' | tr -d '#'); do
-    body=$(curl -s "${GITHUB_AUTH}" https://api.github.com/repos/coreos/rkt/pulls/"${pr}" | \
+    body=$(curl -s "${GITHUB_AUTH}" https://api.github.com/repos/rkt/rkt/pulls/"${pr}" | \
                   jq -r '{title: .title, body: .body}')
 
     echo "-" \
          "$(echo "${body}" | jq -r .title | sed 's/\.$//g')" \
-         "([#${pr}](https://github.com/coreos/rkt/pull/$pr))." \
+         "([#${pr}](https://github.com/rkt/rkt/pull/$pr))." \
          "$(echo "${body}" | jq -r .body | awk -v RS='\r\n\r\n' NR==1 | tr -d '\r')"
 done

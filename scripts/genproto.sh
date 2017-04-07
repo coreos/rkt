@@ -16,7 +16,7 @@ if ! [[ $(protoc --version) =~ "3.1.0" ]]; then
 fi
 
 export PATH=.:${PATH}
-cd $GOPATH/src/github.com/coreos/rkt
+cd $GOPATH/src/github.com/rkt/rkt
 
 echo "building protoc-gen-go"
 pushd vendor/github.com/golang/protobuf/protoc-gen-go

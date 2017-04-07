@@ -38,6 +38,6 @@ See the table with [global options in general commands documentation][global-opt
 
 
 [appc-container-metadata]: https://github.com/appc/spec/blob/master/spec/ace.md#app-container-metadata-service
-[dist]: https://github.com/coreos/rkt/tree/master/dist/init/systemd
+[dist]: https://github.com/rkt/rkt/tree/master/dist/init/systemd
 [global-options]: ../commands.md#global-options
 [socket-activation]: http://0pointer.de/blog/projects/socket-activation.html

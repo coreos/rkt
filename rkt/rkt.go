@@ -22,11 +22,11 @@ import (
 	"runtime/pprof"
 	"text/tabwriter"
 
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/pkg/keystore"
-	"github.com/coreos/rkt/pkg/log"
-	"github.com/coreos/rkt/rkt/config"
-	rktflag "github.com/coreos/rkt/rkt/flag"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/pkg/keystore"
+	"github.com/rkt/rkt/pkg/log"
+	"github.com/rkt/rkt/rkt/config"
+	rktflag "github.com/rkt/rkt/rkt/flag"
 	"github.com/spf13/cobra"
 )
 

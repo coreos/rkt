@@ -40,24 +40,24 @@ import (
 	"github.com/godbus/dbus/introspect"
 	"github.com/hashicorp/errwrap"
 
-	stage1common "github.com/coreos/rkt/stage1/common"
-	stage1commontypes "github.com/coreos/rkt/stage1/common/types"
-	stage1initcommon "github.com/coreos/rkt/stage1/init/common"
+	stage1common "github.com/rkt/rkt/stage1/common"
+	stage1commontypes "github.com/rkt/rkt/stage1/common/types"
+	stage1initcommon "github.com/rkt/rkt/stage1/init/common"
 
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/common/cgroup"
-	"github.com/coreos/rkt/common/cgroup/v1"
-	"github.com/coreos/rkt/common/cgroup/v2"
-	commonnet "github.com/coreos/rkt/common/networking"
-	"github.com/coreos/rkt/networking"
-	pkgflag "github.com/coreos/rkt/pkg/flag"
-	"github.com/coreos/rkt/pkg/fs"
-	rktlog "github.com/coreos/rkt/pkg/log"
-	"github.com/coreos/rkt/pkg/sys"
-	"github.com/coreos/rkt/pkg/user"
-	"github.com/coreos/rkt/stage1/init/kvm"
-	"github.com/coreos/rkt/stage1/init/kvm/hypervisor/hvlkvm"
-	"github.com/coreos/rkt/stage1/init/kvm/hypervisor/hvqemu"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/common/cgroup"
+	"github.com/rkt/rkt/common/cgroup/v1"
+	"github.com/rkt/rkt/common/cgroup/v2"
+	commonnet "github.com/rkt/rkt/common/networking"
+	"github.com/rkt/rkt/networking"
+	pkgflag "github.com/rkt/rkt/pkg/flag"
+	"github.com/rkt/rkt/pkg/fs"
+	rktlog "github.com/rkt/rkt/pkg/log"
+	"github.com/rkt/rkt/pkg/sys"
+	"github.com/rkt/rkt/pkg/user"
+	"github.com/rkt/rkt/stage1/init/kvm"
+	"github.com/rkt/rkt/stage1/init/kvm/hypervisor/hvlkvm"
+	"github.com/rkt/rkt/stage1/init/kvm/hypervisor/hvqemu"
 )
 
 const (
@@ -318,7 +318,7 @@ func getArgsEnv(p *stage1commontypes.Pod, flavor string, canMachinedRegister boo
 		args = append(args, hvStartCmd...)
 
 		// lkvm requires $HOME to be defined,
-		// see https://github.com/coreos/rkt/issues/1393
+		// see https://github.com/rkt/rkt/issues/1393
 		if os.Getenv("HOME") == "" {
 			env = append(env, "HOME=/root")
 		}

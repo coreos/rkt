@@ -18,9 +18,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/pkg/sys"
-	stage1common "github.com/coreos/rkt/stage1/common"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/pkg/sys"
+	stage1common "github.com/rkt/rkt/stage1/common"
 )
 
 func main() {

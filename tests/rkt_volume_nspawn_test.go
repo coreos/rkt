@@ -21,7 +21,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/tests/testutils"
 )
 
 func TestVolumes(t *testing.T) {
@@ -67,7 +67,7 @@ var volSysfsTests = []struct {
 
 // TestVolumeSysfs checks that sysfs is available for the apps, but only if
 // the app does not have mount points in /sys or a subdirectory.
-// See: https://github.com/coreos/rkt/issues/2874
+// See: https://github.com/rkt/rkt/issues/2874
 func TestVolumeSysfs(t *testing.T) {
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()

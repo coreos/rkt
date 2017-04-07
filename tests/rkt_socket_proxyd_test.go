@@ -29,13 +29,13 @@ import (
 
 	sd_dbus "github.com/coreos/go-systemd/dbus"
 	sd_util "github.com/coreos/go-systemd/util"
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/tests/testutils"
 	"github.com/vishvananda/netlink"
 )
 
 func TestSocketProxyd(t *testing.T) {
 	// Skip the test for now. See
-	// https://github.com/coreos/rkt/issues/2432#issuecomment-238858840 for
+	// https://github.com/rkt/rkt/issues/2432#issuecomment-238858840 for
 	// details.
 	t.Skip("this test is racy, let's skip it until we fix it")
 

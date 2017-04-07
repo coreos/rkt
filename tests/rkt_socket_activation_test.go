@@ -31,7 +31,7 @@ import (
 
 	sd_dbus "github.com/coreos/go-systemd/dbus"
 	sd_util "github.com/coreos/go-systemd/util"
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/tests/testutils"
 )
 
 func randomFreePort(t *testing.T) (int, error) {

@@ -22,9 +22,9 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/coreos/rkt/pkg/group"
-	"github.com/coreos/rkt/pkg/passwd"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/pkg/group"
+	"github.com/rkt/rkt/pkg/passwd"
 )
 
 // Resolver defines the interface for resolving a UID/GID.

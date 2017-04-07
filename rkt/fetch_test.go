@@ -29,15 +29,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/coreos/rkt/pkg/aci"
-	"github.com/coreos/rkt/pkg/aci/acitest"
-	dist "github.com/coreos/rkt/pkg/distribution"
-	"github.com/coreos/rkt/pkg/keystore"
-	"github.com/coreos/rkt/pkg/keystore/keystoretest"
-	"github.com/coreos/rkt/rkt/config"
-	rktflag "github.com/coreos/rkt/rkt/flag"
-	"github.com/coreos/rkt/rkt/image"
-	"github.com/coreos/rkt/store/imagestore"
+	"github.com/rkt/rkt/pkg/aci"
+	"github.com/rkt/rkt/pkg/aci/acitest"
+	dist "github.com/rkt/rkt/pkg/distribution"
+	"github.com/rkt/rkt/pkg/keystore"
+	"github.com/rkt/rkt/pkg/keystore/keystoretest"
+	"github.com/rkt/rkt/rkt/config"
+	rktflag "github.com/rkt/rkt/rkt/flag"
+	"github.com/rkt/rkt/rkt/image"
+	"github.com/rkt/rkt/store/imagestore"
 )
 
 type httpError struct {

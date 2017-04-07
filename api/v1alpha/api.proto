@@ -20,7 +20,7 @@
 //                                                     //
 //  If you think you want to use it, or for any other  //
 //     queries, contact <rkt-dev@googlegroups.com>     //
-//      or file an issue on github.com/coreos/rkt      //
+//      or file an issue on github.com/rkt/rkt      //
 //                                                     //
 // *************************************************** //
 // ****************** END WARNING ******************** //
@@ -119,7 +119,7 @@ message App {
 }
 
 // PodState defines the possible states of the pod.
-// See https://github.com/coreos/rkt/blob/master/Documentation/devel/pod-lifecycle.md for a detailed
+// See https://github.com/rkt/rkt/blob/master/Documentation/devel/pod-lifecycle.md for a detailed
 // explanation of each state.
 enum PodState {
         POD_STATE_UNDEFINED = 0;

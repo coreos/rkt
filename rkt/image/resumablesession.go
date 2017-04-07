@@ -26,8 +26,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/rkt/rkt/config"
-	"github.com/coreos/rkt/version"
+	"github.com/rkt/rkt/rkt/config"
+	"github.com/rkt/rkt/version"
 )
 
 // statusAcceptedError is an error returned when resumableSession

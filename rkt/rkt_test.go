@@ -21,7 +21,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/coreos/rkt/pkg/log"
+	"github.com/rkt/rkt/pkg/log"
 )
 
 func TestCalculateDataDir(t *testing.T) {

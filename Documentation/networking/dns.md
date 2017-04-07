@@ -113,4 +113,4 @@ round-trip min/avg/max = 5.421/5.421/5.421 ms
 ```
 
 
-[standard-defaults]: https://github.com/coreos/rkt/blob/master/stage1/net/rootfs/etc/hosts-fallback
+[standard-defaults]: https://github.com/rkt/rkt/blob/master/stage1/net/rootfs/etc/hosts-fallback

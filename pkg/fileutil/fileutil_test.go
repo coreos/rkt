@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/coreos/rkt/pkg/user"
+	"github.com/rkt/rkt/pkg/user"
 )
 
 const tstprefix = "fileutil-test"

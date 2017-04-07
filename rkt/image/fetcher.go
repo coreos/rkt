@@ -21,12 +21,12 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/common/apps"
-	dist "github.com/coreos/rkt/pkg/distribution"
-	"github.com/coreos/rkt/stage0"
-	"github.com/coreos/rkt/store/imagestore"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/common/apps"
+	dist "github.com/rkt/rkt/pkg/distribution"
+	"github.com/rkt/rkt/stage0"
+	"github.com/rkt/rkt/store/imagestore"
 
 	"github.com/appc/spec/discovery"
 	"github.com/appc/spec/schema/types"
@@ -282,7 +282,7 @@ func (f *Fetcher) fetchSingleImageByPath(path string, a *asc) (string, error) {
 
 // TODO(sgotti) I'm not sure setting default os and arch also for image
 // dependencies is correct since it may break noarch dependencies. Reference:
-// https://github.com/coreos/rkt/pull/2317
+// https://github.com/rkt/rkt/pull/2317
 func (db *distBundle) setAppDefaults() error {
 	app := db.dist.(*dist.Appc).App()
 	if _, ok := app.Labels["arch"]; !ok {

@@ -29,5 +29,5 @@ The [configuration][configuration] on-disk format is documented separately.
 
 [configuration]: ../configuration.md
 [pod-lifecycle]: pod-lifecycle.md
-[rkt-706]: https://github.com/coreos/rkt/issues/706
+[rkt-706]: https://github.com/rkt/rkt/issues/706
 [rktkind-paths]: ../configuration.md#rktkind-paths

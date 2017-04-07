@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Disabled on kvm due to https://github.com/coreos/rkt/issues/3382
+// Disabled on kvm due to https://github.com/rkt/rkt/issues/3382
 // +build !fly,!kvm
 
 package main
@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/coreos/gexpect"
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/tests/testutils"
 )
 
 // TestAppSandboxOneApp is a basic test for `rkt app` sandbox.

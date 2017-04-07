@@ -18,7 +18,7 @@ import (
 	"runtime"
 
 	"github.com/appc/spec/schema"
-	"github.com/coreos/rkt/version"
+	"github.com/rkt/rkt/version"
 	"github.com/spf13/cobra"
 )
 

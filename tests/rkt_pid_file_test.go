@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/coreos/gexpect"
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/tests/testutils"
 )
 
 func preparePidFileRace(t *testing.T, ctx *testutils.RktRunCtx, pidFileName, sleepImage string) (*gexpect.ExpectSubprocess, *gexpect.ExpectSubprocess, string, string) {

@@ -33,7 +33,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/coreos/rkt/pkg/keystore/keystoretest"
+	"github.com/rkt/rkt/pkg/keystore/keystoretest"
 
 	"golang.org/x/crypto/openpgp/errors"
 )

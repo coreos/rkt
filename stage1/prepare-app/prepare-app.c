@@ -180,7 +180,7 @@ static void mount_sys(const char *root)
 	 * bind-mounts to control which files are read-only. To avoid
 	 * a quadratic progression, prepare-app does not bind mount
 	 * /sys recursively. See:
-	 * https://github.com/coreos/rkt/issues/2351 */
+	 * https://github.com/rkt/rkt/issues/2351 */
 	mount_at(root, &sys_bind);
 }
 

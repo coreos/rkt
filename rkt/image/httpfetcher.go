@@ -20,12 +20,12 @@ import (
 	"net/url"
 	"time"
 
-	rktflag "github.com/coreos/rkt/rkt/flag"
+	rktflag "github.com/rkt/rkt/rkt/flag"
 
-	"github.com/coreos/rkt/pkg/keystore"
-	"github.com/coreos/rkt/rkt/config"
-	"github.com/coreos/rkt/store/imagestore"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/pkg/keystore"
+	"github.com/rkt/rkt/rkt/config"
+	"github.com/rkt/rkt/store/imagestore"
 )
 
 // httpFetcher is used to download images from http or https URLs.

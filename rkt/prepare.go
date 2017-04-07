@@ -20,14 +20,14 @@ import (
 	"os"
 
 	"github.com/appc/spec/schema/types"
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/pkg/lock"
-	pkgPod "github.com/coreos/rkt/pkg/pod"
-	"github.com/coreos/rkt/pkg/user"
-	"github.com/coreos/rkt/rkt/image"
-	"github.com/coreos/rkt/stage0"
-	"github.com/coreos/rkt/store/imagestore"
-	"github.com/coreos/rkt/store/treestore"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/pkg/lock"
+	pkgPod "github.com/rkt/rkt/pkg/pod"
+	"github.com/rkt/rkt/pkg/user"
+	"github.com/rkt/rkt/rkt/image"
+	"github.com/rkt/rkt/stage0"
+	"github.com/rkt/rkt/store/imagestore"
+	"github.com/rkt/rkt/store/treestore"
 	"github.com/spf13/cobra"
 )
 

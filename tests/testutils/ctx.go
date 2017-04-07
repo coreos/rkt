@@ -24,7 +24,7 @@ import (
 	"syscall"
 
 	"github.com/coreos/gexpect"
-	"github.com/coreos/rkt/tests/testutils/logger"
+	"github.com/rkt/rkt/tests/testutils/logger"
 )
 
 // dirDesc structure manages one directory and provides an option for

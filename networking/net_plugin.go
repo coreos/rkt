@@ -26,7 +26,7 @@ import (
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/hashicorp/errwrap"
 
-	"github.com/coreos/rkt/common"
+	"github.com/rkt/rkt/common"
 )
 
 // TODO(eyakubovich): make this configurable in rkt.conf

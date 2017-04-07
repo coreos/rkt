@@ -17,7 +17,7 @@ package stage0
 import (
 	"os"
 
-	rktlog "github.com/coreos/rkt/pkg/log"
+	rktlog "github.com/rkt/rkt/pkg/log"
 )
 
 var log *rktlog.Logger

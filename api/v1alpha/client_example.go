@@ -23,7 +23,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/coreos/rkt/api/v1alpha"
+	"github.com/rkt/rkt/api/v1alpha"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )

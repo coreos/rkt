@@ -22,9 +22,9 @@ import (
 	"strconv"
 
 	"github.com/appc/spec/schema"
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/pkg/lock"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/pkg/lock"
 )
 
 // ErrImmutable is the error that is returned by SandboxManifest if the pod is immutable,

@@ -18,7 +18,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	rktlog "github.com/coreos/rkt/pkg/log"
+	rktlog "github.com/rkt/rkt/pkg/log"
 )
 
 var diag *rktlog.Logger

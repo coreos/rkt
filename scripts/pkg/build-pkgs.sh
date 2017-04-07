@@ -12,7 +12,7 @@ version=$1
 MAINTAINER=security@coreos.com
 LICENSE="APLv2"
 VENDOR="CoreOS, Inc."
-HOMEPAGE="https://www.github.com/coreos/rkt"
+HOMEPAGE="https://www.github.com/rkt/rkt"
 #iteration is the package version; bump if you need to repackage without
 #changing the rkt version
 ITERATION="${ITERATION:-1}" 

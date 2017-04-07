@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	dist "github.com/coreos/rkt/pkg/distribution"
+	dist "github.com/rkt/rkt/pkg/distribution"
 )
 
 func TestGuessAppcOrPath(t *testing.T) {

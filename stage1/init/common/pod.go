@@ -29,17 +29,17 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/coreos/rkt/pkg/acl"
-	stage1commontypes "github.com/coreos/rkt/stage1/common/types"
+	"github.com/rkt/rkt/pkg/acl"
+	stage1commontypes "github.com/rkt/rkt/stage1/common/types"
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/go-systemd/unit"
 	"github.com/hashicorp/errwrap"
 
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/pkg/fileutil"
-	"github.com/coreos/rkt/pkg/user"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/pkg/fileutil"
+	"github.com/rkt/rkt/pkg/user"
 )
 
 const (

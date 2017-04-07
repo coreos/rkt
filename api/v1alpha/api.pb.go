@@ -112,7 +112,7 @@ func (x AppState) String() string {
 func (AppState) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
 
 // PodState defines the possible states of the pod.
-// See https://github.com/coreos/rkt/blob/master/Documentation/devel/pod-lifecycle.md for a detailed
+// See https://github.com/rkt/rkt/blob/master/Documentation/devel/pod-lifecycle.md for a detailed
 // explanation of each state.
 type PodState int32
 

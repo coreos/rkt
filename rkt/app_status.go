@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	rkt "github.com/coreos/rkt/lib"
+	rkt "github.com/rkt/rkt/lib"
 	"github.com/spf13/cobra"
 )
 

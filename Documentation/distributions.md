@@ -141,8 +141,8 @@ upgrade manually.
 ### rpm-based 
 ```
 gpg --recv-key 18AD5014C99EF7E3BA5F6CE950BDD3E0FC8A365E
-wget https://github.com/coreos/rkt/releases/download/v1.25.0/rkt-1.25.0-1.x86_64.rpm
-wget https://github.com/coreos/rkt/releases/download/v1.25.0/rkt-1.25.0-1.x86_64.rpm.asc
+wget https://github.com/rkt/rkt/releases/download/v1.25.0/rkt-1.25.0-1.x86_64.rpm
+wget https://github.com/rkt/rkt/releases/download/v1.25.0/rkt-1.25.0-1.x86_64.rpm.asc
 gpg --verify rkt-1.25.0-1.x86_64.rpm.asc
 sudo rpm -Uvh rkt-1.25.0-1.x86_64.rpm
 ```
@@ -150,8 +150,8 @@ sudo rpm -Uvh rkt-1.25.0-1.x86_64.rpm
 ### deb-based
 ```
 gpg --recv-key 18AD5014C99EF7E3BA5F6CE950BDD3E0FC8A365E
-wget https://github.com/coreos/rkt/releases/download/v1.25.0/rkt_1.25.0-1_amd64.deb
-wget https://github.com/coreos/rkt/releases/download/v1.25.0/rkt_1.25.0-1_amd64.deb.asc
+wget https://github.com/rkt/rkt/releases/download/v1.25.0/rkt_1.25.0-1_amd64.deb
+wget https://github.com/rkt/rkt/releases/download/v1.25.0/rkt_1.25.0-1_amd64.deb.asc
 gpg --verify rkt_1.25.0-1_amd64.deb.asc
 sudo dpkg -i rkt_1.25.0-1_amd64.deb
 ```
@@ -170,10 +170,10 @@ sudo dpkg -i rkt_1.25.0-1_amd64.deb
 [rkt-nixos]: https://github.com/NixOS/nixpkgs/blob/master/pkgs/applications/virtualization/rkt/default.nix
 [rkt-opensuse]: https://build.opensuse.org/package/show/Virtualization:containers/rkt
 [rkt-void]: https://github.com/voidlinux/void-packages/tree/master/srcpkgs/rkt
-[rkt-1305]: https://github.com/coreos/rkt/issues/1305
-[rkt-1978]: https://github.com/coreos/rkt/issues/1978
-[rkt-2206]: https://github.com/coreos/rkt/issues/2206
-[rkt-2322]: https://github.com/coreos/rkt/issues/2322
-[rkt-2325]: https://github.com/coreos/rkt/issues/2325
-[rkt-2326]: https://github.com/coreos/rkt/issues/2326
+[rkt-1305]: https://github.com/rkt/rkt/issues/1305
+[rkt-1978]: https://github.com/rkt/rkt/issues/1978
+[rkt-2206]: https://github.com/rkt/rkt/issues/2206
+[rkt-2322]: https://github.com/rkt/rkt/issues/2322
+[rkt-2325]: https://github.com/rkt/rkt/issues/2325
+[rkt-2326]: https://github.com/rkt/rkt/issues/2326
 [void-packages]: http://www.voidlinux.eu/packages/

@@ -21,10 +21,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/coreos/rkt/pkg/aci"
-	"github.com/coreos/rkt/pkg/aci/acitest"
-	"github.com/coreos/rkt/pkg/sys"
-	"github.com/coreos/rkt/store/imagestore"
+	"github.com/rkt/rkt/pkg/aci"
+	"github.com/rkt/rkt/pkg/aci/acitest"
+	"github.com/rkt/rkt/pkg/sys"
+	"github.com/rkt/rkt/store/imagestore"
 )
 
 const tstprefix = "treestore-test"

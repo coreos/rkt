@@ -1,5 +1,5 @@
 # path to rkt source code distro
-ORG_PATH := github.com/coreos
+ORG_PATH := github.com/rkt
 REPO_PATH := $(ORG_PATH)/rkt
 
 override BUILDDIR := $(abspath $(BUILDDIR))

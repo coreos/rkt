@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/coreos/rkt/pkg/keystore"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/pkg/keystore"
 
 	"github.com/appc/spec/aci"
 	"github.com/appc/spec/schema"

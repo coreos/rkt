@@ -21,7 +21,7 @@ import (
 
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/go-systemd/unit"
-	"github.com/coreos/rkt/common"
+	"github.com/rkt/rkt/common"
 )
 
 const (

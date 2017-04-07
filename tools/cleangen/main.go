@@ -20,8 +20,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/coreos/rkt/tools/common"
-	"github.com/coreos/rkt/tools/common/filelist"
+	"github.com/rkt/rkt/tools/common"
+	"github.com/rkt/rkt/tools/common/filelist"
 )
 
 type mkPair struct {

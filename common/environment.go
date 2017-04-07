@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/coreos/rkt/pkg/user"
+	"github.com/rkt/rkt/pkg/user"
 
 	"github.com/appc/spec/schema/types"
 )

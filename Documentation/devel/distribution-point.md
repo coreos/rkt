@@ -165,4 +165,4 @@ For example there may exist multiple transport plugins (file, http, s3, bittorre
 [docker2aci_GH]: https://github.com/appc/docker2aci
 [oci_image_spec_readme]: https://github.com/opencontainers/image-spec#running-an-oci-imag://github.com/appc/docker2aci
 [oci_layout]: https://github.com/opencontainers/image-spec/blob/master/image-layout.md
-[rkt-2964]: https://github.com/coreos/rkt/pull/2964
+[rkt-2964]: https://github.com/rkt/rkt/pull/2964

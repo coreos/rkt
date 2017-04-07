@@ -26,9 +26,9 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/hashicorp/errwrap"
 
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/common/cgroup"
-	stage1commontypes "github.com/coreos/rkt/stage1/common/types"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/common/cgroup"
+	stage1commontypes "github.com/rkt/rkt/stage1/common/types"
 )
 
 // preparedApp contains some internal state needed to actually run an app.

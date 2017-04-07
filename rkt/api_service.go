@@ -30,15 +30,15 @@ import (
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/go-systemd/activation"
-	"github.com/coreos/rkt/api/v1alpha"
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/common/cgroup/v1"
-	pkgPod "github.com/coreos/rkt/pkg/pod"
-	"github.com/coreos/rkt/pkg/set"
-	"github.com/coreos/rkt/store/imagestore"
-	"github.com/coreos/rkt/version"
 	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/golang-lru"
+	"github.com/rkt/rkt/api/v1alpha"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/common/cgroup/v1"
+	pkgPod "github.com/rkt/rkt/pkg/pod"
+	"github.com/rkt/rkt/pkg/set"
+	"github.com/rkt/rkt/store/imagestore"
+	"github.com/rkt/rkt/version"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -359,7 +359,7 @@ func getPodCgroup(p *pkgPod.Pod, pid int) (string, error) {
 	}
 	// If the stage1 systemd > v226, it will put the PID1 into "init.scope"
 	// implicit scope unit in the root slice.
-	// See https://github.com/coreos/rkt/pull/2331#issuecomment-203540543
+	// See https://github.com/rkt/rkt/pull/2331#issuecomment-203540543
 	//
 	// TODO(yifan): Revisit this when using unified cgroup hierarchy.
 	cgroup = strings.TrimSuffix(cgroup, "/init.scope")

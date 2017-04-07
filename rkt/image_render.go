@@ -20,10 +20,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/coreos/rkt/pkg/fileutil"
-	"github.com/coreos/rkt/pkg/user"
-	"github.com/coreos/rkt/store/imagestore"
-	"github.com/coreos/rkt/store/treestore"
+	"github.com/rkt/rkt/pkg/fileutil"
+	"github.com/rkt/rkt/pkg/user"
+	"github.com/rkt/rkt/store/imagestore"
+	"github.com/rkt/rkt/store/treestore"
 
 	"github.com/spf13/cobra"
 )

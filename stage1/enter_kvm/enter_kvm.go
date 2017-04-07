@@ -21,8 +21,8 @@ import (
 	"os"
 	"os/user"
 
-	rktlog "github.com/coreos/rkt/pkg/log"
-	"github.com/coreos/rkt/stage1/common/ssh"
+	rktlog "github.com/rkt/rkt/pkg/log"
+	"github.com/rkt/rkt/stage1/common/ssh"
 )
 
 var (

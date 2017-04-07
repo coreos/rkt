@@ -17,10 +17,10 @@ package aci
 import (
 	"errors"
 
-	"github.com/coreos/rkt/pkg/user"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/pkg/user"
 
-	ptar "github.com/coreos/rkt/pkg/tar"
+	ptar "github.com/rkt/rkt/pkg/tar"
 
 	"github.com/appc/spec/pkg/acirenderer"
 	"github.com/appc/spec/schema/types"

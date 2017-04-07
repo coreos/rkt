@@ -22,7 +22,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/coreos/rkt/pkg/user"
+	"github.com/rkt/rkt/pkg/user"
 
 	"github.com/appc/spec/pkg/device"
 )

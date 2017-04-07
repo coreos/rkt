@@ -22,8 +22,8 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/common/overlay"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/common/overlay"
 )
 
 func overlayMount(cfg overlay.MountCfg) error {

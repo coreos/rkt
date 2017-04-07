@@ -15,7 +15,7 @@ export BUILDDIR=
 mkdir -p $BUILDDIR
 ```
 
-Start the container which will run the [rkt builder](https://github.com/coreos/rkt-builder), and compile rkt:
+Start the container which will run the [rkt builder](https://github.com/rkt/rkt-builder), and compile rkt:
 ```
 ./scripts/build-rir.sh
 ```

@@ -22,7 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/coreos/rkt/tools/common"
+	"github.com/rkt/rkt/tools/common"
 )
 
 const (
@@ -68,7 +68,7 @@ func goGetMakeFunction(repo, module string) string {
 // mode. If mode is "files", then target is optional.
 func goGetArgs(args []string) (string, string, string, goDepsMode) {
 	f, target := standardFlags(goCmd)
-	repo := f.String("repo", "", "Go repo (example: github.com/coreos/rkt)")
+	repo := f.String("repo", "", "Go repo (example: github.com/rkt/rkt)")
 	module := f.String("module", "", "Module inside Go repo (example: stage1)")
 	mode := f.String("mode", "make", "Mode to use (make - print deps as makefile [default], files - print a list of files)")
 

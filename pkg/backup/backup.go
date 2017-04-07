@@ -20,8 +20,8 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/coreos/rkt/pkg/fileutil"
-	"github.com/coreos/rkt/pkg/user"
+	"github.com/rkt/rkt/pkg/fileutil"
+	"github.com/rkt/rkt/pkg/user"
 )
 
 // CreateBackup backs a directory up in a given directory. It basically

@@ -25,9 +25,9 @@ import (
 	"syscall"
 
 	"github.com/appc/spec/schema/types"
-	"github.com/coreos/rkt/common"
-	pkgPod "github.com/coreos/rkt/pkg/pod"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/common"
+	pkgPod "github.com/rkt/rkt/pkg/pod"
 )
 
 type RmConfig struct {

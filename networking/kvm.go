@@ -37,9 +37,9 @@ import (
 	"github.com/hashicorp/errwrap"
 	"github.com/vishvananda/netlink"
 
-	"github.com/coreos/rkt/common"
-	commonnet "github.com/coreos/rkt/common/networking"
-	"github.com/coreos/rkt/networking/tuntap"
+	"github.com/rkt/rkt/common"
+	commonnet "github.com/rkt/rkt/common/networking"
+	"github.com/rkt/rkt/networking/tuntap"
 )
 
 const (
@@ -97,7 +97,7 @@ func setupMacVTapDevice(podID types.UUID, config MacVTapNetConf, interfaceNumber
 	var mode netlink.MacvlanMode
 	switch config.Mode {
 	// if not set - defaults to bridge mode as in:
-	// https://github.com/coreos/rkt/blob/master/Documentation/networking.md#macvlan
+	// https://github.com/rkt/rkt/blob/master/Documentation/networking.md#macvlan
 	case "", "bridge":
 		mode = netlink.MACVLAN_MODE_BRIDGE
 	case "private":

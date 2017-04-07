@@ -22,8 +22,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/coreos/rkt/common/cgroup"
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/common/cgroup"
+	"github.com/rkt/rkt/tests/testutils"
 )
 
 const (

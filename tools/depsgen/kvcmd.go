@@ -15,7 +15,7 @@
 package main
 
 import (
-	"github.com/coreos/rkt/tools/common"
+	"github.com/rkt/rkt/tools/common"
 )
 
 const (

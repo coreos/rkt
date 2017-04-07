@@ -17,7 +17,7 @@ package pod
 import (
 	"time"
 
-	"github.com/coreos/rkt/pkg/lock"
+	"github.com/rkt/rkt/pkg/lock"
 
 	"golang.org/x/net/context"
 )

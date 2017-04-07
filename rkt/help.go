@@ -22,7 +22,7 @@ import (
 	"text/template"
 
 	"github.com/appc/spec/schema"
-	"github.com/coreos/rkt/version"
+	"github.com/rkt/rkt/version"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )

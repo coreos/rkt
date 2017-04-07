@@ -29,10 +29,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/rkt/networking/netinfo"
-	"github.com/coreos/rkt/pkg/fileutil"
-	"github.com/coreos/rkt/tests/testutils"
-	"github.com/coreos/rkt/tests/testutils/logger"
+	"github.com/rkt/rkt/networking/netinfo"
+	"github.com/rkt/rkt/pkg/fileutil"
+	"github.com/rkt/rkt/tests/testutils"
+	"github.com/rkt/rkt/tests/testutils/logger"
 	"github.com/vishvananda/netlink"
 )
 

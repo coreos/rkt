@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/tests/testutils"
 )
 
 var interactiveTests = []struct {

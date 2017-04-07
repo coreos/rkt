@@ -19,8 +19,8 @@ package main
 import (
 	"testing"
 
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/tests/testutils"
 )
 
 func TestExport(t *testing.T) {

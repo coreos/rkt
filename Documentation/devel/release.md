@@ -23,7 +23,7 @@ The following example assumes we're going from version 1.1.0 (`v1.1.0`) to 1.2.0
 
 Let's get started:
 
-- Start at the relevant milestone on GitHub (e.g. https://github.com/coreos/rkt/milestones/v1.2.0): ensure all referenced issues are closed (or moved elsewhere, if they're not done). Close the milestone.
+- Start at the relevant milestone on GitHub (e.g. https://github.com/rkt/rkt/milestones/v1.2.0): ensure all referenced issues are closed (or moved elsewhere, if they're not done). Close the milestone.
 - Update the [roadmap][roadmap] to remove the release you're performing, if necessary
 - Ensure that `stage1/aci/aci-manifest.in` is the same version of appc/spec vendored with rkt. Otherwise, update it.
 - Branch from the latest master, make sure your git status is clean
@@ -122,11 +122,11 @@ git log v1.1.0..v1.2.0 --pretty=format:"%an" | sort | uniq | tr '\n' ',' | sed -
 ```
 
 
-[changelog]: https://github.com/coreos/rkt/blob/master/CHANGELOG.md
-[configure_ac]: https://github.com/coreos/rkt/blob/master/configure.ac#L2
+[changelog]: https://github.com/rkt/rkt/blob/master/CHANGELOG.md
+[configure_ac]: https://github.com/rkt/rkt/blob/master/configure.ac#L2
 [coreos-key]: https://coreos.com/security/app-signing-key
-[gh-new-release]: https://github.com/coreos/rkt/releases/new
-[milestones]: https://github.com/coreos/rkt/milestones
-[maintainers]: https://github.com/coreos/rkt/blob/master/MAINTAINERS
+[gh-new-release]: https://github.com/rkt/rkt/releases/new
+[milestones]: https://github.com/rkt/rkt/milestones
+[maintainers]: https://github.com/rkt/rkt/blob/master/MAINTAINERS
 [rkt-dev-list]: https://groups.google.com/forum/#!forum/rkt-dev
-[roadmap]: https://github.com/coreos/rkt/blob/master/ROADMAP.md
+[roadmap]: https://github.com/rkt/rkt/blob/master/ROADMAP.md

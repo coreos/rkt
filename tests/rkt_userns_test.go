@@ -22,8 +22,8 @@ import (
 	"testing"
 
 	"github.com/coreos/gexpect"
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/tests/testutils"
 )
 
 var usernsTests = []struct {
@@ -45,7 +45,7 @@ var usernsTests = []struct {
 		"/proc/1/root/", // stage1 rootfs ($POD/stage1/rootfs)
 		"drwxr-xr-x",
 		"0",
-		"", // no check: it could be 0 but also the gid of 'rkt', see https://github.com/coreos/rkt/pull/1452
+		"", // no check: it could be 0 but also the gid of 'rkt', see https://github.com/rkt/rkt/pull/1452
 	},
 	// TODO test with overlay fs too. We don't test it for now because
 	// the Semaphore CI system doesn't support it.

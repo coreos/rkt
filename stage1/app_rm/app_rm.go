@@ -25,13 +25,13 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/coreos/rkt/common"
-	rktlog "github.com/coreos/rkt/pkg/log"
-	stage1common "github.com/coreos/rkt/stage1/common"
-	stage1initcommon "github.com/coreos/rkt/stage1/init/common"
+	"github.com/rkt/rkt/common"
+	rktlog "github.com/rkt/rkt/pkg/log"
+	stage1common "github.com/rkt/rkt/stage1/common"
+	stage1initcommon "github.com/rkt/rkt/stage1/init/common"
 
 	"github.com/appc/spec/schema/types"
-	"github.com/coreos/rkt/pkg/mountinfo"
+	"github.com/rkt/rkt/pkg/mountinfo"
 )
 
 var (

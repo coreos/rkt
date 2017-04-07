@@ -4,8 +4,8 @@
 #
 set -e
 
-if ! [[ "$PWD" = "$GOPATH/src/github.com/coreos/rkt" ]]; then
-  echo "must be run from \$GOPATH/src/github.com/coreos/rkt"
+if ! [[ "$PWD" = "$GOPATH/src/github.com/rkt/rkt" ]]; then
+  echo "must be run from \$GOPATH/src/github.com/rkt/rkt"
   exit 255
 fi
 

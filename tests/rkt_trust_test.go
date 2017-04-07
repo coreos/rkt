@@ -21,7 +21,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/tests/testutils"
 )
 
 func runImage(t *testing.T, ctx *testutils.RktRunCtx, imageFile string, expected string, shouldFail bool) {

@@ -14,7 +14,7 @@
 
 package rkt
 
-import "github.com/coreos/rkt/networking/netinfo"
+import "github.com/rkt/rkt/networking/netinfo"
 
 // AppState defines the state of the app.
 type AppState string

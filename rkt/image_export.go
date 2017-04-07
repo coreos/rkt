@@ -19,7 +19,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/coreos/rkt/store/imagestore"
+	"github.com/rkt/rkt/store/imagestore"
 
 	"github.com/spf13/cobra"
 )

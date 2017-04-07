@@ -21,9 +21,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/pkg/sys"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/pkg/sys"
 )
 
 // WithClearedCloExec executes a given function in between setting and unsetting the close-on-exit flag

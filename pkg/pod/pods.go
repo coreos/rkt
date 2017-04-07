@@ -29,13 +29,13 @@ import (
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/networking/netinfo"
-	"github.com/coreos/rkt/pkg/label"
-	"github.com/coreos/rkt/pkg/lock"
-	"github.com/coreos/rkt/pkg/sys"
 	"github.com/hashicorp/errwrap"
 	"github.com/pborman/uuid"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/networking/netinfo"
+	"github.com/rkt/rkt/pkg/label"
+	"github.com/rkt/rkt/pkg/lock"
+	"github.com/rkt/rkt/pkg/sys"
 )
 
 // Pod is the struct that reflects a pod and its lifecycle.
@@ -746,7 +746,7 @@ func getChildPID(ppid int) (int, error) {
 			return -1, err
 		}
 		if len(fi) == 0 {
-			// See https://github.com/coreos/rkt/issues/3109#issuecomment-242209246
+			// See https://github.com/rkt/rkt/issues/3109#issuecomment-242209246
 			continue
 		}
 		var pid64 int64

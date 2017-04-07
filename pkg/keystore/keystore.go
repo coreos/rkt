@@ -27,8 +27,8 @@ import (
 	"strings"
 
 	"github.com/appc/spec/schema/types"
-	"github.com/coreos/rkt/common"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/common"
 	"golang.org/x/crypto/openpgp"
 )
 

@@ -9,13 +9,13 @@ This new specification differs considerably from rkt's internal ACI-based image 
 
 The internal rkt image handling is currently divided in three subsystems:
 - **fetching**: This subsystem is responsible for downloading images of various types.
-Non-ACI image types (Docker and OCI) are converted to ACI images by delegating to [docker2aci][docker2aci]. The logic resides in the `github.com/coreos/rkt/rkt/image` package.
+Non-ACI image types (Docker and OCI) are converted to ACI images by delegating to [docker2aci][docker2aci]. The logic resides in the `github.com/rkt/rkt/rkt/image` package.
 
 - **image store**: The image store is responsible for persisting and managing downloaded images.
-It consists of two parts, a directory tree storing the actual image file blobs (usually residing under `/var/lib/rkt/cas/blob`) and a separate embedded SQL database storing image metadata usually residing in `/var/lib/rkt/cas/db/ql.db`. The implementation resides in the `github.com/coreos/rkt/store/imagestore` package.
+It consists of two parts, a directory tree storing the actual image file blobs (usually residing under `/var/lib/rkt/cas/blob`) and a separate embedded SQL database storing image metadata usually residing in `/var/lib/rkt/cas/db/ql.db`. The implementation resides in the `github.com/rkt/rkt/store/imagestore` package.
 
 - **tree store**: Since dependencies between ACI images form a directed acyclic graph according to the [appc spec][ace-fs] they are pre-rendered in a directory called the tree store cache.
-If the [overlay filesystem](https://www.kernel.org/doc/Documentation/filesystems/overlayfs.txt) is enabled, the pre-rendered image is used as the `lowerdir` for the pod's rendered rootfs. The implementation resides in the `github.com/coreos/rkt/store/treestore` package.
+If the [overlay filesystem](https://www.kernel.org/doc/Documentation/filesystems/overlayfs.txt) is enabled, the pre-rendered image is used as the `lowerdir` for the pod's rendered rootfs. The implementation resides in the `github.com/rkt/rkt/store/treestore` package.
 
 The actual internal lifecycle of an image is documented in the [architecture documentation][image-lifecycle].
 
@@ -26,7 +26,7 @@ The following table gives an overview of the relevant differences between OCI an
 Dependencies | Layers array in the [image manifest][oci-manifest] | [Dependency graph][ace-fs]
 Hash algorithms | Potentially multiple [algorithms][oci-algorithms], but SHA-256 preferred | [SHA-512][appc-image-id-type]
 
-Current ongoing work to support OCI in rkt is tracked in the following Github project: [https://github.com/coreos/rkt/projects/4](https://github.com/coreos/rkt/projects/4).
+Current ongoing work to support OCI in rkt is tracked in the following Github project: [https://github.com/rkt/rkt/projects/4](https://github.com/rkt/rkt/projects/4).
 
 ### Goals, non-Goals
 
@@ -43,7 +43,7 @@ This document outlines the following necessary steps and references existing wor
 3. Transport handlers
 4. Tree store support for OCI
 
-A non-goal is the implementation of the [OCI runtime specification][oci-runtime]. There is ongoing work in [https://github.com/coreos/rkt/issues/3408](https://github.com/coreos/rkt/issues/3408) covering this topic.
+A non-goal is the implementation of the [OCI runtime specification][oci-runtime]. There is ongoing work in [https://github.com/rkt/rkt/issues/3408](https://github.com/rkt/rkt/issues/3408) covering this topic.
 
 ### Overview
 
@@ -64,8 +64,8 @@ The design document can be found in [Documentation/devel/distribution-point.md][
 
 ###### Status
 
-- The design document (https://github.com/coreos/rkt/pull/2953) is merged.
-- The implementation (https://github.com/coreos/rkt/pull/3369) is merged.
+- The design document (https://github.com/rkt/rkt/pull/2953) is merged.
+- The implementation (https://github.com/rkt/rkt/pull/3369) is merged.
 
 ###### TODOs
 
@@ -84,8 +84,8 @@ In order to prepare native support for OCI the following changes need to be impl
 
 ###### Status
 
-- The design and initial implementation is proposed in https://github.com/coreos/rkt/pull/3071.
-- The actual design document of the above PR can be found in [Documentation/proposals/reference_based_image_access_and_cas_store.md](https://github.com/coreos/rkt/blob/23313af1c3dac2fb24fe41f9a7c5eaca573e45dd/Documentation/proposals/reference_based_image_access_and_cas_store.md).
+- The design and initial implementation is proposed in https://github.com/rkt/rkt/pull/3071.
+- The actual design document of the above PR can be found in [Documentation/proposals/reference_based_image_access_and_cas_store.md](https://github.com/rkt/rkt/blob/23313af1c3dac2fb24fe41f9a7c5eaca573e45dd/Documentation/proposals/reference_based_image_access_and_cas_store.md).
 
 Note that the above design document also suggests the introduction of a new key/value [Bolt](https://github.com/boltdb/bolt) based store. The current consensus is that the replacement of `ql` as the backing store can be done independently and therefore should be a non-goal for the OCI roadmap.
 
@@ -102,9 +102,9 @@ The current implementation makes it hard to integrate separate fetching subsyste
 
 The current proposal is to abstract fetching logic behind "transport handlers" allowing for independent (potentially swappable) fetching implementations for the various image formats.
 
-- A first initial design is proposed in https://github.com/coreos/rkt/pull/2964.
+- A first initial design is proposed in https://github.com/rkt/rkt/pull/2964.
 - The actual design document of the above PR can be found in [Documentation/proposal/fetchers_refactor.md](https://github.com/sgotti/rkt/blob/239fdff081f9fd47dd08834a5660a1375ea4771d/Documentation/proposal/fetchers_refactor.md).
-- A first initial implementation is proposed in https://github.com/coreos/rkt/pull/3232.
+- A first initial implementation is proposed in https://github.com/rkt/rkt/pull/3232.
 
 Note that the initial design and implementation are in very early stage and should only be considered inspirational. 
 
@@ -139,6 +139,6 @@ Backwards compatibility: Currently the biggest concern identified is backwards c
 [oci-algorithms]: https://github.com/opencontainers/image-spec/blob/v1.0.0-rc2/descriptor.md#algorithms
 [oci-image-layout]: https://github.com/opencontainers/image-spec/blob/v1.0.0-rc2/image-layout.md
 
-[app-container]: https://github.com/coreos/rkt/blob/v1.25.0/Documentation/app-container.md
-[image-lifecycle]: https://github.com/coreos/rkt/blob/v1.25.0/Documentation/devel/architecture.md#image-lifecycle
-[distribution-point]: https://github.com/coreos/rkt/blob/v1.25.0/Documentation/devel/distribution-point.md
+[app-container]: https://github.com/rkt/rkt/blob/v1.25.0/Documentation/app-container.md
+[image-lifecycle]: https://github.com/rkt/rkt/blob/v1.25.0/Documentation/devel/architecture.md#image-lifecycle
+[distribution-point]: https://github.com/rkt/rkt/blob/v1.25.0/Documentation/devel/distribution-point.md

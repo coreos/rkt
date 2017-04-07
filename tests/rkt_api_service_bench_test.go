@@ -23,8 +23,8 @@ import (
 	"testing"
 
 	"github.com/coreos/gexpect"
-	"github.com/coreos/rkt/api/v1alpha"
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/api/v1alpha"
+	"github.com/rkt/rkt/tests/testutils"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )

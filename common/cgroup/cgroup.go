@@ -21,9 +21,9 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/coreos/rkt/common/cgroup/v1"
-	"github.com/coreos/rkt/common/cgroup/v2"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/common/cgroup/v1"
+	"github.com/rkt/rkt/common/cgroup/v2"
 )
 
 const (

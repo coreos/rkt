@@ -20,12 +20,12 @@ import (
 	"time"
 
 	"github.com/appc/spec/schema"
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/pkg/lock"
-	pkgPod "github.com/coreos/rkt/pkg/pod"
-	"github.com/coreos/rkt/store/imagestore"
-	"github.com/coreos/rkt/store/treestore"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/pkg/lock"
+	pkgPod "github.com/rkt/rkt/pkg/pod"
+	"github.com/rkt/rkt/store/imagestore"
+	"github.com/rkt/rkt/store/treestore"
 	"github.com/spf13/cobra"
 )
 

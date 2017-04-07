@@ -19,8 +19,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/coreos/rkt/pkg/label"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/pkg/label"
 )
 
 // sanitizer defines a string translator used to escape colon and comma

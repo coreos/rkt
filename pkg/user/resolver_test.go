@@ -23,7 +23,7 @@ import (
 
 	osuser "os/user"
 
-	"github.com/coreos/rkt/pkg/user"
+	"github.com/rkt/rkt/pkg/user"
 )
 
 const (

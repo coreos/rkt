@@ -23,8 +23,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/coreos/rkt/pkg/aci/acitest"
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/pkg/aci/acitest"
+	"github.com/rkt/rkt/tests/testutils"
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"

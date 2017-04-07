@@ -21,7 +21,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/tests/testutils"
 )
 
 // TestPathsWrite checks whether access to paths like /proc/sysrq-trigger are
@@ -90,7 +90,7 @@ func TestPathsWrite(t *testing.T) {
 
 // TestProcPathsStat checks that access to inaccessible paths under
 // /proc or /sys is correctly restricted:
-// https://github.com/coreos/rkt/issues/2484
+// https://github.com/rkt/rkt/issues/2484
 func TestProcPathsStat(t *testing.T) {
 	tests := []struct {
 		Path         string

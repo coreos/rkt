@@ -34,9 +34,9 @@ import (
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
-	"github.com/coreos/rkt/common"
 	"github.com/gorilla/mux"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/common"
 	"github.com/spf13/cobra"
 )
 

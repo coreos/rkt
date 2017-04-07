@@ -17,7 +17,7 @@ package main
 import (
 	"os"
 
-	"github.com/coreos/rkt/pkg/multicall"
+	"github.com/rkt/rkt/pkg/multicall"
 )
 
 func main() {

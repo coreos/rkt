@@ -33,6 +33,6 @@ Other units being added can then contain a `After=rkt-install.service` (or
 whatever the service was named) to delay their running until rkt has been
 installed.
 
-[rkt-releases]: https://github.com/coreos/rkt/releases
+[rkt-releases]: https://github.com/rkt/rkt/releases
 [ignition]: https://coreos.com/ignition/docs/latest/
 [cloud-config]: https://coreos.com/os/docs/latest/cloud-config.html

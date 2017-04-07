@@ -19,7 +19,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/coreos/rkt/pkg/lock"
+	"github.com/rkt/rkt/pkg/lock"
 
 	_ "github.com/cznic/ql/driver"
 )

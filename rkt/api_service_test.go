@@ -20,8 +20,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/coreos/rkt/api/v1alpha"
-	"github.com/coreos/rkt/pkg/log"
+	"github.com/rkt/rkt/api/v1alpha"
+	"github.com/rkt/rkt/pkg/log"
 )
 
 func TestFilterPod(t *testing.T) {

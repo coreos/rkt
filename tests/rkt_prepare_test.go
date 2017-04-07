@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/tests/testutils"
 )
 
 // TestPrepareConflictingFlags tests that 'rkt prepare' will complain and abort

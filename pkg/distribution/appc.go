@@ -22,7 +22,7 @@ import (
 	"github.com/PuerkitoBio/purell"
 	"github.com/appc/spec/discovery"
 	"github.com/appc/spec/schema/types"
-	"github.com/coreos/rkt/common/labelsort"
+	"github.com/rkt/rkt/common/labelsort"
 )
 
 const (

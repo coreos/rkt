@@ -21,13 +21,14 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"strconv"
+
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/common/apps"
-	stage1types "github.com/coreos/rkt/stage1/common/types"
 	"github.com/hashicorp/errwrap"
-	"strconv"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/common/apps"
+	stage1types "github.com/rkt/rkt/stage1/common/types"
 )
 
 // CrossingEntrypoint represents a stage1 entrypoint whose execution

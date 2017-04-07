@@ -19,8 +19,8 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/coreos/rkt/common"
-	rktlog "github.com/coreos/rkt/pkg/log"
+	"github.com/rkt/rkt/common"
+	rktlog "github.com/rkt/rkt/pkg/log"
 )
 
 var (

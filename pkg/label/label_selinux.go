@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/coreos/rkt/pkg/selinux"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/pkg/selinux"
 )
 
 // InitLabels returns the process label and file labels to be used within

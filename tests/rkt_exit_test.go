@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/tests/testutils"
 )
 
 // TestExitCodeSimple is testing a few exit codes on 1 pod containing just 1 app
@@ -82,6 +82,6 @@ func TestExitCodeWithSeveralApps(t *testing.T) {
 	checkAppStatus(t, ctx, true, "hello1", "status=5")
 	// Currently, hello2 should be stopped correctly (exit code 0) when hello1
 	// failed, so it cannot return its exit code 2. This might change with
-	// https://github.com/coreos/rkt/issues/1461
+	// https://github.com/rkt/rkt/issues/1461
 	checkAppStatus(t, ctx, true, "hello2", "status=0")
 }

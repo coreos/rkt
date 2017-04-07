@@ -20,8 +20,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/coreos/rkt/stage1/init/kvm"
-	"github.com/coreos/rkt/stage1/init/kvm/hypervisor"
+	"github.com/rkt/rkt/stage1/init/kvm"
+	"github.com/rkt/rkt/stage1/init/kvm/hypervisor"
 )
 
 // StartCmd takes path to stage1, name of the machine, path to kernel, network describers, memory in megabytes

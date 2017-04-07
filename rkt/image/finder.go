@@ -17,8 +17,8 @@ package image
 import (
 	"fmt"
 
-	"github.com/coreos/rkt/common/apps"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/common/apps"
 
 	"github.com/appc/spec/schema/types"
 )

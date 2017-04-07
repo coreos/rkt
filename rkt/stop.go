@@ -19,9 +19,9 @@ package main
 import (
 	"fmt"
 
-	"github.com/coreos/rkt/stage0"
+	"github.com/rkt/rkt/stage0"
 
-	pkgPod "github.com/coreos/rkt/pkg/pod"
+	pkgPod "github.com/rkt/rkt/pkg/pod"
 	"github.com/spf13/cobra"
 )
 

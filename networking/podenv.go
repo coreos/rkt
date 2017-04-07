@@ -33,8 +33,8 @@ import (
 
 	"github.com/containernetworking/cni/pkg/ns"
 
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/networking/netinfo"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/networking/netinfo"
 )
 
 const (

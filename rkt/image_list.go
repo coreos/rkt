@@ -21,13 +21,13 @@ import (
 	"strings"
 	"time"
 
-	rktlib "github.com/coreos/rkt/lib"
-	rktflag "github.com/coreos/rkt/pkg/flag"
-	"github.com/coreos/rkt/store/imagestore"
-	"github.com/dustin/go-humanize"
+	rktlib "github.com/rkt/rkt/lib"
+	rktflag "github.com/rkt/rkt/pkg/flag"
+	"github.com/rkt/rkt/store/imagestore"
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/lastditch"
+	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 )
 

@@ -21,8 +21,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	_common "github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/pkg/fs"
+	_common "github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/pkg/fs"
 )
 
 /*

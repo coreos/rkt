@@ -24,9 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/rkt/pkg/aci"
-	"github.com/coreos/rkt/pkg/aci/acitest"
-	"github.com/coreos/rkt/pkg/multicall"
+	"github.com/rkt/rkt/pkg/aci"
+	"github.com/rkt/rkt/pkg/aci/acitest"
+	"github.com/rkt/rkt/pkg/multicall"
 
 	"github.com/appc/spec/schema/types"
 )

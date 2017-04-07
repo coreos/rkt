@@ -34,7 +34,7 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/hashicorp/errwrap"
 
-	"github.com/coreos/rkt/pkg/fileutil"
+	"github.com/rkt/rkt/pkg/fileutil"
 )
 
 const (

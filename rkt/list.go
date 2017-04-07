@@ -26,11 +26,11 @@ import (
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/lastditch"
 	"github.com/appc/spec/schema/types"
-	lib "github.com/coreos/rkt/lib"
-	"github.com/coreos/rkt/networking/netinfo"
-	pkgPod "github.com/coreos/rkt/pkg/pod"
 	"github.com/dustin/go-humanize"
 	"github.com/hashicorp/errwrap"
+	lib "github.com/rkt/rkt/lib"
+	"github.com/rkt/rkt/networking/netinfo"
+	pkgPod "github.com/rkt/rkt/pkg/pod"
 	"github.com/spf13/cobra"
 )
 

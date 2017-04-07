@@ -21,7 +21,7 @@ import (
 	"os"
 	"syscall"
 
-	rktlog "github.com/coreos/rkt/pkg/log"
+	rktlog "github.com/rkt/rkt/pkg/log"
 )
 
 var (

@@ -22,7 +22,7 @@ import (
 	"testing"
 
 	"github.com/appc/spec/schema/types"
-	"github.com/coreos/rkt/pkg/lock"
+	"github.com/rkt/rkt/pkg/lock"
 )
 
 func TestWalkPods(t *testing.T) {

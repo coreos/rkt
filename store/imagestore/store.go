@@ -29,9 +29,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/coreos/rkt/pkg/backup"
-	"github.com/coreos/rkt/pkg/lock"
-	"github.com/coreos/rkt/store/db"
+	"github.com/rkt/rkt/pkg/backup"
+	"github.com/rkt/rkt/pkg/lock"
+	"github.com/rkt/rkt/store/db"
 
 	"github.com/appc/spec/aci"
 	"github.com/appc/spec/schema"

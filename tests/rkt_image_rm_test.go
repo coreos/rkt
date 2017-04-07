@@ -26,7 +26,7 @@ import (
 
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/gexpect"
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/tests/testutils"
 )
 
 const (

@@ -38,11 +38,11 @@ import (
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/gexpect"
-	"github.com/coreos/rkt/api/v1alpha"
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/tests/testutils"
-	taas "github.com/coreos/rkt/tests/testutils/aci-server"
 	shellquote "github.com/kballard/go-shellquote"
+	"github.com/rkt/rkt/api/v1alpha"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/tests/testutils"
+	taas "github.com/rkt/rkt/tests/testutils/aci-server"
 	"google.golang.org/grpc"
 )
 

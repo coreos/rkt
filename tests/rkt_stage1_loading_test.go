@@ -27,9 +27,9 @@ import (
 	"testing"
 
 	"github.com/coreos/gexpect"
-	"github.com/coreos/rkt/rkt/config"
-	"github.com/coreos/rkt/tests/testutils"
-	taas "github.com/coreos/rkt/tests/testutils/aci-server"
+	"github.com/rkt/rkt/rkt/config"
+	"github.com/rkt/rkt/tests/testutils"
+	taas "github.com/rkt/rkt/tests/testutils/aci-server"
 )
 
 type stubStage1Reference int

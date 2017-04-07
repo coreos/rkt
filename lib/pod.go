@@ -14,7 +14,7 @@
 
 package rkt
 
-import pkgPod "github.com/coreos/rkt/pkg/pod"
+import pkgPod "github.com/rkt/rkt/pkg/pod"
 
 // NewPodFromInternalPod converts *pkgPod.Pod to *Pod
 func NewPodFromInternalPod(p *pkgPod.Pod) (*Pod, error) {

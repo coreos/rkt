@@ -1,5 +1,5 @@
 AC_PREREQ([2.63])
-AC_INIT([rkt], [1.25.0+git], [https://github.com/coreos/rkt/issues])
+AC_INIT([rkt], [1.25.0+git], [https://github.com/rkt/rkt/issues])
 
 AC_PROG_CC
 AC_PROG_CXX
@@ -773,7 +773,7 @@ RKT_STAGE1_DEFAULT_LOCATION_LDFLAGS="-X 'main.buildDefaultStage1ImageLoc=${RKT_S
 RKT_STAGE1_DEFAULT_IMAGE_FILENAME_LDFLAGS="-X 'main.buildDefaultStage1ImageInRktDir=${RKT_STAGE1_DEFAULT_IMAGE_FILENAME_IN_RKT_DIRECTORY}'"
 RKT_STAGE1_DEFAULT_IMAGES_DIRECTORY_LDFLAGS="-X 'main.buildDefaultStage1ImagesDir=${RKT_STAGE1_DEFAULT_IMAGES_DIR}'"
 RKT_STAGE1_INTERPRETER_LDFLAGS="-X 'main.interpBin=${RKT_STAGE1_INTERPRETER}'"
-RKT_VERSION_LDFLAGS="-X 'github.com/coreos/rkt/version.Version=${RKT_VERSION}'"
+RKT_VERSION_LDFLAGS="-X 'github.com/rkt/rkt/version.Version=${RKT_VERSION}'"
 RKT_FEATURES_LDFLAGS="-X 'main.rktFeatures=${RKT_FEATURES}'"
 
 #### SUBSTITUTIONS

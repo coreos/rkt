@@ -33,9 +33,9 @@ import (
 
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/go-systemd/daemon"
-	rktlog "github.com/coreos/rkt/pkg/log"
-	stage1initcommon "github.com/coreos/rkt/stage1/init/common"
 	"github.com/kr/pty"
+	rktlog "github.com/rkt/rkt/pkg/log"
+	stage1initcommon "github.com/rkt/rkt/stage1/init/common"
 )
 
 var (

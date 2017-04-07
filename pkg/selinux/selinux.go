@@ -31,7 +31,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/coreos/rkt/pkg/fileutil"
+	"github.com/rkt/rkt/pkg/fileutil"
 )
 
 const (

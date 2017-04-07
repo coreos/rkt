@@ -17,7 +17,7 @@ package flag
 import (
 	"strings"
 
-	pkgflag "github.com/coreos/rkt/pkg/flag"
+	pkgflag "github.com/rkt/rkt/pkg/flag"
 )
 
 const (

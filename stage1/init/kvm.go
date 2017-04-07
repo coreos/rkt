@@ -26,13 +26,13 @@ import (
 
 	"github.com/appc/spec/schema"
 	"github.com/coreos/go-systemd/util"
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/networking"
-	"github.com/coreos/rkt/pkg/mountinfo"
-	stage1commontypes "github.com/coreos/rkt/stage1/common/types"
-	stage1initcommon "github.com/coreos/rkt/stage1/init/common"
-	"github.com/coreos/rkt/stage1/init/kvm"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/networking"
+	"github.com/rkt/rkt/pkg/mountinfo"
+	stage1commontypes "github.com/rkt/rkt/stage1/common/types"
+	stage1initcommon "github.com/rkt/rkt/stage1/init/common"
+	"github.com/rkt/rkt/stage1/init/kvm"
 )
 
 const journalDir = "/var/log/journal"

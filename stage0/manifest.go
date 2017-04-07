@@ -24,8 +24,8 @@ import (
 	"strconv"
 
 	"github.com/appc/spec/schema"
-	"github.com/coreos/rkt/common"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/common"
 )
 
 const (

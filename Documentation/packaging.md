@@ -61,7 +61,7 @@ A few [example systemd unit files for rkt helper services][rkt-units] are includ
 [rkt-gc]: subcommands/gc.md
 [rkt-metadata-svc]: subcommands/metadata-service.md
 [api-service]: subcommands/api-service.md
-[rkt-units]: https://github.com/coreos/rkt/tree/master/dist/init/systemd
-[rkt-vendor]: https://github.com/coreos/rkt/tree/master/vendor
+[rkt-units]: https://github.com/rkt/rkt/tree/master/dist/init/systemd
+[rkt-vendor]: https://github.com/rkt/rkt/tree/master/vendor
 [run-deps]: dependencies.md#run-time-dependencies
-[rkt-dirs]: https://github.com/coreos/rkt/blob/master/dist/init/systemd/tmpfiles.d/rkt.conf
+[rkt-dirs]: https://github.com/rkt/rkt/blob/master/dist/init/systemd/tmpfiles.d/rkt.conf

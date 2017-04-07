@@ -22,8 +22,8 @@ import (
 	"strconv"
 	"time"
 
-	lib "github.com/coreos/rkt/lib"
-	pkgPod "github.com/coreos/rkt/pkg/pod"
+	lib "github.com/rkt/rkt/lib"
+	pkgPod "github.com/rkt/rkt/pkg/pod"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/context"
 )

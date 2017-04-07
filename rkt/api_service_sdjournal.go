@@ -23,9 +23,9 @@ import (
 	"time"
 
 	"github.com/coreos/go-systemd/sdjournal"
-	"github.com/coreos/rkt/api/v1alpha"
-	"github.com/coreos/rkt/common"
-	pkgPod "github.com/coreos/rkt/pkg/pod"
+	"github.com/rkt/rkt/api/v1alpha"
+	"github.com/rkt/rkt/common"
+	pkgPod "github.com/rkt/rkt/pkg/pod"
 )
 
 func (s *v1AlphaAPIServer) constrainedGetLogs(request *v1alpha.GetLogsRequest, server v1alpha.PublicAPI_GetLogsServer) error {

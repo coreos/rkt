@@ -31,11 +31,11 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/hashicorp/errwrap"
 
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/common/cgroup"
-	"github.com/coreos/rkt/common/cgroup/v1"
-	"github.com/coreos/rkt/networking"
-	rktlog "github.com/coreos/rkt/pkg/log"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/common/cgroup"
+	"github.com/rkt/rkt/common/cgroup/v1"
+	"github.com/rkt/rkt/networking"
+	rktlog "github.com/rkt/rkt/pkg/log"
 )
 
 const (
@@ -121,7 +121,7 @@ func gcNetworking(podID *types.UUID) error {
 func removeJournalLink(uuid *types.UUID) error {
 	// if the host runs systemd, we link the journal and set pod's machine-id
 	// as pod's UUID without the dashes in init.go:
-	// https://github.com/coreos/rkt/blob/95e6bc/stage1/init/init.go#L382
+	// https://github.com/rkt/rkt/blob/95e6bc/stage1/init/init.go#L382
 	machineID := strings.Replace(uuid.String(), "-", "", -1)
 	journalLink := filepath.Join("/var/log/journal", machineID)
 	err := os.Remove(journalLink)

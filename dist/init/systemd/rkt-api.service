@@ -1,6 +1,6 @@
 [Unit]
 Description=rkt api service
-Documentation=http://github.com/coreos/rkt
+Documentation=http://github.com/rkt/rkt
 After=network.target rkt-api-tcp.socket
 Requires=rkt-api-tcp.socket
 

@@ -22,11 +22,11 @@ import (
 	"strings"
 
 	"github.com/appc/spec/schema/types"
-	"github.com/coreos/rkt/rkt/config"
-	"github.com/coreos/rkt/rkt/image"
-	"github.com/coreos/rkt/store/imagestore"
-	"github.com/coreos/rkt/store/treestore"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/rkt/config"
+	"github.com/rkt/rkt/rkt/image"
+	"github.com/rkt/rkt/store/imagestore"
+	"github.com/rkt/rkt/store/treestore"
 	"github.com/spf13/pflag"
 )
 

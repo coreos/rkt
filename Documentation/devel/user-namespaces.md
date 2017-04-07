@@ -36,4 +36,4 @@ It would make it work with overlayfs.
 When mounting a volume from the host into the pod, the ownership of the files is not shifted, so it makes volumes difficult if not impossible to use with user namespaces.
 The same kernel support should help here too ([#1057][rkt-1057]).
 
-[rkt-1057]: https://github.com/coreos/rkt/issues/1057
+[rkt-1057]: https://github.com/rkt/rkt/issues/1057

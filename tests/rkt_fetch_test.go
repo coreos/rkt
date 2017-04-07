@@ -30,10 +30,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/pkg/aci/acitest"
-	"github.com/coreos/rkt/tests/testutils"
-	taas "github.com/coreos/rkt/tests/testutils/aci-server"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/pkg/aci/acitest"
+	"github.com/rkt/rkt/tests/testutils"
+	taas "github.com/rkt/rkt/tests/testutils/aci-server"
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
@@ -113,7 +113,7 @@ func TestFetchAny(t *testing.T) {
 		{"--insecure-options=image --debug prepare", "https://github.com/coreos/etcd/releases/download/v2.1.2/etcd-v2.1.2-linux-amd64.aci", "", "https://github.com/coreos/etcd/releases/download/v2.1.2/etcd-v2.1.2-linux-amd64.aci"},
 		{"--insecure-options=image --debug prepare", "coreos.com/etcd:v2.1.2", "", "https://github.com/coreos/etcd/releases/download/v2.1.2/etcd-v2.1.2-linux-amd64.aci"},
 		// test --insecure-options=tls to make sure
-		// https://github.com/coreos/rkt/issues/1829 is not an issue anymore
+		// https://github.com/rkt/rkt/issues/1829 is not an issue anymore
 		{"--insecure-options=image,tls --debug prepare", "docker://busybox", "", "docker://busybox"},
 		{"--insecure-options=image --debug prepare", "docker://busybox:latest", "", "docker://busybox:latest"},
 	}

@@ -20,8 +20,8 @@ import (
 	"os"
 
 	"github.com/appc/spec/schema"
-	"github.com/coreos/rkt/common"
-	pkgPod "github.com/coreos/rkt/pkg/pod"
+	"github.com/rkt/rkt/common"
+	pkgPod "github.com/rkt/rkt/pkg/pod"
 )
 
 // AppsForPod returns the apps of the pod with the given uuid in the given data directory.

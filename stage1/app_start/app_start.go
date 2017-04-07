@@ -22,9 +22,9 @@ import (
 	"os"
 	"os/exec"
 
-	rktlog "github.com/coreos/rkt/pkg/log"
-	stage1common "github.com/coreos/rkt/stage1/common"
-	stage1initcommon "github.com/coreos/rkt/stage1/init/common"
+	rktlog "github.com/rkt/rkt/pkg/log"
+	stage1common "github.com/rkt/rkt/stage1/common"
+	stage1initcommon "github.com/rkt/rkt/stage1/init/common"
 
 	"github.com/appc/spec/schema/types"
 )

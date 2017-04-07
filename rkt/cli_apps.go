@@ -22,8 +22,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/coreos/rkt/common/apps"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/common/apps"
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"

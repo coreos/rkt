@@ -21,8 +21,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/coreos/rkt/pkg/group"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/pkg/group"
 )
 
 const casDbPerm = os.FileMode(0660)

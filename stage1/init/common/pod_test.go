@@ -21,7 +21,7 @@ import (
 	"regexp"
 	"testing"
 
-	stage1commontypes "github.com/coreos/rkt/stage1/common/types"
+	stage1commontypes "github.com/rkt/rkt/stage1/common/types"
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"

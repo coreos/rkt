@@ -1,6 +1,6 @@
 [Unit]
 Description=rkt metadata service
-Documentation=http://github.com/coreos/rkt
+Documentation=http://github.com/rkt/rkt
 After=network.target rkt-metadata.socket
 Requires=rkt-metadata.socket
 

@@ -20,7 +20,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/coreos/rkt/tools/common"
+	"github.com/rkt/rkt/tools/common"
 )
 
 var cmds = make(map[string]func([]string) string)

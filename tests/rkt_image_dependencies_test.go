@@ -23,10 +23,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/pkg/aci/acitest"
-	"github.com/coreos/rkt/tests/testutils"
-	taas "github.com/coreos/rkt/tests/testutils/aci-server"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/pkg/aci/acitest"
+	"github.com/rkt/rkt/tests/testutils"
+	taas "github.com/rkt/rkt/tests/testutils/aci-server"
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
@@ -77,7 +77,7 @@ func generateComplexDependencyTree(t *testing.T, ctx *testutils.RktRunCtx) (map[
 	emptyImage := getEmptyImagePath()
 	fileSet := make(map[string]string)
 
-	// Scenario from https://github.com/coreos/rkt/issues/1752#issue-117121841
+	// Scenario from https://github.com/rkt/rkt/issues/1752#issue-117121841
 	//
 	// A->B
 	// A->C
@@ -183,7 +183,7 @@ func generateComplexDependencyTree(t *testing.T, ctx *testutils.RktRunCtx) (map[
 // fetches them via the discovery mechanism. Some dependencies are already
 // cached in the CAS, and some dependencies are fetched via the discovery
 // mechanism. This is to reproduce the scenario in explained in:
-// https://github.com/coreos/rkt/issues/1752#issue-117121841
+// https://github.com/rkt/rkt/issues/1752#issue-117121841
 func TestImageDependencies(t *testing.T) {
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()

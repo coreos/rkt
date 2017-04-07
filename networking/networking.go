@@ -29,10 +29,10 @@ import (
 	"github.com/hashicorp/errwrap"
 	"github.com/vishvananda/netlink"
 
-	"github.com/coreos/rkt/common"
-	commonnet "github.com/coreos/rkt/common/networking"
-	"github.com/coreos/rkt/networking/netinfo"
-	"github.com/coreos/rkt/pkg/log"
+	"github.com/rkt/rkt/common"
+	commonnet "github.com/rkt/rkt/common/networking"
+	"github.com/rkt/rkt/networking/netinfo"
+	"github.com/rkt/rkt/pkg/log"
 )
 
 const (

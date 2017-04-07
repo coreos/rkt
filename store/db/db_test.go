@@ -22,7 +22,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/tests/testutils"
 )
 
 func queryValue(query string, tx *sql.Tx) (int, error) {

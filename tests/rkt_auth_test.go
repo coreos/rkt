@@ -23,8 +23,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/coreos/rkt/tests/testutils"
-	taas "github.com/coreos/rkt/tests/testutils/aci-server"
+	"github.com/rkt/rkt/tests/testutils"
+	taas "github.com/rkt/rkt/tests/testutils/aci-server"
 )
 
 func TestAuthSanity(t *testing.T) {

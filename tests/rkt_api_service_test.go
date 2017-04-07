@@ -31,9 +31,9 @@ import (
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
 	"github.com/coreos/gexpect"
-	"github.com/coreos/rkt/api/v1alpha"
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/api/v1alpha"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/tests/testutils"
 	"golang.org/x/net/context"
 )
 

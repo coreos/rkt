@@ -132,7 +132,7 @@ endef
 
 # This shortens the paths by removing the vendor part. So it
 # truncates
-# github.com/coreos/rkt/vendor/github.com/appc/spec/schema
+# github.com/rkt/rkt/vendor/github.com/appc/spec/schema
 # to <VENDOR>/github.com/appc/spec/schema.
 define vsg
 $(subst $(REPO_PATH)/vendor,<VENDOR>,$1)

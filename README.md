@@ -1,8 +1,8 @@
 # rkt - the pod-native container engine
 
-[![godoc](https://godoc.org/github.com/coreos/rkt?status.svg)](http://godoc.org/github.com/coreos/rkt)
-[![Build Status (Travis)](https://travis-ci.org/coreos/rkt.svg?branch=master)](https://travis-ci.org/coreos/rkt)
-[![Build Status (SemaphoreCI)](https://semaphoreci.com/api/v1/projects/28468e19-4fd0-483e-9c29-6c8368661333/395211/badge.svg)](https://semaphoreci.com/coreos/rkt)
+[![godoc](https://godoc.org/github.com/rkt/rkt?status.svg)](http://godoc.org/github.com/rkt/rkt)
+[![Build Status (Travis)](https://travis-ci.org/rkt/rkt.svg?branch=master)](https://travis-ci.org/rkt/rkt)
+[![Build Status (SemaphoreCI)](https://semaphoreci.com/api/v1/rkt/rkt/branches/master/badge.svg)](https://semaphoreci.com/rkt/rkt)
 [![Build Status (Jenkins)](https://jenkins-rkt-public.prod.coreos.systems/job/rkt-master-periodic/badge/icon)](https://jenkins-rkt-public.prod.coreos.systems/view/rkt/job/rkt-master-periodic/)
 
 ![rkt Logo](logos/rkt-horizontal-color.png)
@@ -29,7 +29,7 @@ Some of rkt's key features and goals include:
 [selinux]: Documentation/selinux.md
 [tpm]: Documentation/devel/tpm.md
 [oci-image-spec]: https://github.com/opencontainers/image-spec
-[rkt-oci]: https://github.com/coreos/rkt/projects/4
+[rkt-oci]: https://github.com/rkt/rkt/projects/4
 
 ## Project status
 
@@ -56,10 +56,10 @@ The rkt developers also host a semi-regular community sync meeting open to the p
 This sync usually features demos, updates on the roadmap, and time for anyone from the community to ask questions of the developers or share users stories with others.
 For more details, including how to join and recordings of previous syncs, see the [sync doc on Google Docs][sync-doc].
 
-[new-issue]: https://github.com/coreos/rkt/issues/new
+[new-issue]: https://github.com/rkt/rkt/issues/new
 [rkt-dev]: https://groups.google.com/forum/?hl=en#!forum/rkt-dev
 [irc]: irc://irc.freenode.org:6667/#rkt-dev
-[milestones]: https://github.com/coreos/rkt/milestones
+[milestones]: https://github.com/rkt/rkt/milestones
 [sync-doc]: https://docs.google.com/document/d/1NT_J5X2QErtKgd8Y3TFXNknWhJx_yOCMJnq3Iy2jPgE/edit#
 
 ## Contributing to rkt
@@ -85,15 +85,15 @@ Due to limitations in the Linux kernel, using rkt's overlay support on top of an
 - the inner `/var/lib/rkt` directory needs to be mounted on a host volume.
 - the outer or inner rkt container needs to be started using `--no-overlay`.
 
-Due to a bug in the Linux kernel, using rkt when `/var/lib/rkt` is on btrfs requires Linux 4.5.2+ ([#2175](https://github.com/coreos/rkt/issues/2175)).
+Due to a bug in the Linux kernel, using rkt when `/var/lib/rkt` is on btrfs requires Linux 4.5.2+ ([#2175](https://github.com/rkt/rkt/issues/2175)).
 
-Due to a bug in the Linux kernel, using rkt's overlay support in conjunction with SELinux requires a set of patches that are only currently available on some Linux distributions (for example, [CoreOS Linux](https://github.com/coreos/coreos-overlay/tree/master/sys-kernel/coreos-sources/files)). Work is ongoing to merge this work into the mainline Linux kernel ([#1727](https://github.com/coreos/rkt/issues/1727#issuecomment-173203129)).
+Due to a bug in the Linux kernel, using rkt's overlay support in conjunction with SELinux requires a set of patches that are only currently available on some Linux distributions (for example, [CoreOS Linux](https://github.com/coreos/coreos-overlay/tree/master/sys-kernel/coreos-sources/files)). Work is ongoing to merge this work into the mainline Linux kernel ([#1727](https://github.com/rkt/rkt/issues/1727#issuecomment-173203129)).
 
-Linux 3.18+ is required to successfully garbage collect rkt pods when system services such as udevd are in a slave mount namespace (see [lazy umounts on unlinked files and directories](https://github.com/torvalds/linux/commit/8ed936b) and [#1922](https://github.com/coreos/rkt/issues/1922)).
+Linux 3.18+ is required to successfully garbage collect rkt pods when system services such as udevd are in a slave mount namespace (see [lazy umounts on unlinked files and directories](https://github.com/torvalds/linux/commit/8ed936b) and [#1922](https://github.com/rkt/rkt/issues/1922)).
 
 ## Related Links
 
 ### Integrations and Production Users
 
-- [Projects integrating with rkt](https://github.com/coreos/rkt/blob/master/Documentation/integrations.md)
-- [Production users](https://github.com/coreos/rkt/blob/master/Documentation/production-users.md)
+- [Projects integrating with rkt](https://github.com/rkt/rkt/blob/master/Documentation/integrations.md)
+- [Production users](https://github.com/rkt/rkt/blob/master/Documentation/production-users.md)

@@ -17,7 +17,7 @@ package main
 import (
 	"encoding/json"
 
-	pkgPod "github.com/coreos/rkt/pkg/pod"
+	pkgPod "github.com/rkt/rkt/pkg/pod"
 	"github.com/spf13/cobra"
 )
 

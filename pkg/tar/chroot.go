@@ -26,10 +26,10 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/coreos/rkt/pkg/multicall"
-	"github.com/coreos/rkt/pkg/sys"
-	"github.com/coreos/rkt/pkg/user"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/pkg/multicall"
+	"github.com/rkt/rkt/pkg/sys"
+	"github.com/rkt/rkt/pkg/user"
 )
 
 const (

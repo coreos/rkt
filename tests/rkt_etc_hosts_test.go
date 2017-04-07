@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/coreos/gexpect"
-	"github.com/coreos/rkt/tests/testutils"
+	"github.com/rkt/rkt/tests/testutils"
 )
 
 // stage1/prepare-app will populate /etc/hosts with a 127.0.0.1 entry when absent,
@@ -112,7 +112,7 @@ func TestEtcHosts(t *testing.T) {
 }
 
 // stage1/prepare-app will bind mount /proc/sys/kernel/hostname on /etc/hostname,
-// see https://github.com/coreos/rkt/issues/2657
+// see https://github.com/rkt/rkt/issues/2657
 var etcHostnameTests = []struct {
 	aciBuildArgs   []string
 	runArgs        []string

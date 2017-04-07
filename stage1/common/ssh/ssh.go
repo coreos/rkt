@@ -28,9 +28,9 @@ import (
 
 	"github.com/hashicorp/errwrap"
 
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/networking/netinfo"
-	"github.com/coreos/rkt/pkg/lock"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/networking/netinfo"
+	"github.com/rkt/rkt/pkg/lock"
 )
 
 const (

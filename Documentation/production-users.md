@@ -1,6 +1,6 @@
 # Production users
 
-This document tracks people and use cases for rkt in production. [Join the community](https://github.com/coreos/rkt/), and help us keep the list up-to-date.
+This document tracks people and use cases for rkt in production. [Join the community](https://github.com/rkt/rkt/), and help us keep the list up-to-date.
 
 ## [BlaBlaCar](https://www.blablacar.com/)
 

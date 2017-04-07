@@ -22,7 +22,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/coreos/rkt/common"
+	"github.com/rkt/rkt/common"
 
 	"github.com/appc/spec/schema/types"
 )

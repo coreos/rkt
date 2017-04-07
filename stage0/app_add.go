@@ -23,11 +23,11 @@ import (
 	"path/filepath"
 
 	"github.com/appc/spec/schema/types"
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/common/apps"
-	pkgPod "github.com/coreos/rkt/pkg/pod"
-	"github.com/coreos/rkt/pkg/user"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/common/apps"
+	pkgPod "github.com/rkt/rkt/pkg/pod"
+	"github.com/rkt/rkt/pkg/user"
 )
 
 type AddConfig struct {

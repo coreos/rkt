@@ -21,9 +21,9 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/coreos/rkt/pkg/fs"
-	rktlog "github.com/coreos/rkt/pkg/log"
-	"github.com/coreos/rkt/pkg/mountinfo"
+	"github.com/rkt/rkt/pkg/fs"
+	rktlog "github.com/rkt/rkt/pkg/log"
+	"github.com/rkt/rkt/pkg/mountinfo"
 )
 
 // ChrootPrivateUnmount cleans up in a safe way all mountpoints existing under

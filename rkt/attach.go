@@ -18,11 +18,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/coreos/rkt/common"
-	pkgPod "github.com/coreos/rkt/pkg/pod"
-	"github.com/coreos/rkt/stage0"
-	"github.com/coreos/rkt/store/imagestore"
-	"github.com/coreos/rkt/store/treestore"
+	"github.com/rkt/rkt/common"
+	pkgPod "github.com/rkt/rkt/pkg/pod"
+	"github.com/rkt/rkt/stage0"
+	"github.com/rkt/rkt/store/imagestore"
+	"github.com/rkt/rkt/store/treestore"
 	"github.com/spf13/cobra"
 )
 

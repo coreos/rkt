@@ -28,9 +28,9 @@ import (
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/pkg/user"
-	stage1commontypes "github.com/coreos/rkt/stage1/common/types"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/pkg/user"
+	stage1commontypes "github.com/rkt/rkt/stage1/common/types"
 
 	"github.com/coreos/go-systemd/unit"
 	"github.com/hashicorp/errwrap"

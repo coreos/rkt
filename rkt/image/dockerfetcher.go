@@ -24,10 +24,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/rkt/rkt/config"
-	rktflag "github.com/coreos/rkt/rkt/flag"
-	"github.com/coreos/rkt/store/imagestore"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/rkt/config"
+	rktflag "github.com/rkt/rkt/rkt/flag"
+	"github.com/rkt/rkt/store/imagestore"
 
 	docker2aci "github.com/appc/docker2aci/lib"
 	d2acommon "github.com/appc/docker2aci/lib/common"

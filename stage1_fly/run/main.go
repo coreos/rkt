@@ -29,17 +29,17 @@ import (
 	"github.com/appc/spec/schema/types"
 	"github.com/hashicorp/errwrap"
 
-	"github.com/coreos/rkt/common"
-	"github.com/coreos/rkt/pkg/fileutil"
-	pkgflag "github.com/coreos/rkt/pkg/flag"
-	"github.com/coreos/rkt/pkg/fs"
-	rktlog "github.com/coreos/rkt/pkg/log"
-	"github.com/coreos/rkt/pkg/mountinfo"
-	"github.com/coreos/rkt/pkg/sys"
-	"github.com/coreos/rkt/pkg/user"
-	stage1common "github.com/coreos/rkt/stage1/common"
-	stage1commontypes "github.com/coreos/rkt/stage1/common/types"
-	stage1initcommon "github.com/coreos/rkt/stage1/init/common"
+	"github.com/rkt/rkt/common"
+	"github.com/rkt/rkt/pkg/fileutil"
+	pkgflag "github.com/rkt/rkt/pkg/flag"
+	"github.com/rkt/rkt/pkg/fs"
+	rktlog "github.com/rkt/rkt/pkg/log"
+	"github.com/rkt/rkt/pkg/mountinfo"
+	"github.com/rkt/rkt/pkg/sys"
+	"github.com/rkt/rkt/pkg/user"
+	stage1common "github.com/rkt/rkt/stage1/common"
+	stage1commontypes "github.com/rkt/rkt/stage1/common/types"
+	stage1initcommon "github.com/rkt/rkt/stage1/init/common"
 )
 
 const (
@@ -76,7 +76,7 @@ func parseFlags() *stage1commontypes.RuntimePod {
 	flag.BoolVar(&debug, "debug", false, "Run in debug mode")
 
 	// The following flags need to be supported by stage1 according to
-	// https://github.com/coreos/rkt/blob/master/Documentation/devel/stage1-implementors-guide.md
+	// https://github.com/rkt/rkt/blob/master/Documentation/devel/stage1-implementors-guide.md
 	// Most of them are ignored
 	// These are ignored, but stage0 always passes them
 	flag.Var(&discardNetlist, "net", "Setup networking")

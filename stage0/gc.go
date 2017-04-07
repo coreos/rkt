@@ -24,8 +24,8 @@ import (
 	"path/filepath"
 
 	"github.com/appc/spec/schema/types"
-	"github.com/coreos/rkt/common"
 	"github.com/hashicorp/errwrap"
+	"github.com/rkt/rkt/common"
 )
 
 // GC enters the pod by fork/exec()ing the stage1's /gc similar to /init.

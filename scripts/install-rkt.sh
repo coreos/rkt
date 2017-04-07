@@ -21,8 +21,8 @@ apt-get install -y --no-install-recommends \
 curl -sSL https://coreos.com/dist/pubkeys/app-signing-pubkey.gpg | gpg2 --import -
 key=$(gpg2 --with-colons --keyid-format LONG -k security@coreos.com | egrep ^pub | cut -d ':' -f5)
 
-wget --progress=bar:force https://github.com/coreos/rkt/releases/download/v"${version}"/rkt-v"${version}".tar.gz
-wget --progress=bar:force https://github.com/coreos/rkt/releases/download/v"${version}"/rkt-v"${version}".tar.gz.asc
+wget --progress=bar:force https://github.com/rkt/rkt/releases/download/v"${version}"/rkt-v"${version}".tar.gz
+wget --progress=bar:force https://github.com/rkt/rkt/releases/download/v"${version}"/rkt-v"${version}".tar.gz.asc
 gpg2 --trusted-key "${key}" --verify-files *.asc
 
 tar xvzf rkt-v"${version}".tar.gz

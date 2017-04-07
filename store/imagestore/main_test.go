@@ -28,7 +28,7 @@ func interestingGoroutines() (gs []string) {
 			strings.Contains(stack, "created by testing.RunTests") ||
 			strings.Contains(stack, "testing.Main(") ||
 			strings.Contains(stack, "runtime.goexit") ||
-			strings.Contains(stack, "github.com/coreos/rkt/store/imagestore.interestingGoroutines") ||
+			strings.Contains(stack, "github.com/rkt/rkt/store/imagestore.interestingGoroutines") ||
 			strings.Contains(stack, "created by runtime.gc") ||
 			strings.Contains(stack, "runtime.MHeap_Scavenger") {
 			continue

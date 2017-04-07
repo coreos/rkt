@@ -80,8 +80,8 @@ This is not implemented yet.
 This could be implemented with cgroups.
 
 [cgroups]: https://www.kernel.org/doc/Documentation/cgroup-v1/cgroups.txt
-[machinedRegister]: https://github.com/coreos/rkt/blob/master/stage1/init/init.go#L153
+[machinedRegister]: https://github.com/rkt/rkt/blob/master/stage1/init/init.go#L153
 [network-isolator]: https://github.com/appc/spec/blob/master/spec/ace.md#resourcenetwork-bandwidth
-[rkt-1757]: https://github.com/coreos/rkt/issues/1757
-[rkt-1844]: https://github.com/coreos/rkt/pull/1844
+[rkt-1757]: https://github.com/rkt/rkt/issues/1757
+[rkt-1844]: https://github.com/rkt/rkt/pull/1844
 [rkt-systemd]: ../using-rkt-with-systemd.md

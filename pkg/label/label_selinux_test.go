@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/coreos/rkt/pkg/selinux"
+	"github.com/rkt/rkt/pkg/selinux"
 )
 
 func TestInit(t *testing.T) {
