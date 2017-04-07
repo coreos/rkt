@@ -19,7 +19,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"syscall"
 
 	"github.com/containernetworking/cni/pkg/types"
 )
@@ -45,19 +44,6 @@ type NetInfo struct {
 	HostIP     net.IP          `json:"-"`
 	IP4        *types.IPConfig `json:"-"`
 	DNS        types.DNS       `json:"-"`
-}
-
-func LoadAt(cdirfd int) ([]NetInfo, error) {
-	fd, err := syscall.Openat(cdirfd, filename, syscall.O_RDONLY, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	f := os.NewFile(uintptr(fd), filename)
-
-	var info []NetInfo
-	err = json.NewDecoder(f).Decode(&info)
-	return info, err
 }
 
 func Save(root string, info []NetInfo) error {

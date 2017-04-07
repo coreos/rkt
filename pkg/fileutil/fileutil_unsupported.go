@@ -42,3 +42,12 @@ func Lgetxattr(path string, attr string) ([]byte, error) {
 func Lsetxattr(path string, attr string, data []byte, flags int) error {
 	return ErrNotSupportedPlatform
 }
+
+func pathToTimespec(name string) ([]syscall.Timespec, error) {
+	fi, err := os.Lstat(name)
+	if err != nil {
+		return nil, err
+	}
+	stat := fi.Sys().(*syscall.Stat_t)
+	return []syscall.Timespec{stat.Atimespec, stat.Mtimespec}, nil
+}
