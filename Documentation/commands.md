@@ -26,6 +26,7 @@ To use rkt's [metadata service][metadata-spec], enable registration with the `--
 * [enter](subcommands/enter.md)
 * [prepare](subcommands/prepare.md)
 * [run-prepared](subcommands/run-prepared.md)
+* [cp](subcommands/cp.md)
 
 ## Pod inspection and management
 
@@ -70,7 +71,7 @@ In addition to the flags used by individual `rkt` commands, `rkt` has a set of g
 | `--cpuprofile (hidden flag)` | ''  | A file path | Write CPU profile to the file |
 | `--debug` |  `false` | `true` or `false` | Prints out more debug information to `stderr` |
 | `--dir` | `/var/lib/rkt` | A directory path | Path to the `rkt` data directory |
-| `--insecure-options` |  none | **none**, **http**, **image**, **tls**, **pubkey**, **capabilities**, **paths**, **seccomp**, **all-fetch**, **all-run**, **all** <br/> More information below. | Comma-separated list of security features to disable |
+| `--insecure-options` |  none | **none**, **http**, **image**, **tls**, **ondisk**, **pubkey**, **capabilities**, **paths**, **seccomp**, **all-fetch**, **all-run**, **all** <br/> More information below. | Comma-separated list of security features to disable |
 | `--local-config` |  `/etc/rkt` | A directory path | Path to the local configuration directory |
 | `--memprofile (hidden flag)` | '' | A file path | Write memory profile to the file |
 | `--system-config` |  `/usr/lib/rkt` | A directory path | Path to the system configuration directory |
@@ -83,12 +84,13 @@ In addition to the flags used by individual `rkt` commands, `rkt` has a set of g
 - **http**: Allow HTTP connections. Be warned that this will send any credentials as clear text, allowing anybody with access to your network to obtain them. It will also perform no validation of the remote server, making it possible for an attacker to impersonate the remote server. This applies specifically to fetching images, signatures, and gpg pubkeys.
 - **image**: Disables verifying image signatures. If someone is able to replace the image on the server with a modified one or is in a position to impersonate the server, they will be able to force you to run arbitrary code.
 - **tls**: Accept any certificate from the server and any host name in that certificate. This will make it possible for attackers to spoof the remote server and provide malicious images.
+- **ondisk**: Disables verifying the integrity of the on-disk, rendered image before running. This significantly speeds up start time. If an attacker is able to modify the contents of your local filesystem, this will allow them to cause you to run arbitrary malicious code.
 - **pubkey**: Allow fetching pubkeys via insecure connections (via HTTP connections or from servers with unverified certificates). This slightly extends the meaning of the `--trust-keys-from-https` flag. This will make it possible for an attacker to spoof the remote server, potentially providing fake keys and allowing them to provide container images that have been tampered with.
 - **capabilities**: Gives all [capabilities][capabilities] to apps. This allows an attacker that is able to execute code in the container to trivially escalate to root privileges on the host. 
 - **paths**: Disables inaccessible and read-only paths. This makes it easier for an attacker who can gain control over a single container to execute code in the host system, potentially allowing them to escape from the container. This also leaks additional information.
 - **seccomp**: Disables [seccomp][seccomp]. This increases the attack surface available to an attacker who can gain control over a single container, potentially making it easier for them to escape from the container.
 - **all-fetch**: Disables the following security checks: image, tls, http
-- **all-run**: Disables the following security checks: capabilities, paths, seccomp
+- **all-run**: Disables the following security checks: ondisk, capabilities, paths, seccomp
 - **all**: Disables all security checks
 
 ## Logging
