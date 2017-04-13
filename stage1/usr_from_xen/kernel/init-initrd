@@ -1,0 +1,50 @@
+#!/bin/sh
+
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+if ! test -f /dev/xvda
+then
+    mknod /dev/xvda b 202 0
+fi
+mknod -m 622 /dev/console c 5 1
+mknod -m 666 /dev/null c 1 3
+mknod -m 666 /dev/zero c 1 5
+mknod -m 666 /dev/ptmx c 5 2
+mknod -m 666 /dev/tty c 5 0
+mknod -m 444 /dev/random c 1 8
+mknod -m 444 /dev/urandom c 1 9
+touch /etc/fstab
+
+root=`cat /proc/cmdline | grep -o '\broot=[^ ]*' | cut -d = -f 2`
+if test -z "$root"
+then
+    exit 1
+fi
+
+if [ "$root" = "9p" ]
+then
+    mount -t 9p -o msize=131072,trans=xen share_dir /mnt
+else
+    mount $root /mnt
+fi
+
+mkdir /mnt/rootfs/dev &>/dev/null
+mkdir /mnt/rootfs/sys &>/dev/null
+mkdir /mnt/rootfs/proc &>/dev/null
+mount -o bind /dev /mnt/rootfs/dev
+mount -o bind /sys /mnt/rootfs/sys
+mount -o bind /proc /mnt/rootfs/proc
+
+ip=`cat /proc/cmdline | grep -o '\bip=[^ ]*' | cut -d = -f 2`
+gw=`cat /proc/cmdline | grep -o '\bgw=[^ ]*' | cut -d = -f 2`
+route=`cat /proc/cmdline | grep -o '\broute=[^ ]*' | cut -d = -f 2`
+if test "$ip"
+then
+	ifconfig eth0 $ip up
+	route add -net $route gw $gw eth0
+	mkdir -p /mnt/rootfs/etc
+	echo "nameserver 8.8.8.8" > /mnt/rootfs/etc/resolv.conf
+fi
+cmd=`cat /mnt/cmdline`
+echo "Executing $cmd"
+eval chroot /mnt/rootfs $cmd

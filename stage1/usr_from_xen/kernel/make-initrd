@@ -1,0 +1,31 @@
+#!/bin/bash
+
+outpath=`pwd`/stage1/usr_from_xen/kernel
+tmpdir=`mktemp -d`
+tmpfile=`mktemp`
+initrd=$outpath/initrd
+init=$outpath/init-initrd
+rm -rf $tmpdir
+
+mkdir -p $tmpdir/bin
+mkdir -p $tmpdir/sbin
+mkdir -p $tmpdir/etc
+mkdir -p $tmpdir/dev
+mkdir -p $tmpdir/proc
+mkdir -p $tmpdir/sys
+mkdir -p $tmpdir/lib
+mkdir -p $tmpdir/var
+mkdir -p $tmpdir/mnt
+cp `which busybox` $tmpdir/bin
+$tmpdir/bin/busybox --install $tmpdir/bin
+
+cp $init $tmpdir/init
+chmod +x $tmpdir/init
+
+cd $tmpdir
+find . | cpio --create --format='newc' > $tmpfile
+gzip < $tmpfile > $initrd
+sync
+
+rm -rf $tmpdir
+rm -rf $tmpfile

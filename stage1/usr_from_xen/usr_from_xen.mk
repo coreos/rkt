@@ -5,6 +5,7 @@ STAGE1_ENTER_CMD_xen := /enter
 STAGE1_STOP_CMD_xen := /stop
 
 UFK_INCLUDES := \
+	kernel.mk \
 	files.mk
 # This directory will be used by the build-usr.mk
 UFK_CBUDIR := $(UFK_TMPDIR)/cbu
