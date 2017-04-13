@@ -1,0 +1,19 @@
+#!/bin/bash
+
+domid=0
+
+for i in $*
+do
+    if [[ $i = --pid=* ]]
+    then
+        domid=${i#--pid=}
+    fi
+done
+
+if test $domid -eq 0
+then
+    exit 1
+fi
+
+xl console $domid
+

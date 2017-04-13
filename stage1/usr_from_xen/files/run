@@ -1,0 +1,70 @@
+#!/bin/bash
+
+dir=/var/lib/rkt/pods/run
+uuid=${@: -1}
+pod=$dir/$uuid
+stage1=$pod/stage1/rootfs
+# Assumes 1 App
+stage2m=$pod/pod
+gargs=""
+ip=""
+gw=""
+route=""
+bridge=""
+
+for i in $*
+do
+    if [ $i = "--interactive" ]
+    then
+        gargs="-c"
+    fi
+	if [[ $i = "ip="* ]]
+	then
+		ip=${i#ip=}
+	fi
+	if [[ $i = "gw="* ]]
+	then
+		gw=${i#gw=}
+	fi
+	if [[ $i = "route="* ]]
+	then
+		route=${i#route=}
+	fi
+	if [[ $i = "bridge="* ]]
+	then
+		bridge=${i#bridge=}
+	fi
+done
+
+appname=`cat $stage2m | chroot $stage1 /usr/bin/jq -r '.["apps"][0]["name"]'`
+cmdline=`cat $stage2m | chroot $stage1 /usr/bin/jq  -c -r '.["apps"][0]["app"]["exec"] | join("\" \"")'`
+cmdline="\"$cmdline\""
+stage2=$stage1/opt/stage2/$appname
+
+workpath=$stage1
+mkdir -p $workpath/out
+vmconfig=$workpath/vmconfig
+outconfig=$workpath/out/test.0
+mountpoint=$stage2
+
+rm $outconfig &> /dev/null
+echo "kernel='$workpath/bzImage'" >> $outconfig
+echo "ramdisk='$workpath/initrd'" >> $outconfig
+echo "memory = 1024" >> $outconfig
+echo "vcpus = 2" >> $outconfig
+echo "serial='pty'" >> $outconfig
+echo "boot='c'" >> $outconfig
+if test $bridge = "vif"
+then
+	echo "vif=['script=vif-nat,ip=$ip']" >> $outconfig
+else
+	echo "vif=['bridge=$bridge']" >> $outconfig
+fi
+echo "vfb=['vnc=1']" >> $outconfig
+echo "xen_9pfs=[ 'tag=share_dir,security_model=none,path=$mountpoint' ]" >> $outconfig
+echo extra=\'console=hvc0 root=9p ip=$ip gw=$gw route=$route\' >> $outconfig 
+echo "name=\"$uuid\"" >> $outconfig
+echo $cmdline > $mountpoint/cmdline
+xl create $gargs $workpath/out/test.0
+domid=`xl list | grep "$uuid" | awk '{print$2}'`
+echo $domid > $pod/pid
