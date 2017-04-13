@@ -15,6 +15,7 @@
 package networking
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -25,6 +26,7 @@ import (
 	"syscall"
 
 	"github.com/appc/spec/schema/types"
+	"github.com/containernetworking/cni/pkg/ip"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/hashicorp/errwrap"
 	"github.com/vishvananda/netlink"
@@ -60,6 +62,38 @@ var (
 	stderr   *log.Logger
 	debuglog bool
 )
+
+// vmSetupNetAddressing calls IPAM plugin (with a hack) to reserve an IP to be
+// used by newly create tuntap pair
+// in result it updates activeNet.runtime configuration
+func vmSetupNetAddressing(network *Networking, n activeNet, ifName string) error {
+	// TODO: very ugly hack, that go through upper plugin, down to ipam plugin
+	if err := ip.EnableIP4Forward(); err != nil {
+		return errwrap.Wrap(errors.New("failed to enable forwarding"), err)
+	}
+
+	// patch plugin type only for single IPAM run time, then revert this change
+	original_type := n.conf.Type
+	n.conf.Type = n.conf.IPAM.Type
+	output, err := network.execNetPlugin("ADD", &n, ifName)
+	n.conf.Type = original_type
+	if err != nil {
+		return errwrap.Wrap(fmt.Errorf("problem executing network plugin %q (%q)", n.conf.IPAM.Type, ifName), err)
+	}
+
+	result := cnitypes.Result{}
+	if err = json.Unmarshal(output, &result); err != nil {
+		return errwrap.Wrap(fmt.Errorf("error parsing %q result", n.conf.Name), err)
+	}
+
+	if result.IP4 == nil {
+		return fmt.Errorf("net-plugin returned no IPv4 configuration")
+	}
+
+	n.runtime.MergeCNIResult(result)
+
+	return nil
+}
 
 // Setup creates a new networking namespace and executes network plugins to
 // set up networking. It returns in the new pod namespace
