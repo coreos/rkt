@@ -79,7 +79,7 @@ AC_ARG_WITH([stage1-default-flavor],
 
 AC_ARG_WITH([stage1-flavors],
             [AS_HELP_STRING([--with-stage1-flavors],
-                            [comma-separated list of stage1 flavors; choose from 'src', 'coreos', 'host', 'kvm', 'fly'; default: 'coreos,kvm,fly'])],
+                            [comma-separated list of stage1 flavors; choose from 'src', 'coreos', 'host', 'kvm', 'xen', 'fly'; default: 'coreos,kvm,fly'])],
             [RKT_STAGE1_FLAVORS="${withval}"],
             [RKT_STAGE1_FLAVORS=auto])
 
@@ -266,7 +266,7 @@ AS_CASE([${RKT_STAGE1_DEFAULT_IMAGES_DIR}],
 ## Built stage1 flavors and hypervisors verification
 
 dnl a list of all flavors
-RKT_STAGE1_ALL_FLAVORS=coreos,kvm,host,src,fly
+RKT_STAGE1_ALL_FLAVORS=coreos,kvm,xen,host,src,fly
 
 dnl a list of all kvm hypervisors
 RKT_STAGE1_KVM_ALL_HV=lkvm,qemu
@@ -276,7 +276,7 @@ dnl additional string to an error message.
 AC_DEFUN([RKT_IS_VALID_FLAVOR],
          [AS_CASE([$1],
                   dnl Correct flavor, nothing to do.
-                  [coreos|kvm|host|src|fly],
+                  [coreos|kvm|xen|host|src|fly],
                           [],
                   dnl Bogus flavor, bail out.
                   [AC_MSG_ERROR([*** Unknown stage1 flavor "$1" $2])])])
@@ -346,6 +346,18 @@ RKT_ITERATE([${RKT_STAGE1_FLAVORS}],[flavor],
                                       RKT_REQ_PROG([PATCH],[patch],[patch])
                                       RKT_REQ_PROG([TAR],[tar],[tar])
                                       RKT_REQ_PROG([XZ],[xz],[xz])
+                                      AC_CHECK_HEADER([openssl/bio.h],
+                                                      [],
+                                                      [AC_MSG_ERROR([** No development headers for openssl found])],
+                                                      [AC_INCLUDES_DEFAULT])],
+                             [xen],
+                                     [AC_MSG_NOTICE([will build linux kernel from source, make sure that all their build requirements are fulfilled])
+                                      RKT_COMMON_COREOS_PROGS
+                                      RKT_REQ_PROG([PATCH],[patch],[patch])
+                                      RKT_REQ_PROG([TAR],[tar],[tar])
+                                      RKT_REQ_PROG([XZ],[xz],[xz])
+                                      RKT_REQ_PROG([JQ],[jq],[jq])
+                                      RKT_REQ_PROG([BUSYBOX],[busybox],[busybox])
                                       AC_CHECK_HEADER([openssl/bio.h],
                                                       [],
                                                       [AC_MSG_ERROR([** No development headers for openssl found])],

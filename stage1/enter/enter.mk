@@ -1,4 +1,4 @@
-ETR_FLAVORS := $(filter-out kvm,$(STAGE1_FLAVORS))
+ETR_FLAVORS := $(filter-out kvm xen,$(STAGE1_FLAVORS))
 
 ifneq ($(ETR_FLAVORS),)
 
