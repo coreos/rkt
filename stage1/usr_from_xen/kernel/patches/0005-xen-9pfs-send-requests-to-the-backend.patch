@@ -1,0 +1,146 @@
+From 9037ec171d23ab5541ea72da6e2a0180c3f3cb62 Mon Sep 17 00:00:00 2001
+From: Stefano Stabellini <sstabellini@kernel.org>
+Date: Wed, 5 Apr 2017 12:03:59 -0700
+Subject: [PATCH 5/8] xen/9pfs: send requests to the backend
+
+Implement struct p9_trans_module create and close functions by looking
+at the available Xen 9pfs frontend-backend connections. We don't expect
+many frontend-backend connections, thus walking a list is OK.
+
+Send requests to the backend by copying each request to one of the
+available rings (each frontend-backend connection comes with multiple
+rings). Handle the ring and notifications following the 9pfs
+specification. If there are not enough free bytes on the ring for the
+request, wait on the wait_queue: the backend will send a notification
+after consuming more requests.
+
+CC: groug@kaod.org
+CC: jgross@suse.com
+CC: Eric Van Hensbergen <ericvh@gmail.com>
+CC: Ron Minnich <rminnich@sandia.gov>
+CC: Latchesar Ionkov <lucho@ionkov.net>
+CC: v9fs-developer@lists.sourceforge.net
+
+Signed-off-by: Stefano Stabellini <stefano@aporeto.com>
+Reviewed-by: Boris Ostrovsky <boris.ostrovsky@oracle.com>
+Reviewed-by: Juergen Gross <jgross@suse.com>
+Signed-off-by: Juergen Gross <jgross@suse.com>
+---
+ net/9p/trans_xen.c | 87 ++++++++++++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 85 insertions(+), 2 deletions(-)
+
+diff --git a/net/9p/trans_xen.c b/net/9p/trans_xen.c
+index fe3d172..28f30f4 100644
+--- a/net/9p/trans_xen.c
++++ b/net/9p/trans_xen.c
+@@ -85,22 +85,105 @@ struct xen_9pfs_front_priv {
+ static LIST_HEAD(xen_9pfs_devs);
+ static DEFINE_RWLOCK(xen_9pfs_lock);
+ 
++/* We don't currently allow canceling of requests */
+ static int p9_xen_cancel(struct p9_client *client, struct p9_req_t *req)
+ {
+-	return 0;
++	return 1;
+ }
+ 
+ static int p9_xen_create(struct p9_client *client, const char *addr, char *args)
+ {
+-	return 0;
++	struct xen_9pfs_front_priv *priv;
++
++	read_lock(&xen_9pfs_lock);
++	list_for_each_entry(priv, &xen_9pfs_devs, list) {
++		if (!strcmp(priv->tag, addr)) {
++			priv->client = client;
++			read_unlock(&xen_9pfs_lock);
++			return 0;
++		}
++	}
++	read_unlock(&xen_9pfs_lock);
++	return -EINVAL;
+ }
+ 
+ static void p9_xen_close(struct p9_client *client)
+ {
++	struct xen_9pfs_front_priv *priv;
++
++	read_lock(&xen_9pfs_lock);
++	list_for_each_entry(priv, &xen_9pfs_devs, list) {
++		if (priv->client == client) {
++			priv->client = NULL;
++			read_unlock(&xen_9pfs_lock);
++			return;
++		}
++	}
++	read_unlock(&xen_9pfs_lock);
++}
++
++static bool p9_xen_write_todo(struct xen_9pfs_dataring *ring, RING_IDX size)
++{
++	RING_IDX cons, prod;
++
++	cons = ring->intf->out_cons;
++	prod = ring->intf->out_prod;
++	virt_mb();
++
++	return XEN_9PFS_RING_SIZE -
++		xen_9pfs_queued(prod, cons, XEN_9PFS_RING_SIZE) >= size;
+ }
+ 
+ static int p9_xen_request(struct p9_client *client, struct p9_req_t *p9_req)
+ {
++	struct xen_9pfs_front_priv *priv = NULL;
++	RING_IDX cons, prod, masked_cons, masked_prod;
++	unsigned long flags;
++	u32 size = p9_req->tc->size;
++	struct xen_9pfs_dataring *ring;
++	int num;
++
++	read_lock(&xen_9pfs_lock);
++	list_for_each_entry(priv, &xen_9pfs_devs, list) {
++		if (priv->client == client)
++			break;
++	}
++	read_unlock(&xen_9pfs_lock);
++	if (!priv || priv->client != client)
++		return -EINVAL;
++
++	num = p9_req->tc->tag % priv->num_rings;
++	ring = &priv->rings[num];
++
++again:
++	while (wait_event_interruptible(ring->wq,
++					p9_xen_write_todo(ring, size)) != 0)
++		;
++
++	spin_lock_irqsave(&ring->lock, flags);
++	cons = ring->intf->out_cons;
++	prod = ring->intf->out_prod;
++	virt_mb();
++
++	if (XEN_9PFS_RING_SIZE - xen_9pfs_queued(prod, cons,
++						 XEN_9PFS_RING_SIZE) < size) {
++		spin_unlock_irqrestore(&ring->lock, flags);
++		goto again;
++	}
++
++	masked_prod = xen_9pfs_mask(prod, XEN_9PFS_RING_SIZE);
++	masked_cons = xen_9pfs_mask(cons, XEN_9PFS_RING_SIZE);
++
++	xen_9pfs_write_packet(ring->data.out, p9_req->tc->sdata, size,
++			      &masked_prod, masked_cons, XEN_9PFS_RING_SIZE);
++
++	p9_req->status = REQ_STATUS_SENT;
++	virt_wmb();			/* write ring before updating pointer */
++	prod += size;
++	ring->intf->out_prod = prod;
++	spin_unlock_irqrestore(&ring->lock, flags);
++	notify_remote_via_irq(ring->irq);
++
+ 	return 0;
+ }
+ 
+-- 
+1.9.1
+
