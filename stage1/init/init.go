@@ -334,6 +334,27 @@ func getArgsEnv(p *stage1commontypes.Pod, flavor string, canMachinedRegister boo
 
 		return args, env, nil
 
+	case "xen":
+		args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), "run"))
+		if p.Interactive {
+		   args = append(args, "--interactive")
+		}
+		for _, nd := range n.GetActiveNetworks() {
+			args = append(args, fmt.Sprintf("ip=%s bridge=%s", nd.GuestIP(), nd.IfName()))
+
+			for _, route := range nd.Routes() {
+				gw := route.GW
+				if gw == nil {
+					gw = nd.Gateway()
+				}
+
+				args = append(args, fmt.Sprintf("route=%s gw=%s", route.Dst.String(), gw.String()))
+			}
+			break
+		}
+		args = append(args, p.UUID.String())
+		return args, env, nil
+
 	case "coreos":
 		args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), interpBin))
 		args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), nspawnBin))
