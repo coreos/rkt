@@ -4,6 +4,8 @@ language: go
 sudo: required
 dist: trusty
 
+sudo: false
+
 go:
   - 1.6.4
   - 1.7.5
