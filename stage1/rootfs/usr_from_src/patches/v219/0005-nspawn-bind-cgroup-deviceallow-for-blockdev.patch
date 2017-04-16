@@ -1,0 +1,104 @@
+diff --git a/src/nspawn/nspawn.c b/src/nspawn/nspawn.c
+index fb67251..cdf2c94 100644
+--- a/src/nspawn/nspawn.c
++++ b/src/nspawn/nspawn.c
+@@ -45,6 +45,7 @@
+ #include <linux/loop.h>
+ #include <poll.h>
+ #include <sys/file.h>
++#include "unit-name.h"
+ 
+ #ifdef HAVE_SELINUX
+ #include <selinux/selinux.h>
+@@ -901,6 +902,12 @@ static int mount_binds(const char *dest, char **l, bool ro) {
+         char **x, **y;
+ 
+         STRV_FOREACH_PAIR(x, y, l) {
++                _cleanup_bus_close_unref_ sd_bus *bus = NULL;
++                _cleanup_bus_message_unref_ sd_bus_message *m = NULL;
++                _cleanup_bus_error_free_ sd_bus_error error = SD_BUS_ERROR_NULL;
++                _cleanup_free_ char *arg_machine_escaped = NULL;
++                _cleanup_free_ char *machine_scope_escaped = NULL;
++
+                 _cleanup_free_ char *where = NULL;
+                 struct stat source_st, dest_st;
+                 int r;
+@@ -953,6 +960,52 @@ static int mount_binds(const char *dest, char **l, bool ro) {
+                         if (r < 0)
+                                 return log_error_errno(r, "Read-Only bind mount failed: %m");
+                 }
++
++                if (S_ISBLK(source_st.st_mode)) {
++                        arg_machine_escaped = unit_name_escape(arg_machine);
++                        if (!arg_machine_escaped)
++                                return log_oom();
++
++                        machine_scope_escaped = strjoin("machine-", arg_machine_escaped, ".scope", NULL);
++                        if (!machine_scope_escaped)
++                                return log_oom();
++
++                        r = sd_bus_default_system(&bus);
++                        if (r < 0)
++                                return log_error_errno(r, "Failed to open system bus: %m");
++
++                        r = sd_bus_message_new_method_call(
++                                        bus,
++                                        &m,
++                                        "org.freedesktop.systemd1",
++                                        "/org/freedesktop/systemd1",
++                                        "org.freedesktop.systemd1.Manager",
++                                        "SetUnitProperties");
++                        if (r < 0)
++                            return log_error_errno(r, "Failed to create message: %m");
++
++                        r = sd_bus_message_append(m, "sb", machine_scope_escaped, false);
++                        if (r < 0)
++                                log_error("Failed sd_bus_message_append: %d", r);
++
++                        r = sd_bus_message_open_container(m, 'a', "(sv)");
++                        if (r < 0)
++                            return log_error_errno(r, "Failed to open container: %m");
++
++                        r = sd_bus_message_append(m, "(sv)", "DeviceAllow", "a(ss)", 1, *x, ro ? "r":"rw");
++                        if (r < 0)
++                            return log_error_errno(r, "Failed to append message arguments: %m");
++
++                        r = sd_bus_message_close_container(m);
++                        if (r < 0)
++                            return log_error_errno(r, "Failed to close container: %m");
++
++                        r = sd_bus_call(bus, m, 0, &error, NULL);
++                        if (r < 0) {
++                                log_error("Failed to register machine: %s", bus_error_message(&error, r));
++                                return r;
++                        }
++                }
+         }
+ 
+         return 0;
+@@ -3984,12 +4037,6 @@ int main(int argc, char *argv[]) {
+                         if (setup_journal(arg_directory) < 0)
+                                 _exit(EXIT_FAILURE);
+ 
+-                        if (mount_binds(arg_directory, arg_bind, false) < 0)
+-                                _exit(EXIT_FAILURE);
+-
+-                        if (mount_binds(arg_directory, arg_bind_ro, true) < 0)
+-                                _exit(EXIT_FAILURE);
+-
+                         if (mount_tmpfs(arg_directory) < 0)
+                                 _exit(EXIT_FAILURE);
+ 
+@@ -3997,6 +4044,12 @@ int main(int argc, char *argv[]) {
+                          * can mount the right cgroup path writable */
+                         (void) barrier_sync_next(&barrier);
+ 
++                        if (mount_binds(arg_directory, arg_bind, false) < 0)
++                                _exit(EXIT_FAILURE);
++
++                        if (mount_binds(arg_directory, arg_bind_ro, true) < 0)
++                                _exit(EXIT_FAILURE);
++
+                         if (mount_cgroup(arg_directory) < 0)
+                                 _exit(EXIT_FAILURE);
+ 
