@@ -91,6 +91,7 @@ func runPrepare(cmd *cobra.Command, args []string) (exit int) {
 			stderr.PrintE("unable to open /dev/null", err)
 			return 254
 		}
+		log.SetOutput(os.Stdout)
 	}
 
 	if flagStoreOnly && flagNoStore {
