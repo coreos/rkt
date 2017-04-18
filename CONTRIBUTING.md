@@ -69,17 +69,18 @@ guide](https://github.com/coreos/docs/tree/master/STYLE.md). Thank you for docum
 
 ### Format of the Commit Message
 
-We follow a rough convention for commit messages that is designed to answer two
-questions: what changed and why. The subject line should feature the what and
-the body of the commit should describe the why.
+The commit messages should be designed to answer two questions: what changed and why. 
+
+The subject line should consist of the modified subsytem and an imperative sentence
+describing the what changed and the body of the commit should describe why it changed.
 
 ```
-scripts: add the test-cluster command
+rkt/config: improve configuration tests
 
-this uses tmux to setup a test cluster that you can easily kill and
-start for debugging.
+Tests rkt config pkg.
 
-Fixes #38
+Related to #85
+Fixes #121
 ```
 
 The format can be described more formally as follows:
@@ -92,8 +93,8 @@ The format can be described more formally as follows:
 <footer>
 ```
 
-The first line is the subject and should be no longer than 70 characters, the
-second line is always blank, and other lines should be wrapped at 80 characters.
+The first line is the subject and should be no longer than 70 characters. 
+The second line is always blank, and other lines should be wrapped at 80 characters.
 This allows the message to be easier to read on GitHub as well as in various
 git tools.
 
