@@ -300,9 +300,9 @@ func capsSeveralAppsRunAndCheckOutput(t *testing.T, ctx *testutils.RktRunCtx, cm
 		t.Logf("Checking caps for %q", tt.testName)
 		child := spawnOrFail(t, cmd)
 
-		expected := fmt.Sprintf("Capability set: bounding: %s (%s)",
+		expected := fmt.Sprintf("Capability set: bounding: %s \\(%s\\)",
 			tt.expected, tt.testName)
-		if err := expectWithOutput(child, expected); err != nil {
+		if _, _, err := expectRegexWithOutput(child, expected); err != nil {
 			t.Fatalf("Expected %q but not found: %v", expected, err)
 		}
 
