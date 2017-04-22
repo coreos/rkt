@@ -301,15 +301,9 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 
 	effectiveMounts := append(
 		[]flyMount{
-			{"", "", "/dev", "none", syscall.MS_REC | syscall.MS_SHARED},
 			{"/dev", rfs, "/dev", "none", syscall.MS_BIND | syscall.MS_REC},
-
-			{"", "", "/proc", "none", syscall.MS_REC | syscall.MS_SHARED},
 			{"/proc", rfs, "/proc", "none", syscall.MS_BIND | syscall.MS_REC},
-
-			{"", "", "/sys", "none", syscall.MS_REC | syscall.MS_SHARED},
 			{"/sys", rfs, "/sys", "none", syscall.MS_BIND | syscall.MS_REC},
-
 			{"tmpfs", rfs, "/tmp", "tmpfs", 0},
 		},
 		argFlyMounts...,
