@@ -15,8 +15,8 @@
 package networking
 
 import (
-	"errors"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -26,8 +26,8 @@ import (
 	"syscall"
 
 	"github.com/appc/spec/schema/types"
-	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/ip"
+	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/hashicorp/errwrap"
 	"github.com/vishvananda/netlink"
 
@@ -137,7 +137,7 @@ func xenSetup(podRoot string, podID types.UUID, fps []commonnet.ForwardedPort, n
 			if err != nil {
 				return nil, errwrap.Wrap(errors.New("error in time of bridge setup"), err)
 			}
-			
+
 			n.runtime.IfName = config.BrName
 			err2 := vmSetupNetAddressing(&network, n, n.runtime.IfName)
 			if err2 != nil {

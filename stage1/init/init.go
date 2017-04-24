@@ -337,7 +337,7 @@ func getArgsEnv(p *stage1commontypes.Pod, flavor string, canMachinedRegister boo
 	case "xen":
 		args = append(args, filepath.Join(common.Stage1RootfsPath(p.Root), "run"))
 		if p.Interactive {
-		   args = append(args, "--interactive")
+			args = append(args, "--interactive")
 		}
 		for _, nd := range n.GetActiveNetworks() {
 			args = append(args, fmt.Sprintf("ip=%s bridge=%s", nd.GuestIP(), nd.IfName()))
