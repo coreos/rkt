@@ -2,6 +2,7 @@
 _S1_SS_SUBDIRS_ := \
 	enter \
 	enter_kvm \
+	run_xen \
 	enterexec \
 	diagnostic \
 	gc \

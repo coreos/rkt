@@ -340,7 +340,8 @@ func getArgsEnv(p *stage1commontypes.Pod, flavor string, canMachinedRegister boo
 			args = append(args, "--interactive")
 		}
 		for _, nd := range n.GetActiveNetworks() {
-			args = append(args, fmt.Sprintf("ip=%s bridge=%s", nd.GuestIP(), nd.IfName()))
+			args = append(args, fmt.Sprintf("-ip=%s", nd.GuestIP()))
+			args = append(args, fmt.Sprintf("-bridge=%s", nd.IfName()))
 
 			for _, route := range nd.Routes() {
 				gw := route.GW
@@ -348,7 +349,8 @@ func getArgsEnv(p *stage1commontypes.Pod, flavor string, canMachinedRegister boo
 					gw = nd.Gateway()
 				}
 
-				args = append(args, fmt.Sprintf("route=%s gw=%s", route.Dst.String(), gw.String()))
+				args = append(args, fmt.Sprintf("-route=%s", route.Dst.String()))
+				args = append(args, fmt.Sprintf("-gw=%s", gw.String()))
 			}
 			break
 		}
