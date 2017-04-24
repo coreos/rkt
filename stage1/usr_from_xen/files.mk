@@ -6,7 +6,6 @@ UFKF_DIR_CHAIN := $(call dir-chain,$(UFKF_BASE),$(UFKF_REST))
 UFKF_VAR_RUN := $(UFKF_BASE)/$(UFKF_REST)
 
 UFKF_ACI_FILES := \
-	$(S1_RF_ACIROOTFSDIR)/run \
 	$(S1_RF_ACIROOTFSDIR)/enter \
 	$(S1_RF_ACIROOTFSDIR)/stop
 
