@@ -41,13 +41,14 @@ Files on the host with a filename that contains a colon can be referenced using 
 
 ## Copying directories
 
-Copying a directory copies all subdirectories and files. If the directory or subdirectories that do not exist yet will be created inside the destination directory. Files that already exist will be overwritten.
+Copying a directory copies all subdirectories and files. If the directory or subdirectories that do not exist yet will be created inside the destination directory. Files that already exist will be overwritten, unless the no-clobber flag is provided.
 
 ## Options
 
 | Flag | Default | Options | Description |
 | --- | --- | --- | --- |
 | `--app` |  `` | Name of an app | Name of the app within the specified pod |
+| `--no-clobber` | `` | No clobber | Do not overwrite existing files |
 
 ## Global options
 

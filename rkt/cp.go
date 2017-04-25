@@ -32,7 +32,7 @@ import (
 
 var (
 	cmdCp = &cobra.Command{
-		Use:   "cp [--app=APPNAME] [UUID:]SRC_PATH [UUID]:DEST_DIR_PATH",
+		Use:   "cp [--app=APPNAME] [--no-clobber] [UUID:]SRC_PATH [UUID]:DEST_DIR_PATH",
 		Short: "Copy a file/directory to/from an app within a rkt pod",
 		Long: `UUID should be the UUID of a running pod.
 
@@ -40,17 +40,19 @@ UUID should be specified once, either on the SRC_PATH or the DEST_DIR_PATH.`,
 		Run: ensureSuperuser(runWrapper(runCp)),
 	}
 	flagCpAppName string
+	flagNoClobber bool
 )
 
 func init() {
 	cmdRkt.AddCommand(cmdCp)
 	cmdCp.Flags().StringVar(&flagCpAppName, "app", "", "name of the app to copy to/from within the specified pod")
+	cmdCp.Flags().BoolVar(&flagNoClobber, "no-clobber", false, "do not overwrite existing files")
 }
 
 func runCp(cmd *cobra.Command, args []string) (exit int) {
 	if len(args) < 2 {
 		cmd.Usage()
-		return 255
+		return 254
 	}
 
 	srcUUID, srcPath := splitPath(args[0])
@@ -58,25 +60,25 @@ func runCp(cmd *cobra.Command, args []string) (exit int) {
 
 	if (srcUUID == "") == (destUUID == "") {
 		stderr.Print("pod UUID for be specified for either SRC_PATH or DST_DIR_PATH")
-		return 253
+		return 254
 	}
 
 	fullSrcPath, err := calculateFullPath(srcUUID, srcPath, false)
 	if err != nil {
 		stderr.PrintE("problem retrieving SRC_PATH", err)
-		return 252
+		return 254
 	}
 
 	fullDestPath, err := calculateFullPath(destUUID, destPath, true)
 	if err != nil {
 		stderr.PrintE("problem retrieving DEST_DIR_PATH", err)
-		return 251
+		return 254
 	}
 
 	err = copyFileOrDirectory(fullSrcPath, fullDestPath)
 	if err != nil {
 		stderr.PrintE("unable to copy file/directory", err)
-		return 250
+		return 254
 	}
 
 	return 0
@@ -230,11 +232,19 @@ func copyTree(src string, dst string) error {
 	return nil
 }
 
-// copyFile copies the contents of the file named src to the file named
-// by dst. The file will be created if it does not already exist. If the
-// destination file exists, the content will be replaced by the content
-// of the source file. Permissions of the src file are applied to the dst file.
+// copyFile copies the contents of the file named src to the file named by dst.
+// The file will be created if it does not already exist.
+// If the no-clobber flag is set and the destination file exists, the destination file is not
+// changed. If the no-clobber flag is not set and the destination file exists, the content will be
+// replaced by the content of the source file. Permissions of the src file are applied to the dst
+// file.
 func copyFile(src, dst string) error {
+	if flagNoClobber {
+		if _, err := os.Stat(dst); err == nil {
+			return nil
+		}
+	}
+
 	in, err := os.Open(src)
 	if err != nil {
 		return err
