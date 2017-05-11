@@ -320,6 +320,7 @@ func NewTestNetDefaultRestrictedConnectivity() testutils.Test {
 			// Wait for the container to print out the IP address
 			expectedRegex := `IPv4: (\d+\.\d+\.\d+\.\d+)`
 			result, out, err := expectRegexWithOutput(child, expectedRegex)
+			t.Logf("inspect result %q out %q err %v\n", result, out, err)
 			if err != nil {
 				t.Fatalf("Error: %v\nOutput: %v", err, out)
 			}
