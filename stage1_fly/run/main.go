@@ -315,6 +315,9 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 			{"", "", "/sys", "none", syscall.MS_REC | syscall.MS_SHARED},
 			{"/sys", rfs, "/sys", "none", syscall.MS_BIND | syscall.MS_REC},
 
+			{"", "", "/etc", "none", syscall.MS_REC | syscall.MS_SHARED},
+			{"/etc", rfs, "/etc", "none", syscall.MS_BIND | syscall.MS_REC},
+
 			{"tmpfs", rfs, "/tmp", "tmpfs", 0},
 		},
 		argFlyMounts...,
