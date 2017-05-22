@@ -3,6 +3,7 @@ HostKey /etc/ssh/ssh_host_rsa_key
 HostKey /etc/ssh/ssh_host_dsa_key
 HostKey /etc/ssh/ssh_host_ed25519_key
 UsePrivilegeSeparation no
+PermitUserEnvironment yes
 
 KeyRegenerationInterval 3600
 ServerKeyBits 1024

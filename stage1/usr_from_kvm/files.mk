@@ -12,7 +12,8 @@ UFKF_ACI_FILES := \
 	$(S1_RF_ACIROOTFSDIR)/etc/group \
 	$(S1_RF_ACIROOTFSDIR)/etc/ssh/sshd_config \
 	$(S1_RF_ACIROOTFSDIR)/usr/lib64/systemd/system/sshd-prep.service \
-	$(S1_RF_ACIROOTFSDIR)/usr/lib64/systemd/system/sshd@.service
+	$(S1_RF_ACIROOTFSDIR)/usr/lib64/systemd/system/sshd@.service \
+	$(S1_RF_ACIROOTFSDIR)/root/.ssh/environment
 
 UFKF_SRC_FILES := $(addprefix $(UFKF_DIR)/,$(notdir $(UFKF_ACI_FILES)))
 
