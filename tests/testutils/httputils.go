@@ -43,8 +43,21 @@ func HTTPServe(addr string, timeout int) error {
 
 	c := make(chan string)
 	go func() {
-		logger.Logf("%v: serving on %v\n", hostname, addr)
-
+		var err error
+		maxRetries := 5
+		for i := 0; i < maxRetries; i++ {
+			var resp *http.Response
+			resp, err = http.Get(fmt.Sprintf("http://%s/healthz", addr))
+			if err == nil && resp.StatusCode == http.StatusOK {
+				break
+			}
+			if i < maxRetries-1 {
+				time.Sleep(50 * time.Millisecond)
+			}
+		}
+		if err != nil {
+			panic(err)
+		}
 		// Wait for either timeout or connect from client
 		select {
 		case <-time.After(time.Duration(timeout) * time.Second):
@@ -64,6 +77,11 @@ func HTTPServe(addr string, timeout int) error {
 		logger.Logf("%v: Serve got a connection from %v\n", hostname, r.RemoteAddr)
 		fmt.Fprintf(w, "%v", hostname)
 		c <- r.RemoteAddr
+	})
+	serveMux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		// wait until we can actually handle a call (http.Serve has reached the
+		// 'accept' loop) before we print we're serving
+		logger.Logf("%v: serving on %v\n", hostname, addr)
 	})
 	err = http.Serve(sl, serveMux)
 	if err != nil && err.Error() == "Listener stopped" {
