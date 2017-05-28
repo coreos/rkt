@@ -85,7 +85,7 @@ TOPLEVEL_STAMPS :=
 TOPLEVEL_CHECK_STAMPS :=
 TOPLEVEL_UNIT_CHECK_STAMPS :=
 TOPLEVEL_FUNCTIONAL_CHECK_STAMPS :=
-TOPLEVEL_SUBDIRS := rkt tests stage1 stage1_fly
+TOPLEVEL_SUBDIRS := rkt tests stage1 stage1_fly stage1_skim
 RKT_MONITOR_STAMPS :=
 
 $(call inc-one,tools/tools.mk)

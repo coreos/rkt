@@ -84,6 +84,10 @@ func quoteExec(exec []string) string {
 	return strings.Join(qexec, " ")
 }
 
+func QuoteExec(exec []string) string {
+	return quoteExec(exec)
+}
+
 func writeAppReaper(p *stage1commontypes.Pod, appName string, appRootDirectory string, binPath string) error {
 	opts := []*unit.UnitOption{
 		unit.NewUnitOption("Unit", "Description", fmt.Sprintf("%s Reaper", appName)),
@@ -554,7 +558,7 @@ func GetFlavor(p *stage1commontypes.Pod) (flavor string, systemdVersion int, err
 		return "", -1, errwrap.Wrap(errors.New("unable to determine stage1 flavor"), err)
 	}
 
-	if flavor == "host" {
+	if flavor == "host" || flavor == "skim" {
 		// This flavor does not contain systemd, parse "systemctl --version"
 		systemctlBin, err := common.LookupPath("systemctl", os.Getenv("PATH"))
 		if err != nil {
