@@ -33,7 +33,6 @@ type FilterFunc func(m *Mount) bool
 // leaking to parents.
 func (m *Mount) NeedsRemountPrivate() bool {
 	for _, key := range []string{
-		"shared",
 		"master",
 	} {
 		if _, needsRemount := m.Opts[key]; needsRemount {
