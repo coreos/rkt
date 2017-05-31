@@ -1,0 +1,4 @@
+#!/bin/bash
+
+xl destroy $1 &>/dev/null
+exit 0

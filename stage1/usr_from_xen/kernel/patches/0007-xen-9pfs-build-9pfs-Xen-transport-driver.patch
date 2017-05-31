@@ -1,0 +1,65 @@
+From d4b40a02f83777b5fdde2cc1dcce5272bd9abb9c Mon Sep 17 00:00:00 2001
+From: Stefano Stabellini <sstabellini@kernel.org>
+Date: Wed, 5 Apr 2017 12:04:01 -0700
+Subject: [PATCH 7/8] xen/9pfs: build 9pfs Xen transport driver
+
+This patch adds a Kconfig option and Makefile support for building the
+9pfs Xen driver.
+
+CC: groug@kaod.org
+CC: boris.ostrovsky@oracle.com
+CC: jgross@suse.com
+CC: Eric Van Hensbergen <ericvh@gmail.com>
+CC: Ron Minnich <rminnich@sandia.gov>
+CC: Latchesar Ionkov <lucho@ionkov.net>
+CC: v9fs-developer@lists.sourceforge.net
+
+Signed-off-by: Stefano Stabellini <stefano@aporeto.com>
+Reviewed-by: Juergen Gross <jgross@suse.com>
+Signed-off-by: Juergen Gross <jgross@suse.com>
+---
+ net/9p/Kconfig  | 8 ++++++++
+ net/9p/Makefile | 4 ++++
+ 2 files changed, 12 insertions(+)
+
+diff --git a/net/9p/Kconfig b/net/9p/Kconfig
+index a75174a..3f286f1 100644
+--- a/net/9p/Kconfig
++++ b/net/9p/Kconfig
+@@ -22,6 +22,14 @@ config NET_9P_VIRTIO
+ 	  This builds support for a transports between
+ 	  guest partitions and a host partition.
+ 
++config NET_9P_XEN
++	depends on XEN
++	tristate "9P Xen Transport"
++	help
++	  This builds support for a transport for 9pfs between
++	  two Xen domains.
++
++
+ config NET_9P_RDMA
+ 	depends on INET && INFINIBAND && INFINIBAND_ADDR_TRANS
+ 	tristate "9P RDMA Transport (Experimental)"
+diff --git a/net/9p/Makefile b/net/9p/Makefile
+index a0874cc..697ea7c 100644
+--- a/net/9p/Makefile
++++ b/net/9p/Makefile
+@@ -1,4 +1,5 @@
+ obj-$(CONFIG_NET_9P) := 9pnet.o
++obj-$(CONFIG_NET_9P_XEN) += 9pnet_xen.o
+ obj-$(CONFIG_NET_9P_VIRTIO) += 9pnet_virtio.o
+ obj-$(CONFIG_NET_9P_RDMA) += 9pnet_rdma.o
+ 
+@@ -14,5 +15,8 @@ obj-$(CONFIG_NET_9P_RDMA) += 9pnet_rdma.o
+ 9pnet_virtio-objs := \
+ 	trans_virtio.o \
+ 
++9pnet_xen-objs := \
++	trans_xen.o \
++
+ 9pnet_rdma-objs := \
+ 	trans_rdma.o \
+-- 
+1.9.1
+

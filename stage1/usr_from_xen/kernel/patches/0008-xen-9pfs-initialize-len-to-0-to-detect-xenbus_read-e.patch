@@ -1,0 +1,38 @@
+From cb85ed3f93ecbda799a561ad224d4ca7ad3b6b41 Mon Sep 17 00:00:00 2001
+From: Stefano Stabellini <sstabellini@kernel.org>
+Date: Thu, 13 Apr 2017 10:45:23 -0700
+Subject: [PATCH 8/8] xen/9pfs: initialize len to 0 to detect xenbus_read
+ errors
+
+In order to use "len" to check for xenbus_read errors properly, we need
+to initialize len to 0 before passing it to xenbus_read.
+
+Signed-off-by: Stefano Stabellini <stefano@aporeto.com>
+CC: dan.carpenter@oracle.com
+CC: jgross@suse.com
+CC: boris.ostrovsky@oracle.com
+CC: Eric Van Hensbergen <ericvh@gmail.com>
+CC: Ron Minnich <rminnich@sandia.gov>
+CC: Latchesar Ionkov <lucho@ionkov.net>
+CC: v9fs-developer@lists.sourceforge.net
+
+---
+ net/9p/trans_xen.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/9p/trans_xen.c b/net/9p/trans_xen.c
+index 4786424..71e8564 100644
+--- a/net/9p/trans_xen.c
++++ b/net/9p/trans_xen.c
+@@ -386,7 +386,7 @@ static int xen_9pfs_front_probe(struct xenbus_device *dev,
+ 	struct xenbus_transaction xbt;
+ 	struct xen_9pfs_front_priv *priv = NULL;
+ 	char *versions;
+-	unsigned int max_rings, max_ring_order, len;
++	unsigned int max_rings, max_ring_order, len = 0;
+ 
+ 	versions = xenbus_read(XBT_NIL, dev->otherend, "versions", &len);
+ 	if (!len)
+-- 
+1.9.1
+
