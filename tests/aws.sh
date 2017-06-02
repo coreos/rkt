@@ -32,8 +32,8 @@ if [ "$DISTRO" = "fedora-24" ] ; then
   # https://apps.fedoraproject.org/datagrepper/raw?category=fedimg
   # Sources: https://github.com/fedora-infra/fedimg/blob/develop/bin/list-the-amis.py
 
-  # Fedora-Cloud-Base-24-20160507.n.0.x86_64-us-west-1-HVM-standard-0
-  AMI=ami-8b4c35eb
+  # Fedora-Cloud-Base-24-20161207.0.x86_64-us-west-1-HVM-standard-0
+  AMI=ami-61d58201
   AWS_USER=fedora
 elif [ "$DISTRO" = "fedora-25" ] ; then
   # Fedora-Cloud-Base-25-20161220.0.x86_64-us-west-1-HVM-standard-0
