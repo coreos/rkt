@@ -176,6 +176,72 @@ func NewNetNoneTest() testutils.Test {
 	})
 }
 
+func TestNetGWv4Connectivity(t *testing.T) {
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
+
+	f := func(argument string) {
+		httpPort, err := testutils.GetNextFreePort4()
+		if err != nil {
+			t.Fatalf("%v", err)
+		}
+		httpServeAddr := fmt.Sprintf("0.0.0.0:%v", httpPort)
+		httpServeTimeout := 30
+
+		nonLoIPv4Iface, err := testutils.GetNonLoIfaceIPv4()
+		if err != nil {
+			t.Fatalf("%v", err)
+		}
+		if nonLoIPv4Iface == "" {
+			t.Skipf("Can not find any NAT'able IPv4 on the host, skipping..")
+		}
+
+		gw, err := testutils.GetGWv4(nonLoIPv4Iface)
+		if gw == "" {
+			t.Skipf("Can not find any gateway, skipping..")
+		}
+		if err != nil {
+			t.Fatalf("%v", err)
+		}
+
+		httpGetAddr := fmt.Sprintf("http://%v:%v", gw, httpPort)
+		t.Log("Telling the child to connect via", httpGetAddr)
+
+		testImageArgs := []string{fmt.Sprintf("--exec=/inspect --get-http=%v", httpGetAddr)}
+		testImage := patchTestACI("rkt-inspect-networking.aci", testImageArgs...)
+		defer os.Remove(testImage)
+
+		ga := testutils.NewGoroutineAssistant(t)
+		ga.Add(2)
+
+		// Host opens the server
+		go func() {
+			defer ga.Done()
+			err := testutils.HTTPServe(httpServeAddr, httpServeTimeout)
+			if err != nil {
+				ga.Fatalf("Error during HTTPServe: %v", err)
+			}
+		}()
+
+		// Child connects to host
+		go func() {
+			defer ga.Done()
+			cmd := fmt.Sprintf("%s --debug --insecure-options=image run %s --mds-register=false %s", ctx.Cmd(), argument, testImage)
+			child := ga.SpawnOrFail(cmd)
+			defer ga.WaitOrFail(child)
+
+			expectedRegex := `HTTP-Get received: (.*)\r`
+			_, out, err := expectRegexWithOutput(child, expectedRegex)
+			if err != nil {
+				ga.Fatalf("Error: %v\nOutput: %v", err, out)
+			}
+		}()
+
+		ga.Wait()
+	}
+	f("--net=default")
+}
+
 /*
  * Default net
  * ---
