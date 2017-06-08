@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="132dc093-b834-4fff-ae45-15e005535e2b" name="Default" comment="" />
+    <list default="true" id="132dc093-b834-4fff-ae45-15e005535e2b" name="Default" comment="">
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/rkt/run.go" afterPath="$PROJECT_DIR$/rkt/run.go" />
+    </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="TRACKING_ENABLED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -57,8 +60,8 @@
       <file leaf-file-name="run.go" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/rkt/run.go">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="347">
-              <caret line="408" column="28" lean-forward="true" selection-start-line="408" selection-start-column="28" selection-end-line="408" selection-end-column="28" />
+            <state relative-caret-position="170">
+              <caret line="410" column="29" lean-forward="false" selection-start-line="410" selection-start-column="29" selection-end-line="410" selection-end-column="29" />
               <folding>
                 <element signature="e#623#1135#0" expanded="true" />
               </folding>
@@ -82,6 +85,7 @@
     <findStrings>
       <find>rktApps</find>
       <find>uuid</find>
+      <find>rcfg</find>
     </findStrings>
   </component>
   <component name="Git.Settings">
@@ -357,8 +361,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/rkt/run.go">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="347">
-          <caret line="408" column="28" lean-forward="true" selection-start-line="408" selection-start-column="28" selection-end-line="408" selection-end-column="28" />
+        <state relative-caret-position="170">
+          <caret line="410" column="29" lean-forward="false" selection-start-line="410" selection-start-column="29" selection-end-line="410" selection-end-column="29" />
           <folding>
             <element signature="e#623#1135#0" expanded="true" />
           </folding>
