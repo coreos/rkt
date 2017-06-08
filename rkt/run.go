@@ -407,7 +407,7 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		return 254
 	}
 	rcfg.Apps = manifest.Apps
-	stage0.Run(rcfg, p.Path(), getDataDir()) // execs, never returns
+	// stage0.Run(rcfg, p.Path(), getDataDir()) // execs, never returns
 
 	return 254
 }
