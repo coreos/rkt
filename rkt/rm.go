@@ -38,6 +38,8 @@ func init() {
 	cmdRm.Flags().StringVar(&flagUUIDFile, "uuid-file", "", "read pod UUID from file instead of argument")
 }
 
+
+
 func runRm(cmd *cobra.Command, args []string) (exit int) {
 	var podUUIDs []string
 	var ret int

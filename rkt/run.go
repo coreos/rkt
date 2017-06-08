@@ -37,6 +37,7 @@ import (
 	"github.com/rkt/rkt/store/imagestore"
 	"github.com/rkt/rkt/store/treestore"
 	"github.com/spf13/cobra"
+	"net/http"
 )
 
 var (
@@ -44,18 +45,18 @@ var (
 		Use:   "run [--volume=name,kind=host,...] [--mount volume=VOL,target=PATH] IMAGE [-- image-args...[---]]...",
 		Short: "Run image(s) in a pod in rkt",
 		Long: `IMAGE should be a string referencing an image; either a hash, local file on
-disk, or URL. They will be checked in that order and the first match will be
-used.
+		disk, or URL. They will be checked in that order and the first match will be
+		used.
 
-Volumes are made available to the container via --volume. Mounts bind volumes
-into each image's root within the container via --mount. --mount is
-position-sensitive; occurring before any images applies to all images, occurring
-after any images applies only to the nearest preceding image. Per-app mounts
-take precedence over global ones if they have the same path.
+		Volumes are made available to the container via --volume. Mounts bind volumes
+		into each image's root within the container via --mount. --mount is
+		position-sensitive; occurring before any images applies to all images, occurring
+		after any images applies only to the nearest preceding image. Per-app mounts
+		take precedence over global ones if they have the same path.
 
-An "--" may be used to inhibit rkt run's parsing of subsequent arguments, which
-will instead be appended to the preceding image app's exec arguments. End the
-image arguments with a lone "---" to resume argument parsing.`,
+		An "--" may be used to inhibit rkt run's parsing of subsequent arguments, which
+		will instead be appended to the preceding image app's exec arguments. End the
+		image arguments with a lone "---" to resume argument parsing.`,
 		Run: ensureSuperuser(runWrapper(runRun)),
 	}
 	flagPorts        portList
@@ -78,6 +79,7 @@ image arguments with a lone "---" to resume argument parsing.`,
 	flagHostname     string
 	flagHostsEntries flagStringList
 	flagPullPolicy   string
+	// flagApi          string
 )
 
 func addIsolatorFlags(cmd *cobra.Command, compat bool) {
@@ -153,6 +155,7 @@ func init() {
 	cmdRun.Flags().StringVar(&flagUUIDFileSave, "uuid-file-save", "", "write out pod UUID to specified file")
 	cmdRun.Flags().StringVar(&flagHostname, "hostname", "", `pod's hostname. If empty, it will be "rkt-$PODUUID"`)
 	cmdRun.Flags().Var((*appsVolume)(&rktApps), "volume", "volumes to make available in the pod")
+	// cmdRun.Flags().StringVar(&flagApi, "api-rest", "rkt Restful Api")
 
 	// per-app flags
 	cmdRun.Flags().Var((*appAsc)(&rktApps), "signature", "local signature file to use in validating the preceding image")
@@ -171,6 +174,9 @@ func init() {
 	cmdRun.Flags().SetInterspersed(false)
 }
 
+func api(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Hello Shashwat!") // send data to client side
+}
 func runRun(cmd *cobra.Command, args []string) (exit int) {
 	privateUsers := user.NewBlankUidRange()
 	err := parseApps(&rktApps, args, cmd.Flags(), true)
@@ -272,7 +278,7 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		stderr.Error(err)
 		return 254
 	}
-
+	// varp variable p is here!!
 	p, err := pkgPod.NewPod(getDataDir())
 	if err != nil {
 		stderr.PrintE("error creating new pod", err)
@@ -287,6 +293,16 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 			return 254
 		}
 	}
+	// Api
+
+	//if flagApi != "" {
+	//
+	//	http.HandleFunc("/api", api) // set router
+	//	err := http.ListenAndServe(":9090", nil) // set listen port
+	//	if err != nil {
+	//		log.Fatal("ListenAndServe: ", err)
+	//	}
+	//}
 
 	processLabel, mountLabel, err := label.InitLabels("/var/run/rkt/mcs", []string{})
 	if err != nil {
