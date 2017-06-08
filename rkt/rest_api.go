@@ -17,7 +17,7 @@ var (
 )
 
 func init() {
-	cmdRkt.AddCommand(cmdRm)
+	cmdRkt.AddCommand(cmdRestApi)
 	cmdRestApi.Flags().StringVar(&flagApi, "rest-api", "", "start rkt restful API")
 }
 func runAPI(cmd *cobra.Command, args []string) (exit int) {
