@@ -8,17 +8,17 @@ import (
 
 var (
 	cmdRestApi = &cobra.Command{
-		Use:   "rm --uuid-file=FILE | UUID ...",
-		Short: "Remove all files and resources associated with an exited pod",
-		Long:  `Unlike gc, rm allows users to remove specific pods.`,
+		Use:   "api",
+		Short: "restful api",
+		Long:  `Start rkt Restful API.`,
 		Run:   ensureSuperuser(runWrapper(runAPI)),
 	}
-	flagApi string
+	flagListen string
 )
 
 func init() {
 	cmdRkt.AddCommand(cmdRestApi)
-	cmdRestApi.Flags().StringVar(&flagApi, "rest-api", "", "start rkt restful API")
+	cmdRestApi.Flags().StringVar(&flagListen, "--listen", "", "start rkt restful API")
 }
 func runAPI(cmd *cobra.Command, args []string) (exit int) {
 	stdout.Printf("stated API")
