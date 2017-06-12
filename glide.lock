@@ -1,5 +1,5 @@
-hash: 5b01507338879a95e4f789cc14dac4aee0ae1ef7661da521a437621e207ba7fa
-updated: 2017-02-13T16:50:01.49078982Z
+hash: 3686bf829b65a1dac995ddccd3680052357db3ad504571e74ad053909d8c774c
+updated: 2017-06-12T07:02:54.663207091-04:00
 imports:
 - name: github.com/appc/docker2aci
   version: 4537ee8e3139455eac6092d47a224d8fa19bf08a
@@ -278,7 +278,7 @@ imports:
   subpackages:
   - unix
 - name: golang.org/x/text
-  version: 06d6eba81293389cafdff7fca90d75592194b2d9
+  version: 210eee5cf7323015d097341bcf7166130d001cd8
   subpackages:
   - transform
   - unicode/norm
@@ -302,6 +302,12 @@ imports:
   - transport
 - name: gopkg.in/inf.v0
   version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4
+- name: gopkg.in/yaml.v2
+  version: cd8b52f8269e0feb286dfeef29f8fe4d5b397e0b
+- name: upper.io/db.v3
+  version: deacccd45909c462bb89752f27a2686a47be9372
+  subpackages:
+  - postgresql
 testImports:
 - name: github.com/kr/text
   version: 7cafcd837844e784b526369c9bce262804aebc60

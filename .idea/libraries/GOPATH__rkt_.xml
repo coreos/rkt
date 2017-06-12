@@ -1,0 +1,17 @@
+<component name="libraryTable">
+  <library name="GOPATH &lt;rkt&gt;">
+    <CLASSES>
+      <root url="file://$USER_HOME$/go/src/gopkg.in" />
+      <root url="file://$USER_HOME$/go/src/github.com" />
+      <root url="file://$USER_HOME$/go/src/golang.org" />
+    </CLASSES>
+    <SOURCES>
+      <root url="file://$USER_HOME$/go/src/gopkg.in" />
+      <root url="file://$USER_HOME$/go/src/github.com" />
+      <root url="file://$USER_HOME$/go/src/golang.org" />
+    </SOURCES>
+    <excluded>
+      <root url="file://$PROJECT_DIR$" />
+    </excluded>
+  </library>
+</component>

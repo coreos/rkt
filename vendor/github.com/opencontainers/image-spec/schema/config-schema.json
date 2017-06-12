@@ -1,0 +1,33 @@
+{
+  "description": "OpenContainer Config Specification",
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "id": "https://opencontainers.org/schema/image/config",
+  "type": "object",
+  "properties": {
+    "created": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "author": {
+      "type": "string"
+    },
+    "architecture": {
+      "type": "string"
+    },
+    "os": {
+      "type": "string"
+    },
+    "config": {
+      "$ref": "defs-config.json#/definitions/config"
+    },
+    "rootfs": {
+      "$ref": "defs-config.json#/definitions/rootfs"
+    },
+    "history": {
+      "type": "array",
+      "items": {
+        "$ref": "defs-config.json#/definitions/history"
+      }
+    }
+  }
+}

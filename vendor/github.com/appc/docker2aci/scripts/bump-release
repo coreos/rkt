@@ -1,0 +1,50 @@
+#!/bin/bash -e
+#
+# Attempt to bump the docker2aci release to the specified version by replacing
+# all occurrences of the current/previous version.
+#
+# Generates two commits: the release itself and the bump to the next +git
+# version
+#
+# YMMV, no disclaimer or warranty, etc.
+
+# make sure we are running in a toplevel directory
+if ! [[ "$0" =~ "scripts/bump-release" ]]; then
+	echo "This script must be run in a toplevel docker2aci directory"
+	exit 255
+fi
+
+if ! [[ "$1" =~ ^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]$ ]]; then
+	echo "Usage: scripts/bump-release <VERSION>"
+	echo "   where VERSION must be vX.Y.Z"
+	exit 255
+fi
+
+function replace_stuff() {
+	local FROM
+	local TO
+	local REPLACE
+
+	FROM=$1
+	TO=$2
+	# escape special characters
+	REPLACE=$(sed -e 's/[]\/$*.^|[]/\\&/g'<<< $FROM)
+	shift 2
+	echo $* | xargs sed -i --follow-symlinks -e "s/$REPLACE/$TO/g"
+}
+
+function replace_version() {
+	replace_stuff $1 $2 lib/version.go
+}
+
+NEXT=${1:1} 	        # 0.2.3
+NEXTGIT="${NEXT}+git"   # 0.2.3+git
+
+PREVGIT=$(grep -Po 'var Version = "\K[^"]*(?=")' lib/version.go) # 0.1.2+git
+PREV=${PREVGIT::-4}     # 0.1.2
+
+replace_version $PREVGIT $NEXT
+git commit -am "version: bump to v${NEXT}"
+
+replace_version $NEXT $NEXTGIT
+git commit -am "version: bump to v${NEXTGIT}"

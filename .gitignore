@@ -15,3 +15,5 @@
 /dist/bash_completion
 /dist/manpages
 /tags
+.idea/
+rkt-builder-1.2.0-linux-amd64.aci

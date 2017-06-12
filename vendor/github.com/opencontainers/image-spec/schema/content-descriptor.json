@@ -1,0 +1,24 @@
+{
+  "description": "OpenContainer Content Descriptor Specification",
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "id": "https://opencontainers.org/schema/descriptor",
+  "type": "object",
+  "properties": {
+    "mediaType": {
+      "description": "the mediatype of the referenced object",
+      "$ref": "defs-image.json#definitions/mediaType"
+    },
+    "size": {
+      "description": "the size in bytes of the referenced object",
+      "$ref": "defs.json#/definitions/int64"
+    },
+    "digest": {
+      "$ref": "defs-image.json#definitions/digest"
+    }
+  },
+  "required": [
+    "mediaType",
+    "size",
+    "digest"
+  ]
+}

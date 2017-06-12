@@ -1,0 +1,28 @@
+language: go
+go:
+  - 1.6
+
+sudo: required
+
+services:
+  - docker
+
+before_script:
+  - export PATH=$HOME/gopath/bin:$PATH
+
+before_install:
+  - docker pull vbatts/pandoc
+  - make install.tools
+  - go get -u github.com/alecthomas/gometalinter
+  - gometalinter --install --update
+  - go get -t -d ./...
+
+install: true
+
+script:
+  - make .gitvalidation
+  - make lint
+  - make check-license
+  - make test
+  - make oci-image-tool
+  - make docs

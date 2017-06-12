@@ -1,0 +1,39 @@
+#!/bin/bash -e
+#
+
+# source ./build
+
+TESTABLE=""
+FORMATTABLE="$TESTABLE attestation tpmd tspi verification tpmclient tpmown tspiconst"
+
+# user has not provided PKG override
+if [ -z "$PKG" ]; then
+	TEST=$TESTABLE
+	FMT=$FORMATTABLE
+
+# user has provided PKG override
+else
+	# strip out slashes and dots from PKG=./foo/
+	TEST=${PKG//\//}
+	TEST=${TEST//./}
+
+	# only run gofmt on packages provided by user
+	FMT="$TEST"
+fi
+
+# split TEST into an array and prepend REPO_PATH to each local package
+split=(${TEST// / })
+TEST=${split[@]/#/${REPO_PATH}/}
+
+# TODO: add tests..
+# echo "Running tests..."
+# go test ${COVER} $@ ${TEST}
+
+echo "Checking gofmt..."
+fmtRes=$(gofmt -l $FMT)
+if [ -n "${fmtRes}" ]; then
+	echo -e "gofmt checking failed:\n${fmtRes}"
+	exit 255
+fi
+
+echo "Success"

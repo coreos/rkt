@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+ret=0
+
+for file in $(find . -type f -iname '*.go' ! -path './vendor/*'); do
+	(head -n3 "${file}" | grep -Eq "(Copyright|generated|GENERATED)") || (echo "${file}:missing license header" && ret=1)
+done
+
+exit $ret

@@ -1,0 +1,27 @@
+package: github.com/appc/docker2aci
+import:
+- package: github.com/appc/spec
+  version: 0.8.10
+  subpackages:
+  - aci
+  - pkg/acirenderer
+  - schema
+  - schema/types
+- package: github.com/coreos/ioprogress
+  version: 4637e494fd9b23c5565ee193e89f91fdc1639bc0
+- package: github.com/coreos/pkg
+  version: 2.0.0
+  subpackages:
+  - progressutil
+- package: github.com/docker/distribution
+  version: v2.5.0-rc.1
+  subpackages:
+  - reference
+- package: github.com/klauspost/pgzip
+  version: 1.0.0
+- package: github.com/opencontainers/image-spec
+  version: v1.0.0-rc2
+  subpackages:
+  - specs-go
+- package: github.com/opencontainers/go-digest
+  version: 21dfd564fd89c944783d00d069f33e3e7123c448
