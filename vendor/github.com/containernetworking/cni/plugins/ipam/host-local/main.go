@@ -15,60 +15,72 @@
 package main
 
 import (
+	"github.com/containernetworking/cni/plugins/ipam/host-local/backend/allocator"
 	"github.com/containernetworking/cni/plugins/ipam/host-local/backend/disk"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
+	"github.com/containernetworking/cni/pkg/types/current"
+	"github.com/containernetworking/cni/pkg/version"
 )
 
 func main() {
-	skel.PluginMain(cmdAdd, cmdDel)
+	skel.PluginMain(cmdAdd, cmdDel, version.All)
 }
 
 func cmdAdd(args *skel.CmdArgs) error {
-	ipamConf, err := LoadIPAMConfig(args.StdinData, args.Args)
+	ipamConf, confVersion, err := allocator.LoadIPAMConfig(args.StdinData, args.Args)
 	if err != nil {
 		return err
 	}
 
-	store, err := disk.New(ipamConf.Name)
+	result := &current.Result{}
+
+	if ipamConf.ResolvConf != "" {
+		dns, err := parseResolvConf(ipamConf.ResolvConf)
+		if err != nil {
+			return err
+		}
+		result.DNS = *dns
+	}
+
+	store, err := disk.New(ipamConf.Name, ipamConf.DataDir)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
 
-	allocator, err := NewIPAllocator(ipamConf, store)
+	allocator, err := allocator.NewIPAllocator(ipamConf, store)
 	if err != nil {
 		return err
 	}
 
-	ipConf, err := allocator.Get(args.ContainerID)
+	ipConf, routes, err := allocator.Get(args.ContainerID)
 	if err != nil {
 		return err
 	}
+	result.IPs = []*current.IPConfig{ipConf}
+	result.Routes = routes
 
-	r := &types.Result{
-		IP4: ipConf,
-	}
-	return r.Print()
+	return types.PrintResult(result, confVersion)
 }
 
 func cmdDel(args *skel.CmdArgs) error {
-	ipamConf, err := LoadIPAMConfig(args.StdinData, args.Args)
+	ipamConf, _, err := allocator.LoadIPAMConfig(args.StdinData, args.Args)
 	if err != nil {
 		return err
 	}
 
-	store, err := disk.New(ipamConf.Name)
+	store, err := disk.New(ipamConf.Name, ipamConf.DataDir)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
 
-	allocator, err := NewIPAllocator(ipamConf, store)
+	ipAllocator, err := allocator.NewIPAllocator(ipamConf, store)
 	if err != nil {
 		return err
 	}
 
-	return allocator.Release(args.ContainerID)
+	return ipAllocator.Release(args.ContainerID)
 }

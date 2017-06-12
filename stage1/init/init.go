@@ -280,7 +280,6 @@ func getArgsEnv(p *stage1commontypes.Pod, flavor string, canMachinedRegister boo
 		// of init (/var/lib/rkt/..../uuid)
 		// TODO: move to path.go
 		kernelPath := filepath.Join(common.Stage1RootfsPath(p.Root), "bzImage")
-		netDescriptions := kvm.GetNetworkDescriptions(n)
 
 		cpu, mem := kvm.GetAppsResources(p.Manifest.Apps)
 
@@ -305,7 +304,7 @@ func getArgsEnv(p *stage1commontypes.Pod, flavor string, canMachinedRegister boo
 			common.Stage1RootfsPath(p.Root),
 			p.UUID.String(),
 			kernelPath,
-			netDescriptions,
+			n.GetActiveNetworks(),
 			cpu,
 			mem,
 			debug,
@@ -557,12 +556,13 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 		}
 
 		if len(p.MDSToken) > 0 {
-			hostIP, err := n.GetForwardableNetHostIP()
+			_, hostIP, err := n.GetForwardableNet()
 			if err != nil {
 				log.FatalE("failed to get default Host IP", err)
 			}
-
-			p.MetadataServiceURL = common.MetadataServicePublicURL(hostIP, p.MDSToken)
+			if hostIP != nil {
+				p.MetadataServiceURL = common.MetadataServicePublicURL(hostIP, p.MDSToken)
+			}
 		}
 	} else {
 		if flavor == "kvm" {

@@ -15,7 +15,6 @@
 package networking
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -23,7 +22,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/containernetworking/cni/libcni"
+	"github.com/containernetworking/cni/pkg/invoke"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
+	cniv031 "github.com/containernetworking/cni/pkg/types/current"
 	"github.com/hashicorp/errwrap"
 
 	"github.com/rkt/rkt/common"
@@ -49,33 +51,39 @@ func pluginErr(err error, output []byte) error {
 	return err
 }
 
+func (e *podEnv) cniInfo(n *activeNet) (*libcni.RuntimeConf, libcni.CNIConfig) {
+	return &libcni.RuntimeConf{
+			ContainerID: e.podID.String(),
+			NetNS:       e.podNS.Path(),
+			IfName:      n.runtime.IfName,
+			Args:        n.runtime.Args,
+		}, libcni.CNIConfig{
+			Path: e.pluginPaths(),
+		}
+}
+
 // Executes a given network plugin. If successful, mutates n.runtime with
 // the runtime information
 func (e *podEnv) netPluginAdd(n *activeNet, netns string) error {
-	output, err := e.execNetPlugin("ADD", n, netns)
+	rtc, cnc := e.cniInfo(n)
+	resultI, err := cnc.AddNetworkList(&n.conf, rtc)
 	if err != nil {
-		return pluginErr(err, output)
+		return err
 	}
-
-	pr := cnitypes.Result{}
-	if err = json.Unmarshal(output, &pr); err != nil {
-		err = errwrap.Wrap(fmt.Errorf("parsing %q", string(output)), err)
-		return errwrap.Wrap(fmt.Errorf("error parsing %q result", n.conf.Name), err)
-	}
-
-	if pr.IP4 == nil {
-		return nil // TODO(casey) should this be an error?
+	result, err := cniv031.NewResultFromResult(resultI)
+	if err != nil {
+		return err
 	}
 
 	// All is well - mutate the runtime
-	n.runtime.MergeCNIResult(pr)
+	n.runtime.MergeCNIResult(result)
 	return nil
 }
 
 func (e *podEnv) netPluginDel(n *activeNet, netns string) error {
-	output, err := e.execNetPlugin("DEL", n, netns)
-	if err != nil {
-		return pluginErr(err, output)
+	rtc, cnc := e.cniInfo(n)
+	if err := cnc.DelNetworkList(&n.conf, rtc); err != nil {
+		return err
 	}
 	return nil
 }
@@ -110,36 +118,20 @@ func envVars(vars [][2]string) []string {
 	return env
 }
 
-func (e *podEnv) execNetPlugin(cmd string, n *activeNet, netns string) ([]byte, error) {
-	if n.runtime.PluginPath == "" {
-		n.runtime.PluginPath = e.findNetPlugin(n.conf.Type)
-	}
-	if n.runtime.PluginPath == "" {
-		return nil, fmt.Errorf("Could not find plugin %q", n.conf.Type)
-	}
-
-	vars := [][2]string{
-		{"CNI_VERSION", "0.1.0"},
-		{"CNI_COMMAND", cmd},
-		{"CNI_CONTAINERID", e.podID.String()},
-		{"CNI_NETNS", netns},
-		{"CNI_ARGS", n.runtime.Args},
-		{"CNI_IFNAME", n.runtime.IfName},
-		{"CNI_PATH", strings.Join(e.pluginPaths(), ":")},
+// Big time hack, only used for KVM executing the IPAM plugin
+func (e *podEnv) execNetPlugin(cmd string, n *activeNet, pluginName string, confBytes []byte) (cnitypes.Result, error) {
+	args := invoke.Args{
+		Command:     cmd,
+		ContainerID: e.podID.String(),
+		NetNS:       e.podNS.Path(),
+		PluginArgs:  n.runtime.Args,
+		IfName:      n.runtime.IfName,
+		Path:        strings.Join(e.pluginPaths(), ":"),
 	}
 
-	stdin := bytes.NewBuffer(n.confBytes)
-	stdout := &bytes.Buffer{}
-
-	c := exec.Cmd{
-		Path:   n.runtime.PluginPath,
-		Args:   []string{n.runtime.PluginPath},
-		Env:    envVars(vars),
-		Stdin:  stdin,
-		Stdout: stdout,
-		Stderr: os.Stderr,
+	pluginPath, err := invoke.FindInPath(pluginName, e.pluginPaths())
+	if err != nil {
+		return nil, err
 	}
-
-	err := c.Run()
-	return stdout.Bytes(), err
+	return invoke.ExecPluginWithResult(pluginPath, confBytes, &args)
 }

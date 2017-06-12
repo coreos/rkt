@@ -29,7 +29,9 @@ import (
 	"github.com/containernetworking/cni/pkg/ns"
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
+	"github.com/containernetworking/cni/pkg/types/current"
 	"github.com/containernetworking/cni/pkg/utils"
+	"github.com/containernetworking/cni/pkg/version"
 )
 
 func init() {
@@ -45,7 +47,7 @@ type NetConf struct {
 	MTU    int  `json:"mtu"`
 }
 
-func setupContainerVeth(netns, ifName string, mtu int, pr *types.Result) (string, error) {
+func setupContainerVeth(netns ns.NetNS, ifName string, mtu int, pr *current.Result) (*current.Interface, *current.Interface, error) {
 	// The IPAM result will be something like IP=192.168.3.5/24, GW=192.168.3.1.
 	// What we want is really a point-to-point link but veth does not support IFF_POINTOPONT.
 	// Next best thing would be to let it ARP but set interface to 192.168.3.5/32 and
@@ -57,93 +59,140 @@ func setupContainerVeth(netns, ifName string, mtu int, pr *types.Result) (string
 	// "192.168.3.1/32 dev $ifName" and "192.168.3.0/24 via 192.168.3.1 dev $ifName".
 	// In other words we force all traffic to ARP via the gateway except for GW itself.
 
-	var hostVethName string
-	err := ns.WithNetNSPath(netns, func(hostNS ns.NetNS) error {
-		hostVeth, _, err := ip.SetupVeth(ifName, mtu, hostNS)
+	hostInterface := &current.Interface{}
+	containerInterface := &current.Interface{}
+
+	err := netns.Do(func(hostNS ns.NetNS) error {
+		hostVeth, contVeth0, err := ip.SetupVeth(ifName, mtu, hostNS)
 		if err != nil {
 			return err
+		}
+		hostInterface.Name = hostVeth.Name
+		hostInterface.Mac = hostVeth.HardwareAddr.String()
+		containerInterface.Name = contVeth0.Name
+		containerInterface.Mac = contVeth0.HardwareAddr.String()
+		containerInterface.Sandbox = netns.Path()
+
+		var firstV4Addr net.IP
+		for _, ipc := range pr.IPs {
+			// All addresses apply to the container veth interface
+			ipc.Interface = 1
+
+			if ipc.Address.IP.To4() != nil && firstV4Addr == nil {
+				firstV4Addr = ipc.Address.IP
+			}
+		}
+
+		pr.Interfaces = []*current.Interface{hostInterface, containerInterface}
+
+		if firstV4Addr != nil {
+			err = hostNS.Do(func(_ ns.NetNS) error {
+				hostVethName := hostVeth.Name
+				if err := ip.SetHWAddrByIP(hostVethName, firstV4Addr, nil /* TODO IPv6 */); err != nil {
+					return fmt.Errorf("failed to set hardware addr by IP: %v", err)
+				}
+
+				return nil
+			})
+			if err != nil {
+				return err
+			}
 		}
 
 		if err = ipam.ConfigureIface(ifName, pr); err != nil {
 			return err
 		}
 
+		if err := ip.SetHWAddrByIP(contVeth0.Name, firstV4Addr, nil /* TODO IPv6 */); err != nil {
+			return fmt.Errorf("failed to set hardware addr by IP: %v", err)
+		}
+
+		// Re-fetch container veth to update attributes
 		contVeth, err := netlink.LinkByName(ifName)
 		if err != nil {
 			return fmt.Errorf("failed to look up %q: %v", ifName, err)
 		}
 
-		// Delete the route that was automatically added
-		route := netlink.Route{
-			LinkIndex: contVeth.Attrs().Index,
-			Dst: &net.IPNet{
-				IP:   pr.IP4.IP.IP.Mask(pr.IP4.IP.Mask),
-				Mask: pr.IP4.IP.Mask,
-			},
-			Scope: netlink.SCOPE_NOWHERE,
-		}
-
-		if err := netlink.RouteDel(&route); err != nil {
-			return fmt.Errorf("failed to delete route %v: %v", route, err)
-		}
-
-		for _, r := range []netlink.Route{
-			netlink.Route{
+		for _, ipc := range pr.IPs {
+			// Delete the route that was automatically added
+			route := netlink.Route{
 				LinkIndex: contVeth.Attrs().Index,
 				Dst: &net.IPNet{
-					IP:   pr.IP4.Gateway,
-					Mask: net.CIDRMask(32, 32),
+					IP:   ipc.Address.IP.Mask(ipc.Address.Mask),
+					Mask: ipc.Address.Mask,
 				},
-				Scope: netlink.SCOPE_LINK,
-				Src:   pr.IP4.IP.IP,
-			},
-			netlink.Route{
-				LinkIndex: contVeth.Attrs().Index,
-				Dst: &net.IPNet{
-					IP:   pr.IP4.IP.IP.Mask(pr.IP4.IP.Mask),
-					Mask: pr.IP4.IP.Mask,
+				Scope: netlink.SCOPE_NOWHERE,
+			}
+
+			if err := netlink.RouteDel(&route); err != nil {
+				return fmt.Errorf("failed to delete route %v: %v", route, err)
+			}
+
+			for _, r := range []netlink.Route{
+				netlink.Route{
+					LinkIndex: contVeth.Attrs().Index,
+					Dst: &net.IPNet{
+						IP:   ipc.Gateway,
+						Mask: net.CIDRMask(32, 32),
+					},
+					Scope: netlink.SCOPE_LINK,
+					Src:   ipc.Address.IP,
 				},
-				Scope: netlink.SCOPE_UNIVERSE,
-				Gw:    pr.IP4.Gateway,
-				Src:   pr.IP4.IP.IP,
-			},
-		} {
-			if err := netlink.RouteAdd(&r); err != nil {
-				return fmt.Errorf("failed to add route %v: %v", r, err)
+				netlink.Route{
+					LinkIndex: contVeth.Attrs().Index,
+					Dst: &net.IPNet{
+						IP:   ipc.Address.IP.Mask(ipc.Address.Mask),
+						Mask: ipc.Address.Mask,
+					},
+					Scope: netlink.SCOPE_UNIVERSE,
+					Gw:    ipc.Gateway,
+					Src:   ipc.Address.IP,
+				},
+			} {
+				if err := netlink.RouteAdd(&r); err != nil {
+					return fmt.Errorf("failed to add route %v: %v", r, err)
+				}
 			}
 		}
 
-		hostVethName = hostVeth.Attrs().Name
-
 		return nil
 	})
-	return hostVethName, err
+	if err != nil {
+		return nil, nil, err
+	}
+	return hostInterface, containerInterface, nil
 }
 
-func setupHostVeth(vethName string, ipConf *types.IPConfig) error {
+func setupHostVeth(vethName string, result *current.Result) error {
 	// hostVeth moved namespaces and may have a new ifindex
 	veth, err := netlink.LinkByName(vethName)
 	if err != nil {
 		return fmt.Errorf("failed to lookup %q: %v", vethName, err)
 	}
 
-	// TODO(eyakubovich): IPv6
-	ipn := &net.IPNet{
-		IP:   ipConf.Gateway,
-		Mask: net.CIDRMask(32, 32),
-	}
-	addr := &netlink.Addr{IPNet: ipn, Label: ""}
-	if err = netlink.AddrAdd(veth, addr); err != nil {
-		return fmt.Errorf("failed to add IP addr (%#v) to veth: %v", ipn, err)
-	}
+	for _, ipc := range result.IPs {
+		maskLen := 128
+		if ipc.Address.IP.To4() != nil {
+			maskLen = 32
+		}
 
-	ipn = &net.IPNet{
-		IP:   ipConf.IP.IP,
-		Mask: net.CIDRMask(32, 32),
-	}
-	// dst happens to be the same as IP/net of host veth
-	if err = ip.AddHostRoute(ipn, nil, veth); err != nil && !os.IsExist(err) {
-		return fmt.Errorf("failed to add route on host: %v", err)
+		ipn := &net.IPNet{
+			IP:   ipc.Gateway,
+			Mask: net.CIDRMask(maskLen, maskLen),
+		}
+		addr := &netlink.Addr{IPNet: ipn, Label: ""}
+		if err = netlink.AddrAdd(veth, addr); err != nil {
+			return fmt.Errorf("failed to add IP addr (%#v) to veth: %v", ipn, err)
+		}
+
+		ipn = &net.IPNet{
+			IP:   ipc.Address.IP,
+			Mask: net.CIDRMask(maskLen, maskLen),
+		}
+		// dst happens to be the same as IP/net of host veth
+		if err = ip.AddHostRoute(ipn, nil, veth); err != nil && !os.IsExist(err) {
+			return fmt.Errorf("failed to add route on host: %v", err)
+		}
 	}
 
 	return nil
@@ -160,33 +209,49 @@ func cmdAdd(args *skel.CmdArgs) error {
 	}
 
 	// run the IPAM plugin and get back the config to apply
-	result, err := ipam.ExecAdd(conf.IPAM.Type, args.StdinData)
+	r, err := ipam.ExecAdd(conf.IPAM.Type, args.StdinData)
 	if err != nil {
 		return err
 	}
-	if result.IP4 == nil {
-		return errors.New("IPAM plugin returned missing IPv4 config")
-	}
-
-	hostVethName, err := setupContainerVeth(args.Netns, args.IfName, conf.MTU, result)
+	// Convert whatever the IPAM result was into the current Result type
+	result, err := current.NewResultFromResult(r)
 	if err != nil {
 		return err
 	}
 
-	if err = setupHostVeth(hostVethName, result.IP4); err != nil {
+	if len(result.IPs) == 0 {
+		return errors.New("IPAM plugin returned missing IP config")
+	}
+
+	netns, err := ns.GetNS(args.Netns)
+	if err != nil {
+		return fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
+	}
+	defer netns.Close()
+
+	hostInterface, containerInterface, err := setupContainerVeth(netns, args.IfName, conf.MTU, result)
+	if err != nil {
+		return err
+	}
+
+	if err = setupHostVeth(hostInterface.Name, result); err != nil {
 		return err
 	}
 
 	if conf.IPMasq {
 		chain := utils.FormatChainName(conf.Name, args.ContainerID)
 		comment := utils.FormatComment(conf.Name, args.ContainerID)
-		if err = ip.SetupIPMasq(&result.IP4.IP, chain, comment); err != nil {
-			return err
+		for _, ipc := range result.IPs {
+			if err = ip.SetupIPMasq(&ipc.Address, chain, comment); err != nil {
+				return err
+			}
 		}
 	}
 
 	result.DNS = conf.DNS
-	return result.Print()
+	result.Interfaces = []*current.Interface{hostInterface, containerInterface}
+
+	return types.PrintResult(result, conf.CNIVersion)
 }
 
 func cmdDel(args *skel.CmdArgs) error {
@@ -203,27 +268,32 @@ func cmdDel(args *skel.CmdArgs) error {
 		return nil
 	}
 
+	// There is a netns so try to clean up. Delete can be called multiple times
+	// so don't return an error if the device is already removed.
+	// If the device isn't there then don't try to clean up IP masq either.
 	var ipn *net.IPNet
 	err := ns.WithNetNSPath(args.Netns, func(_ ns.NetNS) error {
 		var err error
 		ipn, err = ip.DelLinkByNameAddr(args.IfName, netlink.FAMILY_V4)
+		if err != nil && err == ip.ErrLinkNotFound {
+			return nil
+		}
 		return err
 	})
+
 	if err != nil {
 		return err
 	}
 
-	if conf.IPMasq {
+	if ipn != nil && conf.IPMasq {
 		chain := utils.FormatChainName(conf.Name, args.ContainerID)
 		comment := utils.FormatComment(conf.Name, args.ContainerID)
-		if err = ip.TeardownIPMasq(ipn, chain, comment); err != nil {
-			return err
-		}
+		err = ip.TeardownIPMasq(ipn, chain, comment)
 	}
 
-	return nil
+	return err
 }
 
 func main() {
-	skel.PluginMain(cmdAdd, cmdDel)
+	skel.PluginMain(cmdAdd, cmdDel, version.All)
 }

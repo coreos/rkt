@@ -247,7 +247,8 @@ func SupportsUserNS() bool {
 // NetList implements the flag.Value interface to allow specification of --net with and without values
 // Example: --net="all,net1:k1=v1;k2=v2,net2:l1=w1"
 type NetList struct {
-	mapping map[string]string
+	// key = netname; value = array of [k, v] pairs
+	mapping map[string][][2]string
 }
 
 func (l *NetList) String() string {
@@ -256,8 +257,10 @@ func (l *NetList) String() string {
 
 func (l *NetList) Set(value string) error {
 	if l.mapping == nil {
-		l.mapping = make(map[string]string)
+		l.mapping = make(map[string][][2]string)
 	}
+
+	// List of networks
 	for _, s := range strings.Split(value, ",") {
 		netArgsPair := strings.Split(s, ":")
 		netName := netArgsPair[0]
@@ -270,15 +273,23 @@ func (l *NetList) Set(value string) error {
 			return fmt.Errorf("found duplicate netname %q", netName)
 		}
 
+		// Parse additional arguments
 		switch {
 		case len(netArgsPair) == 1:
-			l.mapping[netName] = ""
+			l.mapping[netName] = nil
 		case len(netArgsPair) == 2:
 			if netName == "all" ||
 				netName == "host" {
 				return fmt.Errorf("arguments are not supported by special netname %q", netName)
 			}
-			l.mapping[netName] = netArgsPair[1]
+			// parse out pairs
+			pairs := [][2]string{}
+			for _, arg := range strings.Split(netArgsPair[1], ";") {
+				var p [2]string
+				copy(p[:], strings.SplitN(arg, "=", 2))
+				pairs = append(pairs, p)
+			}
+			l.mapping[netName] = pairs
 		case len(netArgsPair) > 2:
 			return fmt.Errorf("network %q provided with invalid arguments: %v", netName, netArgsPair[1:])
 		default:
@@ -298,11 +309,15 @@ func (l *NetList) Strings() []string {
 	}
 
 	var list []string
-	for k, v := range l.mapping {
-		if v == "" {
-			list = append(list, k)
+	for netname, args := range l.mapping {
+		if len(args) == 0 {
+			list = append(list, netname)
 		} else {
-			list = append(list, fmt.Sprintf("%s:%s", k, v))
+			tmp := []string{}
+			for _, arg := range args {
+				tmp = append(tmp, fmt.Sprintf("%s=%s", arg[0], arg[1]))
+			}
+			list = append(list, fmt.Sprintf("%s:%s", netname, strings.Join(tmp, ";")))
 		}
 	}
 	return list
@@ -336,7 +351,7 @@ func (l *NetList) Specific(net string) bool {
 	return exists
 }
 
-func (l *NetList) SpecificArgs(net string) string {
+func (l *NetList) SpecificArgs(net string) [][2]string {
 	return l.mapping[net]
 }
 

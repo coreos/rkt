@@ -15,11 +15,11 @@
 package testutils
 
 import (
-	"encoding/json"
 	"io/ioutil"
 	"os"
 
 	"github.com/containernetworking/cni/pkg/types"
+	"github.com/containernetworking/cni/pkg/version"
 )
 
 func envCleanup() {
@@ -29,7 +29,7 @@ func envCleanup() {
 	os.Unsetenv("CNI_IFNAME")
 }
 
-func CmdAddWithResult(cniNetns, cniIfname string, f func() error) (*types.Result, error) {
+func CmdAddWithResult(cniNetns, cniIfname string, conf []byte, f func() error) (types.Result, []byte, error) {
 	os.Setenv("CNI_COMMAND", "ADD")
 	os.Setenv("CNI_PATH", os.Getenv("PATH"))
 	os.Setenv("CNI_NETNS", cniNetns)
@@ -40,30 +40,38 @@ func CmdAddWithResult(cniNetns, cniIfname string, f func() error) (*types.Result
 	oldStdout := os.Stdout
 	r, w, err := os.Pipe()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	os.Stdout = w
 	err = f()
 	w.Close()
-	if err != nil {
-		return nil, err
-	}
 
-	// parse the result
-	out, err := ioutil.ReadAll(r)
+	var out []byte
+	if err == nil {
+		out, err = ioutil.ReadAll(r)
+	}
 	os.Stdout = oldStdout
+
+	// Return errors after restoring stdout so Ginkgo will correctly
+	// emit verbose error information on stdout
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	result := types.Result{}
-	err = json.Unmarshal(out, &result)
+	// Plugin must return result in same version as specified in netconf
+	versionDecoder := &version.ConfigDecoder{}
+	confVersion, err := versionDecoder.Decode(conf)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return &result, nil
+	result, err := version.NewResult(confVersion, out)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return result, out, nil
 }
 
 func CmdDelWithResult(cniNetns, cniIfname string, f func() error) error {

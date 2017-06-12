@@ -22,6 +22,8 @@ import (
 
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
+	"github.com/containernetworking/cni/pkg/types/current"
+	"github.com/containernetworking/cni/pkg/version"
 )
 
 const socketPath = "/run/cni/dhcp.sock"
@@ -30,16 +32,24 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "daemon" {
 		runDaemon()
 	} else {
-		skel.PluginMain(cmdAdd, cmdDel)
+		skel.PluginMain(cmdAdd, cmdDel, version.All)
 	}
 }
 
 func cmdAdd(args *skel.CmdArgs) error {
-	result := types.Result{}
-	if err := rpcCall("DHCP.Allocate", args, &result); err != nil {
+	// Plugin must return result in same version as specified in netconf
+	versionDecoder := &version.ConfigDecoder{}
+	confVersion, err := versionDecoder.Decode(args.StdinData)
+	if err != nil {
 		return err
 	}
-	return result.Print()
+
+	result := &current.Result{}
+	if err := rpcCall("DHCP.Allocate", args, result); err != nil {
+		return err
+	}
+
+	return types.PrintResult(result, confVersion)
 }
 
 func cmdDel(args *skel.CmdArgs) error {

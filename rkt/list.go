@@ -242,8 +242,11 @@ func appLine(app lastditch.RuntimeApp) string {
 func fmtNets(nis []netinfo.NetInfo) string {
 	var parts []string
 	for _, ni := range nis {
-		// there will be IPv6 support soon so distinguish between v4 and v6
-		parts = append(parts, fmt.Sprintf("%v:ip4=%v", ni.NetName, ni.IP))
+		ip4s := ""
+		if ip4 := ni.FirstIP4(); ip4 != nil {
+			ip4s = ip4.String()
+		}
+		parts = append(parts, fmt.Sprintf("%v:ip4=%v", ni.NetName, ip4s))
 	}
 	return strings.Join(parts, ", ")
 }

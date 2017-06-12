@@ -45,8 +45,9 @@ import:
   - private/protocol/rest
   - private/signer/v4
 - package: github.com/containernetworking/cni
-  version: v0.3.0
+  version: v0.5.2
   subpackages:
+  - libcni
   - pkg/invoke
   - pkg/ip
   - pkg/ipam
@@ -54,12 +55,15 @@ import:
   - pkg/skel
   - pkg/testutils
   - pkg/types
+  - pkg/types/020
+  - pkg/types/current
   - pkg/utils
   - pkg/utils/sysctl
   - pkg/utils/hwaddr
   - plugins/ipam/dhcp
   - plugins/ipam/host-local
   - plugins/ipam/host-local/backend
+  - plugins/ipam/host-local/backend/allocator
   - plugins/ipam/host-local/backend/disk
   - plugins/main/bridge
   - plugins/main/ipvlan
@@ -205,7 +209,7 @@ import:
   subpackages:
   - capability
 - package: github.com/vishvananda/netlink
-  version: ecf47fd5739b3d2c3daf7c89c4b9715a2605c21b
+  version: fe3b5664d23a11b52ba59bece4ff29c52772a56b
   subpackages:
   - nl
 - package: go4.org

@@ -20,13 +20,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rkt/rkt/stage1/init/kvm"
+	"github.com/rkt/rkt/networking/netinfo"
 	"github.com/rkt/rkt/stage1/init/kvm/hypervisor"
 )
 
 // StartCmd takes path to stage1, name of the machine, path to kernel, network describers, memory in megabytes
 // and quantity of cpus and prepares command line to run QEMU process
-func StartCmd(wdPath, name, kernelPath string, nds []kvm.NetDescriber, cpu, mem int64, debug bool) []string {
+func StartCmd(wdPath, name, kernelPath string, nets []*netinfo.NetInfo, cpu, mem int64, debug bool) []string {
 	var (
 		driverConfiguration = hypervisor.KvmHypervisor{
 			Bin: "./qemu",
@@ -59,19 +59,19 @@ func StartCmd(wdPath, name, kernelPath string, nds []kvm.NetDescriber, cpu, mem 
 		"-device", "virtio-serial",
 		"-device", "virtconsole,chardev=virtiocon0",
 	}
-	return append(cmd, kvmNetArgs(nds)...)
+	return append(cmd, kvmNetArgs(nets)...)
 }
 
 // kvmNetArgs returns additional arguments that need to be passed
 // to qemu to configure networks properly. Logic is based on
 // network configuration extracted from Networking struct
 // and essentially from activeNets that expose NetDescriber behavior
-func kvmNetArgs(nds []kvm.NetDescriber) []string {
+func kvmNetArgs(nets []*netinfo.NetInfo) []string {
 	var qemuArgs []string
 
-	for _, nd := range nds {
+	for _, net := range nets {
 		qemuArgs = append(qemuArgs, []string{"-net", "nic,model=virtio"}...)
-		qemuNic := fmt.Sprintf("tap,ifname=%s,script=no,downscript=no,vhost=on", nd.IfName())
+		qemuNic := fmt.Sprintf("tap,ifname=%s,script=no,downscript=no,vhost=on", net.IfName)
 		qemuArgs = append(qemuArgs, []string{"-net", qemuNic}...)
 	}
 

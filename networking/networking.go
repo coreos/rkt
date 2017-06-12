@@ -25,7 +25,6 @@ import (
 	"syscall"
 
 	"github.com/appc/spec/schema/types"
-	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/hashicorp/errwrap"
 	"github.com/vishvananda/netlink"
 
@@ -45,15 +44,6 @@ type Networking struct {
 	podEnv
 
 	nets []activeNet
-}
-
-// NetConf local struct extends cnitypes.NetConf with information about masquerading
-// similar to CNI plugins
-type NetConf struct {
-	cnitypes.NetConf
-	IPMasq           bool `json:"ipMasq"`
-	MTU              int  `json:"mtu"`
-	IsDefaultGateway bool `json:"isDefaultGateway"`
 }
 
 var (
@@ -102,7 +92,7 @@ func Setup(podRoot string, podID types.UUID, fps []commonnet.ForwardedPort, netL
 		if err = n.enableDefaultLocalnetRouting(); err != nil {
 			return nil, err
 		}
-		podIP, err := n.GetForwardableNetPodIP()
+		podIP, _, err := n.GetForwardableNet()
 		if err != nil {
 			return nil, err
 		}
@@ -131,30 +121,30 @@ func Setup(podRoot string, podID types.UUID, fps []commonnet.ForwardedPort, netL
 // enableDefaultLocalnetRouting enables the route_localnet attribute on the supposedly default network interface.
 // This allows setting up loopback NAT so the host can access the pod's forwarded ports on the localhost address.
 func (n *Networking) enableDefaultLocalnetRouting() error {
-	routeLocalnetFormat := ""
+	routeLocalnetFormat := "/proc/sys/net/ipv4/conf/%s/route_localnet"
 
-	defaultHostIP, err := n.GetForwardableNetHostIP()
+	podIP, _, err := n.GetForwardableNet()
 	if err != nil {
 		return err
 	}
 
-	defaultHostIPstring := defaultHostIP.String()
-	switch {
-	case strings.Contains(defaultHostIPstring, "."):
-		routeLocalnetFormat = "/proc/sys/net/ipv4/conf/%s/route_localnet"
-	case strings.Contains(defaultHostIPstring, ":"):
-		return fmt.Errorf("unexpected IPv6 Address returned for default host interface: %q", defaultHostIPstring)
-	default:
-		return fmt.Errorf("unknown type for default Host IP: %q", defaultHostIPstring)
-	}
-
-	hostIfaces, err := n.GetIfacesByIP(defaultHostIP)
+	// Get the interface
+	routes, err := netlink.RouteGet(podIP)
 	if err != nil {
 		return err
 	}
 
-	for _, hostIface := range hostIfaces {
-		routeLocalnetPath := fmt.Sprintf(routeLocalnetFormat, hostIface.Name)
+	hostIfaces := map[string]interface{}{}
+	for _, route := range routes {
+		dev, err := netlink.LinkByIndex(route.LinkIndex)
+		if err != nil {
+			return errwrap.Wrapf("Could not retrieve host-side interface", err)
+		}
+		hostIfaces[dev.Attrs().Name] = struct{}{}
+	}
+
+	for hostIface := range hostIfaces {
+		routeLocalnetPath := fmt.Sprintf(routeLocalnetFormat, hostIface)
 		routeLocalnetValue, err := ioutil.ReadFile(routeLocalnetPath)
 		if err != nil {
 			return err

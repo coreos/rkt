@@ -20,14 +20,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rkt/rkt/stage1/init/kvm"
+	"github.com/rkt/rkt/networking/netinfo"
 	"github.com/rkt/rkt/stage1/init/kvm/hypervisor"
 )
 
 // StartCmd takes path to stage1, UUID of the pod, path to kernel, network
 // describers, memory in megabytes and quantity of cpus and prepares command
 // line to run LKVM process
-func StartCmd(wdPath, uuid, kernelPath string, nds []kvm.NetDescriber, cpu, mem int64, debug bool) []string {
+func StartCmd(wdPath, uuid, kernelPath string, nets []*netinfo.NetInfo, cpu, mem int64, debug bool) []string {
 	machineID := strings.Replace(uuid, "-", "", -1)
 	driverConfiguration := hypervisor.KvmHypervisor{
 		Bin: "./lkvm",
@@ -52,21 +52,26 @@ func StartCmd(wdPath, uuid, kernelPath string, nds []kvm.NetDescriber, cpu, mem 
 		"--disk", "stage1/rootfs", // relative to run/pods/uuid dir this is a place where systemd resides
 		"--params", strings.Join(driverConfiguration.KernelParams, " "),
 	}
-	return append(startCmd, kvmNetArgs(nds)...)
+	return append(startCmd, kvmNetArgs(nets)...)
 }
 
 // kvmNetArgs returns additional arguments that need to be passed
 // to lkvm tool to configure networks properly. Logic is based on
 // network configuration extracted from Networking struct
 // and essentially from activeNets that expose NetDescriber behavior
-func kvmNetArgs(nds []kvm.NetDescriber) []string {
+func kvmNetArgs(nets []*netinfo.NetInfo) []string {
 	var lkvmArgs []string
 
-	for _, nd := range nds {
+	for _, net := range nets {
+		ipConf := net.FirstIPConfig()
+		if ipConf == nil {
+			continue
+		}
+
 		lkvmArgs = append(lkvmArgs, "--network")
 		lkvmArgs = append(
 			lkvmArgs,
-			fmt.Sprintf("mode=tap,tapif=%s,host_ip=%s,guest_ip=%s", nd.IfName(), nd.Gateway(), nd.GuestIP()),
+			fmt.Sprintf("mode=tap,tapif=%s,host_ip=%s,guest_ip=%s", net.IfName, ipConf.Gateway, ipConf.Address.IP.String()),
 		)
 	}
 

@@ -22,23 +22,23 @@ import (
 	"net"
 	"path/filepath"
 
-	"github.com/containernetworking/cni/pkg/types"
 	"github.com/coreos/go-systemd/unit"
 	"github.com/hashicorp/errwrap"
 	"github.com/rkt/rkt/networking"
+	"github.com/rkt/rkt/networking/netinfo"
 )
 
 // GetNetworkDescriptions converts activeNets to netDescribers
-func GetNetworkDescriptions(n *networking.Networking) []NetDescriber {
+/*func GetNetworkDescriptions(n *networking.Networking) []NetDescriber {
 	var nds []NetDescriber
 	for _, an := range n.GetActiveNetworks() {
 		nds = append(nds, an)
 	}
 	return nds
-}
+}*/
 
 // NetDescriber is the interface that describes a network configuration
-type NetDescriber interface {
+/*type NetDescriber interface {
 	GuestIP() net.IP
 	Mask() net.IP
 	IfName() string
@@ -46,19 +46,27 @@ type NetDescriber interface {
 	Name() string
 	Gateway() net.IP
 	Routes() []types.Route
-}
+}*/
 
 // GetKVMNetArgs returns additional arguments that need to be passed
 // to lkvm tool to configure networks properly.
 // Logic is based on Network configuration extracted from Networking struct
 // and essentially from activeNets that expose netDescriber behavior
-func GetKVMNetArgs(nds []NetDescriber) ([]string, error) {
+func GetKVMNetArgs(nets []*netinfo.NetInfo) ([]string, error) {
 
 	var lkvmArgs []string
 
-	for _, nd := range nds {
+	for _, net := range nets {
+		ip := net.FirstIPConfig()
+		if ip == nil {
+			continue
+		}
+
+		// Convert the IP config to tap args
+		// This ignores multiple ips...
 		lkvmArgs = append(lkvmArgs, "--network")
-		lkvmArg := fmt.Sprintf("mode=tap,tapif=%s,host_ip=%s,guest_ip=%s", nd.IfName(), nd.Gateway(), nd.GuestIP())
+		lkvmArg := fmt.Sprintf("mode=tap,tapif=%s,host_ip=%s,guest_ip=%s",
+			net.IfName, ip.Gateway, ip.Address.IP.String())
 		lkvmArgs = append(lkvmArgs, lkvmArg)
 	}
 
@@ -102,15 +110,15 @@ func upInterfaceCommand(ifName string) string {
 	return fmt.Sprintf("/bin/ip link set dev %s up", ifName)
 }
 
-func GenerateNetworkInterfaceUnits(unitsPath string, netDescriptions []NetDescriber) error {
-	for i, netDescription := range netDescriptions {
-		ifName := fmt.Sprintf(networking.IfNamePattern, i)
-		netAddress := net.IPNet{
-			IP:   netDescription.GuestIP(),
-			Mask: net.IPMask(netDescription.Mask()),
+func GenerateNetworkInterfaceUnits(unitsPath string, nets []*netinfo.NetInfo) error {
+	for i, net := range nets {
+		ip := net.FirstIPConfig()
+		if ip == nil {
+			continue
 		}
+		ifName := fmt.Sprintf(networking.IfNamePattern, i)
 
-		address := netAddress.String()
+		address := ip.Address.String()
 
 		mac, err := generateMacAddress()
 		if err != nil {
@@ -129,10 +137,10 @@ func GenerateNetworkInterfaceUnits(unitsPath string, netDescriptions []NetDescri
 			unit.NewUnitOption("Install", "RequiredBy", "default.target"),
 		}
 
-		for _, route := range netDescription.Routes() {
+		for _, route := range net.CniResult.Routes {
 			gw := route.GW
 			if gw == nil {
-				gw = netDescription.Gateway()
+				gw = ip.Gateway
 			}
 
 			opts = append(

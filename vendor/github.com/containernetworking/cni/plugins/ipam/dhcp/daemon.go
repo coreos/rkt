@@ -29,6 +29,7 @@ import (
 
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
+	"github.com/containernetworking/cni/pkg/types/current"
 	"github.com/coreos/go-systemd/activation"
 )
 
@@ -50,7 +51,7 @@ func newDHCP() *DHCP {
 
 // Allocate acquires an IP from a DHCP server for a specified container.
 // The acquired lease will be maintained until Release() is called.
-func (d *DHCP) Allocate(args *skel.CmdArgs, result *types.Result) error {
+func (d *DHCP) Allocate(args *skel.CmdArgs, result *current.Result) error {
 	conf := types.NetConf{}
 	if err := json.Unmarshal(args.StdinData, &conf); err != nil {
 		return fmt.Errorf("error parsing netconf: %v", err)
@@ -70,11 +71,12 @@ func (d *DHCP) Allocate(args *skel.CmdArgs, result *types.Result) error {
 
 	d.setLease(args.ContainerID, conf.Name, l)
 
-	result.IP4 = &types.IPConfig{
-		IP:      *ipn,
+	result.IPs = []*current.IPConfig{{
+		Version: "4",
+		Address: *ipn,
 		Gateway: l.Gateway(),
-		Routes:  l.Routes(),
-	}
+	}}
+	result.Routes = l.Routes()
 
 	return nil
 }

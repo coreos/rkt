@@ -21,7 +21,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/containernetworking/cni/pkg/types"
+	cniv031 "github.com/containernetworking/cni/pkg/types/current"
 )
 
 const filename = "net-info.json"
@@ -35,16 +35,19 @@ const filename = "net-info.json"
 // This information is also serialized in the pod's runtime directory so that
 // `rkt list` and other stage0 programs can access the runtime state.
 type NetInfo struct {
-	NetName    string          `json:"netName"`
-	ConfPath   string          `json:"netConf"`
-	PluginPath string          `json:"pluginPath"`
-	IfName     string          `json:"ifName"`
-	IP         net.IP          `json:"ip"`
-	Args       string          `json:"args"`
-	Mask       net.IP          `json:"mask"` // we used IP instead of IPMask because support for json serialization (we don't need specific functionalities)
-	HostIP     net.IP          `json:"-"`
-	IP4        *types.IPConfig `json:"-"`
-	DNS        types.DNS       `json:"-"`
+	NetName string `json:"netName"`
+	// We copy in the configuration file to the pod root - this is that path
+	ConfPath string      `json:"netConf"`
+	IfName   string      `json:"ifName"`
+	IPs      []net.IPNet `json:"ips"`
+	Args     [][2]string `json:"args"`
+
+	// This is so we can parse older netinfo files
+	legacyIP   net.IP `json:"ip,omitempty"`
+	legacyMask net.IP `json:"mask,omitempty"`
+
+	// Don't need to serialize this - only used during init
+	CniResult *cniv031.Result `json:"-"`
 }
 
 func LoadAt(cdirfd int) ([]NetInfo, error) {
@@ -56,8 +59,27 @@ func LoadAt(cdirfd int) ([]NetInfo, error) {
 	f := os.NewFile(uintptr(fd), filename)
 
 	var info []NetInfo
-	err = json.NewDecoder(f).Decode(&info)
+	if err := json.NewDecoder(f).Decode(&info); err != nil {
+		return info, err
+	}
+
+	for _, ni := range info {
+		ni.fixupLegacy()
+	}
+
 	return info, err
+}
+
+// fixupIPs up-converts older version netinfo structs
+func (ni *NetInfo) fixupLegacy() {
+	if len(ni.IPs) == 0 && ni.legacyIP != nil {
+		ni.IPs = []net.IPNet{
+			{
+				IP:   ni.legacyIP,
+				Mask: net.IPMask(ni.legacyMask),
+			},
+		}
+	}
 }
 
 func Save(root string, info []NetInfo) error {
@@ -71,10 +93,41 @@ func Save(root string, info []NetInfo) error {
 }
 
 // MergeCNIResult will incorporate the result of a CNI plugin's execution
-func (ni *NetInfo) MergeCNIResult(result types.Result) {
-	ni.IP = result.IP4.IP.IP
-	ni.Mask = net.IP(result.IP4.IP.Mask)
-	ni.HostIP = result.IP4.Gateway
-	ni.IP4 = result.IP4
-	ni.DNS = result.DNS
+func (ni *NetInfo) MergeCNIResult(result *cniv031.Result) {
+	ni.CniResult = result
+
+	for _, ip := range result.IPs {
+		// Skip non-container IPs
+		if ip.Interface >= 0 && ip.Interface < len(result.Interfaces) && result.Interfaces[ip.Interface].Sandbox == "" {
+			continue
+		}
+		ni.IPs = append(ni.IPs, ip.Address)
+	}
+}
+
+func (ni *NetInfo) FirstIP() net.IP {
+	for _, n := range ni.IPs {
+		return n.IP
+	}
+	return nil
+}
+
+func (ni *NetInfo) FirstIP4() net.IP {
+	for _, n := range ni.IPs {
+		ip := n.IP.To4()
+		if ip != nil {
+			return ip
+		}
+	}
+	return nil
+}
+
+func (ni *NetInfo) FirstIPConfig() *cniv031.IPConfig {
+	for _, ip := range ni.CniResult.IPs {
+		if ip.Interface >= 0 && ip.Interface < len(ni.CniResult.Interfaces) && ni.CniResult.Interfaces[ip.Interface].Sandbox == "" {
+			continue
+		}
+		return ip
+	}
+	return nil
 }

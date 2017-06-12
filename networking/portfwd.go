@@ -20,6 +20,7 @@ import (
 	"strconv"
 
 	"github.com/coreos/go-iptables/iptables"
+	"github.com/vishvananda/netlink"
 
 	commonnet "github.com/rkt/rkt/common/networking"
 )
@@ -29,41 +30,31 @@ type iptablesRule struct {
 	Rule  []string
 }
 
-// GetForwardableNet iterates through all loaded networks and returns either
-// the first network that has masquerading enabled,
-// or the last network in case there is no masqueraded one,
-// or an error if no network was loaded.
-func (n *Networking) GetForwardableNet() (*activeNet, error) {
+// GetForwardablePodIP loops through all networks and IPS and returns the first
+// one that has a local routing entry. Returns the pod IP and the host IP
+// hostip may be nil if there are no local networks.
+func (n *Networking) GetForwardableNet() (net.IP, net.IP, error) {
 	numberNets := len(n.nets)
 	if numberNets == 0 {
-		return nil, fmt.Errorf("no networks found")
+		return nil, nil, fmt.Errorf("no networks found")
 	}
 	for _, net := range n.nets {
-		if net.IPMasq() {
-			return &net, nil
+		for _, ip := range net.runtime.IPs {
+			addr := ip.IP
+			routes, err := netlink.RouteGet(addr)
+			if err != nil {
+				return nil, nil, err
+			}
+			for _, route := range routes {
+				if route.Gw == nil {
+					return ip.IP, route.Src, nil
+				}
+			}
 		}
 	}
-	return &n.nets[numberNets-1], nil
-}
 
-// GetForwardableNetPodIP uses GetForwardableNet() to determine the default network and then
-// returns the Pod's IP of that network.
-func (n *Networking) GetForwardableNetPodIP() (net.IP, error) {
-	net, err := n.GetForwardableNet()
-	if err != nil {
-		return nil, err
-	}
-	return net.runtime.IP, nil
-}
-
-// GetForwardableNetHostIP uses GetForwardableNet() to determine the default network and then
-// returns the Host's IP of that network.
-func (n *Networking) GetForwardableNetHostIP() (net.IP, error) {
-	net, err := n.GetForwardableNet()
-	if err != nil {
-		return nil, err
-	}
-	return net.runtime.HostIP, nil
+	// Return the first IP. This is probably the wrong approach
+	return n.nets[numberNets-1].runtime.FirstIP(), nil, nil
 }
 
 // setupForwarding creates the iptables chains

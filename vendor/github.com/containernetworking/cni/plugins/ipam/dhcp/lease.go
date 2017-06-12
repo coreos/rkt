@@ -291,7 +291,7 @@ func (l *DHCPLease) Gateway() net.IP {
 	return parseRouter(l.opts)
 }
 
-func (l *DHCPLease) Routes() []types.Route {
+func (l *DHCPLease) Routes() []*types.Route {
 	routes := parseRoutes(l.opts)
 	return append(routes, parseCIDRRoutes(l.opts)...)
 }

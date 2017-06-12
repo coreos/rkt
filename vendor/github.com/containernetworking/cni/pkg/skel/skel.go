@@ -1,4 +1,4 @@
-// Copyright 2014 CNI authors
+// Copyright 2014-2016 CNI authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,11 +18,13 @@ package skel
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
 
 	"github.com/containernetworking/cni/pkg/types"
+	"github.com/containernetworking/cni/pkg/version"
 )
 
 // CmdArgs captures all the arguments passed in to the plugin
@@ -36,11 +38,19 @@ type CmdArgs struct {
 	StdinData   []byte
 }
 
+type dispatcher struct {
+	Getenv func(string) string
+	Stdin  io.Reader
+	Stdout io.Writer
+	Stderr io.Writer
+
+	ConfVersionDecoder version.ConfigDecoder
+	VersionReconciler  version.Reconciler
+}
+
 type reqForCmdEntry map[string]bool
 
-// PluginMain is the "main" for a plugin. It accepts
-// two callback functions for add and del commands.
-func PluginMain(cmdAdd, cmdDel func(_ *CmdArgs) error) {
+func (t *dispatcher) getCmdArgsFromEnv() (string, *CmdArgs, error) {
 	var cmd, contID, netns, ifName, args, path string
 
 	vars := []struct {
@@ -100,20 +110,22 @@ func PluginMain(cmdAdd, cmdDel func(_ *CmdArgs) error) {
 
 	argsMissing := false
 	for _, v := range vars {
-		*v.val = os.Getenv(v.name)
-		if v.reqForCmd[cmd] && *v.val == "" {
-			log.Printf("%v env variable missing", v.name)
-			argsMissing = true
+		*v.val = t.Getenv(v.name)
+		if *v.val == "" {
+			if v.reqForCmd[cmd] || v.name == "CNI_COMMAND" {
+				fmt.Fprintf(t.Stderr, "%v env variable missing\n", v.name)
+				argsMissing = true
+			}
 		}
 	}
 
 	if argsMissing {
-		dieMsg("required env variables missing")
+		return "", nil, fmt.Errorf("required env variables missing")
 	}
 
-	stdinData, err := ioutil.ReadAll(os.Stdin)
+	stdinData, err := ioutil.ReadAll(t.Stdin)
 	if err != nil {
-		dieMsg("error reading from stdin: %v", err)
+		return "", nil, fmt.Errorf("error reading from stdin: %v", err)
 	}
 
 	cmdArgs := &CmdArgs{
@@ -124,38 +136,93 @@ func PluginMain(cmdAdd, cmdDel func(_ *CmdArgs) error) {
 		Path:        path,
 		StdinData:   stdinData,
 	}
+	return cmd, cmdArgs, nil
+}
+
+func createTypedError(f string, args ...interface{}) *types.Error {
+	return &types.Error{
+		Code: 100,
+		Msg:  fmt.Sprintf(f, args...),
+	}
+}
+
+func (t *dispatcher) checkVersionAndCall(cmdArgs *CmdArgs, pluginVersionInfo version.PluginInfo, toCall func(*CmdArgs) error) error {
+	configVersion, err := t.ConfVersionDecoder.Decode(cmdArgs.StdinData)
+	if err != nil {
+		return err
+	}
+	verErr := t.VersionReconciler.Check(configVersion, pluginVersionInfo)
+	if verErr != nil {
+		return &types.Error{
+			Code:    types.ErrIncompatibleCNIVersion,
+			Msg:     "incompatible CNI versions",
+			Details: verErr.Details(),
+		}
+	}
+	return toCall(cmdArgs)
+}
+
+func (t *dispatcher) pluginMain(cmdAdd, cmdDel func(_ *CmdArgs) error, versionInfo version.PluginInfo) *types.Error {
+	cmd, cmdArgs, err := t.getCmdArgsFromEnv()
+	if err != nil {
+		return createTypedError(err.Error())
+	}
 
 	switch cmd {
 	case "ADD":
-		err = cmdAdd(cmdArgs)
-
+		err = t.checkVersionAndCall(cmdArgs, versionInfo, cmdAdd)
 	case "DEL":
-		err = cmdDel(cmdArgs)
-
+		err = t.checkVersionAndCall(cmdArgs, versionInfo, cmdDel)
+	case "VERSION":
+		err = versionInfo.Encode(t.Stdout)
 	default:
-		dieMsg("unknown CNI_COMMAND: %v", cmd)
+		return createTypedError("unknown CNI_COMMAND: %v", cmd)
 	}
 
 	if err != nil {
 		if e, ok := err.(*types.Error); ok {
 			// don't wrap Error in Error
-			dieErr(e)
+			return e
 		}
-		dieMsg(err.Error())
+		return createTypedError(err.Error())
 	}
+	return nil
 }
 
-func dieMsg(f string, args ...interface{}) {
-	e := &types.Error{
-		Code: 100,
-		Msg:  fmt.Sprintf(f, args...),
-	}
-	dieErr(e)
+// PluginMainWithError is the core "main" for a plugin. It accepts
+// callback functions for add and del CNI commands and returns an error.
+//
+// The caller must also specify what CNI spec versions the plugin supports.
+//
+// It is the responsibility of the caller to check for non-nil error return.
+//
+// For a plugin to comply with the CNI spec, it must print any error to stdout
+// as JSON and then exit with nonzero status code.
+//
+// To let this package automatically handle errors and call os.Exit(1) for you,
+// use PluginMain() instead.
+func PluginMainWithError(cmdAdd, cmdDel func(_ *CmdArgs) error, versionInfo version.PluginInfo) *types.Error {
+	return (&dispatcher{
+		Getenv: os.Getenv,
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}).pluginMain(cmdAdd, cmdDel, versionInfo)
 }
 
-func dieErr(e *types.Error) {
-	if err := e.Print(); err != nil {
-		log.Print("Error writing error JSON to stdout: ", err)
+// PluginMain is the core "main" for a plugin which includes automatic error handling.
+//
+// The caller must also specify what CNI spec versions the plugin supports.
+//
+// When an error occurs in either cmdAdd or cmdDel, PluginMain will print the error
+// as JSON to stdout and call os.Exit(1).
+//
+// To have more control over error handling, use PluginMainWithError() instead.
+func PluginMain(cmdAdd, cmdDel func(_ *CmdArgs) error, versionInfo version.PluginInfo) {
+	if e := PluginMainWithError(cmdAdd, cmdDel, versionInfo); e != nil {
+		if err := e.Print(); err != nil {
+			log.Print("Error writing error JSON to stdout: ", err)
+		}
+		os.Exit(1)
 	}
-	os.Exit(1)
 }

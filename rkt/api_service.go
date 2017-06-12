@@ -396,10 +396,16 @@ func getApplist(manifest *schema.PodManifest) []*v1alpha.App {
 func getNetworks(p *pkgPod.Pod) []*v1alpha.Network {
 	var networks []*v1alpha.Network
 	for _, n := range p.Nets {
+		var ips string
+		ip := n.FirstIP4()
+		if ip != nil {
+			ips = ip.String()
+		}
+
 		networks = append(networks, &v1alpha.Network{
 			Name: n.NetName,
 			// There will be IPv6 support soon so distinguish between v4 and v6
-			Ipv4: n.IP.String(),
+			Ipv4: ips,
 		})
 	}
 	return networks

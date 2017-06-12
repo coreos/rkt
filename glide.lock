@@ -1,5 +1,5 @@
-hash: 5b01507338879a95e4f789cc14dac4aee0ae1ef7661da521a437621e207ba7fa
-updated: 2017-02-13T16:50:01.49078982Z
+hash: cf245f3cfcf7f5344b090ed091be3261e364dc7fe974ea0910b127bf08991b76
+updated: 2017-04-28T15:16:49.640729494+02:00
 imports:
 - name: github.com/appc/docker2aci
   version: 4537ee8e3139455eac6092d47a224d8fa19bf08a
@@ -46,8 +46,9 @@ imports:
   - private/protocol/rest
   - private/signer/v4
 - name: github.com/containernetworking/cni
-  version: 5c3c17164270150467498a32c71436c7cd5501be
+  version: 137b4975ecab6e1f0c24c1e3c228a50a3cfba75e
   subpackages:
+  - libcni
   - pkg/invoke
   - pkg/ip
   - pkg/ipam
@@ -55,12 +56,16 @@ imports:
   - pkg/skel
   - pkg/testutils
   - pkg/types
+  - pkg/types/020
+  - pkg/types/current
   - pkg/utils
   - pkg/utils/hwaddr
   - pkg/utils/sysctl
+  - pkg/version
   - plugins/ipam/dhcp
   - plugins/ipam/host-local
   - plugins/ipam/host-local/backend
+  - plugins/ipam/host-local/backend/allocator
   - plugins/ipam/host-local/backend/disk
   - plugins/main/bridge
   - plugins/main/ipvlan
@@ -243,9 +248,11 @@ imports:
   subpackages:
   - capability
 - name: github.com/vishvananda/netlink
-  version: ecf47fd5739b3d2c3daf7c89c4b9715a2605c21b
+  version: fe3b5664d23a11b52ba59bece4ff29c52772a56b
   subpackages:
   - nl
+- name: github.com/vishvananda/netns
+  version: 8ba1072b58e0c2a240eb5f6120165c7776c3e7b8
 - name: go4.org
   version: 03efcb870d84809319ea509714dd6d19a1498483
   subpackages:
@@ -278,7 +285,7 @@ imports:
   subpackages:
   - unix
 - name: golang.org/x/text
-  version: 06d6eba81293389cafdff7fca90d75592194b2d9
+  version: 470f45bf29f4147d6fbd7dfd0a02a848e49f5bf4
   subpackages:
   - transform
   - unicode/norm

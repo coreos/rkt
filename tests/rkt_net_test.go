@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -29,6 +30,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kr/pretty"
 	"github.com/rkt/rkt/networking/netinfo"
 	"github.com/rkt/rkt/pkg/fileutil"
 	"github.com/rkt/rkt/tests/testutils"
@@ -498,7 +500,8 @@ func (nt *networkTemplateT) NetParameter() string {
 }
 
 type networkTemplateT struct {
-	Name       string
+	CNIVersion string `json:"cniVersion"`
+	Name       string `json:"name"`
 	Type       string
 	SubnetFile string `json:"subnetFile,omitempty"`
 	Master     string `json:"master,omitempty"`
@@ -523,9 +526,10 @@ type delegateTemplateT struct {
 
 func TestNetTemplates(t *testing.T) {
 	net := networkTemplateT{
-		Name: "ptp0",
-		Type: "ptp",
-		Args: []string{"two=three", "black=white"},
+		CNIVersion: "0.2.0",
+		Name:       "ptp0",
+		Type:       "ptp",
+		Args:       []string{"two=three", "black=white"},
 		Ipam: &ipamTemplateT{
 			Type:   "host-local",
 			Subnet: "11.11.3.0/24",
@@ -537,7 +541,7 @@ func TestNetTemplates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-	expected := `{"Name":"ptp0","Type":"ptp","IpMasq":false,"IsGateway":false,"Ipam":{"Type":"host-local","subnet":"11.11.3.0/24","routes":[{"dst":"0.0.0.0/0"}]},"args":["two=three","black=white"]}`
+	expected := `{"cniVersion":"0.2.0","name":"ptp0","Type":"ptp","IpMasq":false,"IsGateway":false,"Ipam":{"Type":"host-local","subnet":"11.11.3.0/24","routes":[{"dst":"0.0.0.0/0"}]},"args":["two=three","black=white"]}`
 	if string(b) != expected {
 		t.Fatalf("Template extected:\n%v\ngot:\n%v\n", expected, string(b))
 	}
@@ -579,6 +583,10 @@ func parseCNIProxyLog(filepath string) (*cniProxyResult, error) {
 }
 
 func prepareTestNet(t *testing.T, ctx *testutils.RktRunCtx, nt networkTemplateT) (netdir string) {
+	if nt.CNIVersion == "" {
+		nt.CNIVersion = "0.2.0"
+	}
+
 	configdir := ctx.LocalDir()
 	netdir = filepath.Join(configdir, "net.d")
 	err := os.MkdirAll(netdir, 0644)
@@ -811,14 +819,26 @@ func NewNetCNIEnvTest() testutils.Test {
 		}
 		os.Remove(cniLogFilename)
 
+		// lazy json parsing
+		lazyJson := func(data []byte) map[string]interface{} {
+			out := make(map[string]interface{})
+			err := json.Unmarshal(data, &out)
+			if err != nil {
+				t.Fatalf("Failed to parse json: %v", err)
+			}
+			return out
+		}
+
 		// Check that the stdin matches the network config file
-		expectedConfig, err := ioutil.ReadFile(filepath.Join(netdir, nt.Name+".conf"))
+		ecbytes, err := ioutil.ReadFile(filepath.Join(netdir, nt.Name+".conf"))
 		if err != nil {
 			t.Fatal("Failed to read network configuration", err)
 		}
+		expectedConfig := lazyJson(ecbytes)
+		passedConfig := lazyJson([]byte(proxyLog.Stdin))
 
-		if string(expectedConfig) != proxyLog.Stdin {
-			t.Fatalf("CNI plugin stdin incorrect, expected <<%v>>, actual <<%v>>", expectedConfig, proxyLog.Stdin)
+		if !reflect.DeepEqual(expectedConfig, passedConfig) {
+			t.Fatalf("CNI plugin stdin incorrect, expected <<%v>>, actual <<%v>>, diff %s", expectedConfig, passedConfig, pretty.Diff(expectedConfig, passedConfig))
 		}
 
 		// compare the CNI env against a set of regexes
@@ -841,7 +861,6 @@ func NewNetCNIEnvTest() testutils.Test {
 		}
 
 		expectedEnv := map[string]string{
-			"CNI_VERSION":     `^0\.1\.0$`,
 			"CNI_COMMAND":     `^ADD$`,
 			"CNI_IFNAME":      `^eth\d$`,
 			"CNI_PATH":        "^" + netdir + ":/usr/lib/rkt/plugins/net:stage1/rootfs/usr/lib/rkt/plugins/net$",
