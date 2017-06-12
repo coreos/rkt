@@ -1,0 +1,26 @@
+From 7f58a12292bdf99b0264e0bfb17623d19facc05a Mon Sep 17 00:00:00 2001
+From: Dimitri John Ledkov <dimitri.j.ledkov@intel.com>
+Date: Tue, 21 Jul 2015 09:59:11 +0100
+Subject: [PATCH 15/22] Skip creating custom rootfs.
+Organization: Intel Corporation (UK) Ltd. - Co. Reg. #1134945 - Pipers Way, Swindon SN3 1RJ
+
+---
+ builtin-run.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/builtin-run.c b/builtin-run.c
+index a175ed6..4abc12d 100644
+--- a/builtin-run.c
++++ b/builtin-run.c
+@@ -609,7 +609,7 @@ static struct kvm *kvm_cmd_run_init(int argc, const char **argv)
+ 		}
+ 	}
+ 
+-	if (!kvm->cfg.using_rootfs && !kvm->cfg.disk_image[0].filename && !kvm->cfg.initrd_filename) {
++	if (0 && !kvm->cfg.using_rootfs && !kvm->cfg.disk_image[0].filename && !kvm->cfg.initrd_filename) {
+ 		char tmp[PATH_MAX];
+ 
+ 		kvm_setup_create_new(kvm->cfg.custom_rootfs_name);
+-- 
+2.1.4
+

@@ -1,0 +1,45 @@
+From ad5ecfa6f5f979a2795f0a244ffa2e2505da827b Mon Sep 17 00:00:00 2001
+From: Dimitri John Ledkov <dimitri.j.ledkov@intel.com>
+Date: Wed, 22 Jul 2015 23:29:40 +0100
+Subject: [PATCH 17/22] kvmtool: stat the filesize when loading shmem device.
+Organization: Intel Corporation (UK) Ltd. - Co. Reg. #1134945 - Pipers Way, Swindon SN3 1RJ
+
+---
+ hw/pci-shmem.c | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/hw/pci-shmem.c b/hw/pci-shmem.c
+index cff82dc..39b6bb5 100644
+--- a/hw/pci-shmem.c
++++ b/hw/pci-shmem.c
+@@ -14,6 +14,10 @@
+ #include <fcntl.h>
+ #include <sys/mman.h>
+ 
++#include <sys/types.h>
++#include <sys/stat.h>
++#include <unistd.h>
++
+ #define MB_SHIFT (20)
+ #define KB_SHIFT (10)
+ #define GB_SHIFT (30)
+@@ -378,6 +382,16 @@ int shmem_parser(const struct option *opt, const char *arg, int unset)
+ 			p = next + 1;
+ 		file = 1;
+ 	}
++	if (file == 1) {
++		struct stat buf;
++		if (stat(handle, &buf)==0) {
++			size = (unsigned long long) buf.st_size;
++			if (verbose)
++				pr_info("shmem: using actual file size %lld, 0x%llx\n", (unsigned long long) size, (unsigned long long) size);
++		} else {
++			die("cannot stat file specified in file=\n");
++		}
++	}
+ 	next = strcasestr(p, "private");
+ 	if (*p && next) {
+ 		private = 1;
+-- 
+2.1.4
+
