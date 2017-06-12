@@ -1,5 +1,5 @@
-hash: 5b01507338879a95e4f789cc14dac4aee0ae1ef7661da521a437621e207ba7fa
-updated: 2017-02-13T16:50:01.49078982Z
+hash: 54f5dbaea34fa73a77a3182dd157081e0f5c9959b401815b5421edfec64f6cbc
+updated: 2017-06-12T11:55:39.43966122+02:00
 imports:
 - name: github.com/appc/docker2aci
   version: 4537ee8e3139455eac6092d47a224d8fa19bf08a
@@ -139,6 +139,8 @@ imports:
   - reference
 - name: github.com/dustin/go-humanize
   version: c20a8bde38c8f5ba06f6600edf473705c96829d1
+- name: github.com/ghodss/yaml
+  version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
 - name: github.com/go-ini/ini
   version: 12f418cc7edc5a618a51407b7ac1f1f512139df3
 - name: github.com/go-ole/go-ole
@@ -302,6 +304,8 @@ imports:
   - transport
 - name: gopkg.in/inf.v0
   version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4
+- name: gopkg.in/yaml.v2
+  version: a5b47d31c556af34a302ce5d659e6fea44d90de0
 testImports:
 - name: github.com/kr/text
   version: 7cafcd837844e784b526369c9bce262804aebc60

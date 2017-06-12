@@ -27,19 +27,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path"
-	"path/filepath"
-	"runtime"
-	"strconv"
-	"strings"
-	"syscall"
-	"time"
-
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
+	"github.com/ghodss/yaml"
 	"github.com/hashicorp/errwrap"
 	"github.com/rkt/rkt/common"
 	"github.com/rkt/rkt/common/apps"
@@ -54,6 +45,15 @@ import (
 	"github.com/rkt/rkt/store/imagestore"
 	"github.com/rkt/rkt/store/treestore"
 	"github.com/rkt/rkt/version"
+	"io/ioutil"
+	"os"
+	"path"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
+	"syscall"
+	"time"
 )
 
 var debugEnabled bool
@@ -371,18 +371,30 @@ func prepareIsolators(setup *apps.App, app *types.App) error {
 	return nil
 }
 
+func loadPodManifest(cfg PrepareConfig) ([]byte, *schema.PodManifest, error) {
+	pmb, err := ioutil.ReadFile(cfg.PodManifest)
+	if err != nil {
+		return nil, nil, errwrap.Wrap(errors.New("error reading pod manifest file"), err)
+	}
+	var pm schema.PodManifest
+	if err := yaml.Unmarshal(pmb, &pm); err != nil {
+		return nil, nil, errwrap.Wrap(errors.New("error unmarshaling json pod manifest"), err)
+	}
+	bs, err := json.Marshal(pm)
+	if err != nil {
+		return nil, nil, errwrap.Wrap(errors.New("error marshaling intermediate pod manifest to json"), err)
+	}
+	return bs, &pm, nil
+}
+
 // validatePodManifest reads the user-specified pod manifest, prepares the app images
 // and validates the pod manifest. If the pod manifest passes validation, it returns
 // the manifest as []byte.
 // TODO(yifan): More validation in the future.
 func validatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
-	pmb, err := ioutil.ReadFile(cfg.PodManifest)
+	pmb, pm, err := loadPodManifest(cfg)
 	if err != nil {
-		return nil, errwrap.Wrap(errors.New("error reading pod manifest"), err)
-	}
-	var pm schema.PodManifest
-	if err := json.Unmarshal(pmb, &pm); err != nil {
-		return nil, errwrap.Wrap(errors.New("error unmarshaling pod manifest"), err)
+		return nil, errwrap.Wrap(errors.New("error loading pod manifest"), err)
 	}
 
 	appNames := make(map[types.ACName]struct{})
@@ -409,7 +421,7 @@ func validatePodManifest(cfg PrepareConfig, dir string) ([]byte, error) {
 	}
 
 	// Validate forwarded ports
-	if _, err := commonnet.ForwardedPorts(&pm); err != nil {
+	if _, err := commonnet.ForwardedPorts(pm); err != nil {
 		return nil, err
 	}
 	return pmb, nil
