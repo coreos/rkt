@@ -1,0 +1,62 @@
+{
+    "version": 2,
+    "waiters": {
+        "GroupExists": {
+            "acceptors": [
+                {
+                    "argument": "length(AutoScalingGroups)",
+                    "expected": 1,
+                    "matcher": "pathAll",
+                    "state": "success"
+                },
+                {
+                    "argument": "length(AutoScalingGroups)",
+                    "expected": 0,
+                    "matcher": "pathAll",
+                    "state": "retry"
+                }
+            ],
+            "delay": 5,
+            "maxAttempts": 10,
+            "operation": "DescribeAutoScalingGroups"
+        },
+        "GroupInService": {
+            "acceptors": [
+                {
+                    "argument": "contains(AutoScalingGroups[].[length(Instances[?LifecycleState=='InService']) >= MinSize][], `false`)",
+                    "expected": false,
+                    "matcher": "pathAll",
+                    "state": "success"
+                },
+                {
+                    "argument": "contains(AutoScalingGroups[].[length(Instances[?LifecycleState=='InService']) >= MinSize][], `false`)",
+                    "expected": true,
+                    "matcher": "pathAll",
+                    "state": "retry"
+                }
+            ],
+            "delay": 15,
+            "maxAttempts": 40,
+            "operation": "DescribeAutoScalingGroups"
+        },
+        "GroupNotExists": {
+            "acceptors": [
+                {
+                    "argument": "length(AutoScalingGroups)",
+                    "expected": 0,
+                    "matcher": "pathAll",
+                    "state": "success"
+                },
+                {
+                    "argument": "length(AutoScalingGroups)",
+                    "expected": 1,
+                    "matcher": "pathAll",
+                    "state": "retry"
+                }
+            ],
+            "delay": 15,
+            "maxAttempts": 40,
+            "operation": "DescribeAutoScalingGroups"
+        }
+    }
+}

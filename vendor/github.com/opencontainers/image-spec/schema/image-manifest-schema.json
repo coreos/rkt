@@ -1,0 +1,36 @@
+{
+  "description": "OpenContainer Image Manifest Specification",
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "id": "https://opencontainers.org/schema/image/manifest",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "description": "This field specifies the image manifest schema version as an integer",
+      "id": "https://opencontainers.org/schema/image/manifest/schemaVersion",
+      "type": "integer"
+    },
+    "mediaType": {
+      "id": "https://opencontainers.org/schema/image/manifest/mediaType",
+      "$ref": "defs-image.json#/definitions/mediaType"
+    },
+    "config": {
+      "$ref": "content-descriptor.json"
+    },
+    "layers": {
+      "type": "array",
+      "items": {
+        "$ref": "content-descriptor.json"
+      }
+    },
+    "annotations": {
+      "id": "https://opencontainers.org/schema/image/manifest-list/annotations",
+      "$ref": "defs-image.json#/definitions/annotations"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "mediaType",
+    "config",
+    "layers"
+  ]
+}

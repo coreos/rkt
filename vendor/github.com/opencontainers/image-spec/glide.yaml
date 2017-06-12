@@ -1,0 +1,15 @@
+package: github.com/opencontainers/image-spec
+import:
+- package: github.com/opencontainers/runtime-spec
+  version: ^1.0.0-rc1
+  subpackages:
+  - specs-go
+- package: github.com/pkg/errors
+  version: ">=0.7.0"
+- package: github.com/spf13/cobra
+- package: github.com/xeipuuv/gojsonschema
+  version: d5336c75940ef31c9ceeb0ae64cf92944bccb4ee
+- package: github.com/russross/blackfriday
+  version: ~v1.4
+- package: github.com/shurcooL/sanitized_anchor_name
+  version: 10ef21a441db47d8b13ebcc5fd2310f636973c77

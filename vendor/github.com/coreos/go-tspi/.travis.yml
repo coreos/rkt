@@ -1,0 +1,10 @@
+language: go
+
+go:
+  - 1.5.3
+  - 1.6
+
+install: true
+
+script:
+  - ./test

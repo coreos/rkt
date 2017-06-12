@@ -1,0 +1,55 @@
+sudo: required
+
+notifications:
+  email: false
+
+language: go
+
+go:
+  - "1.7"
+  - "1.8"
+# - "tip"
+
+services:
+  - docker
+  - mongodb
+  - mysql
+  - postgresql
+
+addons:
+  postgresql: 9.5
+  apt:
+    sources:
+    - mongodb-3.0-precise
+    packages:
+    - freetds-bin
+    - mongodb-org-server
+    - mongodb-org-shell
+
+before_install:
+  - docker pull microsoft/mssql-server-linux:ctp1-4
+  - docker run -e 'ACCEPT_EULA=Y' -e 'SA_PASSWORD=my$Password' --name mssql -p 1433:1433 -d microsoft/mssql-server-linux:ctp1-4
+  - docker ps -a
+
+env:
+  global:
+    - MAKEFLAGS="-j4"
+    - GOARCH=amd64
+    - DB_HOST=127.0.0.1
+  matrix:
+    - TEST_CMD="make benchmark test-main"
+    - TEST_CMD="make test-adapters"
+
+install:
+  - mkdir -p $GOPATH/src/upper.io
+  - mv $PWD $GOPATH/src/upper.io/db.v3
+  - cd $GOPATH/src/upper.io/db.v3
+  - go get -t -v -d ./...
+  - go get -v github.com/cznic/ql/ql
+  - export TRAVIS_BUILD_DIR=$GOPATH/src/upper.io/db.v3
+
+before_script:
+  - mysql_tzinfo_to_sql /usr/share/zoneinfo | mysql -u root mysql
+
+script:
+  - ${TEST_CMD}

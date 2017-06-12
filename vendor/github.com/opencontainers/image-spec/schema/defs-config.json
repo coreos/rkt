@@ -1,0 +1,112 @@
+{
+  "description": "Definitions particular to OpenContainer Config Specification",
+  "definitions": {
+    "config": {
+      "type": "object",
+      "properties": {
+        "User": {
+          "type": "string"
+        },
+        "Memory": {
+          "$ref": "defs.json#/definitions/int64"
+        },
+        "MemorySwap": {
+          "$ref": "defs.json#/definitions/int64"
+        },
+        "CpuShares": {
+          "$ref": "defs.json#/definitions/int64"
+        },
+        "ExposedPorts": {
+          "$ref": "defs.json#/definitions/mapStringObject"
+        },
+        "Env": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "Entrypoint": {
+          "oneOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "Cmd": {
+          "oneOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "Volumes": {
+          "oneOf": [
+            {
+              "$ref": "defs.json#/definitions/mapStringObject"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "WorkingDir": {
+          "type": "string"
+        }
+      }
+    },
+    "rootfs": {
+      "type": "object",
+      "properties": {
+        "diff_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "layers"
+          ]
+        }
+      },
+      "required": [
+        "diff_ids",
+        "type"
+      ]
+    },
+    "history": {
+      "type": "object",
+      "properties": {
+        "created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "author": {
+          "type": "string"
+        },
+        "created_by": {
+          "type": "string"
+        },
+        "comment": {
+          "type": "string"
+        },
+        "empty_layer": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}
