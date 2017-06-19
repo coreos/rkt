@@ -1171,7 +1171,7 @@ func NewNetDefaultIPArgTest() testutils.Test {
 	}
 	return testutils.TestFunc(func(t *testing.T) {
 		doTest("default:IP=172.16.28.123", "172.16.28.123", t)
-		doTest("default-restricted:IP=172.17.42.42", "172.17.42.42", t)
+		doTest("default-restricted:IP=172.31.42.42", "172.31.42.42", t)
 	})
 }
 
