@@ -238,6 +238,7 @@ func (uw *UnitWriter) SetupAppIO(p *stage1commontypes.Pod, ra *schema.RuntimeApp
 	var iottymuxEnvFlags []string
 	needsIOMux := false
 	needsTTYMux := false
+	needsJournal := false
 
 	switch stdin {
 	case "stream":
@@ -272,6 +273,9 @@ func (uw *UnitWriter) SetupAppIO(p *stage1commontypes.Pod, ra *schema.RuntimeApp
 		opts = append(opts, unit.NewUnitOption("Service", "StandardOutput", "tty"))
 	case "null":
 		opts = append(opts, unit.NewUnitOption("Service", "StandardOutput", "null"))
+	case "journal":
+		needsJournal = true
+		opts = append(opts, unit.NewUnitOption("Service", "StandardOutput", "journal"))
 	default:
 		// log mode
 		opts = append(opts, unit.NewUnitOption("Service", "StandardOutput", "journal+console"))
@@ -292,6 +296,9 @@ func (uw *UnitWriter) SetupAppIO(p *stage1commontypes.Pod, ra *schema.RuntimeApp
 		opts = append(opts, unit.NewUnitOption("Service", "StandardError", "tty"))
 	case "null":
 		opts = append(opts, unit.NewUnitOption("Service", "StandardError", "null"))
+	case "journal":
+		needsJournal = true
+		opts = append(opts, unit.NewUnitOption("Service", "StandardError", "journal"))
 	default:
 		// log mode
 		opts = append(opts, unit.NewUnitOption("Service", "StandardError", "journal+console"))
@@ -330,6 +337,10 @@ func (uw *UnitWriter) SetupAppIO(p *stage1commontypes.Pod, ra *schema.RuntimeApp
 			opts = append(opts, unit.NewUnitOption("Unit", "Requires", fmt.Sprintf("ttymux@%s.service", ra.Name)))
 			opts = append(opts, unit.NewUnitOption("Unit", "After", fmt.Sprintf("ttymux@%s.service", ra.Name)))
 		}
+	}
+
+	if needsJournal {
+		opts = append(opts, unit.NewUnitOption("Service", "BindReadOnlyPaths", "/var/log/journal"))
 	}
 	return opts
 }

@@ -185,6 +185,12 @@ A sidecar dependency to `systemd-journald.service` is introduced in this case. A
 
 Logging is not a valid mode for stdin.
 
+
+### Journal mode
+
+This is similar to the logging mode above. Additionally, the pod-level journal will be available read-only inside each
+app at `/var/log/journal`.
+
 ### Null mode
 
 This mode results in the application having the corresponding stream closed.
@@ -232,12 +238,14 @@ The following per-app annotations are defined for internal use, with the corresp
  * `coreos.com/rkt/stage2/stdout`
    - `interactive`
    - `log`
+   - `journal`
    - `null`
    - `stream`
    - `tty`
  * `coreos.com/rkt/stage2/stderr`
    - `interactive`
    - `log`
+   - `journal`
    - `null`
    - `stream`
    - `tty`
