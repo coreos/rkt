@@ -258,17 +258,12 @@ func installAssets() error {
 func getArgsEnv(p *stage1commontypes.Pod, flavor string, canMachinedRegister bool, debug bool, n *networking.Networking) ([]string, []string, error) {
 	var args []string
 	env := os.Environ()
+	machineID := strings.Replace(p.UUID.String(), "-", "", -1)
 
 	// We store the pod's flavor so we can later garbage collect it correctly
 	if err := os.Symlink(flavor, filepath.Join(p.Root, stage1initcommon.FlavorFile)); err != nil {
 		return nil, nil, errwrap.Wrap(errors.New("failed to create flavor symlink"), err)
 	}
-
-	// systemd-nspawn needs /etc/machine-id to link the container's journal
-	// to the host. Since systemd-v230, /etc/machine-id is mandatory, see
-	// https://github.com/systemd/systemd/commit/e01ff70a77e781734e1e73a2238af2e9bf7967a8
-	mPath := filepath.Join(common.Stage1RootfsPath(p.Root), "etc", "machine-id")
-	machineID := strings.Replace(p.UUID.String(), "-", "", -1)
 
 	switch flavor {
 	case "kvm":
@@ -435,12 +430,31 @@ func getArgsEnv(p *stage1commontypes.Pod, flavor string, canMachinedRegister boo
 		return nil, nil, fmt.Errorf("unrecognized stage1 flavor: %q", flavor)
 	}
 
+	// systemd-nspawn needs /etc/machine-id to link the container's journal
+	// to the host. Since systemd-v230, /etc/machine-id is mandatory, see
+	// https://github.com/systemd/systemd/commit/e01ff70a77e781734e1e73a2238af2e9bf7967a8
+	mPath := filepath.Join(common.Stage1RootfsPath(p.Root), "etc", "machine-id")
 	machineIDBytes := append([]byte(machineID), '\n')
 	if err := ioutil.WriteFile(mPath, machineIDBytes, 0644); err != nil {
 		return nil, nil, errwrap.Wrap(errors.New("error writing /etc/machine-id"), err)
 	}
 	if err := user.ShiftFiles([]string{mPath}, &p.UidRange); err != nil {
 		return nil, nil, errwrap.Wrap(errors.New("error shifting /etc/machine-id"), err)
+	}
+	// also create /etc/machine-id inside each app, so they can read the pod journal when available
+	for i := range p.Manifest.Apps {
+		appName := p.Manifest.Apps[i].Name
+		appEtcPath := filepath.Join(common.AppRootfsPath(p.Root, appName), "etc")
+		if err := os.MkdirAll(appEtcPath, 0644); err != nil {
+			return nil, nil, errwrap.Wrap(fmt.Errorf("error creating /etc for app %s", appName), err)
+		}
+		appMachineIDPath := filepath.Join(appEtcPath, "machine-id")
+		if err := ioutil.WriteFile(appMachineIDPath, machineIDBytes, 0644); err != nil {
+			return nil, nil, errwrap.Wrap(fmt.Errorf("error writing /etc/machine-id for app %s", appName), err)
+		}
+		if err := user.ShiftFiles([]string{appEtcPath, appMachineIDPath}, &p.UidRange); err != nil {
+			return nil, nil, errwrap.Wrap(errors.New("error shifting /etc/machine-id"), err)
+		}
 	}
 
 	// link journal only if the host is running systemd
