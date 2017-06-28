@@ -28,7 +28,6 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/coreos/go-systemd/unit"
 	"github.com/hashicorp/errwrap"
 	"github.com/rkt/rkt/common"
 	"github.com/rkt/rkt/pkg/fs"
@@ -130,10 +129,7 @@ func appAddStage0(appName *types.ACName, uuid *types.UUID) error {
 
 	// write service files
 	w := stage1init.NewUnitWriter(p)
-	w.AppUnit(ra, binPath,
-		unit.NewUnitOption("Unit", "Before", "halt.target"),
-		unit.NewUnitOption("Unit", "Conflicts", "halt.target"),
-	)
+	w.AppUnit(ra, binPath)
 	w.AppReaperUnit(ra.Name, binPath)
 	if err := w.Error(); err != nil {
 		return errwrap.Wrapf("error generating app units", err)

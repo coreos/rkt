@@ -83,6 +83,7 @@ var (
 		PrintIfaceCount    bool
 		PrintAppAnnotation string
 		SilentSigterm      bool
+		CaptureSignals     bool
 		CheckMountNS       bool
 		PrintNoNewPrivs    bool
 		CheckMknod         string
@@ -129,6 +130,7 @@ func init() {
 	globalFlagset.BoolVar(&globalFlags.PrintIfaceCount, "print-iface-count", false, "Print the interface count")
 	globalFlagset.StringVar(&globalFlags.PrintAppAnnotation, "print-app-annotation", "", "Take an annotation name of the app, and prints its value")
 	globalFlagset.BoolVar(&globalFlags.SilentSigterm, "silent-sigterm", false, "Exit with a success exit status if we receive SIGTERM")
+	globalFlagset.BoolVar(&globalFlags.CaptureSignals, "capture-signals", false, "Capture and print all signals received")
 	globalFlagset.BoolVar(&globalFlags.CheckMountNS, "check-mountns", false, "Check if app's mount ns is different than stage1's. Requires CAP_SYS_PTRACE")
 	globalFlagset.BoolVar(&globalFlags.PrintNoNewPrivs, "print-no-new-privs", false, "print the prctl PR_GET_NO_NEW_PRIVS value")
 	globalFlagset.StringVar(&globalFlags.CheckMknod, "check-mknod", "", "check whether mknod on restricted devices is allowed")
@@ -151,17 +153,26 @@ func main() {
 		os.Exit(254)
 	}
 
-	if globalFlags.SilentSigterm {
+	if globalFlags.PreSleep >= 0 {
+		time.Sleep(time.Duration(globalFlags.PreSleep) * time.Second)
+	}
+
+	switch {
+	case globalFlags.SilentSigterm:
 		terminateCh := make(chan os.Signal, 1)
 		signal.Notify(terminateCh, syscall.SIGTERM)
 		go func() {
 			<-terminateCh
 			os.Exit(0)
 		}()
-	}
-
-	if globalFlags.PreSleep >= 0 {
-		time.Sleep(time.Duration(globalFlags.PreSleep) * time.Second)
+	case globalFlags.CaptureSignals:
+		signals := make(chan os.Signal, 1)
+		signal.Notify(signals)
+		go func() {
+			for sig := range signals {
+				fmt.Printf("Received: %s\n", sig.String())
+			}
+		}()
 	}
 
 	if globalFlags.ReadStdin {

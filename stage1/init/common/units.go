@@ -464,7 +464,11 @@ func (uw *UnitWriter) AppUnit(ra *schema.RuntimeApp, binPath string, opts ...*un
 	opts = append(opts, []*unit.UnitOption{
 		unit.NewUnitOption("Unit", "Description", fmt.Sprintf("Application=%v Image=%v", appName, imgName)),
 		unit.NewUnitOption("Unit", "DefaultDependencies", "false"),
+		unit.NewUnitOption("Unit", "Before", "halt.target"),
+		unit.NewUnitOption("Unit", "Conflicts", "halt.target"),
 		unit.NewUnitOption("Unit", "Wants", fmt.Sprintf("reaper-%s.service", appName)),
+		unit.NewUnitOption("Unit", "After", fmt.Sprintf("reaper-%s.service", appName)),
+		unit.NewUnitOption("Unit", "After", "shutdown.service"),
 		unit.NewUnitOption("Service", "Restart", "no"),
 
 		// This helps working around a race

@@ -116,3 +116,30 @@ func TestRktStop(t *testing.T) {
 		waitOrFail(t, child, exitStatus)
 	}
 }
+
+func TestGracefulShutdown(t *testing.T) {
+	image := patchTestACI("rkt-stop-test.aci", "--name=rkt-stop-test", "--exec=/inspect --read-stdin --capture-signals")
+	defer os.Remove(image)
+
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
+
+	cmd := fmt.Sprintf("%s --insecure-options=image prepare %s", ctx.Cmd(), image)
+	podUUID := runRktAndGetUUID(t, cmd)
+
+	// Run image
+	cmd = fmt.Sprintf("%s --insecure-options=image run-prepared --interactive %s", ctx.Cmd(), podUUID)
+	child := spawnOrFail(t, cmd)
+
+	// Wait for prompt to make sure the pod is started
+	if err := expectTimeoutWithOutput(child, "Enter text:", time.Minute); err != nil {
+		t.Fatalf("Can't start pod")
+	}
+
+	// Issue stop command, and wait for it to complete
+	spawnAndWaitOrFail(t, fmt.Sprintf("%s stop %s", ctx.Cmd(), podUUID), 0)
+
+	expectTimeoutWithOutput(child, "Received: SIGTERM", 10*time.Second)
+	// Make sure it eventually gets SIGKILLed
+	waitOrFail(t, child, -1)
+}
