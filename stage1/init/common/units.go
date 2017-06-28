@@ -169,7 +169,6 @@ func ImmutableEnv(p *stage1commontypes.Pod) error {
 		}
 
 		uw.AppUnit(ra, binPath,
-			unit.NewUnitOption("Unit", "After", "systemd-journald.service"),
 			// When an app fails, we shut down the pod
 			unit.NewUnitOption("Unit", "OnFailure", "halt.target"))
 
@@ -466,9 +465,10 @@ func (uw *UnitWriter) AppUnit(ra *schema.RuntimeApp, binPath string, opts ...*un
 		unit.NewUnitOption("Unit", "DefaultDependencies", "false"),
 		unit.NewUnitOption("Unit", "Before", "halt.target"),
 		unit.NewUnitOption("Unit", "Conflicts", "halt.target"),
+		unit.NewUnitOption("Unit", "After", "shutdown.service"),
+		unit.NewUnitOption("Unit", "After", "systemd-journald.service"),
 		unit.NewUnitOption("Unit", "Wants", fmt.Sprintf("reaper-%s.service", appName)),
 		unit.NewUnitOption("Unit", "After", fmt.Sprintf("reaper-%s.service", appName)),
-		unit.NewUnitOption("Unit", "After", "shutdown.service"),
 		unit.NewUnitOption("Service", "Restart", "no"),
 
 		// This helps working around a race
