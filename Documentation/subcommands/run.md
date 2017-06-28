@@ -422,6 +422,8 @@ This feature will be disabled automatically if the underlying filesystem does no
 | `--user` | none | uid, username or file path (e.g. `--user=core`) | User override for the preceding image. |
 | `--uuid-file-save` | none | A file path | Write out the pod UUID to a file. |
 | `--volume` | none | Volume syntax (e.g. `--volume NAME,kind=KIND,source=PATH,readOnly=BOOL`) | Volumes to make available in the pod. See [Mount Volumes into a Pod](#mount-volumes-into-a-pod). |
+| `--kill-mode` | `all` | 'all' or 'leader' | How to signal (kill) processes in the app. A SIGTERM is sent to 'all' processes or only the 'leader' (exec command), then a SIGKILL to remaining processes |
+| `--kill-timeout` | `90s` | A duration | How long to wait after sending SIGTERMs for the app to stop before sending SIGKILLs to remaining processes |
 
 ## Per-application options
 

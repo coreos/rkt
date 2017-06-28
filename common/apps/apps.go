@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"strings"
 
+	"time"
+
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
 )
@@ -37,12 +39,25 @@ func (a AppIO) String() string {
 	return string(a)
 }
 
+// stdin/out/err modes
 const (
 	AppIOInteractive AppIO = "interactive" // interactive I/O (parent terminal)
 	AppIOLog         AppIO = "log"         // log-only I/O
 	AppIONull        AppIO = "null"        // null I/O
 	AppIOStream      AppIO = "stream"      // attachable I/O
 	AppIOTTY         AppIO = "tty"         // I/O over TTY
+)
+
+type KillMode string
+
+func (a KillMode) String() string {
+	return string(a)
+}
+
+// stop signaling behavior
+const (
+	KillModeAll    KillMode = "control-group"
+	KillModeLeader KillMode = "mixed"
 )
 
 type App struct {
@@ -66,6 +81,8 @@ type App struct {
 	UserAnnotations   map[string]string                 // the user annotations of the app.
 	UserLabels        map[string]string                 // the user labels of the app.
 	Environments      map[string]string                 // the environments of the app.
+	KillMode          KillMode                          // how to kill processes when stopping the app
+	KillTimeout       time.Duration                     // how long to wait between SIGTERM and SIGKILL
 	Stdin             AppIO                             // mode for stdin
 	Stdout            AppIO                             // mode for stdout
 	Stderr            AppIO                             // mode for stderr

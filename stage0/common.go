@@ -172,6 +172,13 @@ func generateRuntimeApp(appRunConfig *apps.App, am *schema.ImageManifest, podMou
 		ra.App.UserLabels = appRunConfig.UserLabels
 	}
 
+	if m := appRunConfig.KillMode; m != "" {
+		ra.Annotations.Set(stage1types.AppKillMode, m.String())
+	}
+	if d := appRunConfig.KillTimeout; d > 0 {
+		ra.Annotations.Set(stage1types.AppKillTimeout, strconv.Itoa(int(d.Seconds())))
+	}
+
 	if appRunConfig.Stdin != "" {
 		ra.Annotations.Set(stage1types.AppStdinMode, appRunConfig.Stdin.String())
 	}

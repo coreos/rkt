@@ -487,7 +487,6 @@ func (uw *UnitWriter) AppUnit(ra *schema.RuntimeApp, binPath string, opts ...*un
 
 	// Some pre-start jobs take a long time, set the timeout to 0
 	opts = append(opts, unit.NewUnitOption("Service", "TimeoutStartSec", "0"))
-
 	opts = append(opts, unit.NewUnitOption("Unit", "Requires", "sysusers.service"))
 	opts = append(opts, unit.NewUnitOption("Unit", "After", "sysusers.service"))
 
@@ -544,6 +543,13 @@ func (uw *UnitWriter) appSystemdUnit(pa *preparedApp, binPath string, opts []*un
 		unit.NewUnitOption("Unit", "Requires", InstantiatedPrepareAppUnitName(ra.Name)),
 		unit.NewUnitOption("Unit", "After", InstantiatedPrepareAppUnitName(ra.Name)),
 	)
+
+	if t := pa.killTimeout; t != "" {
+		opts = append(opts, unit.NewUnitOption("Service", "TimeoutStopSec", t))
+	}
+	if m := pa.killMode; m != "" {
+		opts = append(opts, unit.NewUnitOption("Service", "KillMode", m))
+	}
 
 	if len(supplementaryGroups) > 0 {
 		opts = appendOptionsList(opts, "Service", "SupplementaryGroups", "", supplementaryGroups...)
