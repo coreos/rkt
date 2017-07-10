@@ -1,5 +1,5 @@
-hash: 5b01507338879a95e4f789cc14dac4aee0ae1ef7661da521a437621e207ba7fa
-updated: 2017-02-13T16:50:01.49078982Z
+hash: 035e6f2f072924298e333bac239bafa60b7d45517530426b15c04d9730bd5ec0
+updated: 2017-06-28T14:55:01.104327211+02:00
 imports:
 - name: github.com/appc/docker2aci
   version: 4537ee8e3139455eac6092d47a224d8fa19bf08a
@@ -71,7 +71,7 @@ imports:
 - name: github.com/coreos/gexpect
   version: 8d6e05eaaeb840725b2c2aba77483919659bb95e
 - name: github.com/coreos/go-iptables
-  version: fbb73372b87f6e89951c2b6b31470c2c9d5cfae3
+  version: e1428ab78015bf1388229130b43d005e102da004
   subpackages:
   - iptables
 - name: github.com/coreos/go-semver
@@ -278,7 +278,7 @@ imports:
   subpackages:
   - unix
 - name: golang.org/x/text
-  version: 06d6eba81293389cafdff7fca90d75592194b2d9
+  version: 6353ef0f924300eea566d3438817aa4d3374817e
   subpackages:
   - transform
   - unicode/norm

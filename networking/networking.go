@@ -24,15 +24,12 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/appc/spec/schema/types"
-	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/hashicorp/errwrap"
 	"github.com/vishvananda/netlink"
 
-	"github.com/rkt/rkt/common"
-	commonnet "github.com/rkt/rkt/common/networking"
 	"github.com/rkt/rkt/networking/netinfo"
 	"github.com/rkt/rkt/pkg/log"
+	stage1commontypes "github.com/rkt/rkt/stage1/common/types"
 )
 
 const (
@@ -40,92 +37,62 @@ const (
 	selfNetNS     = "/proc/self/ns/net"
 )
 
-// Networking describes the networking details of a pod.
-type Networking struct {
-	podEnv
-
-	nets []activeNet
-}
-
-// NetConf local struct extends cnitypes.NetConf with information about masquerading
-// similar to CNI plugins
-type NetConf struct {
-	cnitypes.NetConf
-	IPMasq           bool `json:"ipMasq"`
-	MTU              int  `json:"mtu"`
-	IsDefaultGateway bool `json:"isDefaultGateway"`
-}
-
 var (
 	stderr   *log.Logger
 	debuglog bool
 )
 
-// Setup creates a new networking namespace and executes network plugins to
-// set up networking. It returns in the new pod namespace
-func Setup(podRoot string, podID types.UUID, fps []commonnet.ForwardedPort, netList common.NetList, localConfig, flavor string, noDNS, debug bool) (*Networking, error) {
-
+func New(pod *stage1commontypes.Pod, localConfigDir string, debug bool) (*Networking, error) {
 	stderr = log.New(os.Stderr, "networking", debug)
 	debuglog = debug
 
-	if flavor == "kvm" {
-		return kvmSetup(podRoot, podID, fps, netList, localConfig, noDNS)
-	}
-
-	// TODO(jonboulle): currently podRoot is _always_ ".", and behaviour in other
-	// circumstances is untested. This should be cleaned up.
 	n := Networking{
-		podEnv: podEnv{
-			podRoot:      podRoot,
-			podID:        podID,
-			netsLoadList: netList,
-			localConfig:  localConfig,
-		},
+		Pod:            pod,
+		LocalConfigDir: localConfigDir,
+		CreateNS:       true,
 	}
 
-	// Create the network namespace (and save its name in a file)
-	err := n.podNSCreate()
-	if err != nil {
-		return nil, err
-	}
-
+	var err error
 	n.nets, err = n.loadNets()
 	if err != nil {
 		return nil, errwrap.Wrap(errors.New("error loading network definitions"), err)
 	}
 
-	if err := n.setupNets(n.nets, noDNS); err != nil {
-		return nil, err
-	}
-
-	if len(fps) > 0 {
-		if err = n.enableDefaultLocalnetRouting(); err != nil {
-			return nil, err
-		}
-		podIP, err := n.GetForwardableNetPodIP()
-		if err != nil {
-			return nil, err
-		}
-		if err := n.setupForwarding(); err != nil {
-			n.teardownForwarding()
-			return nil, err
-		}
-		if err := n.forwardPorts(fps, podIP); err != nil {
-			n.teardownForwarding()
-			return nil, err
-		}
-	}
-
-	// Switch to the podNS
-	if err := n.podNS.Set(); err != nil {
-		return nil, err
-	}
-
-	if err = loUp(); err != nil {
-		return nil, err
-	}
-
 	return &n, nil
+}
+
+// Setup creates a new networking namespace and executes network plugins to
+// set up networking.
+// NOTE: It switches to the new pod namespace
+func (n *Networking) Setup() error {
+	if n.CreateNS {
+		// Create the network namespace (and save its name in a file)
+		err := n.podNSCreate()
+		if err != nil {
+			return err
+		}
+	}
+
+	if err := n.setupNets(); err != nil {
+		return err
+	}
+
+	if err := n.ForwardPorts(); err != nil {
+		return err
+	}
+
+	if n.CreateNS {
+		// Switch to the podNS
+		if err := n.PodNS.Set(); err != nil {
+			return err
+		}
+
+		if err := loUp(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // enableDefaultLocalnetRouting enables the route_localnet attribute on the supposedly default network interface.
@@ -176,12 +143,16 @@ func (n *Networking) enableDefaultLocalnetRouting() error {
 }
 
 // Load creates the Networking object from saved state.
-// Assumes the current netns is that of the host.
-func Load(podRoot string, podID *types.UUID, localConfig string) (*Networking, error) {
+// Assumes the current netns is that of the host, but the current mountns
+// is the stage1
+func Load(pod *stage1commontypes.Pod, localConfigDir string, debug bool) (*Networking, error) {
+	stderr = log.New(os.Stderr, "networking", debug)
+	debuglog = debug
+
 	// the current directory is pod root
-	pdirfd, err := syscall.Open(podRoot, syscall.O_RDONLY|syscall.O_DIRECTORY, 0)
+	pdirfd, err := syscall.Open(pod.Root, syscall.O_RDONLY|syscall.O_DIRECTORY, 0)
 	if err != nil {
-		return nil, errwrap.Wrap(fmt.Errorf("failed to open pod root directory (%v)", podRoot), err)
+		return nil, errwrap.Wrap(fmt.Errorf("failed to open pod root directory (%v)", pod.Root), err)
 	}
 	defer syscall.Close(pdirfd)
 
@@ -190,7 +161,7 @@ func Load(podRoot string, podID *types.UUID, localConfig string) (*Networking, e
 		return nil, err
 	}
 
-	var nets []activeNet
+	var nets []ActiveNet
 	for _, ni := range nis {
 		n, err := loadNet(ni.ConfPath)
 		if err != nil {
@@ -202,25 +173,21 @@ func Load(podRoot string, podID *types.UUID, localConfig string) (*Networking, e
 
 		// make a copy of ni to make it a unique object as it's saved via ptr
 		rti := ni
-		n.runtime = &rti
+		n.Runtime = &rti
 		nets = append(nets, *n)
 	}
 
-	p := podEnv{
-		podRoot:     podRoot,
-		podID:       *podID,
-		localConfig: localConfig,
+	n := Networking{
+		Pod:            pod,
+		LocalConfigDir: localConfigDir,
+		nets:           nets,
 	}
 
-	err = p.podNSLoad()
+	n.PodNS, err = podNSLoad(n.Pod.Root)
 	if err != nil {
 		return nil, err
 	}
-
-	return &Networking{
-		podEnv: p,
-		nets:   nets,
-	}, nil
+	return &n, nil
 }
 
 // GetIfacesByIP searches for and returns the interfaces with the given IP
@@ -262,63 +229,55 @@ func (n *Networking) GetIfacesByIP(ifaceIP net.IP) ([]net.Interface, error) {
 }
 
 // Teardown cleans up a produced Networking object.
-func (n *Networking) Teardown(flavor string, debug bool) {
-
-	stderr = log.New(os.Stderr, "networking", debug)
-	debuglog = debug
-
+func (n *Networking) Teardown() {
 	// Teardown everything in reverse order of setup.
 	// This should be idempotent -- be tolerant of missing stuff
-
-	if flavor == "kvm" {
-		n.kvmTeardown()
-		return
-	}
-
-	if err := n.teardownForwarding(); err != nil {
+	if err := n.TeardownForwarding(); err != nil {
 		stderr.PrintE("error removing forwarded ports", err)
 	}
 
-	err := n.podNSLoad()
-	if err != nil {
-		stderr.PrintE("error loading podNS", err)
+	var err error
+	if n.CreateNS {
+		n.PodNS, err = podNSLoad(n.Pod.Root)
+		if err != nil {
+			stderr.PrintE("error loading podNS", err)
+		}
 	}
 
-	n.teardownNets(n.nets)
-	n.podNSDestroy()
+	n.teardownNets(-1)
+
+	if n.PodNS != nil {
+		podNSDestroy(n.PodNS)
+	}
 }
 
 // Save writes out the info about active nets
 // for "rkt list" and friends to display
-func (e *Networking) Save() error {
+func (n *Networking) Save() error {
 
-	if e.podNS != nil {
-		if err := e.podNSPathSave(); err != nil {
+	if n.PodNS != nil {
+		if err := n.podNSPathSave(); err != nil {
 			return err
 		}
 	}
 
 	var nis []netinfo.NetInfo
-	for _, n := range e.nets {
-		nis = append(nis, *n.runtime)
+	for _, net := range n.nets {
+		nis = append(nis, *net.Runtime)
 	}
 
-	return netinfo.Save(e.podRoot, nis)
+	return netinfo.Save(n.Pod.Root, nis)
 }
 
 // CleanUpGarbage can be called when Load fails, but there may still
 // be some garbage lying around. Right now, this deletes the namespace.
-func CleanUpGarbage(podRoot string, podID *types.UUID) error {
-	p := podEnv{
-		podRoot: podRoot,
-		podID:   *podID,
-	}
+func CleanUpGarbage(podRoot string) error {
+	netns, err := podNSLoad(podRoot)
 
-	err := p.podNSLoad()
 	if err != nil {
 		return err
 	}
-	return p.podNSDestroy()
+	return podNSDestroy(netns)
 }
 
 func loUp() error {
@@ -332,4 +291,14 @@ func loUp() error {
 	}
 
 	return nil
+}
+
+// Nets lets you mutate the list of networks - useful for those stage1s
+// that implement their own networking
+func (n *Networking) Nets() *[]ActiveNet {
+	return &n.nets
+}
+
+func (n Networking) NoDNS() bool {
+	return n.Pod.ResolvConfMode != "default"
 }

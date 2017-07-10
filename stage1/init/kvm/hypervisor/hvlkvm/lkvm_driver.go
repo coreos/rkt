@@ -20,14 +20,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rkt/rkt/stage1/init/kvm"
+	vmnet "github.com/rkt/rkt/networking/vm"
 	"github.com/rkt/rkt/stage1/init/kvm/hypervisor"
 )
 
 // StartCmd takes path to stage1, UUID of the pod, path to kernel, network
 // describers, memory in megabytes and quantity of cpus and prepares command
 // line to run LKVM process
-func StartCmd(wdPath, uuid, kernelPath string, nds []kvm.NetDescriber, cpu, mem int64, debug bool) []string {
+func StartCmd(wdPath, uuid, kernelPath string, nds []vmnet.NetDescriber, cpu, mem int64, debug bool) []string {
 	machineID := strings.Replace(uuid, "-", "", -1)
 	driverConfiguration := hypervisor.KvmHypervisor{
 		Bin: "./lkvm",
@@ -59,7 +59,7 @@ func StartCmd(wdPath, uuid, kernelPath string, nds []kvm.NetDescriber, cpu, mem 
 // to lkvm tool to configure networks properly. Logic is based on
 // network configuration extracted from Networking struct
 // and essentially from activeNets that expose NetDescriber behavior
-func kvmNetArgs(nds []kvm.NetDescriber) []string {
+func kvmNetArgs(nds []vmnet.NetDescriber) []string {
 	var lkvmArgs []string
 
 	for _, nd := range nds {

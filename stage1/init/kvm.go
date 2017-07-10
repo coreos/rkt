@@ -29,6 +29,7 @@ import (
 	"github.com/hashicorp/errwrap"
 	"github.com/rkt/rkt/common"
 	"github.com/rkt/rkt/networking"
+	vmnet "github.com/rkt/rkt/networking/vm"
 	"github.com/rkt/rkt/pkg/mountinfo"
 	stage1commontypes "github.com/rkt/rkt/stage1/common/types"
 	stage1initcommon "github.com/rkt/rkt/stage1/init/common"
@@ -45,7 +46,7 @@ func KvmNetworkingToSystemd(p *stage1commontypes.Pod, n *networking.Networking) 
 	podRoot := common.Stage1RootfsPath(p.Root)
 
 	// networking
-	netDescriptions := kvm.GetNetworkDescriptions(n)
+	netDescriptions := vmnet.GetNetworkDescriptions(n)
 	if err := kvm.GenerateNetworkInterfaceUnits(filepath.Join(podRoot, stage1initcommon.UnitsDir), netDescriptions); err != nil {
 		return errwrap.Wrap(errors.New("failed to transform networking to units"), err)
 	}

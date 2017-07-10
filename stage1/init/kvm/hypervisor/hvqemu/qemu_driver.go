@@ -20,13 +20,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rkt/rkt/stage1/init/kvm"
+	vmnet "github.com/rkt/rkt/networking/vm"
 	"github.com/rkt/rkt/stage1/init/kvm/hypervisor"
 )
 
 // StartCmd takes path to stage1, name of the machine, path to kernel, network describers, memory in megabytes
 // and quantity of cpus and prepares command line to run QEMU process
-func StartCmd(wdPath, name, kernelPath string, nds []kvm.NetDescriber, cpu, mem int64, debug bool) []string {
+func StartCmd(wdPath, name, kernelPath string, nds []vmnet.NetDescriber, cpu, mem int64, debug bool) []string {
 	var (
 		driverConfiguration = hypervisor.KvmHypervisor{
 			Bin: "./qemu",
@@ -66,7 +66,7 @@ func StartCmd(wdPath, name, kernelPath string, nds []kvm.NetDescriber, cpu, mem 
 // to qemu to configure networks properly. Logic is based on
 // network configuration extracted from Networking struct
 // and essentially from activeNets that expose NetDescriber behavior
-func kvmNetArgs(nds []kvm.NetDescriber) []string {
+func kvmNetArgs(nds []vmnet.NetDescriber) []string {
 	var qemuArgs []string
 
 	for _, nd := range nds {

@@ -22,37 +22,17 @@ import (
 	"net"
 	"path/filepath"
 
-	"github.com/containernetworking/cni/pkg/types"
 	"github.com/coreos/go-systemd/unit"
 	"github.com/hashicorp/errwrap"
 	"github.com/rkt/rkt/networking"
+	vmnet "github.com/rkt/rkt/networking/vm"
 )
-
-// GetNetworkDescriptions converts activeNets to netDescribers
-func GetNetworkDescriptions(n *networking.Networking) []NetDescriber {
-	var nds []NetDescriber
-	for _, an := range n.GetActiveNetworks() {
-		nds = append(nds, an)
-	}
-	return nds
-}
-
-// NetDescriber is the interface that describes a network configuration
-type NetDescriber interface {
-	GuestIP() net.IP
-	Mask() net.IP
-	IfName() string
-	IPMasq() bool
-	Name() string
-	Gateway() net.IP
-	Routes() []types.Route
-}
 
 // GetKVMNetArgs returns additional arguments that need to be passed
 // to lkvm tool to configure networks properly.
 // Logic is based on Network configuration extracted from Networking struct
 // and essentially from activeNets that expose netDescriber behavior
-func GetKVMNetArgs(nds []NetDescriber) ([]string, error) {
+func GetKVMNetArgs(nds []vmnet.NetDescriber) ([]string, error) {
 
 	var lkvmArgs []string
 
@@ -102,7 +82,7 @@ func upInterfaceCommand(ifName string) string {
 	return fmt.Sprintf("/bin/ip link set dev %s up", ifName)
 }
 
-func GenerateNetworkInterfaceUnits(unitsPath string, netDescriptions []NetDescriber) error {
+func GenerateNetworkInterfaceUnits(unitsPath string, netDescriptions []vmnet.NetDescriber) error {
 	for i, netDescription := range netDescriptions {
 		ifName := fmt.Sprintf(networking.IfNamePattern, i)
 		netAddress := net.IPNet{

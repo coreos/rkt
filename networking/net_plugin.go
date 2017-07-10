@@ -51,8 +51,8 @@ func pluginErr(err error, output []byte) error {
 
 // Executes a given network plugin. If successful, mutates n.runtime with
 // the runtime information
-func (e *podEnv) netPluginAdd(n *activeNet, netns string) error {
-	output, err := e.execNetPlugin("ADD", n, netns)
+func (n *Networking) netPluginAdd(net *ActiveNet) error {
+	output, err := n.ExecNetPlugin("ADD", net, n.PodNS.Path())
 	if err != nil {
 		return pluginErr(err, output)
 	}
@@ -60,7 +60,7 @@ func (e *podEnv) netPluginAdd(n *activeNet, netns string) error {
 	pr := cnitypes.Result{}
 	if err = json.Unmarshal(output, &pr); err != nil {
 		err = errwrap.Wrap(fmt.Errorf("parsing %q", string(output)), err)
-		return errwrap.Wrap(fmt.Errorf("error parsing %q result", n.conf.Name), err)
+		return errwrap.Wrap(fmt.Errorf("error parsing %q result", net.Conf.Name), err)
 	}
 
 	if pr.IP4 == nil {
@@ -68,29 +68,29 @@ func (e *podEnv) netPluginAdd(n *activeNet, netns string) error {
 	}
 
 	// All is well - mutate the runtime
-	n.runtime.MergeCNIResult(pr)
+	net.Runtime.MergeCNIResult(pr)
 	return nil
 }
 
-func (e *podEnv) netPluginDel(n *activeNet, netns string) error {
-	output, err := e.execNetPlugin("DEL", n, netns)
+func (n *Networking) netPluginDel(net *ActiveNet) error {
+	output, err := n.ExecNetPlugin("DEL", net, n.PodNS.Path())
 	if err != nil {
 		return pluginErr(err, output)
 	}
 	return nil
 }
 
-func (e *podEnv) pluginPaths() []string {
+func (n *Networking) pluginPaths() []string {
 	// try 3rd-party path first
 	return []string{
-		filepath.Join(e.localConfig, UserNetPathSuffix),
+		filepath.Join(n.LocalConfigDir, UserNetPathSuffix),
 		UserNetPluginsPath,
-		filepath.Join(common.Stage1RootfsPath(e.podRoot), BuiltinNetPluginsPath),
+		filepath.Join(common.Stage1RootfsPath(n.Pod.Root), BuiltinNetPluginsPath),
 	}
 }
 
-func (e *podEnv) findNetPlugin(plugin string) string {
-	for _, p := range e.pluginPaths() {
+func (n *Networking) findNetPlugin(plugin string) string {
+	for _, p := range n.pluginPaths() {
 		fullname := filepath.Join(p, plugin)
 		if fi, err := os.Stat(fullname); err == nil && fi.Mode().IsRegular() {
 			return fullname
@@ -110,30 +110,30 @@ func envVars(vars [][2]string) []string {
 	return env
 }
 
-func (e *podEnv) execNetPlugin(cmd string, n *activeNet, netns string) ([]byte, error) {
-	if n.runtime.PluginPath == "" {
-		n.runtime.PluginPath = e.findNetPlugin(n.conf.Type)
+func (n *Networking) ExecNetPlugin(cmd string, net *ActiveNet, netns string) ([]byte, error) {
+	if net.Runtime.PluginPath == "" {
+		net.Runtime.PluginPath = n.findNetPlugin(net.Conf.Type)
 	}
-	if n.runtime.PluginPath == "" {
-		return nil, fmt.Errorf("Could not find plugin %q", n.conf.Type)
+	if net.Runtime.PluginPath == "" {
+		return nil, fmt.Errorf("Could not find plugin %q", net.Conf.Type)
 	}
 
 	vars := [][2]string{
 		{"CNI_VERSION", "0.1.0"},
 		{"CNI_COMMAND", cmd},
-		{"CNI_CONTAINERID", e.podID.String()},
+		{"CNI_CONTAINERID", n.Pod.UUID.String()},
 		{"CNI_NETNS", netns},
-		{"CNI_ARGS", n.runtime.Args},
-		{"CNI_IFNAME", n.runtime.IfName},
-		{"CNI_PATH", strings.Join(e.pluginPaths(), ":")},
+		{"CNI_ARGS", net.Runtime.Args},
+		{"CNI_IFNAME", net.Runtime.IfName},
+		{"CNI_PATH", strings.Join(n.pluginPaths(), ":")},
 	}
 
-	stdin := bytes.NewBuffer(n.confBytes)
+	stdin := bytes.NewBuffer(net.ConfBytes)
 	stdout := &bytes.Buffer{}
 
 	c := exec.Cmd{
-		Path:   n.runtime.PluginPath,
-		Args:   []string{n.runtime.PluginPath},
+		Path:   net.Runtime.PluginPath,
+		Args:   []string{net.Runtime.PluginPath},
 		Env:    envVars(vars),
 		Stdin:  stdin,
 		Stdout: stdout,

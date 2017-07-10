@@ -70,7 +70,7 @@ import:
 - package: github.com/coreos/gexpect
   version: v0.1.1
 - package: github.com/coreos/go-iptables
-  version: v0.1.0
+  version: e1428ab78015bf1388229130b43d005e102da004
   subpackages:
   - iptables
 - package: github.com/coreos/go-semver

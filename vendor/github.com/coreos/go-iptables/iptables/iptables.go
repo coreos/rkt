@@ -28,6 +28,7 @@ import (
 // Adds the output of stderr to exec.ExitError
 type Error struct {
 	exec.ExitError
+	cmd exec.Cmd
 	msg string
 }
 
@@ -36,30 +37,53 @@ func (e *Error) ExitStatus() int {
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("exit status %v: %v", e.ExitStatus(), e.msg)
+	return fmt.Sprintf("running %v: exit status %v: %v", e.cmd.Args, e.ExitStatus(), e.msg)
 }
+
+// Protocol to differentiate between IPv4 and IPv6
+type Protocol byte
+
+const (
+	ProtocolIPv4 Protocol = iota
+	ProtocolIPv6
+)
 
 type IPTables struct {
 	path     string
+	proto    Protocol
 	hasCheck bool
 	hasWait  bool
 }
 
+// New creates a new IPTables.
+// For backwards compatibility, this always uses IPv4, i.e. "iptables".
 func New() (*IPTables, error) {
-	path, err := exec.LookPath("iptables")
+	return NewWithProtocol(ProtocolIPv4)
+}
+
+// New creates a new IPTables for the given proto.
+// The proto will determine which command is used, either "iptables" or "ip6tables".
+func NewWithProtocol(proto Protocol) (*IPTables, error) {
+	path, err := exec.LookPath(getIptablesCommand(proto))
 	if err != nil {
 		return nil, err
 	}
-	checkPresent, waitPresent, err := getIptablesCommandSupport()
+	checkPresent, waitPresent, err := getIptablesCommandSupport(path)
 	if err != nil {
 		return nil, fmt.Errorf("error checking iptables version: %v", err)
 	}
 	ipt := IPTables{
 		path:     path,
+		proto:    proto,
 		hasCheck: checkPresent,
 		hasWait:  waitPresent,
 	}
 	return &ipt, nil
+}
+
+// Proto returns the protocol used by this IPTables.
+func (ipt *IPTables) Proto() Protocol {
+	return ipt.proto
 }
 
 // Exists checks if given rulespec in specified table/chain exists
@@ -116,6 +140,41 @@ func (ipt *IPTables) Delete(table, chain string, rulespec ...string) error {
 // List rules in specified table/chain
 func (ipt *IPTables) List(table, chain string) ([]string, error) {
 	args := []string{"-t", table, "-S", chain}
+	return ipt.executeList(args)
+}
+
+// List rules (with counters) in specified table/chain
+func (ipt *IPTables) ListWithCounters(table, chain string) ([]string, error) {
+	args := []string{"-t", table, "-v", "-S", chain}
+	return ipt.executeList(args)
+}
+
+// ListChains returns a slice containing the name of each chain in the specified table.
+func (ipt *IPTables) ListChains(table string) ([]string, error) {
+	args := []string{"-t", table, "-S"}
+
+	result, err := ipt.executeList(args)
+	if err != nil {
+		return nil, err
+	}
+
+	// Iterate over rules to find all default (-P) and user-specified (-N) chains.
+	// Chains definition always come before rules.
+	// Format is the following:
+	// -P OUTPUT ACCEPT
+	// -N Custom
+	var chains []string
+	for _, val := range result {
+		if strings.HasPrefix(val, "-P") || strings.HasPrefix(val, "-N") {
+			chains = append(chains, strings.Fields(val)[1])
+		} else {
+			break
+		}
+	}
+	return chains, nil
+}
+
+func (ipt *IPTables) executeList(args []string) ([]string, error) {
 	var stdout bytes.Buffer
 	if err := ipt.runWithOutput(args, &stdout); err != nil {
 		return nil, err
@@ -129,6 +188,8 @@ func (ipt *IPTables) List(table, chain string) ([]string, error) {
 	return rules, nil
 }
 
+// NewChain creates a new chain in the specified table.
+// If the chain already exists, it will result in an error.
 func (ipt *IPTables) NewChain(table, chain string) error {
 	return ipt.run("-t", table, "-N", chain)
 }
@@ -194,15 +255,24 @@ func (ipt *IPTables) runWithOutput(args []string, stdout io.Writer) error {
 	}
 
 	if err := cmd.Run(); err != nil {
-		return &Error{*(err.(*exec.ExitError)), stderr.String()}
+		return &Error{*(err.(*exec.ExitError)), cmd, stderr.String()}
 	}
 
 	return nil
 }
 
+// getIptablesCommand returns the correct command for the given protocol, either "iptables" or "ip6tables".
+func getIptablesCommand(proto Protocol) string {
+	if proto == ProtocolIPv6 {
+		return "ip6tables"
+	} else {
+		return "iptables"
+	}
+}
+
 // Checks if iptables has the "-C" and "--wait" flag
-func getIptablesCommandSupport() (bool, bool, error) {
-	vstring, err := getIptablesVersionString()
+func getIptablesCommandSupport(path string) (bool, bool, error) {
+	vstring, err := getIptablesVersionString(path)
 	if err != nil {
 		return false, false, err
 	}
@@ -243,8 +313,8 @@ func extractIptablesVersion(str string) (int, int, int, error) {
 }
 
 // Runs "iptables --version" to get the version string
-func getIptablesVersionString() (string, error) {
-	cmd := exec.Command("iptables", "--version")
+func getIptablesVersionString(path string) (string, error) {
+	cmd := exec.Command(path, "--version")
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err := cmd.Run()

@@ -43,21 +43,21 @@ import (
 	stage1common "github.com/rkt/rkt/stage1/common"
 	stage1commontypes "github.com/rkt/rkt/stage1/common/types"
 	stage1initcommon "github.com/rkt/rkt/stage1/init/common"
+	"github.com/rkt/rkt/stage1/init/kvm"
+	"github.com/rkt/rkt/stage1/init/kvm/hypervisor/hvlkvm"
+	"github.com/rkt/rkt/stage1/init/kvm/hypervisor/hvqemu"
 
 	"github.com/rkt/rkt/common"
 	"github.com/rkt/rkt/common/cgroup"
 	"github.com/rkt/rkt/common/cgroup/v1"
 	"github.com/rkt/rkt/common/cgroup/v2"
-	commonnet "github.com/rkt/rkt/common/networking"
 	"github.com/rkt/rkt/networking"
+	vmnet "github.com/rkt/rkt/networking/vm"
 	pkgflag "github.com/rkt/rkt/pkg/flag"
 	"github.com/rkt/rkt/pkg/fs"
 	rktlog "github.com/rkt/rkt/pkg/log"
 	"github.com/rkt/rkt/pkg/sys"
 	"github.com/rkt/rkt/pkg/user"
-	"github.com/rkt/rkt/stage1/init/kvm"
-	"github.com/rkt/rkt/stage1/init/kvm/hypervisor/hvlkvm"
-	"github.com/rkt/rkt/stage1/init/kvm/hypervisor/hvqemu"
 )
 
 const (
@@ -280,7 +280,7 @@ func getArgsEnv(p *stage1commontypes.Pod, flavor string, canMachinedRegister boo
 		// of init (/var/lib/rkt/..../uuid)
 		// TODO: move to path.go
 		kernelPath := filepath.Join(common.Stage1RootfsPath(p.Root), "kernel_image")
-		netDescriptions := kvm.GetNetworkDescriptions(n)
+		netDescriptions := vmnet.GetNetworkDescriptions(n)
 
 		cpu, mem := kvm.GetAppsResources(p.Manifest.Apps)
 
@@ -537,27 +537,31 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 		log.FatalE("failed to get stage1 flavor", err)
 	}
 
-	var n *networking.Networking
+	var network *networking.Networking
 	if p.NetList.Contained() {
-		fps, err := commonnet.ForwardedPorts(p.Manifest)
+		network, err = networking.New(p, localConfig, debug)
 		if err != nil {
-			log.FatalE("error initializing forwarding ports", err)
+			log.FatalE("failed to initialize network configuration", err)
 		}
 
-		noDNS := p.ResolvConfMode != "default" // force ignore CNI DNS results
-		n, err = networking.Setup(root, p.UUID, fps, p.NetList, localConfig, flavor, noDNS, debug)
+		if flavor == "kvm" {
+			vmnet.KvmSetup(network, debug)
+		}
+
+		err = network.Setup()
+
 		if err != nil {
 			log.FatalE("failed to setup network", err)
 		}
 
-		if err = n.Save(); err != nil {
+		if err = network.Save(); err != nil {
 			log.PrintE("failed to save networking state", err)
-			n.Teardown(flavor, debug)
+			network.Teardown()
 			return 254
 		}
 
 		if len(p.MDSToken) > 0 {
-			hostIP, err := n.GetForwardableNetHostIP()
+			hostIP, err := network.GetForwardableNetHostIP()
 			if err != nil {
 				log.FatalE("failed to get default Host IP", err)
 			}
@@ -636,7 +640,7 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 
 	if flavor == "kvm" {
 		kvm.InitDebug(debug)
-		if err := KvmNetworkingToSystemd(p, n); err != nil {
+		if err := KvmNetworkingToSystemd(p, network); err != nil {
 			log.FatalE("failed to configure systemd for kvm", err)
 		}
 	}
@@ -648,7 +652,7 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 	}
 	diag.Printf("canMachinedRegister %t", canMachinedRegister)
 
-	args, env, err := getArgsEnv(p, flavor, canMachinedRegister, debug, n)
+	args, env, err := getArgsEnv(p, flavor, canMachinedRegister, debug, network)
 	if err != nil {
 		log.FatalE("cannot get environment", err)
 	}
@@ -733,11 +737,11 @@ func stage1(rp *stage1commontypes.RuntimePod) int {
 		log.FatalE("error writing pid", err)
 	}
 
-	if flavor == "kvm" {
+	/*if flavor == "kvm" {
 		if err := KvmPrepareMounts(p); err != nil {
 			log.FatalE("error preparing mounts", err)
 		}
-	}
+	}*/
 
 	err = stage1common.WithClearedCloExec(lfd, func() error {
 		return syscall.Exec(args[0], args, env)

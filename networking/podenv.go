@@ -28,10 +28,10 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/appc/spec/schema/types"
 	"github.com/hashicorp/errwrap"
 
 	"github.com/containernetworking/cni/pkg/ns"
+	cnitypes "github.com/containernetworking/cni/pkg/types"
 
 	"github.com/rkt/rkt/common"
 	"github.com/rkt/rkt/networking/netinfo"
@@ -46,58 +46,42 @@ const (
 	DefaultRestrictedNetPath = "etc/rkt/net.d/99-default-restricted.conf"
 )
 
-// "base" struct that's populated from the beginning
-// describing the environment in which the pod
-// is running in
-type podEnv struct {
-	podRoot      string
-	podID        types.UUID
-	netsLoadList common.NetList
-	localConfig  string
-	podNS        ns.NetNS
-}
-
-type activeNet struct {
-	confBytes []byte
-	conf      *NetConf
-	runtime   *netinfo.NetInfo
-}
-
 // Loads nets specified by user and default one from stage1
-func (e *podEnv) loadNets() ([]activeNet, error) {
-	nets, err := loadUserNets(e.localConfig, e.netsLoadList)
+func (n *Networking) loadNets() ([]ActiveNet, error) {
+	netList := n.Pod.NetList
+	nets, err := loadUserNets(n.LocalConfigDir, netList)
 	if err != nil {
 		return nil, err
 	}
 
-	if e.netsLoadList.None() {
+	if netList.None() {
 		return nets, nil
 	}
 
 	if !netExists(nets, "default") && !netExists(nets, "default-restricted") {
 		var defaultNet string
-		if e.netsLoadList.Specific("default") || e.netsLoadList.All() {
+		if netList.Specific("default") || netList.All() {
 			defaultNet = DefaultNetPath
 		} else {
 			defaultNet = DefaultRestrictedNetPath
 		}
-		defPath := path.Join(common.Stage1RootfsPath(e.podRoot), defaultNet)
-		n, err := loadNet(defPath)
+		defPath := path.Join(common.Stage1RootfsPath(n.Pod.Root), defaultNet)
+		net, err := loadNet(defPath)
 		if err != nil {
 			return nil, err
 		}
-		nets = append(nets, *n)
+		nets = append(nets, *net)
 	}
 
-	missing := missingNets(e.netsLoadList, nets)
+	missing := missingNets(netList, nets)
 	if len(missing) > 0 {
 		return nil, fmt.Errorf("networks not found: %v", strings.Join(missing, ", "))
 	}
 
 	// Add the runtime args to the network instances.
 	// We don't do this earlier because we also load networks in other contexts
-	for _, n := range nets {
-		n.runtime.Args = e.netsLoadList.SpecificArgs(n.conf.Name)
+	for _, net := range nets {
+		net.Runtime.Args = netList.SpecificArgs(net.Conf.Name)
 	}
 	return nets, nil
 }
@@ -105,25 +89,26 @@ func (e *podEnv) loadNets() ([]activeNet, error) {
 // podNSCreate creates the network namespace and saves a reference to its path.
 // NewNS will bind-mount the namespace in /run/netns, so we write that filename
 // to disk.
-func (e *podEnv) podNSCreate() error {
+func (n *Networking) podNSCreate() error {
 	podNS, err := ns.NewNS()
 	if err != nil {
 		return err
 	}
-	e.podNS = podNS
+	n.PodNS = podNS
 
-	if err := e.podNSPathSave(); err != nil {
+	if err := n.podNSPathSave(); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (e *podEnv) podNSFilePath() string {
-	return filepath.Join(e.podRoot, "netns")
+func podNSFilePath(podRoot string) string {
+	return filepath.Join(podRoot, "netns")
 }
 
-func (e *podEnv) podNSPathLoad() (string, error) {
-	podNSPath, err := ioutil.ReadFile(e.podNSFilePath())
+// podNSPathLoad reads the file where we wrote the real path to the pod netns.
+func podNSPathLoad(podRoot string) (string, error) {
+	podNSPath, err := ioutil.ReadFile(podNSFilePath(podRoot))
 	if err != nil {
 		return "", err
 	}
@@ -146,146 +131,155 @@ func podNSerrorOK(podNSPath string, err error) bool {
 	}
 }
 
-func (e *podEnv) podNSLoad() error {
-	podNSPath, err := e.podNSPathLoad()
+func podNSLoad(podRoot string) (ns.NetNS, error) {
+	podNSPath, err := podNSPathLoad(podRoot)
 	if err != nil && !podNSerrorOK(podNSPath, err) {
-		return err
+		return nil, err
 	} else {
 		podNS, err := ns.GetNS(podNSPath)
 		if err != nil && !podNSerrorOK(podNSPath, err) {
-			return err
+			return nil, err
 		}
-		e.podNS = podNS
-		return nil
+		return podNS, nil
 	}
 }
 
-func (e *podEnv) podNSPathSave() error {
-	podNSFile, err := os.OpenFile(e.podNSFilePath(), os.O_WRONLY|os.O_CREATE, 0)
+// podNSPathSave writes the path to the pod netns to a file (as a string)
+func (n *Networking) podNSPathSave() error {
+	podNSFile, err := os.OpenFile(podNSFilePath(n.Pod.Root), os.O_WRONLY|os.O_CREATE, 0)
 	if err != nil {
 		return err
 	}
 	defer podNSFile.Close()
 
-	if _, err = io.WriteString(podNSFile, e.podNS.Path()); err != nil {
+	if _, err = io.WriteString(podNSFile, n.PodNS.Path()); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (e *podEnv) podNSDestroy() error {
-	if e.podNS == nil {
+func podNSDestroy(netns ns.NetNS) error {
+	if netns == nil {
 		return nil
 	}
 
 	// Close the namespace handle
 	// If this handle also *created* the namespace, it will delete it for us.
-	_ = e.podNS.Close()
+	_ = netns.Close()
 
 	// We still need to try and delete the namespace ourselves - no way to know
 	// if podNS.Close() did it for us.
 	// Unmount the ns bind-mount, and delete the mountpoint if successful
+	nsPath := netns.Path()
 
-	if err := syscall.Unmount(e.podNS.Path(), unix.MNT_DETACH); err != nil {
+	if err := syscall.Unmount(nsPath, unix.MNT_DETACH); err != nil {
 		// if already unmounted, umount(2) returns EINVAL - continue
 		if !os.IsNotExist(err) && err != syscall.EINVAL {
-			return errwrap.Wrap(fmt.Errorf("error unmounting netns %q", e.podNS.Path()), err)
+			return errwrap.Wrap(fmt.Errorf("error unmounting netns %q", nsPath), err)
 		}
 	}
-	if err := os.RemoveAll(e.podNS.Path()); err != nil {
+	if err := os.RemoveAll(nsPath); err != nil {
 		if !os.IsNotExist(err) {
-			return errwrap.Wrap(fmt.Errorf("failed to remove netns %s", e.podNS.Path()), err)
+			return errwrap.Wrap(fmt.Errorf("failed to remove netns %s", nsPath), err)
 		}
 	}
 	return nil
 }
 
-func (e *podEnv) netDir() string {
-	return filepath.Join(e.podRoot, "net")
+func (n *Networking) netDir() string {
+	return filepath.Join(n.Pod.Root, "net")
 }
 
-func (e *podEnv) setupNets(nets []activeNet, noDNS bool) error {
-	err := os.MkdirAll(e.netDir(), 0755)
+func (n *Networking) setupNets() error {
+	err := os.MkdirAll(n.netDir(), 0755)
 	if err != nil {
 		return err
 	}
 
 	i := 0
 	defer func() {
-		if err != nil {
-			e.teardownNets(nets[:i])
+		if err != nil && i != 0 {
+			n.teardownNets(i - 1)
 		}
 	}()
 
-	n := activeNet{}
-
 	// did stage0 already make /etc/rkt-resolv.conf (i.e. --dns passed)
-	resolvPath := filepath.Join(common.Stage1RootfsPath(e.podRoot), "etc/rkt-resolv.conf")
+	resolvPath := filepath.Join(common.Stage1RootfsPath(n.Pod.Root), "etc/rkt-resolv.conf")
 	_, err = os.Stat(resolvPath)
 	if err != nil && !os.IsNotExist(err) {
 		return errwrap.Wrap(fmt.Errorf("error statting /etc/rkt-resolv.conf"), err)
 	}
 	podHasResolvConf := err == nil
 
-	for i, n = range nets {
+	for i, net := range n.nets {
 		if debuglog {
-			stderr.Printf("loading network %v with type %v", n.conf.Name, n.conf.Type)
+			stderr.Printf("loading network %v with type %v", net.Conf.Name, net.Conf.Type)
 		}
 
-		n.runtime.IfName = fmt.Sprintf(IfNamePattern, i)
-		if n.runtime.ConfPath, err = copyFileToDir(n.runtime.ConfPath, e.netDir()); err != nil {
-			return errwrap.Wrap(fmt.Errorf("error copying %q to %q", n.runtime.ConfPath, e.netDir()), err)
+		net.Runtime.IfName = fmt.Sprintf(IfNamePattern, i)
+		if net.Runtime.ConfPath, err = copyFileToDir(net.Runtime.ConfPath, n.netDir()); err != nil {
+			return errwrap.Wrap(fmt.Errorf("error copying %q to %q", net.Runtime.ConfPath, n.netDir()), err)
 		}
 
 		// Actually shell out to the plugin
-		err = e.netPluginAdd(&n, e.podNS.Path())
+		if n.AddNet != nil {
+			err = n.AddNet(n, &net)
+		} else {
+			err = n.netPluginAdd(&net)
+		}
 		if err != nil {
-			return errwrap.Wrap(fmt.Errorf("error adding network %q", n.conf.Name), err)
+			return errwrap.Wrap(fmt.Errorf("error adding network %q", net.Conf.Name), err)
 		}
 
 		// Generate rkt-resolv.conf if it's not already there.
 		// The first network plugin that supplies a non-empty
 		// DNS response will win, unless noDNS is true (--dns passed to rkt run)
-		if !common.IsDNSZero(&n.runtime.DNS) && !noDNS {
+		if !common.IsDNSZero(&net.Runtime.DNS) && !n.NoDNS() {
 			if !podHasResolvConf {
 				err := ioutil.WriteFile(
 					resolvPath,
-					[]byte(common.MakeResolvConf(n.runtime.DNS, "Generated by rkt from network "+n.conf.Name)),
+					[]byte(common.MakeResolvConf(net.Runtime.DNS, "Generated by rkt from network "+net.Conf.Name)),
 					0644)
 				if err != nil {
 					return errwrap.Wrap(fmt.Errorf("error creating resolv.conf"), err)
 				}
 				podHasResolvConf = true
 			} else {
-				stderr.Printf("Warning: network %v plugin specified DNS configuration, but DNS already supplied", n.conf.Name)
+				stderr.Printf("Warning: network %v plugin specified DNS configuration, but DNS already supplied", net.Conf.Name)
 			}
 		}
 	}
 	return nil
 }
 
-func (e *podEnv) teardownNets(nets []activeNet) {
+// teardownNets will call the DEL on every network, up to limit (or all of them,
+// in case it is -1). This is used if we have to tear down in a partial case.
+func (n *Networking) teardownNets(limit int) {
+	i := limit
+	if i == -1 {
+		i = len(n.nets) - 1
+	}
 
-	for i := len(nets) - 1; i >= 0; i-- {
+	for ; i >= 0; i-- {
 		if debuglog {
-			stderr.Printf("teardown - executing net-plugin %v", nets[i].conf.Type)
+			stderr.Printf("teardown - executing net-plugin %v", n.nets[i].Conf.Type)
 		}
 
-		podNSpath := ""
-		if e.podNS != nil {
-			podNSpath = e.podNS.Path()
+		var err error
+		if n.DelNet != nil {
+			err = n.DelNet(n, &n.nets[i])
+		} else {
+			err = n.netPluginDel(&n.nets[i])
 		}
-
-		err := e.netPluginDel(&nets[i], podNSpath)
 		if err != nil {
-			stderr.PrintE(fmt.Sprintf("error deleting %q", nets[i].conf.Name), err)
+			stderr.PrintE(fmt.Sprintf("error deleting %q", n.nets[i].Conf.Name), err)
 		}
 
 		// Delete the conf file to signal that the network was
 		// torn down (or at least attempted to)
-		if err = os.Remove(nets[i].runtime.ConfPath); err != nil {
-			stderr.PrintE(fmt.Sprintf("error deleting %q", nets[i].runtime.ConfPath), err)
+		if err = os.Remove(n.nets[i].Runtime.ConfPath); err != nil {
+			stderr.PrintE(fmt.Sprintf("error deleting %q", n.nets[i].Runtime.ConfPath), err)
 		}
 	}
 }
@@ -312,30 +306,30 @@ func listFiles(dir string) ([]string, error) {
 	return files, nil
 }
 
-func netExists(nets []activeNet, name string) bool {
+func netExists(nets []ActiveNet, name string) bool {
 	for _, n := range nets {
-		if n.conf.Name == name {
+		if n.Conf.Name == name {
 			return true
 		}
 	}
 	return false
 }
 
-func loadNet(filepath string) (*activeNet, error) {
+func loadNet(filepath string) (*ActiveNet, error) {
 	bytes, err := ioutil.ReadFile(filepath)
 	if err != nil {
 		return nil, err
 	}
 
-	n := &NetConf{}
+	n := &cnitypes.NetConf{}
 	if err = json.Unmarshal(bytes, n); err != nil {
 		return nil, errwrap.Wrap(fmt.Errorf("error loading %v", filepath), err)
 	}
 
-	return &activeNet{
-		confBytes: bytes,
-		conf:      n,
-		runtime: &netinfo.NetInfo{
+	return &ActiveNet{
+		ConfBytes: bytes,
+		Conf:      n,
+		Runtime: &netinfo.NetInfo{
 			NetName:  n.Name,
 			ConfPath: filepath,
 		},
@@ -364,7 +358,7 @@ func copyFileToDir(src, dstdir string) (string, error) {
 // loadUserNets will load all network configuration files from the user-supplied
 // configuration directory (typically /etc/rkt/net.d). Do not do any mutation here -
 // we also load networks in a few other code paths.
-func loadUserNets(localConfig string, netsLoadList common.NetList) ([]activeNet, error) {
+func loadUserNets(localConfig string, netsLoadList common.NetList) ([]ActiveNet, error) {
 	if netsLoadList.None() {
 		stderr.Printf("networking namespace with loopback only")
 		return nil, nil
@@ -380,7 +374,7 @@ func loadUserNets(localConfig string, netsLoadList common.NetList) ([]activeNet,
 		return nil, err
 	}
 	sort.Strings(files)
-	nets := make([]activeNet, 0, len(files))
+	nets := make([]ActiveNet, 0, len(files))
 
 	for _, filename := range files {
 		filepath := filepath.Join(userNetPath, filename)
@@ -394,17 +388,17 @@ func loadUserNets(localConfig string, netsLoadList common.NetList) ([]activeNet,
 			return nil, err
 		}
 
-		if !(netsLoadList.All() || netsLoadList.Specific(n.conf.Name)) {
+		if !(netsLoadList.All() || netsLoadList.Specific(n.Conf.Name)) {
 			continue
 		}
 
-		if n.conf.Name == "default" ||
-			n.conf.Name == "default-restricted" {
-			stderr.Printf(`overriding %q network with %v`, n.conf.Name, filename)
+		if n.Conf.Name == "default" ||
+			n.Conf.Name == "default-restricted" {
+			stderr.Printf(`overriding %q network with %v`, n.Conf.Name, filename)
 		}
 
-		if netExists(nets, n.conf.Name) {
-			stderr.Printf("%q network already defined, ignoring %v", n.conf.Name, filename)
+		if netExists(nets, n.Conf.Name) {
+			stderr.Printf("%q network already defined, ignoring %v", n.Conf.Name, filename)
 			continue
 		}
 
@@ -414,7 +408,7 @@ func loadUserNets(localConfig string, netsLoadList common.NetList) ([]activeNet,
 	return nets, nil
 }
 
-func missingNets(defined common.NetList, loaded []activeNet) []string {
+func missingNets(defined common.NetList, loaded []ActiveNet) []string {
 	diff := make(map[string]struct{})
 	for _, n := range defined.StringsOnlyNames() {
 		if n != "all" {
@@ -423,7 +417,7 @@ func missingNets(defined common.NetList, loaded []activeNet) []string {
 	}
 
 	for _, an := range loaded {
-		delete(diff, an.conf.Name)
+		delete(diff, an.Conf.Name)
 	}
 
 	var missing []string

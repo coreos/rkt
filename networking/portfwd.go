@@ -29,18 +29,18 @@ type iptablesRule struct {
 	Rule  []string
 }
 
-// GetForwardableNet iterates through all loaded networks and returns either
-// the first network that has masquerading enabled,
-// or the last network in case there is no masqueraded one,
-// or an error if no network was loaded.
-func (n *Networking) GetForwardableNet() (*activeNet, error) {
+// GetForwardableNet returns the first network with a default gateway, or the
+// last network otherwise
+func (n *Networking) GetForwardableNet() (*ActiveNet, error) {
 	numberNets := len(n.nets)
 	if numberNets == 0 {
 		return nil, fmt.Errorf("no networks found")
 	}
 	for _, net := range n.nets {
-		if net.IPMasq() {
-			return &net, nil
+		for _, r := range net.Runtime.IP4.Routes {
+			if r.Dst.String() == "0.0.0.0/0" {
+				return &net, nil
+			}
 		}
 	}
 	return &n.nets[numberNets-1], nil
@@ -53,7 +53,7 @@ func (n *Networking) GetForwardableNetPodIP() (net.IP, error) {
 	if err != nil {
 		return nil, err
 	}
-	return net.runtime.IP, nil
+	return net.Runtime.IP, nil
 }
 
 // GetForwardableNetHostIP uses GetForwardableNet() to determine the default network and then
@@ -63,11 +63,40 @@ func (n *Networking) GetForwardableNetHostIP() (net.IP, error) {
 	if err != nil {
 		return nil, err
 	}
-	return net.runtime.HostIP, nil
+	return net.Runtime.HostIP, nil
+}
+
+// ForwardPorts enables port forwarding
+func (n *Networking) ForwardPorts() error {
+	fps, err := commonnet.ForwardedPorts(n.Pod.Manifest)
+	if err != nil {
+		return err
+	}
+	if len(fps) == 0 {
+		return nil
+	}
+
+	if err = n.enableDefaultLocalnetRouting(); err != nil {
+		return err
+	}
+	podIP, err := n.GetForwardableNetPodIP()
+	if err != nil {
+		return err
+	}
+	if err := n.setupForwarding(); err != nil {
+		n.TeardownForwarding()
+		return err
+	}
+	if err := n.forwardPorts(fps, podIP); err != nil {
+		n.TeardownForwarding()
+		return err
+	}
+
+	return nil
 }
 
 // setupForwarding creates the iptables chains
-func (e *podEnv) setupForwarding() error {
+func (n *Networking) setupForwarding() error {
 	ipt, err := iptables.New()
 	if err != nil {
 		return err
@@ -75,8 +104,8 @@ func (e *podEnv) setupForwarding() error {
 
 	// Create a separate chain for this pod. This helps with debugging
 	// and makes it easier to cleanup
-	chainDNAT := e.portFwdChain("DNAT")
-	chainSNAT := e.portFwdChain("SNAT")
+	chainDNAT := n.portFwdChain("DNAT")
+	chainSNAT := n.portFwdChain("SNAT")
 
 	if err = ipt.NewChain("nat", chainDNAT); err != nil {
 		return err
@@ -86,8 +115,8 @@ func (e *podEnv) setupForwarding() error {
 		return err
 	}
 
-	chainRuleDNAT := e.portFwdChainRuleSpec(chainDNAT, "DNAT")
-	chainRuleSNAT := e.portFwdChainRuleSpec(chainSNAT, "SNAT")
+	chainRuleDNAT := n.portFwdChainRuleSpec(chainDNAT, "DNAT")
+	chainRuleSNAT := n.portFwdChainRuleSpec(chainSNAT, "SNAT")
 
 	for _, entry := range []struct {
 		chain           string
@@ -111,7 +140,7 @@ func (e *podEnv) setupForwarding() error {
 	return nil
 }
 
-func (e *podEnv) forwardPorts(fps []commonnet.ForwardedPort, podIP net.IP) error {
+func (n *Networking) forwardPorts(fps []commonnet.ForwardedPort, podIP net.IP) error {
 	if len(fps) == 0 {
 		return nil
 	}
@@ -119,8 +148,8 @@ func (e *podEnv) forwardPorts(fps []commonnet.ForwardedPort, podIP net.IP) error
 	if err != nil {
 		return err
 	}
-	chainDNAT := e.portFwdChain("DNAT")
-	chainSNAT := e.portFwdChain("SNAT")
+	chainDNAT := n.portFwdChain("DNAT")
+	chainSNAT := n.portFwdChain("SNAT")
 
 	for _, fp := range fps {
 		for _, r := range portRules(fp, podIP, chainDNAT, chainSNAT) {
@@ -132,7 +161,7 @@ func (e *podEnv) forwardPorts(fps []commonnet.ForwardedPort, podIP net.IP) error
 	return nil
 }
 
-func (e *podEnv) unforwardPorts(fps []commonnet.ForwardedPort, podIP net.IP) error {
+func (n *Networking) unforwardPorts(fps []commonnet.ForwardedPort, podIP net.IP) error {
 	if len(fps) == 0 {
 		return nil
 	}
@@ -141,8 +170,8 @@ func (e *podEnv) unforwardPorts(fps []commonnet.ForwardedPort, podIP net.IP) err
 	if err != nil {
 		return err
 	}
-	chainDNAT := e.portFwdChain("DNAT")
-	chainSNAT := e.portFwdChain("SNAT")
+	chainDNAT := n.portFwdChain("DNAT")
+	chainSNAT := n.portFwdChain("SNAT")
 
 	for _, fp := range fps {
 		for _, r := range portRules(fp, podIP, chainDNAT, chainSNAT) {
@@ -188,17 +217,17 @@ func portRules(fp commonnet.ForwardedPort, podIP net.IP, chainDNAT, chainSNAT st
 	}
 }
 
-func (e *podEnv) teardownForwarding() error {
+func (n *Networking) TeardownForwarding() error {
 	ipt, err := iptables.New()
 	if err != nil {
 		return err
 	}
 
-	chainDNAT := e.portFwdChain("DNAT")
-	chainSNAT := e.portFwdChain("SNAT")
+	chainDNAT := n.portFwdChain("DNAT")
+	chainSNAT := n.portFwdChain("SNAT")
 
-	chainRuleDNAT := e.portFwdChainRuleSpec(chainDNAT, "DNAT")
-	chainRuleSNAT := e.portFwdChainRuleSpec(chainSNAT, "SNAT")
+	chainRuleDNAT := n.portFwdChainRuleSpec(chainDNAT, "DNAT")
+	chainRuleSNAT := n.portFwdChainRuleSpec(chainSNAT, "SNAT")
 
 	// There's no clean way now to test if a chain exists or
 	// even if a rule exists if the chain is not present.
@@ -226,11 +255,11 @@ func (e *podEnv) teardownForwarding() error {
 
 // portFwdChain generates the *name* of the chain for pod port forwarding.
 // This name must be stable.
-func (e *podEnv) portFwdChain(name string) string {
-	return fmt.Sprintf("RKT-PFWD-%s-%s", name, e.podID.String()[0:8])
+func (n *Networking) portFwdChain(name string) string {
+	return fmt.Sprintf("RKT-PFWD-%s-%s", name, n.Pod.UUID.String()[0:8])
 }
 
-func (e *podEnv) portFwdChainRuleSpec(chain string, name string) []string {
+func (n *Networking) portFwdChainRuleSpec(chain string, name string) []string {
 	switch name {
 	case "SNAT":
 		return []string{"-s", "127.0.0.1", "!", "-d", "127.0.0.1", "-j", chain}

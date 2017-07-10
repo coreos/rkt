@@ -35,7 +35,9 @@ import (
 	"github.com/rkt/rkt/common/cgroup"
 	"github.com/rkt/rkt/common/cgroup/v1"
 	"github.com/rkt/rkt/networking"
+	vmnet "github.com/rkt/rkt/networking/vm"
 	rktlog "github.com/rkt/rkt/pkg/log"
+	stage1commontypes "github.com/rkt/rkt/stage1/common/types"
 )
 
 const (
@@ -72,6 +74,8 @@ func main() {
 		log.Fatal("UUID is missing or malformed")
 	}
 
+	root := "."
+
 	diag.Printf("Removing journal link.")
 	if err := removeJournalLink(podID); err != nil {
 		log.PrintE("error removing journal link", err)
@@ -82,13 +86,21 @@ func main() {
 		log.PrintE("error cleaning up cgroups", err)
 	}
 
-	diag.Printf("Tearing down networks.")
-	if err := gcNetworking(podID); err != nil {
-		log.FatalE("", err)
+	// Load the pod to do the network teardown
+	// We don't otherwise need it, so load it late so GC can proceed.
+	pod, err := stage1commontypes.LoadPod(root, podID, nil)
+	if err != nil {
+		log.PrintE("error loading pod - cannot GC networking", err)
+	} else {
+		log.Printf("pod: %+v", pod)
+		diag.Printf("Tearing down networks.")
+		if err := gcNetworking(pod); err != nil {
+			log.FatalE("", err)
+		}
 	}
 }
 
-func gcNetworking(podID *types.UUID) error {
+func gcNetworking(pod *stage1commontypes.Pod) error {
 	var flavor string
 	// we first try to read the flavor from stage1 for backwards compatibility
 	flavor, err := os.Readlink(filepath.Join(common.Stage1RootfsPath("."), "flavor"))
@@ -102,13 +114,18 @@ func gcNetworking(podID *types.UUID) error {
 		}
 	}
 
-	n, err := networking.Load(".", podID, localConfig)
+	n, err := networking.Load(pod, localConfig, debug)
+
 	switch {
 	case err == nil:
-		n.Teardown(flavor, debug)
+		log.Printf("flavor: %s", flavor)
+		if flavor == "kvm" {
+			vmnet.KvmSetup(n, debug)
+		}
+		n.Teardown()
 	case os.IsNotExist(err):
 		// either ran with --net=host, or failed during setup
-		if err := networking.CleanUpGarbage(".", podID); err != nil {
+		if err := networking.CleanUpGarbage("."); err != nil {
 			diag.PrintE("failed cleaning up nework NS", err)
 		}
 	default:
