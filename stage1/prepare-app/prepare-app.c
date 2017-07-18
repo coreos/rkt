@@ -282,6 +282,9 @@ int main(int argc, char *argv[])
 		dir("run",			0755),
 		dir("run/systemd",		0755),
 		dir("run/systemd/journal",	0755),
+		dir("var",			0755),
+		dir("var/log",			0755),
+		dir("var/log/journal",		0755),
 	};
 	static const char *devnodes[] = {
 		"/dev/null",
@@ -299,6 +302,7 @@ int main(int argc, char *argv[])
 		{ "/dev/shm", "/dev/shm", "bind", NULL, MS_BIND, false },
 		{ "/dev/pts", "/dev/pts", "bind", NULL, MS_BIND, false },
 		{ "/run/systemd/journal", "/run/systemd/journal", "bind", NULL, MS_BIND, false },
+		{ "/var/log/journal", "/var/log/journal", "bind", NULL, MS_BIND|MS_RDONLY, false },
 		/* /sys is handled separately */
 	};
 	static const mount_point files_mount_table[] = {
