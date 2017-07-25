@@ -110,6 +110,8 @@ func addAppFlags(cmd *cobra.Command) {
 	cmd.Flags().Var((*appAnnotation)(&rktApps), "user-annotation", "set the app's annotations (example: '--user-annotation=foo=bar')")
 	cmd.Flags().Var((*appLabel)(&rktApps), "user-label", "set the app's labels (example: '--user-label=foo=bar')")
 	cmd.Flags().Var((*appEnv)(&rktApps), "environment", "set the app's environment variables (example: '--environment=foo=bar')")
+	cmd.Flags().Var((*appKillMode)(&rktApps), "kill-mode", "set the app's stop signaling behavior. Allowed: 'all' (default), 'leader' (example: '--kill-mode=leader')")
+	cmd.Flags().Var((*appKillTimeout)(&rktApps), "kill-timeout", "duration to wait after SIGTERMs before SIGKILLs (example: '--kill-timeout=15s')")
 	if common.IsExperimentEnabled("attach") {
 		cmd.Flags().Var((*appStdin)(&rktApps), "stdin", "stdin mode for the preceding application (example: '--stdin=null')")
 		cmd.Flags().MarkHidden("stdin")

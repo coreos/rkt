@@ -306,6 +306,12 @@ In that case, this information is persisted at runtime in each application manif
  - `coreos.com/rkt/stage2/stdout`
  - `coreos.com/rkt/stage2/stderr`
 
+### Systemd kill configuration
+
+Stage1 images using systemd can read configuration related to how units should be terminated - per `systemd.kill(5)` - from the following annotations:
+ - `coreos.com/rkt/systemd/kill/mode` - `KillMode` in `systemd.kill(5)`
+ - `coreos.com/rkt/systemd/kill/timeout` - `TimeoutStopSec` in `systemd.service(5)`
+
 ## Filesystem Layout Assumptions
 
 The following paths are reserved for the stage1 image, and they will be populated at runtime.

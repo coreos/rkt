@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/errwrap"
 	"github.com/rkt/rkt/common/apps"
@@ -793,6 +794,66 @@ func (au *appSupplementaryGIDs) String() string {
 
 func (au *appSupplementaryGIDs) Type() string {
 	return "appSupplementaryGIDs"
+}
+
+type appKillMode apps.Apps
+
+func (au *appKillMode) Set(s string) error {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return fmt.Errorf("--kill-mode must follow an image")
+	}
+	switch s {
+	case "all":
+		app.KillMode = apps.KillModeAll
+	case "leader":
+		app.KillMode = apps.KillModeLeader
+	default:
+		return fmt.Errorf("--kill-mode=%s is not supported. It must be 'all' or 'leader'", s)
+	}
+	return nil
+}
+
+func (au *appKillMode) String() string {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return ""
+	}
+	if app.KillMode == apps.KillModeLeader {
+		return "leader"
+	}
+	return "all"
+}
+
+func (au *appKillMode) Type() string {
+	return "appKillMode"
+}
+
+type appKillTimeout apps.Apps
+
+func (au *appKillTimeout) Set(s string) error {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return fmt.Errorf("--kill-timeout must follow an image")
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return err
+	}
+	app.KillTimeout = d
+	return nil
+}
+
+func (au *appKillTimeout) String() string {
+	app := (*apps.Apps)(au).Last()
+	if app == nil {
+		return ""
+	}
+	return app.KillTimeout.String()
+}
+
+func (au *appKillTimeout) Type() string {
+	return "appKillTimeout"
 }
 
 // `--stdin=mode` flag

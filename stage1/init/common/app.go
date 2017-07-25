@@ -45,6 +45,10 @@ type preparedApp struct {
 	capabilities    []string
 	seccomp         *seccompFilter
 
+	// systemd kill behavior
+	killTimeout string
+	killMode    string
+
 	// Path restrictions
 	roPaths     []string
 	hiddenPaths []string
@@ -118,6 +122,13 @@ func prepareApp(p *stage1commontypes.Pod, ra *schema.RuntimeApp) (*preparedApp, 
 	pa.env.Set("AC_APP_NAME", ra.Name.String())
 	if p.MetadataServiceURL != "" {
 		pa.env.Set("AC_METADATA_URL", p.MetadataServiceURL)
+	}
+
+	if m, ok := ra.Annotations.Get(stage1commontypes.AppKillMode); ok {
+		pa.killMode = m
+	}
+	if t, ok := ra.Annotations.Get(stage1commontypes.AppKillTimeout); ok {
+		pa.killTimeout = t
 	}
 
 	// Determine capability set

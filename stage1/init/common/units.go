@@ -169,7 +169,6 @@ func ImmutableEnv(p *stage1commontypes.Pod) error {
 		}
 
 		uw.AppUnit(ra, binPath,
-			unit.NewUnitOption("Unit", "After", "systemd-journald.service"),
 			// When an app fails, we shut down the pod
 			unit.NewUnitOption("Unit", "OnFailure", "halt.target"))
 
@@ -464,7 +463,12 @@ func (uw *UnitWriter) AppUnit(ra *schema.RuntimeApp, binPath string, opts ...*un
 	opts = append(opts, []*unit.UnitOption{
 		unit.NewUnitOption("Unit", "Description", fmt.Sprintf("Application=%v Image=%v", appName, imgName)),
 		unit.NewUnitOption("Unit", "DefaultDependencies", "false"),
+		unit.NewUnitOption("Unit", "Before", "halt.target"),
+		unit.NewUnitOption("Unit", "Conflicts", "halt.target"),
+		unit.NewUnitOption("Unit", "After", "shutdown.service"),
+		unit.NewUnitOption("Unit", "After", "systemd-journald.service"),
 		unit.NewUnitOption("Unit", "Wants", fmt.Sprintf("reaper-%s.service", appName)),
+		unit.NewUnitOption("Unit", "After", fmt.Sprintf("reaper-%s.service", appName)),
 		unit.NewUnitOption("Service", "Restart", "no"),
 
 		// This helps working around a race
@@ -483,7 +487,6 @@ func (uw *UnitWriter) AppUnit(ra *schema.RuntimeApp, binPath string, opts ...*un
 
 	// Some pre-start jobs take a long time, set the timeout to 0
 	opts = append(opts, unit.NewUnitOption("Service", "TimeoutStartSec", "0"))
-
 	opts = append(opts, unit.NewUnitOption("Unit", "Requires", "sysusers.service"))
 	opts = append(opts, unit.NewUnitOption("Unit", "After", "sysusers.service"))
 
@@ -540,6 +543,13 @@ func (uw *UnitWriter) appSystemdUnit(pa *preparedApp, binPath string, opts []*un
 		unit.NewUnitOption("Unit", "Requires", InstantiatedPrepareAppUnitName(ra.Name)),
 		unit.NewUnitOption("Unit", "After", InstantiatedPrepareAppUnitName(ra.Name)),
 	)
+
+	if t := pa.killTimeout; t != "" {
+		opts = append(opts, unit.NewUnitOption("Service", "TimeoutStopSec", t))
+	}
+	if m := pa.killMode; m != "" {
+		opts = append(opts, unit.NewUnitOption("Service", "KillMode", m))
+	}
 
 	if len(supplementaryGroups) > 0 {
 		opts = appendOptionsList(opts, "Service", "SupplementaryGroups", "", supplementaryGroups...)

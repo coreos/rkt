@@ -67,17 +67,19 @@ c9fad0e6-8236-4fc2-ad17-55d0a4c7d742
 | `--pod-manifest` | none | A path | The path to the pod manifest. If it's non-empty, then only `--net`, `--no-overlay` and `--interactive` will have effect. |
 | `--port` | none | A port name and number pair | Container port name to expose through host port number. Requires [contained network][contained]. Syntax: `--port=NAME:HOSTPORT` The NAME is that given in the ACI. By convention, Docker containers' EXPOSEd ports are given a name formed from the port number, a hyphen, and the protocol, e.g., `80-tcp`, giving something like `--port=80-tcp:8080` |
 | `--private-users` |  `false` | `true` or `false` | Run within user namespaces |
-| `--quiet` |  `false` | `true` or `false` | Suppress superfluous output on stdout, print only the UUID on success |
-| `--set-env` |  `` | An environment variable. Syntax `NAME=VALUE` | An environment variable to set for apps |
-| `--set-env-file` |  `` | Path of an environment variables file | Environment variables to set for apps |
-| `--signature` |  `` | A file path | Local signature file to use in validating the preceding image |
-| `--stage1-url` |  `` | A URL to a stage1 image. HTTP/HTTPS/File/Docker URLs are supported | Image to use as stage1 |
-| `--stage1-path` |  `` | A path to a stage1 image. Absolute and relative paths are supported | Image to use as stage1 |
-| `--stage1-name` |  `` | A name of a stage1 image. Will perform a discovery if the image is not in the store | Image to use as stage1 |
-| `--stage1-hash` |  `` | A hash of a stage1 image. The image must exist in the store | Image to use as stage1 |
-| `--stage1-from-dir` |  `` | A stage1 image file inside the default stage1 images directory | Image to use as stage1 |
+| `--quiet` | `false` | `true` or `false` | Suppress superfluous output on stdout, print only the UUID on success |
+| `--set-env` | `` | An environment variable. Syntax `NAME=VALUE` | An environment variable to set for apps |
+| `--set-env-file` | `` | Path of an environment variables file | Environment variables to set for apps |
+| `--signature` | `` | A file path | Local signature file to use in validating the preceding image |
+| `--stage1-url` | `` | A URL to a stage1 image. HTTP/HTTPS/File/Docker URLs are supported | Image to use as stage1 |
+| `--stage1-path` | `` | A path to a stage1 image. Absolute and relative paths are supported | Image to use as stage1 |
+| `--stage1-name` | `` | A name of a stage1 image. Will perform a discovery if the image is not in the store | Image to use as stage1 |
+| `--stage1-hash` | `` | A hash of a stage1 image. The image must exist in the store | Image to use as stage1 |
+| `--stage1-from-dir` | `` | A stage1 image file inside the default stage1 images directory | Image to use as stage1 |
 | `--user` | none | uid, username or file path | user override for the preceding image (example: '--user=user') |
-| `--volume` |  `` | Volume syntax (`NAME,kind=KIND,source=PATH,readOnly=BOOL,recursive=BOOL`). See [Mount Volumes into a Pod][mount-vol] | Volumes to make available in the pod |
+| `--volume` | `` | Volume syntax (`NAME,kind=KIND,source=PATH,readOnly=BOOL,recursive=BOOL`). See [Mount Volumes into a Pod][mount-vol] | Volumes to make available in the pod |
+| `--kill-mode` | `all` | 'all' or 'leader' | How to signal (kill) processes in the app. A SIGTERM is sent to 'all' processes or only the 'leader' (exec command), then a SIGKILL to remaining processes |
+| `--kill-timeout` | `90s` | A duration | How long to wait after sending SIGTERMs for the app to stop before sending SIGKILLs to remaining processes |
 
 ## Global options
 

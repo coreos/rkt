@@ -29,14 +29,20 @@ import (
 	"github.com/hashicorp/errwrap"
 )
 
-const (
-	// The filename where we persist the RuntimePod data
-	RuntimeConfigPath = "runtime-config"
+// The filename where we persist the RuntimePod data
+const RuntimeConfigPath = "runtime-config"
 
-	// App-level annotations: streams mode
+// App-level annotations: streams mode
+const (
 	AppStdinMode  = "coreos.com/rkt/stage2/stdin"
 	AppStdoutMode = "coreos.com/rkt/stage2/stdout"
 	AppStderrMode = "coreos.com/rkt/stage2/stderr"
+)
+
+// App-level annotations: systemd kill/stop behavior
+const (
+	AppKillMode    = "coreos.com/rkt/systemd/kill/mode"
+	AppKillTimeout = "coreos.com/rkt/systemd/kill/timeout"
 )
 
 // Pod encapsulates a PodManifest and ImageManifests
