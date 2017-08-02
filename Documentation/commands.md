@@ -70,7 +70,7 @@ In addition to the flags used by individual `rkt` commands, `rkt` has a set of g
 | `--cpuprofile (hidden flag)` | ''  | A file path | Write CPU profile to the file |
 | `--debug` |  `false` | `true` or `false` | Prints out more debug information to `stderr` |
 | `--dir` | `/var/lib/rkt` | A directory path | Path to the `rkt` data directory |
-| `--insecure-options` |  none | **none**, **http**, **image**, **tls**, **pubkey**, **capabilities**, **paths**, **seccomp**, **all-fetch**, **all-run**, **all** <br/> More information below. | Comma-separated list of security features to disable |
+| `--insecure-options` |  none | **none**, **http**, **image**, **tls**, **pubkey**, **capabilities**, **paths**, **seccomp**, **apparmor**, **all-fetch**, **all-run**, **all** <br/> More information below. | Comma-separated list of security features to disable |
 | `--local-config` |  `/etc/rkt` | A directory path | Path to the local configuration directory |
 | `--memprofile (hidden flag)` | '' | A file path | Write memory profile to the file |
 | `--system-config` |  `/usr/lib/rkt` | A directory path | Path to the system configuration directory |
@@ -87,6 +87,7 @@ In addition to the flags used by individual `rkt` commands, `rkt` has a set of g
 - **capabilities**: Gives all [capabilities][capabilities] to apps. This allows an attacker that is able to execute code in the container to trivially escalate to root privileges on the host. 
 - **paths**: Disables inaccessible and read-only paths. This makes it easier for an attacker who can gain control over a single container to execute code in the host system, potentially allowing them to escape from the container. This also leaks additional information.
 - **seccomp**: Disables [seccomp][seccomp]. This increases the attack surface available to an attacker who can gain control over a single container, potentially making it easier for them to escape from the container.
+- **apparmor**: Ignore [AppArmor][apparmor] app annotations.
 - **all-fetch**: Disables the following security checks: image, tls, http
 - **all-run**: Disables the following security checks: capabilities, paths, seccomp
 - **all**: Disables all security checks
@@ -181,3 +182,4 @@ On some distributions such as Ubuntu, persistent journal storage is not enabled 
 [sd-journal]: https://www.freedesktop.org/software/systemd/man/sd-journal.html
 [capabilities]: capabilities-guide.md
 [seccomp]: seccomp-guide.md
+[apparmor]: apparmor.md

@@ -272,14 +272,14 @@ func FindBinPath(p *stage1commontypes.Pod, ra *schema.RuntimeApp) (string, error
 
 	var binPath string
 	switch {
-	// absolute path, just use it
 	case filepath.IsAbs(bin):
+		// absolute path, just use it
 		binPath = bin
-	// non-absolute path containing a slash, look in the working dir
 	case strings.Contains(bin, "/"):
+		// non-absolute path containing a slash, look in the working dir
 		binPath = filepath.Join(ra.App.WorkingDirectory, bin)
-	// filename, search in the app's $PATH
 	default:
+		// filename, search in the app's $PATH
 		absRoot, err := filepath.Abs(p.Root)
 		if err != nil {
 			return "", errwrap.Wrap(errors.New("could not get pod's root absolute path"), err)

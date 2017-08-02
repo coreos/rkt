@@ -171,6 +171,7 @@ func runRunPrepared(cmd *cobra.Command, args []string) (exit int) {
 		InsecureCapabilities: globalFlags.InsecureFlags.SkipCapabilities(),
 		InsecurePaths:        globalFlags.InsecureFlags.SkipPaths(),
 		InsecureSeccomp:      globalFlags.InsecureFlags.SkipSeccomp(),
+		InsecureAppArmor:     globalFlags.InsecureFlags.SkipAppArmor(),
 		UseOverlay:           ovlPrep && ovlOk,
 	}
 	if globalFlags.Debug {

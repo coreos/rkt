@@ -126,6 +126,7 @@ func parseFlags() *stage1commontypes.RuntimePod {
 	flag.BoolVar(&rp.InsecureOptions.DisableCapabilities, "disable-capabilities-restriction", false, "Disable capability restrictions")
 	flag.BoolVar(&rp.InsecureOptions.DisablePaths, "disable-paths", false, "Disable paths restrictions")
 	flag.BoolVar(&rp.InsecureOptions.DisableSeccomp, "disable-seccomp", false, "Disable seccomp restrictions")
+	flag.BoolVar(&rp.InsecureOptions.DisableAppArmor, "disable-apparmor", false, "Disable apparmor profiles")
 	dnsConfMode := pkgflag.MustNewPairList(map[string][]string{
 		"resolv": {"host", "stage0", "none", "default"},
 		"hosts":  {"host", "stage0", "default"},

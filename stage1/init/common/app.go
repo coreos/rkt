@@ -44,6 +44,7 @@ type preparedApp struct {
 	noNewPrivileges bool
 	capabilities    []string
 	seccomp         *seccompFilter
+	apparmorProfile string
 
 	// Path restrictions
 	roPaths     []string
@@ -157,6 +158,11 @@ func prepareApp(p *stage1commontypes.Pod, ra *schema.RuntimeApp) (*preparedApp, 
 		}
 	}
 
+	// AppArmor
+	if !p.InsecureOptions.DisableAppArmor {
+		pa.apparmorProfile = getAppArmorProfile(ra.Annotations)
+	}
+
 	// Write the systemd-sysusers config file
 	if err := generateSysusers(p, pa.app, int(pa.uid), int(pa.gid), &p.UidRange); err != nil {
 		return nil, errwrap.Wrapf("unable to generate sysusers file", err)
@@ -226,6 +232,16 @@ func computeAppResources(isolators types.Isolators) (appResources, error) {
 	}
 
 	return res, err
+}
+
+func getAppArmorProfile(annotations types.Annotations) string {
+	for _, a := range annotations {
+		if !a.Name.Equals(stage1commontypes.AppArmorProfile) {
+			continue
+		}
+		return a.Value
+	}
+	return ""
 }
 
 // relAppPaths prepends the relative app path (/opt/stage1/rootfs/) to a list
