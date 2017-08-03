@@ -120,51 +120,57 @@ $(call generate-clean-mk-from-filelist, \
 	$(UFS_ROOTFSDIR) $(S1_RF_ACIROOTFSDIR), \
 	systemd-rootfs-cleanup)
 
+UFS_SYSTEMD_CONFIGURE_OPTS := --enable-seccomp \
+	--enable-tmpfiles \
+	--disable-dbus \
+	--disable-kmod \
+	--disable-blkid \
+	--disable-selinux \
+	--disable-pam \
+	--disable-acl \
+	--disable-smack \
+	--disable-gcrypt \
+	--disable-elfutils \
+	--disable-libcryptsetup \
+	--disable-qrencode \
+	--disable-microhttpd \
+	--disable-gnutls \
+	--disable-binfmt \
+	--disable-vconsole \
+	--disable-quotacheck \
+	--disable-randomseed \
+	--disable-backlight \
+	--disable-rfkill \
+	--disable-logind \
+	--disable-machined \
+	--disable-timedated \
+	--disable-timesyncd \
+	--disable-localed \
+	--disable-coredump \
+	--disable-polkit \
+	--disable-resolved \
+	--disable-networkd \
+	--disable-efi \
+	--disable-myhostname \
+	--disable-manpages \
+	--disable-tests \
+	--disable-blkid \
+	--disable-hibernate \
+	--disable-hwdb \
+	--disable-importd \
+	--disable-firstboot
+
+ifeq ($(RKT_STAGE1_SYSTEMD_APPARMOR),yes)
+UFS_SYSTEMD_CONFIGURE_OPTS += --enable-apparmor
+endif
+
 # this builds systemd
 $(call generate-stamp-rule,$(UFS_SYSTEMD_BUILD_STAMP),$(UFS_SYSTEMD_CLONE_AND_PATCH_STAMP),$(UFS_SYSTEMD_BUILDDIR), \
 	pushd "$(UFS_SYSTEMD_BUILDDIR)" $(call vl3,>/dev/null); \
 	$(call vb,v2,CONFIGURE,systemd) \
 	"$(abspath $(UFS_SYSTEMD_SRCDIR))/configure" \
 		$(call vl3,--quiet) \
-		--enable-seccomp \
-		--enable-tmpfiles \
-		--disable-dbus \
-		--disable-kmod \
-		--disable-blkid \
-		--disable-selinux \
-		--disable-pam \
-		--disable-acl \
-		--disable-smack \
-		--disable-gcrypt \
-		--disable-elfutils \
-		--disable-libcryptsetup \
-		--disable-qrencode \
-		--disable-microhttpd \
-		--disable-gnutls \
-		--disable-binfmt \
-		--disable-vconsole \
-		--disable-quotacheck \
-		--disable-randomseed \
-		--disable-backlight \
-		--disable-rfkill \
-		--disable-logind \
-		--disable-machined \
-		--disable-timedated \
-		--disable-timesyncd \
-		--disable-localed \
-		--disable-coredump \
-		--disable-polkit \
-		--disable-resolved \
-		--disable-networkd \
-		--disable-efi \
-		--disable-myhostname \
-		--disable-manpages \
-		--disable-tests \
-		--disable-blkid \
-		--disable-hibernate \
-		--disable-hwdb \
-		--disable-importd \
-		--disable-firstboot; \
+		$(UFS_SYSTEMD_CONFIGURE_OPTS); \
 	popd $(call vl3,>/dev/null); \
 	$(call vb,v2,BUILD EXT,systemd) \
 	$$(MAKE) -C "$(UFS_SYSTEMD_BUILDDIR)" all V=0 $(call vl2,>/dev/null))

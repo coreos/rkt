@@ -121,6 +121,12 @@ AC_ARG_WITH([stage1-systemd-revision],
             [RKT_STAGE1_SYSTEMD_REV="${withval}"],
             [RKT_STAGE1_SYSTEMD_REV='auto'])
 
+AC_ARG_ENABLE([stage1-systemd-apparmor],
+            [AS_HELP_STRING([--enable-stage1-systemd-apparmor],
+                            [enable apparmor support on the systemd being built for the 'src' flavor, use 'yes' or 'no' (default: 'no')])],
+            [RKT_STAGE1_SYSTEMD_APPARMOR="${enableval}"],
+            [RKT_STAGE1_SYSTEMD_APPARMOR="no"])
+
 # STAGE1 - kvm hypervisor. lkvm or/and qemu can be chosen
 AC_ARG_WITH([stage1-kvm-hypervisors],
             [AS_HELP_STRING([--with-stage1-kvm-hypervisors],
@@ -446,7 +452,12 @@ RKT_IF_HAS_VALUE([${RKT_STAGE1_FLAVORS}],[src],
                              dnl systemd version not specified, alright, zero the value just in case
                              [RKT_STAGE1_SYSTEMD_VER=''],
                              dnl systemd version specified, warn about it being ignored
-                             [AC_MSG_WARN([* --with-stage1-systemd-version is ignored, src flavor is not built])])])
+                             [AC_MSG_WARN([* --with-stage1-systemd-version is ignored, src flavor is not built])])
+                   AS_VAR_IF([RKT_STAGE1_SYSTEMD_APPARMOR], [yes],
+                             dnl systemd apparmor not specified, alright, zero the value just in case
+                             [RKT_STAGE1_SYSTEMD_APPARMOR=''],
+                             dnl systemd apparmor support enabled, warn about it being ignored
+                             [AC_MSG_WARN([* --enable-stage1-systemd-apparmor is ignored, src flavor is not built])])])
 
 dnl Warn if version is HEAD, just use master.
 AS_VAR_IF([RKT_STAGE1_SYSTEMD_VER], [HEAD],
@@ -871,7 +882,8 @@ RKT_IF_HAS_VALUE([${RKT_STAGE1_FLAVORS}], [src],
 
         systemd git repo:                       '${RKT_STAGE1_SYSTEMD_SRC}'
         systemd git revision:                   '${RKT_STAGE1_SYSTEMD_REV}'
-        systemd version:                        '${RKT_STAGE1_SYSTEMD_VER}'])])
+        systemd version:                        '${RKT_STAGE1_SYSTEMD_VER}'
+        systemd apparmor support enabled:       '${RKT_STAGE1_SYSTEMD_APPARMOR}'])])
 
 RKT_IF_HAS_VALUE([${RKT_STAGE1_FLAVORS}], [kvm],
                   [AC_MSG_RESULT([
