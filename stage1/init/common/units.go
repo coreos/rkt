@@ -617,6 +617,13 @@ func (uw *UnitWriter) appSystemdUnit(pa *preparedApp, binPath string, opts []*un
 		}
 	}
 
+	// AppArmor isolator. This requires a systemd with apparmor support enabled, otherwise it is a noop even when set.
+	if !uw.p.InsecureOptions.DisableAppArmor {
+		if p := pa.apparmorProfile; p != "" {
+			opts = append(opts, unit.NewUnitOption("Service", "AppArmorProfile", p))
+		}
+	}
+
 	for _, eh := range app.EventHandlers {
 		var typ string
 		switch eh.Name {

@@ -29,14 +29,18 @@ import (
 	"github.com/hashicorp/errwrap"
 )
 
-const (
-	// The filename where we persist the RuntimePod data
-	RuntimeConfigPath = "runtime-config"
+// The filename where we persist the RuntimePod data
+const RuntimeConfigPath = "runtime-config"
 
-	// App-level annotations: streams mode
+// App-level annotations
+const (
+	// streams mode
 	AppStdinMode  = "coreos.com/rkt/stage2/stdin"
 	AppStdoutMode = "coreos.com/rkt/stage2/stdout"
 	AppStderrMode = "coreos.com/rkt/stage2/stderr"
+
+	// apparmor
+	AppArmorProfile = "coreos.com/rkt/stage2/apparmor-profile"
 )
 
 // Pod encapsulates a PodManifest and ImageManifests
@@ -70,6 +74,7 @@ type RuntimePod struct {
 		DisablePaths        bool `json:"DisablePaths"`
 		DisableCapabilities bool `json:"DisableCapabilities"`
 		DisableSeccomp      bool `json:"DisableSeccomp"`
+		DisableAppArmor     bool `json:"DisableAppArmor"`
 	} `json:"InsecureOptions"`
 }
 

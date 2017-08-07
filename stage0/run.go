@@ -89,6 +89,7 @@ type RunConfig struct {
 	InsecureCapabilities bool           // Do not restrict capabilities
 	InsecurePaths        bool           // Do not restrict access to files in sysfs or procfs
 	InsecureSeccomp      bool           // Do not add seccomp restrictions
+	InsecureAppArmor     bool           // Do not set apparmor profile labels
 	UseOverlay           bool           // run pod with overlay fs
 	HostsEntries         HostsEntries   // The entries in /etc/hosts
 }
@@ -661,6 +662,9 @@ func Run(cfg RunConfig, dir string, dataDir string) {
 		}
 		if cfg.InsecureSeccomp {
 			args = append(args, "--disable-seccomp")
+		}
+		if cfg.InsecureAppArmor {
+			args = append(args, "--disable-apparmor")
 		}
 	}
 

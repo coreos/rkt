@@ -95,6 +95,7 @@ Any stage1 that supports and expects machined registration to occur will likely 
 This interface version is not yet finalized, thus marked as experimental.
 
 * `--mutable` to run a mutable pod
+* `--disable-apparmor` to ignore apparmor profile annotations
 
 ### rkt enter
 

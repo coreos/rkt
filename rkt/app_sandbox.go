@@ -201,6 +201,7 @@ func runAppSandbox(cmd *cobra.Command, args []string) int {
 		InsecureCapabilities: globalFlags.InsecureFlags.SkipCapabilities(),
 		InsecurePaths:        globalFlags.InsecureFlags.SkipPaths(),
 		InsecureSeccomp:      globalFlags.InsecureFlags.SkipSeccomp(),
+		InsecureAppArmor:     globalFlags.InsecureFlags.SkipAppArmor(),
 		UseOverlay:           useOverlay,
 		HostsEntries:         *HostsEntries,
 	}
