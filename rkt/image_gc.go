@@ -147,10 +147,10 @@ func gcStore(s *imagestore.Store, gracePeriod time.Duration) error {
 	}
 	for _, ai := range aciinfos {
 		if time.Now().Sub(ai.LastUsed) <= gracePeriod {
-			break
+			continue
 		}
 		if isInSet(ai.BlobKey, runningImages) {
-			break
+			continue
 		}
 		imagesToRemove = append(imagesToRemove, ai.BlobKey)
 	}
