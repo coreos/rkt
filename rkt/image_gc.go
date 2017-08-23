@@ -147,7 +147,7 @@ func gcStore(s *imagestore.Store, gracePeriod time.Duration) error {
 	}
 	for _, ai := range aciinfos {
 		if time.Now().Sub(ai.LastUsed) <= gracePeriod {
-			continue
+			break
 		}
 		if isInSet(ai.BlobKey, runningImages) {
 			continue
