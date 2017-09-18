@@ -226,9 +226,13 @@ func (l linuxSeccompBase) AssertValid() error {
 	if l.val.Errno == "" {
 		return nil
 	}
-	for _, c := range l.val.Errno {
-		if !unicode.IsUpper(c) {
-			return errors.New("errno must be an upper case string")
+	for i, c := range l.val.Errno {
+		if i == 0 && c != 'E' {
+			s := fmt.Sprintf("errno must start with an 'E' character, got %s", l.val.Errno)
+			return errors.New(s)
+		} else if !(unicode.IsUpper(c) || unicode.IsNumber(c)) {
+			s := fmt.Sprintf("errno can only contain upper case or numeric characters, got %s", l.val.Errno)
+			return errors.New(s)
 		}
 	}
 	return nil
