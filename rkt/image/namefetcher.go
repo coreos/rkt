@@ -261,7 +261,7 @@ func (f *nameFetcher) maybeFetchPubKeys(appName string) {
 			if f.TrustKeysFromHTTPS {
 				accept = pubkey.AcceptForce
 			}
-			err := m.AddKeys(pkls, appName, accept)
+			err := m.AddKeys(pkls, appName, accept, true)
 			if err != nil {
 				log.PrintE("error adding keys", err)
 			}

@@ -28,7 +28,7 @@ import (
 
 var (
 	cmdTrust = &cobra.Command{
-		Use:   "trust [--prefix=PREFIX] [--insecure-allow-http] [--skip-fingerprint-review] [--root] [PUBKEY ...]",
+		Use:   "trust [--prefix=PREFIX] [--insecure-allow-http] [--skip-fingerprint-review] [--root] [PUBKEY ...] [--overwrite-trusted]",
 		Short: "Trust a key for image verification",
 		Long: `Adds keys to the local keystore for use in verifying signed images.
 
@@ -46,6 +46,7 @@ specified. Path to a key file must be given (no discovery).`,
 	flagRoot                  bool
 	flagAllowHTTP             bool
 	flagSkipFingerprintReview bool
+	flagOverwriteTrusted      bool
 )
 
 func init() {
@@ -54,6 +55,7 @@ func init() {
 	cmdTrust.Flags().BoolVar(&flagRoot, "root", false, "add root key from filesystem without a prefix")
 	cmdTrust.Flags().BoolVar(&flagSkipFingerprintReview, "skip-fingerprint-review", false, "accept key without fingerprint confirmation")
 	cmdTrust.Flags().BoolVar(&flagAllowHTTP, "insecure-allow-http", false, "allow HTTP use for key discovery and/or retrieval")
+	cmdTrust.Flags().BoolVar(&flagOverwriteTrusted, "overwrite-trusted", true, "overwrite previously downloaded and trusted pubkeys")
 }
 
 func runTrust(cmd *cobra.Command, args []string) (exit int) {
@@ -110,7 +112,7 @@ Otherwise, trust at the root domain (not recommended) must be explicitly request
 		acceptOpt = pubkey.AcceptForce
 	}
 
-	if err := m.AddKeys(pkls, flagPrefix, acceptOpt); err != nil {
+	if err := m.AddKeys(pkls, flagPrefix, acceptOpt, flagOverwriteTrusted); err != nil {
 		stderr.PrintE("error adding keys", err)
 		return 254
 	}
