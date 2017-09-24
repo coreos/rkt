@@ -21,13 +21,13 @@ import (
 )
 
 var (
-	imageSize                = 1073741824
-	treeStoreSize            = 968884224
-	gracePeriod              = 24 * time.Hour * 20
-	importTime               = time.Date(2017, time.January, 1, 1, 0, 0, 0, time.UTC)
-	plusTenDays              = time.Date(2017, time.January, 10, 1, 0, 0, 0, time.UTC)
-	plusTwentyDays           = time.Date(2017, time.January, 20, 1, 0, 0, 0, time.UTC)
-	currentTime              = time.Date(2017, time.January, 9, 1, 0, 0, 0, time.UTC)
+	imageSize                 = 1073741824
+	treeStoreSize             = 968884224
+	gracePeriod               = 24 * time.Hour * 20
+	importTime                = time.Date(2017, time.January, 1, 1, 0, 0, 0, time.UTC)
+	plusTenDays               = time.Date(2017, time.January, 10, 1, 0, 0, 0, time.UTC)
+	plusTwentyDays            = time.Date(2017, time.January, 20, 1, 0, 0, 0, time.UTC)
+	currentTime               = time.Date(2017, time.January, 9, 1, 0, 0, 0, time.UTC)
 	imagesExpectedToBeRemoved = []string{
 		"sha512-a000000000000000000000000000000000000000000000000000000000000003",
 		"sha512-a000000000000000000000000000000000000000000000000000000000000006",
