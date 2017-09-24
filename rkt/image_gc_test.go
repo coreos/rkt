@@ -107,6 +107,6 @@ func TestGcStore(t *testing.T) {
 		imagesToRemove = append(imagesToRemove, ai.BlobKey)
 	}
 	if !reflect.DeepEqual(imagesToRemove, imagesExpectedToBeRemoved) {
-		fmt.Printf("some of the images are not being deleted properly!")
+		t.Errorf("some of the images are not being deleted properly!")
 	}
 }
