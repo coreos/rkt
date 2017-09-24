@@ -17,13 +17,15 @@ package main
 import (
 	"testing"
 	"time"
+
+	"github.com/rkt/rkt/store/imagestore"
 )
 
 var (
 	imageSize                 = 1073741824
 	treeStoreSize             = 968884224
 	gracePeriod               = 24 * time.Hour * 20
-	importTime                = time.Date(2017, time.January, 1, 1, 0, 0, 0, time.UTC)
+	impTime                = time.Date(2017, time.January, 1, 1, 0, 0, 0, time.UTC)
 	plusTenDays               = time.Date(2017, time.January, 10, 1, 0, 0, 0, time.UTC)
 	plusTwentyDays            = time.Date(2017, time.January, 20, 1, 0, 0, 0, time.UTC)
 	currentTime               = time.Date(2017, time.January, 9, 1, 0, 0, 0, time.UTC)
@@ -33,49 +35,49 @@ var (
 	}
 )
 
-func GetAllACIInfosTest() []*ACIInfo {
-	return []*ACIInfo{
+func GetAllACIInfosTest() []*imagestore.ACIInfo {
+	return []*imagestore.ACIInfo{
 		{
-			"sha512-a000000000000000000000000000000000000000000000000000000000000001",
-			"test.storage/image1",
-			importTime,
-			plusTwentyDays,
-			true,
+			BlobKey: "sha512-a000000000000000000000000000000000000000000000000000000000000001",
+			Name: "test.storage/image1",
+			ImportTime: impTime,
+			LastUsed: plusTwentyDays,
+			Latest: true,
 		},
 		{
-			"sha512-a000000000000000000000000000000000000000000000000000000000000002",
-			"test.storage/image2",
-			importTime,
-			plusTenDays,
-			true,
+			BlobKey: "sha512-a000000000000000000000000000000000000000000000000000000000000002",
+			Name: "test.storage/image2",
+			ImportTime: impTime,
+			LastUsed: plusTenDays,
+			Latest: true,
 		},
 		{
-			"sha512-a000000000000000000000000000000000000000000000000000000000000003",
-			"test.storage/image3",
-			importTime,
-			plusTwentyDays,
-			false,
+			BlobKey: "sha512-a000000000000000000000000000000000000000000000000000000000000003",
+			Name: "test.storage/image3",
+			ImportTime: impTime,
+			LastUsed: plusTwentyDays,
+			Latest: false,
 		},
 		{
-			"sha512-a000000000000000000000000000000000000000000000000000000000000004",
-			"test.storage/image3",
-			importTime,
-			plusTenDays,
-			false,
+			BlobKey: "sha512-a000000000000000000000000000000000000000000000000000000000000004",
+			Name: "test.storage/image3",
+			ImportTime: impTime,
+			LastUsed: plusTenDays,
+			Latest: false,
 		},
 		{
-			"sha512-a000000000000000000000000000000000000000000000000000000000000005",
-			"test.storage/image3",
-			importTime,
-			plusTenDays,
-			true,
+			BlobKey: "sha512-a000000000000000000000000000000000000000000000000000000000000005",
+			Name: "test.storage/image3",
+			ImportTime: impTime,
+			LastUsed: plusTenDays,
+			Latest: true,
 		},
 		{
-			"sha512-a000000000000000000000000000000000000000000000000000000000000006",
-			"test.storage/image3",
-			importTime,
-			plusTwentyDays,
-			false,
+			BlobKey: "sha512-a000000000000000000000000000000000000000000000000000000000000006",
+			Name: "test.storage/image3",
+			ImportTime: impTime,
+			LastUsed: plusTwentyDays,
+			Latest: false,
 		},
 	}
 }
@@ -97,9 +99,9 @@ func TestGcStore(t *testing.T) {
 
 	for _, ai := range aciinfos {
 		if currentTime.Sub(ai.LastUsed) <= gracePeriod {
-			continue
+			break
 		}
-		if image_gc.isInSet(ai.BlobKey, runningImages) {
+		if main.isInSet(ai.BlobKey, runningImages) {
 			continue
 		}
 		imagesToRemove = append(imagesToRemove, ai.BlobKey)
