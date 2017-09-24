@@ -25,7 +25,7 @@ var (
 	imageSize                 = 1073741824
 	treeStoreSize             = 968884224
 	gracePeriod               = 24 * time.Hour * 20
-	impTime                = time.Date(2017, time.January, 1, 1, 0, 0, 0, time.UTC)
+	impTime                   = time.Date(2017, time.January, 1, 1, 0, 0, 0, time.UTC)
 	plusTenDays               = time.Date(2017, time.January, 10, 1, 0, 0, 0, time.UTC)
 	plusTwentyDays            = time.Date(2017, time.January, 20, 1, 0, 0, 0, time.UTC)
 	currentTime               = time.Date(2017, time.January, 9, 1, 0, 0, 0, time.UTC)
@@ -38,46 +38,46 @@ var (
 func GetAllACIInfosTest() []*imagestore.ACIInfo {
 	return []*imagestore.ACIInfo{
 		{
-			BlobKey: "sha512-a000000000000000000000000000000000000000000000000000000000000001",
-			Name: "test.storage/image1",
+			BlobKey:    "sha512-a000000000000000000000000000000000000000000000000000000000000001",
+			Name:       "test.storage/image1",
 			ImportTime: impTime,
-			LastUsed: plusTwentyDays,
-			Latest: true,
+			LastUsed:   plusTwentyDays,
+			Latest:     true,
 		},
 		{
-			BlobKey: "sha512-a000000000000000000000000000000000000000000000000000000000000002",
-			Name: "test.storage/image2",
+			BlobKey:    "sha512-a000000000000000000000000000000000000000000000000000000000000002",
+			Name:       "test.storage/image2",
 			ImportTime: impTime,
-			LastUsed: plusTenDays,
-			Latest: true,
+			LastUsed:   plusTenDays,
+			Latest:     true,
 		},
 		{
-			BlobKey: "sha512-a000000000000000000000000000000000000000000000000000000000000003",
-			Name: "test.storage/image3",
+			BlobKey:    "sha512-a000000000000000000000000000000000000000000000000000000000000003",
+			Name:       "test.storage/image3",
 			ImportTime: impTime,
-			LastUsed: plusTwentyDays,
-			Latest: false,
+			LastUsed:   plusTwentyDays,
+			Latest:     false,
 		},
 		{
-			BlobKey: "sha512-a000000000000000000000000000000000000000000000000000000000000004",
-			Name: "test.storage/image3",
+			BlobKey:    "sha512-a000000000000000000000000000000000000000000000000000000000000004",
+			Name:       "test.storage/image3",
 			ImportTime: impTime,
-			LastUsed: plusTenDays,
-			Latest: false,
+			LastUsed:   plusTenDays,
+			Latest:     false,
 		},
 		{
-			BlobKey: "sha512-a000000000000000000000000000000000000000000000000000000000000005",
-			Name: "test.storage/image3",
+			BlobKey:    "sha512-a000000000000000000000000000000000000000000000000000000000000005",
+			Name:       "test.storage/image3",
 			ImportTime: impTime,
-			LastUsed: plusTenDays,
-			Latest: true,
+			LastUsed:   plusTenDays,
+			Latest:     true,
 		},
 		{
-			BlobKey: "sha512-a000000000000000000000000000000000000000000000000000000000000006",
-			Name: "test.storage/image3",
+			BlobKey:    "sha512-a000000000000000000000000000000000000000000000000000000000000006",
+			Name:       "test.storage/image3",
 			ImportTime: impTime,
-			LastUsed: plusTwentyDays,
-			Latest: false,
+			LastUsed:   plusTwentyDays,
+			Latest:     false,
 		},
 	}
 }
