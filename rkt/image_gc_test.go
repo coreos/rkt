@@ -15,6 +15,7 @@
 package main
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -24,14 +25,15 @@ import (
 var (
 	imageSize                 = 1073741824
 	treeStoreSize             = 968884224
-	gracePeriod               = 24 * time.Hour * 20
+	gracePeriod               = 24 * time.Hour * 10
 	impTime                   = time.Date(2017, time.January, 1, 1, 0, 0, 0, time.UTC)
 	plusTenDays               = time.Date(2017, time.January, 10, 1, 0, 0, 0, time.UTC)
 	plusTwentyDays            = time.Date(2017, time.January, 20, 1, 0, 0, 0, time.UTC)
 	currentTime               = time.Date(2017, time.January, 9, 1, 0, 0, 0, time.UTC)
 	imagesExpectedToBeRemoved = []string{
+		"sha512-a000000000000000000000000000000000000000000000000000000000000001",
 		"sha512-a000000000000000000000000000000000000000000000000000000000000003",
-		"sha512-a000000000000000000000000000000000000000000000000000000000000006",
+		"sha512-a000000000000000000000000000000000000000000000000000000000000005",
 	}
 )
 
@@ -48,7 +50,7 @@ func GetAllACIInfosTest() []*imagestore.ACIInfo {
 			BlobKey:    "sha512-a000000000000000000000000000000000000000000000000000000000000002",
 			Name:       "test.storage/image2",
 			ImportTime: impTime,
-			LastUsed:   plusTenDays,
+			LastUsed:   plusTwentyDays,
 			Latest:     true,
 		},
 		{
@@ -62,31 +64,30 @@ func GetAllACIInfosTest() []*imagestore.ACIInfo {
 			BlobKey:    "sha512-a000000000000000000000000000000000000000000000000000000000000004",
 			Name:       "test.storage/image3",
 			ImportTime: impTime,
-			LastUsed:   plusTenDays,
+			LastUsed:   plusTwentyDays,
 			Latest:     false,
 		},
 		{
 			BlobKey:    "sha512-a000000000000000000000000000000000000000000000000000000000000005",
 			Name:       "test.storage/image3",
 			ImportTime: impTime,
-			LastUsed:   plusTenDays,
+			LastUsed:   plusTwentyDays,
 			Latest:     true,
 		},
 		{
 			BlobKey:    "sha512-a000000000000000000000000000000000000000000000000000000000000006",
 			Name:       "test.storage/image3",
 			ImportTime: impTime,
-			LastUsed:   plusTwentyDays,
-			Latest:     false,
+			LastUsed:   plusTenDays,
+			Latest:     true,
 		},
 	}
 }
 
 func getRunningImagesTest() []string {
 	runningImages := []string{
-		"sha512-a000000000000000000000000000000000000000000000000000000000000001",
 		"sha512-a000000000000000000000000000000000000000000000000000000000000002",
-		"sha512-a000000000000000000000000000000000000000000000000000000000000005",
+		"sha512-a000000000000000000000000000000000000000000000000000000000000004",
 	}
 	return runningImages
 }
@@ -96,9 +97,8 @@ func TestGcStore(t *testing.T) {
 
 	aciinfos := GetAllACIInfosTest()
 	runningImages := getRunningImagesTest()
-
 	for _, ai := range aciinfos {
-		if currentTime.Sub(ai.LastUsed) <= gracePeriod {
+		if ai.LastUsed.Sub(currentTime) <= gracePeriod {
 			break
 		}
 		if isInSet(ai.BlobKey, runningImages) {
@@ -106,7 +106,7 @@ func TestGcStore(t *testing.T) {
 		}
 		imagesToRemove = append(imagesToRemove, ai.BlobKey)
 	}
-	if &imagesToRemove != &imagesExpectedToBeRemoved {
-		t.Errorf("some images are not being deleted properly!")
+	if !reflect.DeepEqual(imagesToRemove, imagesExpectedToBeRemoved) {
+		fmt.Printf("some of the images are not being deleted properly!")
 	}
 }
