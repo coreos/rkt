@@ -101,12 +101,11 @@ func TestGcStore(t *testing.T) {
 		if currentTime.Sub(ai.LastUsed) <= gracePeriod {
 			break
 		}
-		if main.isInSet(ai.BlobKey, runningImages) {
+		if isInSet(ai.BlobKey, runningImages) {
 			continue
 		}
 		imagesToRemove = append(imagesToRemove, ai.BlobKey)
 	}
-
 	if &imagesToRemove != &imagesExpectedToBeRemoved {
 		t.Errorf("some images are not being deleted properly!")
 	}
