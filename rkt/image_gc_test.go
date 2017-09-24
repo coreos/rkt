@@ -15,7 +15,6 @@
 package main
 
 import (
-	"github.com/rkt/rkt/rkt"
 	"testing"
 	"time"
 )
