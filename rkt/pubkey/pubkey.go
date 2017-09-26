@@ -117,7 +117,7 @@ func (m *Manager) AddKeys(pkls []string, prefix string, accept AcceptOption, ski
 			}
 
 			if trusted == true {
-				log.Printf("Already trusted %q for prefix %q.", pkl, prefix)
+				log.Printf("Already trusted %q for prefix %q.\n", pkl, prefix)
 				continue
 			}
 		}
