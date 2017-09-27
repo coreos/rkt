@@ -116,7 +116,7 @@ func (m *Manager) AddKeys(pkls []string, prefix string, accept AcceptOption, ski
 				return errwrap.Wrap(fmt.Errorf("error in determining if key %s is trusted", pkl), err)
 			}
 
-			if trusted == true {
+			if trusted {
 				log.Printf("Already trusted %q for prefix %q.\n", pkl, prefix)
 				continue
 			}
