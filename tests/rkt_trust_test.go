@@ -84,4 +84,16 @@ func TestTrust(t *testing.T) {
 	t.Logf("Now both images can be executed\n")
 	runImage(t, ctx, imageFile, "Hello", false)
 	runImage(t, ctx, imageFile2, "Hello", false)
+	t.Logf("Skip trusted key (rkt trust --skip-trusted) with trusted key absent\n")
+	runRktTrustSkipTrustedTrue(t, ctx, "rkt-prefix.com/my-app", 1, false)
+
+	t.Logf("Skip trusted key (rkt trust --skip-trusted) with trusted key present\n")
+	runRktTrustSkipTrustedTrue(t, ctx, "rkt-prefix.com/my-app", 1, true)
+
+	t.Logf("Don't skip trusted key (rkt trust --skip-trusted=false) with trusted key present\n")
+	runRktTrustSkipTrustedFalse(t, ctx, "rkt-prefix.com/my-app", 1, true)
+
+	t.Logf("Don't skip trusted key (rkt trust --skip-trusted=false) with trusted key absent\n")
+	runRktTrustSkipTrustedFalse(t, ctx, "rkt-prefix.com/my-app", 1, false)
+
 }

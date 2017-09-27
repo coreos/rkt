@@ -894,6 +894,59 @@ func runRktTrust(t *testing.T, ctx *testutils.RktRunCtx, prefix string, keyIndex
 	}
 }
 
+func assertTrustPrompt(t *testing.T, prefix string, child *gexpect.ExpectSubprocess) {
+
+	expected := "Are you sure you want to trust this key"
+	if err := expectWithOutput(child, expected); err != nil {
+		t.Fatalf("Expected but didn't find %q in %v", expected, err)
+	}
+
+	if err := child.SendLine("yes"); err != nil {
+		t.Fatalf("Cannot confirm rkt trust: %s", err)
+	}
+
+	expected = fmt.Sprintf(`Added key for prefix "%s" at`, prefix)
+	if err := expectWithOutput(child, expected); err != nil {
+		t.Fatalf("Expected but didn't find %q in %v", expected, err)
+	}
+}
+
+func runRktTrustSkipTrustedTrue(t *testing.T, ctx *testutils.RktRunCtx, prefix string, keyIndex int, alreadyTrusted bool) {
+	if !alreadyTrusted {
+		runRktTrust(t, ctx, prefix, keyIndex)
+	}
+
+	keyFile := fmt.Sprintf("key%d.gpg", keyIndex)
+	cmd := fmt.Sprintf(`%s trust --prefix %s --skip-trusted %s`, ctx.Cmd(), prefix, keyFile)
+
+	child := spawnOrFail(t, cmd)
+	defer waitOrFail(t, child, 0)
+
+	if alreadyTrusted {
+		expected := "Already trusted"
+		if err := expectWithOutput(child, expected); err != nil {
+			t.Fatalf("Expected but didn't find %q in %v", expected, err)
+		}
+	} else {
+		assertTrustPrompt(t, prefix, child)
+	}
+}
+
+func runRktTrustSkipTrustedFalse(t *testing.T, ctx *testutils.RktRunCtx, prefix string, keyIndex int, alreadyTrusted bool) {
+	if !alreadyTrusted {
+		runRktTrust(t, ctx, prefix, keyIndex)
+	}
+
+	keyFile := fmt.Sprintf("key%d.gpg", keyIndex)
+
+	cmd := fmt.Sprintf(`%s trust --prefix %s --skip-trusted=false %s`, ctx.Cmd(), prefix, keyFile)
+
+	child := spawnOrFail(t, cmd)
+	defer waitOrFail(t, child, 0)
+
+	assertTrustPrompt(t, prefix, child)
+}
+
 func generatePodManifestFile(t *testing.T, manifest *schema.PodManifest) string {
 	tmpDir := testutils.GetValueFromEnvOrPanic("FUNCTIONAL_TMP")
 	f, err := ioutil.TempFile(tmpDir, "rkt-test-manifest-")
