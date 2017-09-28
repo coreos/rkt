@@ -912,33 +912,31 @@ func assertTrustPrompt(t *testing.T, prefix string, child *gexpect.ExpectSubproc
 }
 
 func runRktTrustSkipTrustedTrue(t *testing.T, ctx *testutils.RktRunCtx, prefix string, keyIndex int, alreadyTrusted bool) {
-	if !alreadyTrusted {
-		runRktTrust(t, ctx, prefix, keyIndex)
-	}
-
 	keyFile := fmt.Sprintf("key%d.gpg", keyIndex)
 	cmd := fmt.Sprintf(`%s trust --prefix %s --skip-trusted %s`, ctx.Cmd(), prefix, keyFile)
 
 	child := spawnOrFail(t, cmd)
 	defer waitOrFail(t, child, 0)
 
-	if alreadyTrusted {
-		expected := "Already trusted"
-		if err := expectWithOutput(child, expected); err != nil {
-			t.Fatalf("Expected but didn't find %q in %v", expected, err)
-		}
-	} else {
+	if !alreadyTrusted {
 		assertTrustPrompt(t, prefix, child)
+		return
+	}
+
+	expected := "Already trusted"
+	if err := expectWithOutput(child, expected); err != nil {
+		t.Fatalf("Expected but didn't find %q in %v", expected, err)
 	}
 }
 
 func runRktTrustSkipTrustedFalse(t *testing.T, ctx *testutils.RktRunCtx, prefix string, keyIndex int, alreadyTrusted bool) {
-	if !alreadyTrusted {
+	if alreadyTrusted {
+		// Trust the key ahead of time to ensure that
+		//--skip-trusted=false overwrites the trusted key.
 		runRktTrust(t, ctx, prefix, keyIndex)
 	}
 
 	keyFile := fmt.Sprintf("key%d.gpg", keyIndex)
-
 	cmd := fmt.Sprintf(`%s trust --prefix %s --skip-trusted=false %s`, ctx.Cmd(), prefix, keyFile)
 
 	child := spawnOrFail(t, cmd)

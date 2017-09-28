@@ -36,6 +36,9 @@ func TestTrust(t *testing.T) {
 	imageFile2 := patchTestACI("rkt-inspect-trust2.aci", "--exec=/inspect --print-msg=Hello", "--name=rkt-alternative.com/my-app")
 	defer os.Remove(imageFile2)
 
+	imageFile3 := patchTestACI("rkt-inspect-trust3.aci", "--exec=/inspect --print-msg=Hello", "--name=rkt-skip-trusted.com/my-app")
+	defer os.Remove(imageFile3)
+
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
 
@@ -46,6 +49,8 @@ func TestTrust(t *testing.T) {
 	ascFile := runSignImage(t, imageFile, 1)
 	defer os.Remove(ascFile)
 	ascFile = runSignImage(t, imageFile2, 1)
+	defer os.Remove(ascFile)
+	ascFile = runSignImage(t, imageFile3, 1)
 	defer os.Remove(ascFile)
 
 	t.Logf("Run the signed image without trusting the key: it should fail\n")
@@ -78,22 +83,25 @@ func TestTrust(t *testing.T) {
 	runImage(t, ctx, imageFile, "Hello", false)
 	runImage(t, ctx, imageFile2, "openpgp: signature made by unknown entity", true)
 
+	t.Logf("Skip trusted key (rkt trust --skip-trusted) with trusted key absent\n")
+	runRktTrustSkipTrustedTrue(t, ctx, "rkt-skip-trusted.com/my-app", 1, false)
+
+	t.Logf("Skip trusted key (rkt trust --skip-trusted) with trusted key present\n")
+	runRktTrustSkipTrustedTrue(t, ctx, "rkt-skip-trusted.com/my-app", 1, true)
+
+	t.Logf("Don't skip trusted key (rkt trust --skip-trusted=false) with trusted key present\n")
+	runRktTrustSkipTrustedFalse(t, ctx, "rkt-skip-trusted.com/my-app", 1, true)
+
+	t.Logf("Don't skip trusted key (rkt trust --skip-trusted=false) with trusted key absent\n")
+	runRktTrustSkipTrustedFalse(t, ctx, "rkt-skip-trusted.com/my-app", 1, false)
+
+	t.Logf("Now the image can be executed\n")
+	runImage(t, ctx, imageFile3, "Hello", false)
+
 	t.Logf("Trust the key for all images (rkt trust --root)\n")
 	runRktTrust(t, ctx, "", 1)
 
 	t.Logf("Now both images can be executed\n")
 	runImage(t, ctx, imageFile, "Hello", false)
 	runImage(t, ctx, imageFile2, "Hello", false)
-	t.Logf("Skip trusted key (rkt trust --skip-trusted) with trusted key absent\n")
-	runRktTrustSkipTrustedTrue(t, ctx, "rkt-prefix.com/my-app", 1, false)
-
-	t.Logf("Skip trusted key (rkt trust --skip-trusted) with trusted key present\n")
-	runRktTrustSkipTrustedTrue(t, ctx, "rkt-prefix.com/my-app", 1, true)
-
-	t.Logf("Don't skip trusted key (rkt trust --skip-trusted=false) with trusted key present\n")
-	runRktTrustSkipTrustedFalse(t, ctx, "rkt-prefix.com/my-app", 1, true)
-
-	t.Logf("Don't skip trusted key (rkt trust --skip-trusted=false) with trusted key absent\n")
-	runRktTrustSkipTrustedFalse(t, ctx, "rkt-prefix.com/my-app", 1, false)
-
 }
