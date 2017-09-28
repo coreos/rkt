@@ -39,6 +39,9 @@ func TestTrust(t *testing.T) {
 	imageFile3 := patchTestACI("rkt-inspect-trust3.aci", "--exec=/inspect --print-msg=Hello", "--name=rkt-skip-trusted.com/my-app")
 	defer os.Remove(imageFile3)
 
+	imageFile4 := patchTestACI("rkt-inspect-trust4.aci", "--exec=/inspect --print-msg=Hello", "--name=rkt-skip-trusted-alternative.com/my-app")
+	defer os.Remove(imageFile3)
+
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
 
@@ -51,6 +54,8 @@ func TestTrust(t *testing.T) {
 	ascFile = runSignImage(t, imageFile2, 1)
 	defer os.Remove(ascFile)
 	ascFile = runSignImage(t, imageFile3, 1)
+	defer os.Remove(ascFile)
+	ascFile = runSignImage(t, imageFile4, 1)
 	defer os.Remove(ascFile)
 
 	t.Logf("Run the signed image without trusting the key: it should fail\n")
@@ -86,17 +91,26 @@ func TestTrust(t *testing.T) {
 	t.Logf("Skip trusted key (rkt trust --skip-trusted) with trusted key absent\n")
 	runRktTrustSkipTrustedTrue(t, ctx, "rkt-skip-trusted.com/my-app", 1, false)
 
+	t.Logf("Now the image can be executed\n")
+	runImage(t, ctx, imageFile3, "Hello", false)
+
 	t.Logf("Skip trusted key (rkt trust --skip-trusted) with trusted key present\n")
 	runRktTrustSkipTrustedTrue(t, ctx, "rkt-skip-trusted.com/my-app", 1, true)
+
+	t.Logf("Now the image can be executed\n")
+	runImage(t, ctx, imageFile3, "Hello", false)
 
 	t.Logf("Don't skip trusted key (rkt trust --skip-trusted=false) with trusted key present\n")
 	runRktTrustSkipTrustedFalse(t, ctx, "rkt-skip-trusted.com/my-app", 1, true)
 
-	t.Logf("Don't skip trusted key (rkt trust --skip-trusted=false) with trusted key absent\n")
-	runRktTrustSkipTrustedFalse(t, ctx, "rkt-skip-trusted.com/my-app", 1, false)
-
 	t.Logf("Now the image can be executed\n")
 	runImage(t, ctx, imageFile3, "Hello", false)
+
+	t.Logf("Don't skip trusted key (rkt trust --skip-trusted=false) with trusted key absent\n")
+	runRktTrustSkipTrustedFalse(t, ctx, "rkt-skip-trusted-alternative.com/my-app", 1, false)
+
+	t.Logf("Now the image can be executed\n")
+	runImage(t, ctx, imageFile4, "Hello", false)
 
 	t.Logf("Trust the key for all images (rkt trust --root)\n")
 	runRktTrust(t, ctx, "", 1)
