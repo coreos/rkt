@@ -895,7 +895,6 @@ func runRktTrust(t *testing.T, ctx *testutils.RktRunCtx, prefix string, keyIndex
 }
 
 func assertTrustPrompt(t *testing.T, prefix string, child *gexpect.ExpectSubprocess) {
-
 	expected := "Are you sure you want to trust this key"
 	if err := expectWithOutput(child, expected); err != nil {
 		t.Fatalf("Expected but didn't find %q in %v", expected, err)
@@ -932,7 +931,7 @@ func runRktTrustSkipTrustedTrue(t *testing.T, ctx *testutils.RktRunCtx, prefix s
 func runRktTrustSkipTrustedFalse(t *testing.T, ctx *testutils.RktRunCtx, prefix string, keyIndex int, alreadyTrusted bool) {
 	if alreadyTrusted {
 		// Trust the key ahead of time to ensure that
-		//--skip-trusted=false overwrites the trusted key.
+		// --skip-trusted=false overwrites the trusted key.
 		runRktTrust(t, ctx, prefix, keyIndex)
 	}
 
