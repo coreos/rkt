@@ -336,6 +336,15 @@ func (uw *UnitWriter) SetupAppIO(p *stage1commontypes.Pod, ra *schema.RuntimeApp
 					return nil
 				}
 				file.WriteString(fmt.Sprintf("KUBERNETES_LOG_PATH=%s\n", kubernetesLogPath))
+
+            case "json-file":
+                jsonLogFile, ok := ra.Annotations.Get("coreos.com/rkt/experiment/json-log-file")
+                
+				if !ok {
+					uw.err = fmt.Errorf("json-log-file annotation needs to be specified when json-file logging mode is used")
+					return nil
+				}
+				file.WriteString(fmt.Sprintf("JSON_LOG_FILE=%s\n", jsonLogFile))
 			}
 
 		} else if needsTTYMux {
