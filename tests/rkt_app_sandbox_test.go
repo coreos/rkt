@@ -35,9 +35,9 @@ import (
 
 const (
 	// Number of retries to read CRI log file.
-	criLogsReadRetries = 5
+	logsReadRetries = 5
 	// Delay between each retry attempt in reading CRI log file.
-	criLogsReadRetryDelay = 5 * time.Second
+	logsReadRetryDelay = 5 * time.Second
 )
 
 // TestAppSandboxOneApp is a basic test for `rkt app` sandbox.
@@ -600,7 +600,7 @@ func TestAppSandboxCRILogs(t *testing.T) {
 			// so we are looking for CRI logs with a reasonable amount of retries.
 			var content []byte
 			var err error
-			for i := 0; i < criLogsReadRetries; i++ {
+			for i := 0; i < logsReadRetries; i++ {
 				kubernetesLogFullPath := path.Join(tt.kubernetesLogDir, tt.kubernetesLogPath)
 				content, err = ioutil.ReadFile(kubernetesLogFullPath)
 				if err == nil {
@@ -612,7 +612,75 @@ func TestAppSandboxCRILogs(t *testing.T) {
 				} else {
 					err = fmt.Errorf("Couldn't open file with CRI logs: %v", err)
 				}
-				time.Sleep(criLogsReadRetryDelay)
+				time.Sleep(logsReadRetryDelay)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+
+		})
+	}
+}
+
+func TestAppSandboxJSONFileLogs(t *testing.T) {
+	if TestedFlavor.Kvm || TestedFlavor.Fly {
+		t.Skip("json-file logs are not supported in kvm and fly flavors yet")
+	}
+
+	for _, tt := range []struct {
+		jsonLogDir  string
+		jsonLogFile string
+	}{
+		{
+			jsonLogDir:  "/tmp/rkt-test-logs",
+			jsonLogFile: "hello_0.log",
+		},
+	} {
+		args := []string{
+			"--annotation=coreos.com/rkt/experiment/logmode=json-file",
+			fmt.Sprintf("--annotation=coreos.com/rkt/experiment/json-log-file=%s", tt.jsonLogFile),
+		}
+
+		if err := os.MkdirAll(tt.jsonLogDir, 0777); err != nil {
+			t.Fatalf("Couldn't create directory for JSON logs: %v", err)
+		}
+		defer os.RemoveAll(tt.jsonLogDir)
+
+		testSandboxWithArgs(t, args, func(ctx *testutils.RktRunCtx, child *gexpect.ExpectSubprocess, podUUID string) {
+			imageName := "coreos.com/rkt-inspect/hello"
+			msg := "HelloFromAppInSandbox"
+
+			aciHello := patchTestACI("rkt-inspect-hello.aci", "--name="+imageName, "--exec=/inspect --print-msg="+msg)
+			defer os.Remove(aciHello)
+
+			combinedOutput(t, ctx.ExecCmd("fetch", "--insecure-options=image", aciHello))
+
+			combinedOutput(t, ctx.ExecCmd(
+				"app", "add", "--debug", podUUID,
+				imageName, "--name=hello", "--stdin=stream",
+				"--stdout=stream", "--stderr=stream",
+				fmt.Sprintf("--annotation=coreos.com/rkt/experiment/json-log-file=%s", tt.jsonLogFile),
+			))
+			combinedOutput(t, ctx.ExecCmd("app", "start", "--debug", podUUID, "--app=hello"))
+
+			// It takes some time to have iottymux unit running inside the stage1 container,
+			// so we are looking for json logs with a reasonable amount of retries.
+			// same as CRI logs just above
+			var content []byte
+			var err error
+			for i := 0; i < logsReadRetries; i++ {
+				jsonLogFullPath := path.Join(tt.jsonLogDir, tt.jsonLogFile)
+				content, err = ioutil.ReadFile(jsonLogFullPath)
+				if err == nil {
+					sContent := string(content)
+					if strings.Contains(sContent, "\"log\": \"HelloFromAppInSandbox\", \"stream\": \"stdout\"}") {
+						break
+					}
+					err = fmt.Errorf("Expected json logs to contain '\"log\": \"HelloFromAppInSandbox\", \"stream\": \"stdout\"}', instead got: %s", sContent)
+				} else {
+					err = fmt.Errorf("Couldn't open file with json logs: %v", err)
+				}
+				time.Sleep(logsReadRetryDelay)
 			}
 			if err != nil {
 				t.Fatal(err)
