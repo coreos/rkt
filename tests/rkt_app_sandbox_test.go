@@ -668,25 +668,25 @@ func TestAppSandboxJSONFileLogs(t *testing.T) {
 			// same as CRI logs just above
 			var content []byte
 			var err error
-            var sContent string
+			var sContent string
 			for i := 0; i < logsReadRetries; i++ {
-                err = nil
+				err = nil
 				jsonLogFullPath := path.Join(tt.jsonLogDir, tt.jsonLogFile)
 				content, err = ioutil.ReadFile(jsonLogFullPath)
-                if err == nil {
-                    sContent = string(content)
-                    if len(sContent) > 0 {
-                        break
-                    }
-                }
+				if err == nil {
+					sContent = string(content)
+					if len(sContent) > 0 {
+						break
+					}
+				}
 				time.Sleep(logsReadRetryDelay)
 			}
-            if err != nil {
-                t.Fatal(err)
-            }
-            if !(strings.Contains(sContent, "\"log\":\"HelloFromAppInSandbox\\n\"") && strings.Contains(sContent, "\"stream\":\"stdout\"")) {
-                t.Fatalf("Expected json logs to contain '\"log\":\"HelloFromAppInSandbox\\n\"' and '\"stream\":\"stdout\"', instead got: %s", sContent)
-            }
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !(strings.Contains(sContent, "\"log\":\"HelloFromAppInSandbox\\n\"") && strings.Contains(sContent, "\"stream\":\"stdout\"")) {
+				t.Fatalf("Expected json logs to contain '\"log\":\"HelloFromAppInSandbox\\n\"' and '\"stream\":\"stdout\"', instead got: %s", sContent)
+			}
 
 		})
 	}

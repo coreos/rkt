@@ -78,9 +78,9 @@ type Targets struct {
 }
 
 type JSONLog struct {
-    Time    string      `json:"time"`
-    Message string      `json:"log,omitempty"`
-    Stream  string      `json:"stream,omitempty"`
+	Time    string `json:"time"`
+	Message string `json:"log,omitempty"`
+	Stream  string `json:"stream,omitempty"`
 }
 
 // iottymux is a multi-action binary which can be used for:
@@ -413,7 +413,7 @@ func actionIOMux(statusFile string) error {
 	// TODO(lucab): finalize custom logging modes
 	logMode := os.Getenv("STAGE1_LOGMODE")
 	var logFile *os.File
-    var format func(time string, line []byte, stream string) []byte 
+	var format func(time string, line []byte, stream string) []byte
 	switch logMode {
 	case "k8s-plain":
 		var err error
@@ -436,17 +436,17 @@ func actionIOMux(statusFile string) error {
 		}
 		defer logFile.Close()
 
-        format = func(timestamp string, line []byte, stream string) []byte {
-            return []byte(fmt.Sprintf("%s %s %s", timestamp, stream, line))
-        }
-    
-    case "json-file":
-        var err error
+		format = func(timestamp string, line []byte, stream string) []byte {
+			return []byte(fmt.Sprintf("%s %s %s", timestamp, stream, line))
+		}
 
-        logFileName := os.Getenv("JSON_LOG_FILE")
-        logFullPath := filepath.Clean(filepath.Join("/rkt/json/log", logFileName))
+	case "json-file":
+		var err error
 
-        match, err := filepath.Match("/rkt/json/log/*", logFullPath)
+		logFileName := os.Getenv("JSON_LOG_FILE")
+		logFullPath := filepath.Clean(filepath.Join("/rkt/json/log", logFileName))
+
+		match, err := filepath.Match("/rkt/json/log/*", logFullPath)
 		if err != nil {
 			return fmt.Errorf("couldn't analyze the full log path %s: %s", logFullPath, err)
 		} else if !match {
@@ -459,16 +459,16 @@ func actionIOMux(statusFile string) error {
 		}
 		defer logFile.Close()
 
-        format = func(timestamp string, line []byte, stream string) []byte {
-            diag.Println(string(line))
-            result, err := json.Marshal(JSONLog{Time: timestamp, Stream: stream, Message: string(line)})
-            if err != nil {
-                log.Println("Could not convert log to JSON: %s", line)
-            }
-            result = append(result, '\n')
-            diag.Println(string(result))
-            return result
-        }
+		format = func(timestamp string, line []byte, stream string) []byte {
+			diag.Println(string(line))
+			result, err := json.Marshal(JSONLog{Time: timestamp, Stream: stream, Message: string(line)})
+			if err != nil {
+				log.Println("Could not convert log to JSON: %s", line)
+			}
+			result = append(result, '\n')
+			diag.Println(string(result))
+			return result
+		}
 
 	}
 
@@ -627,7 +627,7 @@ func bufferInput(conn net.Conn, stdin *os.File) {
 func muxOutput(streamLabel string, lines chan []byte, clients <-chan net.Conn, targets <-chan io.WriteCloser, format func(timestamp string, line []byte, stream string) []byte) {
 	var logs []io.WriteCloser
 	var conns []io.WriteCloser
-	
+
 	writeAndFilter := func(wc io.WriteCloser, line []byte) bool {
 		_, err := wc.Write(line)
 		if err != nil {
@@ -635,7 +635,6 @@ func muxOutput(streamLabel string, lines chan []byte, clients <-chan net.Conn, t
 		}
 		return err != nil
 	}
-
 
 	logsWriteAndFilter := func(wc io.WriteCloser, line []byte) bool {
 		out := format(time.Now().Format(time.RFC3339Nano), line, streamLabel)
