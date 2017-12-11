@@ -460,13 +460,11 @@ func actionIOMux(statusFile string) error {
 		defer logFile.Close()
 
 		format = func(timestamp string, line []byte, stream string) []byte {
-			diag.Println(string(line))
 			result, err := json.Marshal(JSONLog{Time: timestamp, Stream: stream, Message: string(line)})
 			if err != nil {
-				log.Println("Could not convert log to JSON: %s", line)
+				diag.PrintE("Could not convert log line to JSON: %s", err)
 			}
 			result = append(result, '\n')
-			diag.Println(string(result))
 			return result
 		}
 
