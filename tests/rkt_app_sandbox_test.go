@@ -34,9 +34,9 @@ import (
 )
 
 const (
-	// Number of retries to read CRI log file.
+	// Number of retries to read log file.
 	logsReadRetries = 5
-	// Delay between each retry attempt in reading CRI log file.
+	// Delay between each retry attempt in reading log file.
 	logsReadRetryDelay = 5 * time.Second
 )
 
@@ -638,7 +638,7 @@ func TestAppSandboxJSONFileLogs(t *testing.T) {
 	} {
 		args := []string{
 			"--annotation=coreos.com/rkt/experiment/logmode=json-file",
-			fmt.Sprintf("--annotation=coreos.com/rkt/experiment/json-log-file=%s", tt.jsonLogFile),
+			fmt.Sprintf("--annotation=coreos.com/rkt/experiment/json-log-dir=%s", tt.jsonLogDir),
 		}
 
 		if err := os.MkdirAll(tt.jsonLogDir, 0777); err != nil {
@@ -668,23 +668,25 @@ func TestAppSandboxJSONFileLogs(t *testing.T) {
 			// same as CRI logs just above
 			var content []byte
 			var err error
+            var sContent string
 			for i := 0; i < logsReadRetries; i++ {
+                err = nil
 				jsonLogFullPath := path.Join(tt.jsonLogDir, tt.jsonLogFile)
 				content, err = ioutil.ReadFile(jsonLogFullPath)
-				if err == nil {
-					sContent := string(content)
-					if strings.Contains(sContent, "\"log\": \"HelloFromAppInSandbox\", \"stream\": \"stdout\"}") {
-						break
-					}
-					err = fmt.Errorf("Expected json logs to contain '\"log\": \"HelloFromAppInSandbox\", \"stream\": \"stdout\"}', instead got: %s", sContent)
-				} else {
-					err = fmt.Errorf("Couldn't open file with json logs: %v", err)
-				}
+                if err == nil {
+                    sContent = string(content)
+                    if len(sContent) > 0 {
+                        break
+                    }
+                }
 				time.Sleep(logsReadRetryDelay)
 			}
-			if err != nil {
-				t.Fatal(err)
-			}
+            if err != nil {
+                t.Fatal(err)
+            }
+            if !(strings.Contains(sContent, "\"log\":\"HelloFromAppInSandbox\\n\"") && strings.Contains(sContent, "\"stream\":\"stdout\"")) {
+                t.Fatalf("Expected json logs to contain '\"log\":\"HelloFromAppInSandbox\\n\"' and '\"stream\":\"stdout\"', instead got: %s", sContent)
+            }
 
 		})
 	}
