@@ -627,20 +627,20 @@ func bufferInput(conn net.Conn, stdin *os.File) {
 func muxOutput(streamLabel string, lines chan []byte, clients <-chan net.Conn, targets <-chan io.WriteCloser, format func(timestamp string, line []byte, stream string) []byte) {
 	var logs []io.WriteCloser
 	var conns []io.WriteCloser
-    
-    writeAndFilter := func(wc io.WriteCloser, line []byte) bool {
-        _, err := wc.Write(line)
-        if err != nil {
-            wc.Close()
-        }
-        return err != nil
-    }
+	
+	writeAndFilter := func(wc io.WriteCloser, line []byte) bool {
+		_, err := wc.Write(line)
+		if err != nil {
+			wc.Close()
+		}
+		return err != nil
+	}
 
 
-    logsWriteAndFilter := func(wc io.WriteCloser, line []byte) bool {
-        out := format(time.Now().Format(time.RFC3339Nano), line, streamLabel)
-        return writeAndFilter(wc, out)
-    }
+	logsWriteAndFilter := func(wc io.WriteCloser, line []byte) bool {
+		out := format(time.Now().Format(time.RFC3339Nano), line, streamLabel)
+		return writeAndFilter(wc, out)
+	}
 
 	for {
 		select {
