@@ -161,7 +161,7 @@ $(call generate-clean-mk-from-filelist, \
 # This unpacks squashfs image to a temporary rootfs.
 $(call generate-stamp-rule,$(CBU_MKBASE_STAMP),$(CCN_SQUASHFS) $(CBU_COMPLETE_MANIFEST),$(CBU_ROOTFS), \
 	$(call vb,vt,UNSQUASHFS,$(call vsp,$(CCN_SQUASHFS)) => $(call vsp,$(CBU_ROOTFS)/usr)) \
-	CBU_SQROOT=$$$$(unsquashfs -ls "$(CCN_SQUASHFS)" --no-progress | tail --lines=1); \
+	CBU_SQROOT=$$$$(unsquashfs -ls "$(CCN_SQUASHFS)" --no-progress | tail -1); \
 	unsquashfs -ls "$(CCN_SQUASHFS)" | grep "^$$$${CBU_SQROOT}" | sed -e "s/$$$${CBU_SQROOT}\///g" | sort >"$(CBU_SQUASHFS_FILES)"; \
 	comm -1 -2 "$(CBU_SQUASHFS_FILES)" "$(CBU_COMPLETE_MANIFEST)" >"$(CBU_COMMON_FILES)"; \
 	if ! cmp --silent "$(CBU_COMMON_FILES)" "$(CBU_COMPLETE_MANIFEST)"; \
