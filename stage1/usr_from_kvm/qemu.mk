@@ -8,13 +8,18 @@ QEMU_BIOS_BINARIES := bios-256k.bin \
     linuxboot_dma.bin \
     vgabios-stdvga.bin \
     efi-virtio.rom
+ifeq ($(QEMU_PYTHON_BINARY),)
+QEMU_PYTHON_BINARY = $(shell which python)
+echo $(shell echo QEMU_PYTHON_BINARY unset, setting to `which python`: $(QEMU_PYTHON_BINARY))
+endif
+
 
 QEMU_CONFIGURATION_OPTS := --disable-bsd-user --disable-docs --disable-guest-agent --disable-guest-agent-msi \
     --disable-sdl --disable-gtk --disable-vte --disable-curses --disable-cocoa --disable-brlapi --disable-vnc \
     --disable-seccomp --disable-curl --disable-bluez --disable-cap-ng --disable-rbd --disable-libiscsi \
     --disable-libnfs --disable-smartcard --disable-libusb --disable-glusterfs --disable-archipelago \
     --disable-tcmalloc --disable-jemalloc --disable-debug-info --static --enable-virtfs --target-list=x86_64-softmmu \
-    --python=/usr/bin/python2 --disable-werror
+    --python=$(QEMU_PYTHON_BINARY) --disable-werror
 QEMU_ACI_BINARY := $(HV_ACIROOTFSDIR)/qemu
 
 # Using 2.7.0 stable release from official repository
