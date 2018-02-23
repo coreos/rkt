@@ -1,6 +1,9 @@
 $(call setup-stamp-file,QEMU_STAMP)
 QEMU_TMPDIR := $(UFK_TMPDIR)/qemu
 QEMU_SRCDIR := $(QEMU_TMPDIR)/src
+QEMU_STUFFDIR := $(MK_SRCDIR)/qemu
+QEMU_PATCHESDIR := $(QEMU_STUFFDIR)/patches
+QEMU_PATCHES := $(abspath $(QEMU_PATCHESDIR)/*.patch)
 QEMU_BINARY := $(QEMU_SRCDIR)/x86_64-softmmu/qemu-system-x86_64
 QEMU_BIOS_BINARIES := bios-256k.bin \
     kvmvapic.bin \
@@ -25,6 +28,7 @@ $(call setup-stamp-file,QEMU_BUILD_STAMP,/build)
 $(call setup-stamp-file,QEMU_BIOS_BUILD_STAMP,/bios_build)
 $(call setup-stamp-file,QEMU_CONF_STAMP,/conf)
 $(call setup-stamp-file,QEMU_DIR_CLEAN_STAMP,/dir-clean)
+$(call setup-stamp-file,QEMU_PATCH_STAMP,/patch_qemu)
 $(call setup-filelist-file,QEMU_DIR_FILELIST,/dir)
 $(call setup-clean-file,QEMU_CLEANMK,/src)
 
@@ -47,13 +51,23 @@ $(call generate-stamp-rule,$(QEMU_BIOS_BUILD_STAMP),$(QEMU_CONF_STAMP) $(UFK_CBU
 		cp $(QEMU_SRCDIR)/pc-bios/$$$${bios} $(HV_ACIROOTFSDIR)/$$$${bios} $(call vl2,>/dev/null); \
 	done)
 
-$(call generate-stamp-rule,$(QEMU_BUILD_STAMP),$(QEMU_CONF_STAMP),, \
+$(call generate-stamp-rule,$(QEMU_BUILD_STAMP),$(QEMU_PATCH_STAMP),, \
     $(call vb,vt,BUILD EXT,qemu) \
 	$$(MAKE) $(call vl2,--silent) -C "$(QEMU_SRCDIR)" $(call vl2,>/dev/null))
 
 $(call generate-stamp-rule,$(QEMU_CONF_STAMP),,, \
 	$(call vb,vt,CONFIG EXT,qemu) \
 	cd $(QEMU_SRCDIR); ./configure $(QEMU_CONFIGURATION_OPTS) $(call vl2,>/dev/null))
+
+#Once we have configured QEMU, then patch it
+# We might want to consider if we want to configure or patch first,
+# depending on what the patches do...
+$(call generate-stamp-rule,$(QEMU_PATCH_STAMP),$(QEMU_CONF_STAMP),, \
+	shopt -s nullglob; \
+	for p in $(QEMU_PATCHES); do \
+		$(call vb,v2,PATCH,$$$${p#$(MK_TOPLEVEL_ABS_SRCDIR)/}) \
+		patch $(call vl3,--silent )--directory="$(QEMU_SRCDIR)" --strip=1 --forward <"$$$${p}"; \
+	done)
 
 # Generate filelist of qemu directory (this is both srcdir and
 # builddir). Can happen after build finished.

@@ -1,0 +1,131 @@
+From eaf70223eac094291169f5a6de580351890162a2 Mon Sep 17 00:00:00 2001
+From: Eric Van Hensbergen <ericvh@gmail.com>
+Date: Tue, 21 Apr 2015 12:46:29 -0700
+Subject: [PATCH] fs/9p: fix create-unlink-getattr idiom
+
+Fixes several outstanding bug reports of not being able to getattr from an
+open file after an unlink.  This patch cleans up transient fids on an unlink
+and will search open fids on a client if it detects a dentry that appears to
+have been unlinked.  This search is necessary because fstat does not pass fd
+information through the VFS API to the filesystem, only the dentry which for
+9p has an imperfect match to fids.
+
+Inherent in this patch is also a fix for the qid handling on create/open
+which apparently wasn't being set correctly and was necessary for the search
+to succeed.
+
+A possible optimization over this fix is to include accounting of open fids
+with the inode in the private data (in a similar fashion to the way we track
+transient fids with dentries).  This would allow a much quicker search for
+a matching open fid.
+
+Signed-off-by: Eric Van Hensbergen <ericvh@gmail.com>
+---
+ fs/9p/fid.c       | 30 ++++++++++++++++++++++++++++++
+ fs/9p/vfs_inode.c |  4 ++++
+ net/9p/client.c   |  5 ++++-
+ 3 files changed, 38 insertions(+), 1 deletion(-)
+
+diff --git a/fs/9p/fid.c b/fs/9p/fid.c
+index 47db55a..5ca6e67 100644
+--- a/fs/9p/fid.c
++++ b/fs/9p/fid.c
+@@ -54,6 +54,33 @@ void v9fs_fid_add(struct dentry *dentry, struct p9_fid *fid)
+ }
+ 
+ /**
++ * v9fs_fid_find_global - search for a fid off of the client list
++ * @inode: return a fid pointing to a specific inode
++ * @uid: return a fid belonging to the specified user
++ *
++ */
++
++static struct p9_fid *v9fs_fid_find_inode(struct inode *inode, kuid_t uid)
++{
++	struct p9_client *clnt = v9fs_inode2v9ses(inode)->clnt;
++	struct p9_fid *fid, *fidptr, *ret = NULL;
++	unsigned long flags;
++
++	p9_debug(P9_DEBUG_VFS, " inode: %p\n", inode);
++
++	spin_lock_irqsave(&clnt->lock, flags);
++	list_for_each_entry_safe(fid, fidptr, &clnt->fidlist, flist) {
++		if (uid_eq(fid->uid, uid) &&
++		   (inode->i_ino == v9fs_qid2ino(&fid->qid))) {
++			ret = fid;
++			break;
++		}
++	}
++	spin_unlock_irqrestore(&clnt->lock, flags);
++	return ret;
++}
++
++/**
+  * v9fs_fid_find - retrieve a fid that belongs to the specified uid
+  * @dentry: dentry to look for fid in
+  * @uid: return fid that belongs to the specified user
+@@ -80,6 +107,9 @@ static struct p9_fid *v9fs_fid_find(struct dentry *dentry, kuid_t uid, int any)
+ 			}
+ 		}
+ 		spin_unlock(&dentry->d_lock);
++	} else {
++		if (dentry->d_inode)
++			ret = v9fs_fid_find_inode(dentry->d_inode, uid);
+ 	}
+ 
+ 	return ret;
+diff --git a/fs/9p/vfs_inode.c b/fs/9p/vfs_inode.c
+index 3a08b3e..4376fbd 100644
+--- a/fs/9p/vfs_inode.c
++++ b/fs/9p/vfs_inode.c
+@@ -624,6 +624,10 @@ static int v9fs_remove(struct inode *dir, struct dentry *dentry, int flags)
+ 
+ 		v9fs_invalidate_inode_attr(inode);
+ 		v9fs_invalidate_inode_attr(dir);
++
++		/* invalidate all fids associated with dentry */
++		/* NOTE: This will not include open fids */
++		dentry->d_op->d_release(dentry);
+ 	}
+ 	return retval;
+ }
+diff --git a/net/9p/client.c b/net/9p/client.c
+index ea79ee9..df22fef 100644
+--- a/net/9p/client.c
++++ b/net/9p/client.c
+@@ -1208,7 +1208,7 @@ struct p9_fid *p9_client_walk(struct p9_fid *oldfid, uint16_t nwname,
+ 	if (nwname)
+ 		memmove(&fid->qid, &wqids[nwqids - 1], sizeof(struct p9_qid));
+ 	else
+-		fid->qid = oldfid->qid;
++		memmove(&fid->qid, &oldfid->qid, sizeof(struct p9_qid));
+ 
+ 	kfree(wqids);
+ 	return fid;
+@@ -1261,6 +1261,7 @@ int p9_client_open(struct p9_fid *fid, int mode)
+ 		p9_is_proto_dotl(clnt) ? "RLOPEN" : "ROPEN",  qid.type,
+ 		(unsigned long long)qid.path, qid.version, iounit);
+ 
++	memmove(&fid->qid, &qid, sizeof(struct p9_qid));
+ 	fid->mode = mode;
+ 	fid->iounit = iounit;
+ 
+@@ -1306,6 +1307,7 @@ int p9_client_create_dotl(struct p9_fid *ofid, char *name, u32 flags, u32 mode,
+ 			(unsigned long long)qid->path,
+ 			qid->version, iounit);
+ 
++	memmove(&ofid->qid, qid, sizeof(struct p9_qid));
+ 	ofid->mode = mode;
+ 	ofid->iounit = iounit;
+ 
+@@ -1351,6 +1353,7 @@ int p9_client_fcreate(struct p9_fid *fid, char *name, u32 perm, int mode,
+ 				(unsigned long long)qid.path,
+ 				qid.version, iounit);
+ 
++	memmove(&fid->qid, &qid, sizeof(struct p9_qid));
+ 	fid->mode = mode;
+ 	fid->iounit = iounit;
+ 
+-- 
+2.1.0
+

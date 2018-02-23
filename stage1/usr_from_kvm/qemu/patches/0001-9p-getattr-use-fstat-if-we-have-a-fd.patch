@@ -1,0 +1,33 @@
+From 01865cad24cee71f37a4da58a75cef3932d16c0c Mon Sep 17 00:00:00 2001
+From: Greg Kurz <gkurz@linux.vnet.ibm.com>
+Date: Wed, 25 May 2016 16:18:35 +0200
+Subject: [PATCH 1/5] 9p: getattr: use fstat if we have a fd
+
+If we have an opened fd, it is better to call fstat() as the underlying
+file may have been unlinked and lstat() will fail.
+
+Signed-off-by: Greg Kurz <gkurz@linux.vnet.ibm.com>
+---
+ hw/9pfs/9p.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/hw/9pfs/9p.c b/hw/9pfs/9p.c
+index dfe293d..ff33dc2 100644
+--- a/hw/9pfs/9p.c
++++ b/hw/9pfs/9p.c
+@@ -1103,7 +1103,11 @@ static void v9fs_getattr(void *opaque)
+      * Currently we only support BASIC fields in stat, so there is no
+      * need to look at request_mask.
+      */
+-    retval = v9fs_co_lstat(pdu, &fidp->path, &stbuf);
++    if (fidp->fs.fd > 0) {
++        retval = v9fs_co_fstat(pdu, fidp, &stbuf);
++    } else {
++        retval = v9fs_co_lstat(pdu, &fidp->path, &stbuf);
++    }
+     if (retval < 0) {
+         goto out;
+     }
+-- 
+2.7.4
+
