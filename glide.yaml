@@ -175,7 +175,7 @@ import:
 - package: github.com/kr/pty
   version: f7ee69f31298ecbe5d2b349c711e2547a617d398
 - package: github.com/opencontainers/selinux
-  version: 4a2974bf1ee960774ffd517717f1f45325af0206
+  version: 76b408a8e68e301b8245ba414ab600a0d1d797d9
   subpackages:
   - go-selinux
   - go-selinux/label

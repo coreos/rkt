@@ -28,7 +28,6 @@ const (
 	selinuxConfig    = selinuxDir + "config"
 	selinuxTypeTag   = "SELINUXTYPE"
 	selinuxTag       = "SELINUX"
-	selinuxPath      = "/sys/fs/selinux"
 	xattrNameSelinux = "security.selinux"
 	stRdOnly         = 0x01
 )
@@ -205,7 +204,7 @@ func readCon(name string) (string, error) {
 	defer in.Close()
 
 	_, err = fmt.Fscanf(in, "%s", &val)
-	return val, err
+	return strings.Trim(val, "\x00"), err
 }
 
 // SetFileLabel sets the SELinux label for this path or returns an error.
@@ -276,6 +275,32 @@ func writeCon(name string, val string) error {
 }
 
 /*
+CanonicalizeContext takes a context string and writes it to the kernel
+the function then returns the context that the kernel will use.  This function
+can be used to see if two contexts are equivalent
+*/
+func CanonicalizeContext(val string) (string, error) {
+	return readWriteCon(filepath.Join(getSelinuxMountPoint(), "context"), val)
+}
+
+func readWriteCon(name string, val string) (string, error) {
+	var retval string
+	f, err := os.OpenFile(name, os.O_RDWR, 0)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	_, err = f.Write([]byte(val))
+	if err != nil {
+		return "", err
+	}
+
+	_, err = fmt.Fscanf(f, "%s", &retval)
+	return strings.Trim(retval, "\x00"), err
+}
+
+/*
 SetExecLabel sets the SELinux label that the kernel will use for any programs
 that are executed by the current process thread, or an error.
 */
@@ -311,7 +336,7 @@ func ReserveLabel(label string) {
 }
 
 func selinuxEnforcePath() string {
-	return fmt.Sprintf("%s/enforce", selinuxPath)
+	return fmt.Sprintf("%s/enforce", getSelinuxMountPoint())
 }
 
 // EnforceMode returns the current SELinux mode Enforcing, Permissive, Disabled
@@ -509,7 +534,7 @@ exit:
 
 // SecurityCheckContext validates that the SELinux label is understood by the kernel
 func SecurityCheckContext(val string) error {
-	return writeCon(fmt.Sprintf("%s.context", selinuxPath), val)
+	return writeCon(fmt.Sprintf("%s/context", getSelinuxMountPoint()), val)
 }
 
 /*
