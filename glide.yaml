@@ -285,3 +285,7 @@ import:
   version: v1.1.0
 - package: github.com/PuerkitoBio/urlesc
   version: 5bd2802263f21d8788851d5305584c82a5c75d7e
+- package: github.com/docker/docker
+  version: v17.05.0-ce
+  subpackages:
+  - client
