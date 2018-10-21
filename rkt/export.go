@@ -232,7 +232,14 @@ func mountOverlay(pod *pkgPod.Pod, app *schema.RuntimeApp, dest string) error {
 		return err
 	}
 
-	if err := overlay.Mount(&overlay.MountCfg{lower, upper, work, dest, ""}); err != nil {
+	mountCfg := &overlay.MountCfg{
+		Lower: lower,
+		Upper: upper,
+		Work:  work,
+		Dest:  dest,
+		Lbl:   "",
+	}
+	if err := overlay.Mount(mountCfg); err != nil {
 		return errwrap.Wrap(errors.New("problem mounting overlayfs directory"), err)
 	}
 
