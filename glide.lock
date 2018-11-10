@@ -284,7 +284,7 @@ imports:
   - lex/httplex
   - trace
 - name: golang.org/x/sys
-  version: b44883b474ffefa37335017174e397412b633a4f
+  version: 66b7b1311ac80bbafcd2daeef9a5e6e2cd1e2399
   subpackages:
   - unix
 - name: golang.org/x/text
