@@ -191,7 +191,7 @@ imports:
 - name: github.com/kballard/go-shellquote
   version: e5c918b80c17694cbc49aab32a759f9a40067f5d
 - name: github.com/klauspost/compress
-  version: 006acde2c5d283d2f8b8aa03d8f0cd2891c680cf
+  version: 30be6041bed523c18e269a700ebd9c2ea9328574
   subpackages:
   - flate
 - name: github.com/klauspost/cpuid
