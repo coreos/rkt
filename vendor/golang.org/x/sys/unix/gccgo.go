@@ -6,7 +6,10 @@
 
 package unix
 
-import "syscall"
+import (
+	"syscall"
+	"unsafe"
+)
 
 // We can't use the gc-syntax .s files for gccgo.  On the plus side
 // much of the functionality can be written directly in Go.
@@ -44,3 +47,6 @@ func RawSyscall6(trap, a1, a2, a3, a4, a5, a6 uintptr) (r1, r2 uintptr, err sysc
 	r, errno := realSyscall(trap, a1, a2, a3, a4, a5, a6, 0, 0, 0)
 	return r, 0, syscall.Errno(errno)
 }
+
+//go:noinline
+func use(unsafe.Pointer) {}
