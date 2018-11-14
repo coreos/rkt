@@ -526,10 +526,6 @@ func GetArch() string {
 	return arch
 }
 
-// reference to GOARM, needs to be globally, if in GetArch() function it resolves to zero
-//go:linkname goarm runtime.goarm
-var goarm uint8
-
 func GetOSArch() (os string, arch string) {
 	arch = runtime.GOARCH
 	flavor := ""
