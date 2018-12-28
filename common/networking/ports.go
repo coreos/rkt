@@ -54,9 +54,9 @@ func findAppPort(manifest *schema.PodManifest, portName types.ACName) (*types.Po
 // be used to specify raw ports.  Used for opening ports to the container when
 // the ports needed are only known at runtime (versus at container build time).
 func getRawPort(manifest *schema.PodManifest, portName types.ACName) *types.Port {
-	validRawPortName = regexp.MustCompile("^[0-9]{1,5}-(tcp|udp){1}$")
-	validProtocol = regexp.MustCompile("(tcp|udp)")
-	validPortNum = regexp.MustCompile("[0-9]{1,5}")
+	validRawPortName := regexp.MustCompile("^[0-9]{1,5}-(tcp|udp){1}$")
+	validProtocol := regexp.MustCompile("(tcp|udp)")
+	validPortNum := regexp.MustCompile("[0-9]{1,5}")
 
 	nameStr := portName.String()
 
@@ -65,15 +65,16 @@ func getRawPort(manifest *schema.PodManifest, portName types.ACName) *types.Port
 		return nil
 	}
 
-	if portNum, err := strconv.ParseUint(validPortNum.FindString(nameStr), 10, 16); err != nil {
+	portNum, err := strconv.ParseUint(validPortNum.FindString(nameStr), 10, 16)
+	if err != nil {
 		return nil
 	}
 
 	portProto := validProtocol.FindString(nameStr)
 	rawPort := types.Port{
-		Name: portName,
+		Name:     portName,
 		Protocol: portProto,
-		Port: portNum,
+		Port:     uint(portNum),
 	}
 	return &rawPort
 }
