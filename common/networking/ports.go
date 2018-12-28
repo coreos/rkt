@@ -17,6 +17,8 @@ package networking
 import (
 	"fmt"
 	"net"
+	"regexp"
+	"strconv"
 
 	"github.com/appc/spec/schema"
 	"github.com/appc/spec/schema/types"
@@ -48,6 +50,34 @@ func findAppPort(manifest *schema.PodManifest, portName types.ACName) (*types.Po
 	return foundPort, nil
 }
 
+// getRawPort checks if a port name matches the form $portnum-$proto which can
+// be used to specify raw ports.  Used for opening ports to the container when
+// the ports needed are only known at runtime (versus at container build time).
+func getRawPort(manifest *schema.PodManifest, portName types.ACName) *types.Port {
+	validRawPortName = regexp.MustCompile("^[0-9]{1,5}-(tcp|udp){1}$")
+	validProtocol = regexp.MustCompile("(tcp|udp)")
+	validPortNum = regexp.MustCompile("[0-9]{1,5}")
+
+	nameStr := portName.String()
+
+	if !validRawPortName.MatchString(nameStr) {
+		// port name is not a raw port
+		return nil
+	}
+
+	if portNum, err := strconv.ParseUint(validPortNum.FindString(nameStr), 10, 16); err != nil {
+		return nil
+	}
+
+	portProto := validProtocol.FindString(nameStr)
+	rawPort := types.Port{
+		Name: portName,
+		Protocol: portProto,
+		Port: portNum,
+	}
+	return &rawPort
+}
+
 // ForwardedPorts matches up ExposedPorts (host ports) with Ports on the app side.
 // By default, it tries to match up by name - apps expose ports, and the podspec
 // maps them. The podspec can also map from host to pod, without a corresponding app
@@ -68,6 +98,9 @@ func ForwardedPorts(manifest *schema.PodManifest) ([]ForwardedPort, error) {
 			podPort, err = findAppPort(manifest, ep.Name)
 			if err != nil {
 				return nil, err
+			}
+			if podPort == nil {
+				podPort = getRawPort(manifest, ep.Name)
 			}
 			if podPort == nil {
 				return nil, fmt.Errorf("port name %q could not be found in any apps", ep.Name)
