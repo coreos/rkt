@@ -70,7 +70,7 @@ func StartApp(cfg StartConfig) error {
 	//    In this window rkt app list may report that the application exited.
 	// 2. remove the app status file
 	//    In this window rkt app list may report that the app was created.
-	// 3. re-create the the app-started file
+	// 3. re-create the app-started file
 
 	_ = os.Remove(appStartedPath)
 	_ = os.Remove(appStatusPath)
