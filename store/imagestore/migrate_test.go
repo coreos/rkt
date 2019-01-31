@@ -406,7 +406,7 @@ func (d *DBV7) compare(td testdb) bool {
 // The latest existing struct should be updated when updating the db version
 // without changing the struct format (ex. V0_1 to V0_2).
 // A new struct and its relative function should be added if the format is changed.
-// The same applies for all of the the other structs.
+// The same applies for all of the other structs.
 type ACIInfoV0_2 struct {
 	BlobKey    string
 	AppName    string
