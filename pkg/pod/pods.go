@@ -112,7 +112,7 @@ func prepareDir(dataDir string) string {
 	return filepath.Join(dataDir, "pods", "prepare")
 }
 
-// prepareDir returns where pod trees reside upon successful preparation
+// preparedDir returns where pod trees reside upon successful preparation
 func preparedDir(dataDir string) string {
 	return filepath.Join(dataDir, "pods", "prepared")
 }
@@ -183,7 +183,7 @@ func NewPod(dataDir string) (*Pod, error) {
 		return nil, err
 	}
 
-	// At this point we we have:
+	// At this point we have:
 	// /var/lib/rkt/pods/prepare/$uuid << exclusively locked to indicate "preparing"
 
 	return p, nil
@@ -330,7 +330,7 @@ func (p *Pod) garbagePath() string {
 	return filepath.Join(garbageDir(p.dataDir), p.UUID.String())
 }
 
-// ToPrepare transitions a pod from embryo -> preparing, leaves the pod locked in the prepare directory.
+// ToPreparing transitions a pod from embryo -> preparing, leaves the pod locked in the prepare directory.
 // only the creator of the pod (via NewPod()) may do this, nobody to race with.
 // This method refreshes the pod state.
 func (p *Pod) ToPreparing() error {
@@ -560,7 +560,7 @@ func listPodsFromDir(cdir string) ([]string, error) {
 	return ps, nil
 }
 
-// refreshState() updates the cached members of the pod to reflect current reality.
+// refreshState updates the cached members of the pod to reflect current reality.
 // Assumes p.FileLock is currently unlocked, and always returns with it unlocked.
 func (p *Pod) refreshState() error {
 	p.isEmbryo = false
@@ -708,7 +708,7 @@ func (e ErrChildNotReady) Error() string {
 	return fmt.Sprintf("Child not ready")
 }
 
-// Returns the pid of the child, or ErrChildNotReady if not ready
+// getChildPID returns the pid of the child, or ErrChildNotReady if not ready
 func getChildPID(ppid int) (int, error) {
 	var pid int
 
