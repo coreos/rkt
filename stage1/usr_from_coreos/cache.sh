@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 set -e;
 
 # maintain a cached copy of coreos pxe image
