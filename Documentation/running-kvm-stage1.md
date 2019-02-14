@@ -18,7 +18,7 @@ If you want to see the kernel and boot messages, run rkt with the `--debug` flag
 You can exit pressing `<Ctrl-a x>`.
 
 #### CPU usage
-By default, processes will start working on all CPUs if at least one app does not have specfied CPUs.
+By default, processes will start working on all CPUs if at least one app does not have specified CPUs.
 In the other case, container will be working on aggregate amount of CPUs.
 
 #### Memory

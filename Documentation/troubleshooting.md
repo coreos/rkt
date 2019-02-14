@@ -88,7 +88,7 @@ stage0: error setting up stage1
 ```
 
 This problem typically happens when trying to run rkt inside rkt.
-To successfuly run rkt inside rkt, use one of the following workarounds:
+To successfully run rkt inside rkt, use one of the following workarounds:
 - set up `/var/lib/rkt` in the outer rkt as a host volume
 - use `--no-overlay` for either the outer or the inner rkt
 
