@@ -93,8 +93,8 @@ For more information please consult the systemd manual.
 
 
 [build-configure]: build-configure.md
-[kubelet]: http://kubernetes.io/docs/admin/kubelet/
+[kubelet]: https://kubernetes.io/docs/admin/kubelet/
 [sharedsubtree]: https://www.kernel.org/doc/Documentation/filesystems/sharedsubtree.txt
-[systemd.directives]: http://www.freedesktop.org/software/systemd/man/systemd.directives.html
-[systemd.resource-control]: http://www.freedesktop.org/software/systemd/man/systemd.resource-control.html
+[systemd.directives]: https://www.freedesktop.org/software/systemd/man/systemd.directives.html
+[systemd.resource-control]: https://www.freedesktop.org/software/systemd/man/systemd.resource-control.html
 [systemd-unit]: using-rkt-with-systemd.md#advanced-unit-file

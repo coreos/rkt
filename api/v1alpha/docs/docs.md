@@ -260,9 +260,9 @@ Info describes the information of rkt on the machine.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| rkt_version | [string](#string) |  | Version of rkt, required, in the form of Semantic Versioning 2.0.0 (http://semver.org/). |
-| appc_version | [string](#string) |  | Version of appc, required, in the form of Semantic Versioning 2.0.0 (http://semver.org/). |
-| api_version | [string](#string) |  | Latest version of the api that&#39;s supported by the service, required, in the form of Semantic Versioning 2.0.0 (http://semver.org/). |
+| rkt_version | [string](#string) |  | Version of rkt, required, in the form of Semantic Versioning 2.0.0 (https://semver.org/). |
+| appc_version | [string](#string) |  | Version of appc, required, in the form of Semantic Versioning 2.0.0 (https://semver.org/). |
+| api_version | [string](#string) |  | Latest version of the api that&#39;s supported by the service, required, in the form of Semantic Versioning 2.0.0 (https://semver.org/). |
 | global_flags | [GlobalFlags](#v1alpha.GlobalFlags) |  | The global flags that passed to the rkt api service when it&#39;s launched. |
 
 

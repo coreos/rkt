@@ -50,5 +50,5 @@ To validate that `rkt` successfully implements the ACE part of the spec, use the
 [appc-val]: https://github.com/appc/spec/blob/master/README.md#validating-app-container-executors-aces
 [docker2aci]: https://github.com/appc/docker2aci
 [goaci]: https://github.com/appc/goaci
-[k8s-pods]: http://kubernetes.io/docs/user-guide/pods/
+[k8s-pods]: https://kubernetes.io/docs/user-guide/pods/
 [running-docker-images]: running-docker-images.md

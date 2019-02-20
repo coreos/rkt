@@ -60,7 +60,7 @@ It's recommended to set a save hook in your editor of choice that runs `goimport
 
 [effectivego]: https://golang.org/doc/effective_go.html
 [codereview]: https://github.com/golang/go/wiki/CodeReviewComments
-[godoc]: http://blog.golang.org/godoc-documenting-go-code[here](https://github.com/coreos/docs/tree/master/golang).
+[godoc]: https://blog.golang.org/godoc-documenting-go-code[here](https://github.com/coreos/docs/tree/master/golang).
 
 ### Documentation Style
 
