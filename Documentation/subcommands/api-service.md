@@ -36,5 +36,5 @@ See the table with [global options in general commands documentation][global-opt
 [api_proto]: https://github.com/rkt/rkt/blob/master/api/v1alpha/api.proto
 [client-example]: https://github.com/rkt/rkt/blob/master/api/v1alpha/client_example.go
 [global-options]: ../commands.md#global-options
-[grpc]: http://www.grpc.io/
+[grpc]: https://www.grpc.io/
 [rkt-api]: https://github.com/rkt/rkt/blob/master/dist/init/systemd/rkt-api.service

@@ -292,9 +292,9 @@ From a UI perspective, main consumers of the logging and attaching subsystem are
 [man-exec]: http://man7.org/linux/man-pages/man3/exec.3.html
 [oci-img-spec]: https://github.com/opencontainers/image-spec
 [rkt-image-fetching]: ../image-fetching-behavior.md
-[systemd-beforeafter]: http://www.freedesktop.org/software/systemd/man/systemd.unit.html#Before=
-[systemd-conflicts]: http://www.freedesktop.org/software/systemd/man/systemd.unit.html#Conflicts=
-[systemd-wants]: http://www.freedesktop.org/software/systemd/man/systemd.unit.html#Wants=
-[systemd-onfailure]: http://www.freedesktop.org/software/systemd/man/systemd.unit.html#OnFailure=
-[systemd-remainafterexit]: http://www.freedesktop.org/software/systemd/man/systemd.service.html#RemainAfterExit=
-[systemd-stopwhenunneeded]: http://www.freedesktop.org/software/systemd/man/systemd.unit.html#StopWhenUnneeded=
+[systemd-beforeafter]: https://www.freedesktop.org/software/systemd/man/systemd.unit.html#Before=
+[systemd-conflicts]: https//www.freedesktop.org/software/systemd/man/systemd.unit.html#Conflicts=
+[systemd-wants]: https://www.freedesktop.org/software/systemd/man/systemd.unit.html#Wants=
+[systemd-onfailure]: https://www.freedesktop.org/software/systemd/man/systemd.unit.html#OnFailure=
+[systemd-remainafterexit]: https://www.freedesktop.org/software/systemd/man/systemd.service.html#RemainAfterExit=
+[systemd-stopwhenunneeded]: https://www.freedesktop.org/software/systemd/man/systemd.unit.html#StopWhenUnneeded=

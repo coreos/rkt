@@ -25,6 +25,6 @@ Note that the policy is responsibility of your distribution and might differ fro
 To find out more about policies you can check the [SELinux Policy Overview][selinux-policy].
 Please refer to your distribution documentation for further details on its policy.
 
-[svirt]: http://selinuxproject.org/page/SVirt
+[svirt]: https://selinuxproject.org/page/SVirt
 [selinux-policy]: https://www.centos.org/docs/5/html/Deployment_Guide-en-US/rhlcommon-chapter-0001.html
 
