@@ -135,7 +135,7 @@ $ journalctl -M rkt-bc3c1451-2e81-45c6-aeb0-807db44e31b4 -t redis
 [...]
 ```
 
-Additionaly, logs can be programmatically accessed via the [sd-journal API][sd-journal].
+Additionally, logs can be programmatically accessed via the [sd-journal API][sd-journal].
 
 Currently there are two known main issues with logging in rkt:
 * In some rare situations when an application inside the pod is writing to `/dev/stdout` and `/dev/stderr` (i.e. nginx) there is no way to obtain logs.

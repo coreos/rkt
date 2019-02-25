@@ -59,7 +59,7 @@ are also available:
  * `@systemd/clock` for syscalls manipulating the system clock
  * `@systemd/default-whitelist` for a generic set of typically whitelisted syscalls
  * `@systemd/mount` for filesystem mounting and unmounting
- * `@systemd/network-io` for socket I/O operationgs
+ * `@systemd/network-io` for socket I/O operations
  * `@systemd/obsolete` for unusual, obsolete or unimplemented syscalls
  * `@systemd/privileged` for syscalls which need super-user syscalls
  * `@systemd/process` for syscalls acting on process control, execution and namespacing

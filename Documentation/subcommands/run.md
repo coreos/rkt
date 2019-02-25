@@ -36,7 +36,7 @@ Multiple applications can be run in a pod by passing multiple images to the run 
 
 The flag `--pod-manifest` allows users to specify a [*runtime manifest*](https://github.com/appc/spec/blob/master/spec/pods.md#app-container-pods-pods)
 to run as a pod. This means image manifests for apps in the pod will be
-overriden and any configuration specified in them will be ignored.
+overridden and any configuration specified in them will be ignored.
 
 For more details about generating a *runtime manifest*, check the [pod manifest walkthrough][pod-manifest-walkthrough].
 

@@ -115,7 +115,7 @@ make check GO_TEST_FUNC_ARGS='-run NameOfTheTest'
 make functional-check GO_TEST_FUNC_ARGS='-run NameOfTheTest'
 ```
 
-Run `go help testflag` to get more informations about possible flags accepted by `go test`.
+Run `go help testflag` to get more information about possible flags accepted by `go test`.
 
 ## Running the benchmark
 

@@ -18,7 +18,7 @@ Before the pod is started, the ACIs are rendered to the filesystem and the owner
 
 When starting several pods with user namespaces, they will each get a random UID range.
 
-Although very unlikely, it is possible that two distincts containers get the same UID range.
+Although very unlikely, it is possible that two distinct containers get the same UID range.
 If this happens, user namespaces will not provide any additional isolation between the two containers, exactly like when user namespaces are not used.
 The two containers will however still not use the same UID range as the host, so using user namespaces is better than not using them.
 In order to avoid collisions, it is planned to implement a locking mechanism so that two pods will always have a different UID range.

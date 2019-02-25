@@ -181,7 +181,7 @@ GlobalFlags describes the flags that passed to rkt api service when it is launch
 | system_config_dir | [string](#string) |  | System configuration directory. |
 | local_config_dir | [string](#string) |  | Local configuration directory. |
 | user_config_dir | [string](#string) |  | User configuration directory. |
-| insecure_flags | [string](#string) |  | Insecure flags configurates what security features to disable. |
+| insecure_flags | [string](#string) |  | Insecure flags configuration what security features to disable. |
 | trust_keys_from_https | [bool](#bool) |  | Whether to automatically trust gpg keys fetched from https |
 
 

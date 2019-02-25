@@ -107,7 +107,7 @@ what and the first paragraph of the PR description reflects the why.
 In most cases one can reuse the commit title as the PR title
 and the commit messages as the PR description for the PR.
 
-If your PR includes more commits spanning mulitple subsystems one should change the PR title
+If your PR includes more commits spanning multiple subsystems one should change the PR title
 and the first paragraph of the PR description to reflect a summary of all changes involved.
 
 A large PR must be split into multiple commits, each with clear commit messages.
