@@ -707,8 +707,8 @@ func getAppCapabilities(isolators types.Isolators) ([]string, error) {
 // parseLinuxCapabilitySet parses a LinuxCapabilitiesSet into string slice
 func parseLinuxCapabilitiesSet(capSet types.LinuxCapabilitiesSet) []string {
 	var capsStr []string
-	for _, cap := range capSet.Set() {
-		capsStr = append(capsStr, string(cap))
+	for _, capS := range capSet.Set() {
+		capsStr = append(capsStr, string(capS))
 	}
 	return capsStr
 }

@@ -111,9 +111,9 @@ func useCached(downloadTime time.Time, maxAge int) bool {
 // ascURLFromImgURL creates a URL to a signature file from passed URL
 // to an image.
 func ascURLFromImgURL(u *url.URL) *url.URL {
-	copy := *u
-	copy.Path = ascPathFromImgPath(copy.Path)
-	return &copy
+	cp := *u
+	cp.Path = ascPathFromImgPath(cp.Path)
+	return &cp
 }
 
 // ascPathFromImgPath creates a path to a signature file from passed
