@@ -324,8 +324,8 @@ func (f *nameFetcher) maybeOverrideAscFetcherWithRemote(ascURL string, a *asc) {
 func (f *nameFetcher) httpOps() *httpOps {
 	return &httpOps{
 		InsecureSkipTLSVerify: f.InsecureFlags.SkipTLSCheck(),
-		S:       f.S,
-		Headers: f.Headers,
-		Debug:   f.Debug,
+		S:                     f.S,
+		Headers:               f.Headers,
+		Debug:                 f.Debug,
 	}
 }
