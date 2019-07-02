@@ -83,7 +83,7 @@ func TestCatManifest(t *testing.T) {
 			if err := ioutil.WriteFile(uuidFilePath, []byte(podUUID), 0600); err != nil {
 				panic(fmt.Sprintf("Cannot write pod UUID to uuid-file: %v", err))
 			}
-			runCmd := fmt.Sprintf("%s cat-manifest --uuid-file=%s --pretty-print=false %s", ctx.Cmd(), uuidFilePath)
+			runCmd := fmt.Sprintf("%s cat-manifest --uuid-file=%s --pretty-print=false", ctx.Cmd(), uuidFilePath)
 			t.Logf("Running test #%d", i)
 			runRktAndCheckRegexOutput(t, runCmd, tt.match)
 		} else {
