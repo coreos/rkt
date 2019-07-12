@@ -20,7 +20,8 @@ if [ "${CI-}" == true ] ; then
 		# Semaphore installs more dependencies on their
 		# platform, they should be removed from here to save time.
 
-		install-package libacl1-dev bc libsystemd-dev 
+		install-package libacl1-dev bc libsystemd-dev libglib2.0-dev libpixman-1-dev systemd-container
+
 
 		# libmount: https://github.com/systemd/systemd/pull/986#issuecomment-138451264
 		sudo add-apt-repository --yes ppa:pitti/systemd-semaphore
