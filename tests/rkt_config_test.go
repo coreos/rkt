@@ -25,42 +25,42 @@ import (
 	"github.com/rkt/rkt/tests/testutils"
 )
 
-type basic struct {
+type Basic struct {
 	User     string `json:"user"`
 	Password string `json:"password"`
 }
 
-type oauth struct {
+type Oauth struct {
 	Token string `json:"token"`
 }
 
-type credentials struct {
-	*basic
-	*oauth
+type Credentials struct {
+	*Basic
+	*Oauth
 }
 
-type auth struct {
+type Auth struct {
 	Type        string      `json:"type,omitempty"`
 	Registries  []string    `json:"registries,omitempty"`
 	Domains     []string    `json:"domains,omitempty"`
-	Credentials credentials `json:"credentials"`
+	Credentials Credentials `json:"credentials"`
 }
 
-type paths struct {
+type Paths struct {
 	Data         string `json:"data,omitempty"`
 	Stage1Images string `json:"stage1-images,omitempty"`
 }
 
-type stage1 struct {
+type Stage1 struct {
 	Name     string `json:"name,omitempty"`
 	Version  string `json:"version,omitempty"`
 	Location string `json:"location,omitempty"`
 }
 
 type cfg struct {
-	*auth
-	*paths
-	*stage1
+	*Auth
+	*Paths
+	*Stage1
 
 	RktVersion string `json:"rktVersion"`
 	RktKind    string `json:"rktKind"`
@@ -94,11 +94,11 @@ func TestConfig(t *testing.T) {
 					cfg{
 						RktVersion: "v1",
 						RktKind:    "auth",
-						auth: &auth{
+						Auth: &Auth{
 							Type:    "basic",
 							Domains: []string{"coreos.com"},
-							Credentials: credentials{
-								basic: &basic{"user", "userPassword"},
+							Credentials: Credentials{
+								Basic: &Basic{"user", "userPassword"},
 							},
 						},
 					},
@@ -108,11 +108,11 @@ func TestConfig(t *testing.T) {
 				{
 					RktVersion: "v1",
 					RktKind:    "auth",
-					auth: &auth{
+					Auth: &Auth{
 						Type:    "basic",
 						Domains: []string{"coreos.com"},
-						Credentials: credentials{
-							basic: &basic{"user", "userPassword"},
+						Credentials: Credentials{
+							Basic: &Basic{"user", "userPassword"},
 						},
 					},
 				},
@@ -125,10 +125,10 @@ func TestConfig(t *testing.T) {
 					cfg{
 						RktVersion: "v1",
 						RktKind:    "dockerAuth",
-						auth: &auth{
+						Auth: &Auth{
 							Registries: []string{"quay.io"},
-							Credentials: credentials{
-								basic: &basic{"docker", "dockerPassword"},
+							Credentials: Credentials{
+								Basic: &Basic{"docker", "dockerPassword"},
 							},
 						},
 					},
@@ -138,10 +138,10 @@ func TestConfig(t *testing.T) {
 				{
 					RktVersion: "v1",
 					RktKind:    "dockerAuth",
-					auth: &auth{
+					Auth: &Auth{
 						Registries: []string{"quay.io"},
-						Credentials: credentials{
-							basic: &basic{"docker", "dockerPassword"},
+						Credentials: Credentials{
+							Basic: &Basic{"docker", "dockerPassword"},
 						},
 					},
 				},
@@ -154,7 +154,7 @@ func TestConfig(t *testing.T) {
 					cfg{
 						RktVersion: "v1",
 						RktKind:    "paths",
-						paths: &paths{
+						Paths: &Paths{
 							Data:         "/home/me/rkt/data",
 							Stage1Images: "/home/me/rkt/stage1-images",
 						},
@@ -165,7 +165,7 @@ func TestConfig(t *testing.T) {
 				{
 					RktVersion: "v1",
 					RktKind:    "paths",
-					paths: &paths{
+					Paths: &Paths{
 						Data:         "/home/me/rkt/data",
 						Stage1Images: "/home/me/rkt/stage1-images",
 					},
@@ -179,7 +179,7 @@ func TestConfig(t *testing.T) {
 					cfg{
 						RktVersion: "v1",
 						RktKind:    "paths",
-						paths: &paths{
+						Paths: &Paths{
 							Data:         "/usr/lib/rkt/data",
 							Stage1Images: "/usr/lib/rkt/stage1-images",
 						},
@@ -189,7 +189,7 @@ func TestConfig(t *testing.T) {
 					cfg{
 						RktVersion: "v1",
 						RktKind:    "paths",
-						paths: &paths{
+						Paths: &Paths{
 							Data: "/home/me/rkt/data",
 						},
 					},
@@ -199,7 +199,7 @@ func TestConfig(t *testing.T) {
 				{
 					RktVersion: "v1",
 					RktKind:    "paths",
-					paths: &paths{
+					Paths: &Paths{
 						Data:         "/home/me/rkt/data",
 						Stage1Images: "/usr/lib/rkt/stage1-images",
 					},
@@ -213,7 +213,7 @@ func TestConfig(t *testing.T) {
 					cfg{
 						RktVersion: "v1",
 						RktKind:    "stage1",
-						stage1: &stage1{
+						Stage1: &Stage1{
 							Name:     "example.com/rkt/stage1",
 							Version:  "1.2.3",
 							Location: "http://example.com/download/stage1.aci",
@@ -225,7 +225,7 @@ func TestConfig(t *testing.T) {
 				{
 					RktVersion: "v1",
 					RktKind:    "stage1",
-					stage1: &stage1{
+					Stage1: &Stage1{
 						Name:     "example.com/rkt/stage1",
 						Version:  "1.2.3",
 						Location: "http://example.com/download/stage1.aci",
@@ -240,7 +240,7 @@ func TestConfig(t *testing.T) {
 					cfg{
 						RktVersion: "v1",
 						RktKind:    "stage1",
-						stage1: &stage1{
+						Stage1: &Stage1{
 							Name:     "example.com/rkt/stage1",
 							Version:  "1.2.3",
 							Location: "http://example.com/download/stage1.aci",
@@ -251,7 +251,7 @@ func TestConfig(t *testing.T) {
 					cfg{
 						RktVersion: "v1",
 						RktKind:    "stage1",
-						stage1: &stage1{
+						Stage1: &Stage1{
 							Location: "http://localhost:8080/stage1.aci",
 						},
 					},
@@ -261,7 +261,7 @@ func TestConfig(t *testing.T) {
 				{
 					RktVersion: "v1",
 					RktKind:    "stage1",
-					stage1: &stage1{
+					Stage1: &Stage1{
 						Name:     "example.com/rkt/stage1",
 						Version:  "1.2.3",
 						Location: "http://localhost:8080/stage1.aci",
@@ -276,11 +276,11 @@ func TestConfig(t *testing.T) {
 					cfg{
 						RktVersion: "v1",
 						RktKind:    "auth",
-						auth: &auth{
+						Auth: &Auth{
 							Type:    "basic",
 							Domains: []string{"tectonic.com", "coreos.com"},
-							Credentials: credentials{
-								basic: &basic{"user", "userPassword"},
+							Credentials: Credentials{
+								Basic: &Basic{"user", "userPassword"},
 							},
 						},
 					},
@@ -289,10 +289,10 @@ func TestConfig(t *testing.T) {
 					cfg{
 						RktVersion: "v1",
 						RktKind:    "dockerAuth",
-						auth: &auth{
+						Auth: &Auth{
 							Registries: []string{"quay.io", "gcr.io"},
-							Credentials: credentials{
-								basic: &basic{"docker", "dockerPassword"},
+							Credentials: Credentials{
+								Basic: &Basic{"docker", "dockerPassword"},
 							},
 						},
 					},
@@ -302,42 +302,42 @@ func TestConfig(t *testing.T) {
 				{
 					RktVersion: "v1",
 					RktKind:    "auth",
-					auth: &auth{
+					Auth: &Auth{
 						Type:    "basic",
 						Domains: []string{"tectonic.com"},
-						Credentials: credentials{
-							basic: &basic{"user", "userPassword"},
+						Credentials: Credentials{
+							Basic: &Basic{"user", "userPassword"},
 						},
 					},
 				},
 				{
 					RktVersion: "v1",
 					RktKind:    "auth",
-					auth: &auth{
+					Auth: &Auth{
 						Type:    "basic",
 						Domains: []string{"coreos.com"},
-						Credentials: credentials{
-							basic: &basic{"user", "userPassword"},
+						Credentials: Credentials{
+							Basic: &Basic{"user", "userPassword"},
 						},
 					},
 				},
 				{
 					RktVersion: "v1",
 					RktKind:    "dockerAuth",
-					auth: &auth{
+					Auth: &Auth{
 						Registries: []string{"quay.io"},
-						Credentials: credentials{
-							basic: &basic{"docker", "dockerPassword"},
+						Credentials: Credentials{
+							Basic: &Basic{"docker", "dockerPassword"},
 						},
 					},
 				},
 				{
 					RktVersion: "v1",
 					RktKind:    "dockerAuth",
-					auth: &auth{
+					Auth: &Auth{
 						Registries: []string{"gcr.io"},
-						Credentials: credentials{
-							basic: &basic{"docker", "dockerPassword"},
+						Credentials: Credentials{
+							Basic: &Basic{"docker", "dockerPassword"},
 						},
 					},
 				},
@@ -350,11 +350,11 @@ func TestConfig(t *testing.T) {
 					cfg{
 						RktVersion: "v1",
 						RktKind:    "auth",
-						auth: &auth{
+						Auth: &Auth{
 							Type:    "basic",
 							Domains: []string{"tectonic.com", "coreos.com"},
-							Credentials: credentials{
-								basic: &basic{"user", "userPassword"},
+							Credentials: Credentials{
+								Basic: &Basic{"user", "userPassword"},
 							},
 						},
 					},
@@ -364,11 +364,11 @@ func TestConfig(t *testing.T) {
 					cfg{
 						RktVersion: "v1",
 						RktKind:    "auth",
-						auth: &auth{
+						Auth: &Auth{
 							Type:    "oauth",
 							Domains: []string{"tectonic.com"},
-							Credentials: credentials{
-								oauth: &oauth{"someToken"},
+							Credentials: Credentials{
+								Oauth: &Oauth{"someToken"},
 							},
 						},
 					},
@@ -378,10 +378,10 @@ func TestConfig(t *testing.T) {
 					cfg{
 						RktVersion: "v1",
 						RktKind:    "dockerAuth",
-						auth: &auth{
+						Auth: &Auth{
 							Registries: []string{"quay.io", "gcr.io"},
-							Credentials: credentials{
-								basic: &basic{"docker", "dockerPassword"},
+							Credentials: Credentials{
+								Basic: &Basic{"docker", "dockerPassword"},
 							},
 						},
 					},
@@ -391,10 +391,10 @@ func TestConfig(t *testing.T) {
 					cfg{
 						RktVersion: "v1",
 						RktKind:    "dockerAuth",
-						auth: &auth{
+						Auth: &Auth{
 							Registries: []string{"gcr.io"},
-							Credentials: credentials{
-								basic: &basic{"over", "written"},
+							Credentials: Credentials{
+								Basic: &Basic{"over", "written"},
 							},
 						},
 					},
@@ -404,42 +404,42 @@ func TestConfig(t *testing.T) {
 				{
 					RktVersion: "v1",
 					RktKind:    "auth",
-					auth: &auth{
+					Auth: &Auth{
 						Type:    "oauth",
 						Domains: []string{"tectonic.com"},
-						Credentials: credentials{
-							oauth: &oauth{"someToken"},
+						Credentials: Credentials{
+							Oauth: &Oauth{"someToken"},
 						},
 					},
 				},
 				{
 					RktVersion: "v1",
 					RktKind:    "auth",
-					auth: &auth{
+					Auth: &Auth{
 						Type:    "basic",
 						Domains: []string{"coreos.com"},
-						Credentials: credentials{
-							basic: &basic{"user", "userPassword"},
+						Credentials: Credentials{
+							Basic: &Basic{"user", "userPassword"},
 						},
 					},
 				},
 				{
 					RktVersion: "v1",
 					RktKind:    "dockerAuth",
-					auth: &auth{
+					Auth: &Auth{
 						Registries: []string{"quay.io"},
-						Credentials: credentials{
-							basic: &basic{"docker", "dockerPassword"},
+						Credentials: Credentials{
+							Basic: &Basic{"docker", "dockerPassword"},
 						},
 					},
 				},
 				{
 					RktVersion: "v1",
 					RktKind:    "dockerAuth",
-					auth: &auth{
+					Auth: &Auth{
 						Registries: []string{"gcr.io"},
-						Credentials: credentials{
-							basic: &basic{"over", "written"},
+						Credentials: Credentials{
+							Basic: &Basic{"over", "written"},
 						},
 					},
 				},
