@@ -133,7 +133,7 @@ var etcHostnameTests = []struct {
 	{
 		[]string{"--exec=/inspect -file-name /etc/hostname -read-file"},
 		[]string{"--hostname custom_hostname_setting"},
-		`<<<custom_hostname_setting`,
+		`<<<customhostnamesetting`,
 		false,
 	},
 	{
