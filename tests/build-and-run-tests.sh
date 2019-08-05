@@ -132,10 +132,18 @@ function configure {
                 --enable-insecure-go
         ;;
         host)
-        ./configure --with-stage1-flavors=host \
-                --with-default-stage1-flavor=host \
-                --enable-functional-tests=auto --enable-tpm=auto \
-                --enable-insecure-go
+        # We do not run host tests on SemaphoreCI as the systemd version is too old there.
+        if [ "${SEMAPHORE-}" == true ] ; then
+                ./configure --with-stage1-flavors=host \
+                        --with-default-stage1-flavor=host \
+                        --enable-functional-tests=no --enable-tpm=auto \
+                        --enable-insecure-go
+        else
+                ./configure --with-stage1-flavors="${RKT_STAGE1_USR_FROM}" \
+                        --with-stage1-default-flavor="${RKT_STAGE1_USR_FROM}" \
+                        --enable-functional-tests=auto --enable-tpm=auto \
+                        --enable-insecure-go
+        fi
         ;;
         src)
         ./configure --with-stage1-flavors="${RKT_STAGE1_USR_FROM}" \
