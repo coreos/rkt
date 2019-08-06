@@ -109,7 +109,7 @@ func gcNetworking(podID *types.UUID) error {
 	case os.IsNotExist(err):
 		// either ran with --net=host, or failed during setup
 		if err := networking.CleanUpGarbage(".", podID); err != nil {
-			diag.PrintE("failed cleaning up nework NS", err)
+			diag.PrintE("failed cleaning up network NS", err)
 		}
 	default:
 		return errwrap.Wrap(errors.New("failed loading networking state"), err)
