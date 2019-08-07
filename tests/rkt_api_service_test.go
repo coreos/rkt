@@ -188,7 +188,7 @@ func checkPod(t *testing.T, ctx *testutils.RktRunCtx, p *v1alpha.Pod, hasAppStat
 	if podInfo.state == "running" {
 		machineID := fmt.Sprintf("rkt-%s", p.Id)
 		escapedmID := strings.Replace(machineID, "-", "\\x2d", -1)
-		expectedCgroupSuffix = fmt.Sprintf("/machine-%s.scope", escapedmID)
+		expectedCgroupSuffix = filepath.Join(fmt.Sprintf("/machine-%s.scope", escapedmID), "payload")
 	}
 
 	if !strings.HasSuffix(p.Cgroup, expectedCgroupSuffix) {

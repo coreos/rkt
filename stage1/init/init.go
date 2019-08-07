@@ -878,11 +878,6 @@ func getContainerSubCgroup(machineID string, canMachinedRegister, unified bool) 
 			return "", errwrap.Wrap(errors.New("could not get unit name"), err)
 		}
 		subcgroup := filepath.Join(slicePath, unit)
-
-		if unified {
-			return filepath.Join(subcgroup, "payload"), nil
-		}
-
 		return subcgroup, nil
 	}
 
@@ -893,7 +888,7 @@ func getContainerSubCgroup(machineID string, canMachinedRegister, unified bool) 
 		// we are not in the final cgroup yet: systemd-nspawn will move us
 		// to the correct cgroup later during registration so we can't
 		// look it up in /proc/self/cgroup
-		return filepath.Join("machine.slice", machineDir), nil
+		return filepath.Join("machine.slice", machineDir+"/payload/"), nil
 	}
 
 	if unified {
