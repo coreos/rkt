@@ -32,7 +32,7 @@ gpg: marginals needed: 3  completes needed: 1  trust model: PGP
 gpg: depth: 0  valid:   5  signed:   5  trust: 0-, 0q, 0n, 0m, 0f, 5u
 gpg: depth: 1  valid:   5  signed:   0  trust: 3-, 0q, 0n, 0m, 2f, 0u
 gpg: next trustdb check due at 2017-01-19
-gpg: Good signature from "CoreOS Buildbot (Offical Builds) <buildbot@coreos.com>" [ultimate]
+gpg: Good signature from "CoreOS Buildbot (Official Builds) <buildbot@coreos.com>" [ultimate]
 ```
 
 Then you need to extract it:

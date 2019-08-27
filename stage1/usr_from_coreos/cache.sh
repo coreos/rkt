@@ -15,7 +15,7 @@ fi
 #     --keyid-format SHORT 04127D0BFABEC8871FFB2CCE50E0885593D2DCB4
 # pub   rsa4096/93D2DCB4 2013-09-06 [SC]
 #       04127D0BFABEC8871FFB2CCE50E0885593D2DCB4
-# uid         [ unknown] CoreOS Buildbot (Offical Builds) <buildbot@coreos.com>
+# uid         [ unknown] CoreOS Buildbot (Official Builds) <buildbot@coreos.com>
 # sub   rsa4096/74E7E361 2013-09-06 [S] [expired: 2014-09-06]
 # sub   rsa4096/E5676EFC 2014-09-08 [S] [expired: 2015-09-08]
 # sub   rsa4096/1CB5FA26 2015-08-31 [S] [expired: 2017-08-30]
