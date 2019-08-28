@@ -144,7 +144,7 @@ Docker networking. Change it to 172.31/16.
 
 ## 1.26.0
 
-This minor release contains bugfixes and other improvements. It also adds better support for the arm architecture to rkt, so that you can now fetch images via autodiscovery and have the correct seccomp whitelist to run them. Also notable is the new possibilty to pass extra kernel parameters to kvm, and last but not least a significant prepare/run speedup in stage0. This also introduces stricter validation on volume names, now rejecting duplicate ones.
+This minor release contains bugfixes and other improvements. It also adds better support for the arm architecture to rkt, so that you can now fetch images via autodiscovery and have the correct seccomp whitelist to run them. Also notable is the new possibility to pass extra kernel parameters to kvm, and last but not least a significant prepare/run speedup in stage0. This also introduces stricter validation on volume names, now rejecting duplicate ones.
 
 ## New Features
 - stage1: improve duplicate mount-volume detection ([#3666](https://github.com/rkt/rkt/pull/3666)). Breaking change: volumes with duplicate names are now rejected.
@@ -631,7 +631,7 @@ This release introduces a number of important features and improvements:
 - rkt is now packaged for openSUSE Tumbleweed and Leap
 
 #### New features
-- Add ARM64 support ([#2758](https://github.com/rkt/rkt/pull/2758)). This enables ARM64 cross-compliation, fly, and stage1-coreos.
+- Add ARM64 support ([#2758](https://github.com/rkt/rkt/pull/2758)). This enables ARM64 cross-compilation, fly, and stage1-coreos.
 - Replace Godep with Glide, introduce native Go vendoring ([#2735](https://github.com/rkt/rkt/pull/2735)).
 - rkt: rkt stop ([#2438](https://github.com/rkt/rkt/pull/2438)). Cleanly stops a running pod. For systemd-nspawn, sends a SIGTERM. For kvm, executes `systemctl halt`.
 
@@ -651,7 +651,7 @@ This release introduces a number of important features and improvements:
 - Documentation updates ([#2732](https://github.com/rkt/rkt/pull/2732), [#2869](https://github.com/rkt/rkt/pull/2869), [#2810](https://github.com/rkt/rkt/pull/2810), [#2865](https://github.com/rkt/rkt/pull/2865), [#2825](https://github.com/rkt/rkt/pull/2825), [#2841](https://github.com/rkt/rkt/pull/2841), [#2732](https://github.com/rkt/rkt/pull/2732))
 
 #### Library updates
-- glide: bump ql to v1.0.4 ([#2875](https://github.com/rkt/rkt/pull/2875)). It fixes an occassional panic when doing GC.
+- glide: bump ql to v1.0.4 ([#2875](https://github.com/rkt/rkt/pull/2875)). It fixes an occasional panic when doing GC.
 - glide: bump gopsutils to 2.1 ([#2876](https://github.com/rkt/rkt/pull/2876)). To include https://github.com/shirou/gopsutil/pull/194 (this adds ARM aarch64 support)
 - vendor: update appc/spec to 0.8.5 ([#2854](https://github.com/rkt/rkt/pull/2854)).
 
@@ -1103,7 +1103,7 @@ rkt v0.15.0 is an incremental release with UX improvements, bug fixes, API servi
 
 - Fix regression issue when downloading image signatures from quay.io ([#1909](https://github.com/rkt/rkt/pull/1909)).
 - Properly cleanup the tap network interface that were not cleaned up in some error cases when using the kvm stage1 ([#1921](https://github.com/rkt/rkt/pull/1921)).
-- Fix a bug in the 9p filesystem used by the kvm stage1 that were preventing `apt-get` from working propertly ([#1918](https://github.com/rkt/rkt/pull/1918)).
+- Fix a bug in the 9p filesystem used by the kvm stage1 that were preventing `apt-get` from working property ([#1918](https://github.com/rkt/rkt/pull/1918)).
 
 ## v0.14.0
 
