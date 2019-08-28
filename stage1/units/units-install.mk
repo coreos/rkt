@@ -1,5 +1,5 @@
 # This file puts all the units and symlinks into the ACI rootfs
-# directory for given flavor. Also, makes sure that some directores
+# directory for given flavor. Also, makes sure that some directors
 # are created.
 #
 # Inputs
