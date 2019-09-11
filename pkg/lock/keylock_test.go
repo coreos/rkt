@@ -145,6 +145,9 @@ func TestFileChangedLock(t *testing.T) {
 	// Simulate that another user comes and takes a lock, this will create
 	// a new lock  file as it was removed.
 	l3, err := ExclusiveKeyLock(dir, "key01")
+	if err != nil {
+		t.Fatalf("error creating ExclusiveKeyLock: %v", err)
+	}
 	l3.Close()
 
 	// Now l2 owner takes a lock, using the fd of the old file
@@ -180,6 +183,9 @@ func TestFileChangedLock(t *testing.T) {
 	// Simulate that another user comes and takes a lock, this will create
 	// a new lock  file as it was removed.
 	l3, err = ExclusiveKeyLock(dir, "key01")
+	if err != nil {
+		t.Fatalf("error creating ExclusiveKeyLock: %v", err)
+	}
 	l3.Close()
 
 	// Now l2 owner takes a lock, using the fd of the old file
