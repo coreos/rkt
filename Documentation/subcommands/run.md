@@ -71,7 +71,7 @@ In the following example, the CPU isolator is defined to 750 milli-cores and the
 
 ## Overriding User/Group
 
-Application images must specify the username/group or the UID/GID the app is to be run as as specified in the [Image Manifest Schema][image-manifest-schema]. The user/group can be overridden by rkt using the `--user` and `--group` flags:
+Application images must specify the username/group or the UID/GID the app is to be run as specified in the [Image Manifest Schema][image-manifest-schema]. The user/group can be overridden by rkt using the `--user` and `--group` flags:
 
 ```
 # rkt --insecure-options=image run docker://busybox --user=1000 --group=100 --exec id
