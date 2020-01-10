@@ -26,7 +26,11 @@ if [ "${CI-}" == true ] ; then
 		sudo add-apt-repository --yes ppa:pitti/systemd-semaphore
 		sudo apt-get update -qq || true
 		install-package libmount-dev libmount1
-
+		
+		sudo add-apt-repository --yes ppa:longsleep/golang-backports
+		sudo apt-get update -qq || true
+		install-package golang-go
+		
 		# building systemd v229 crashes with the gcc 4.8, update to gcc 5
 		sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
 		sudo apt-get update -qq || true
