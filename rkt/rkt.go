@@ -98,7 +98,7 @@ var cmdRkt = &cobra.Command{
 
 To get the help on any specific command, run "rkt help command".`,
 	BashCompletionFunction: bashCompletionFunc,
-	Run: runMissingCommand,
+	Run:                    runMissingCommand,
 }
 
 func init() {
