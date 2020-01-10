@@ -327,6 +327,5 @@ func (f *nameFetcher) httpOps() *httpOps {
                 S:                     f.S,
                 Headers:               f.Headers,
                 Debug:                 f.Debug,
-
 	}
 }
