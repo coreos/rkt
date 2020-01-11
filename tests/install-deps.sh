@@ -19,17 +19,19 @@ if [ "${CI-}" == true ] ; then
 		# Here we can install any missing dependencies. Whenever
 		# Semaphore installs more dependencies on their
 		# platform, they should be removed from here to save time.
-
-		install-package libacl1-dev bc libsystemd-dev
-
+    if [ $(cat /etc/lsb-release |grep trusty |wc -l) -eq 1 ]; then
+      install-package libacl1-dev bc libsystemd-journal-dev
+    else
+		  install-package libacl1-dev bc libsystemd-dev
+    fi
 		# libmount: https://github.com/systemd/systemd/pull/986#issuecomment-138451264
 		sudo add-apt-repository --yes ppa:pitti/systemd-semaphore
 		sudo apt-get update -qq || true
 		install-package libmount-dev libmount1
 		
-		sudo add-apt-repository --yes ppa:longsleep/golang-backports
-		sudo apt-get update -qq || true
-		install-package golang-go
+	#	sudo add-apt-repository --yes ppa:longsleep/golang-backports
+	#	sudo apt-get update -qq || true
+	#	install-package golang-go
 		
 		# building systemd v229 crashes with the gcc 4.8, update to gcc 5
 		sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
