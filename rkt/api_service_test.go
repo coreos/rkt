@@ -354,14 +354,14 @@ func TestFilterImage(t *testing.T) {
 		{
 			&v1alpha.Image{
 				Labels: []*v1alpha.KeyValue{
-					{"label-key-foo", "label-value-foo"},
-					{"label-key-bar", "label-value-bar"},
+					{Key: "label-key-foo", Value: "label-value-foo"},
+					{Key: "label-key-bar", Value: "label-value-bar"},
 				},
 			},
 			&v1alpha.ImageFilter{
 				Labels: []*v1alpha.KeyValue{
-					{"label-key-foo", "label-value-foo"},
-					{"label-key-bar", "label-value-bar"},
+					{Key: "label-key-foo", Value: "label-value-foo"},
+					{Key: "label-key-bar", Value: "label-value-bar"},
 				},
 			},
 			true,
@@ -370,15 +370,15 @@ func TestFilterImage(t *testing.T) {
 		{
 			&v1alpha.Image{
 				Labels: []*v1alpha.KeyValue{
-					{"label-key-foo", "label-value-foo"},
-					{"label-key-bar", "label-value-bar"},
+					{Key: "label-key-foo", Value: "label-value-foo"},
+					{Key: "label-key-bar", Value: "label-value-bar"},
 				},
 			},
 			&v1alpha.ImageFilter{
 				Labels: []*v1alpha.KeyValue{
-					{"label-key-foo", "label-value-foo"},
-					{"label-key-bar", "label-value-bar"},
-					{"label-key-baz", "label-value-baz"},
+					{Key: "label-key-foo", Value: "label-value-foo"},
+					{Key: "label-key-bar", Value: "label-value-bar"},
+					{Key: "label-key-baz", Value: "label-value-baz"},
 				},
 			},
 			false,
@@ -387,14 +387,14 @@ func TestFilterImage(t *testing.T) {
 		{
 			&v1alpha.Image{
 				Labels: []*v1alpha.KeyValue{
-					{"label-key-foo", "label-value-foo"},
-					{"label-key-bar", "label-value-bar"},
+					{Key: "label-key-foo", Value: "label-value-foo"},
+					{Key: "label-key-bar", Value: "label-value-bar"},
 				},
 			},
 			&v1alpha.ImageFilter{
 				Labels: []*v1alpha.KeyValue{
-					{"label-key-foo", "label-value-foo"},
-					{"label-key-bar", "label-value-baz"},
+					{Key: "label-key-foo", Value: "label-value-foo"},
+					{Key: "label-key-bar", Value: "label-value-baz"},
 				},
 			},
 			false,
@@ -503,16 +503,16 @@ func TestFilterImage(t *testing.T) {
 				Name:            "prefix-foo-keyword-foo/basename-foo",
 				Version:         "1.0",
 				ImportTimestamp: 1024,
-				Labels:          []*v1alpha.KeyValue{{"label-key-foo", "label-value-foo"}},
-				Annotations:     []*v1alpha.KeyValue{{"annotation-key-foo", "annotation-value-foo"}},
+				Labels:          []*v1alpha.KeyValue{{Key: "label-key-foo", Value: "label-value-foo"}},
+				Annotations:     []*v1alpha.KeyValue{{Key: "annotation-key-foo", Value: "annotation-value-foo"}},
 			},
 			&v1alpha.ImageFilter{
 				Ids:            []string{"id-bar"},
 				Prefixes:       []string{"prefix-bar"},
 				BaseNames:      []string{"basename-bar"},
 				Keywords:       []string{"keyword-bar"},
-				Labels:         []*v1alpha.KeyValue{{"label-key-bar", "label-value-bar"}},
-				Annotations:    []*v1alpha.KeyValue{{"annotation-key-bar", "annotation-value-bar"}},
+				Labels:         []*v1alpha.KeyValue{{Key: "label-key-bar", Value: "label-value-bar"}},
+				Annotations:    []*v1alpha.KeyValue{{Key: "annotation-key-bar", Value: "annotation-value-bar"}},
 				ImportedBefore: 1024,
 				ImportedAfter:  1024,
 			},
@@ -525,16 +525,16 @@ func TestFilterImage(t *testing.T) {
 				Name:            "prefix-foo-keyword-foo/basename-foo",
 				Version:         "1.0",
 				ImportTimestamp: 1024,
-				Labels:          []*v1alpha.KeyValue{{"label-key-foo", "label-value-foo"}},
-				Annotations:     []*v1alpha.KeyValue{{"annotation-key-foo", "annotation-value-foo"}},
+				Labels:          []*v1alpha.KeyValue{{Key: "label-key-foo", Value: "label-value-foo"}},
+				Annotations:     []*v1alpha.KeyValue{{Key: "annotation-key-foo", Value: "annotation-value-foo"}},
 			},
 			&v1alpha.ImageFilter{
 				Ids:            []string{"id-bar", "id-foo"},
 				Prefixes:       []string{"prefix-bar"},
 				BaseNames:      []string{"basename-bar"},
 				Keywords:       []string{"keyword-bar"},
-				Labels:         []*v1alpha.KeyValue{{"label-key-bar", "label-value-bar"}},
-				Annotations:    []*v1alpha.KeyValue{{"annotation-key-bar", "annotation-value-bar"}},
+				Labels:         []*v1alpha.KeyValue{{Key: "label-key-bar", Value: "label-value-bar"}},
+				Annotations:    []*v1alpha.KeyValue{{Key: "annotation-key-bar", Value: "annotation-value-bar"}},
 				ImportedBefore: 1024,
 				ImportedAfter:  1024,
 			},
@@ -547,16 +547,16 @@ func TestFilterImage(t *testing.T) {
 				Name:            "prefix-foo-keyword-foo/basename-foo",
 				Version:         "1.0",
 				ImportTimestamp: 1024,
-				Labels:          []*v1alpha.KeyValue{{"label-key-foo", "label-value-foo"}},
-				Annotations:     []*v1alpha.KeyValue{{"annotation-key-foo", "annotation-value-foo"}},
+				Labels:          []*v1alpha.KeyValue{{Key: "label-key-foo", Value: "label-value-foo"}},
+				Annotations:     []*v1alpha.KeyValue{{Key: "annotation-key-foo", Value: "annotation-value-foo"}},
 			},
 			&v1alpha.ImageFilter{
 				Ids:            []string{"id-bar", "id-foo"},
 				Prefixes:       []string{"prefix-bar", "prefix-foo"},
 				BaseNames:      []string{"basename-bar", "basename-foo"},
 				Keywords:       []string{"keyword-bar", "keyword-foo"},
-				Labels:         []*v1alpha.KeyValue{{"label-key-foo", "label-value-foo"}},
-				Annotations:    []*v1alpha.KeyValue{{"annotation-key-foo", "annotation-value-foo"}},
+				Labels:         []*v1alpha.KeyValue{{Key: "label-key-foo", Value: "label-value-foo"}},
+				Annotations:    []*v1alpha.KeyValue{{Key: "annotation-key-foo", Value: "annotation-value-foo"}},
 				ImportedBefore: 1025,
 				ImportedAfter:  1023,
 			},
