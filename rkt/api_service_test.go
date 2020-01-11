@@ -106,14 +106,14 @@ func TestFilterPod(t *testing.T) {
 		{
 			&v1alpha.Pod{
 				Annotations: []*v1alpha.KeyValue{
-					{"annotation-key-foo", "annotation-value-foo"},
-					{"annotation-key-bar", "annotation-value-bar"},
+					{Key: "annotation-key-foo", Value: "annotation-value-foo"},
+					{Key: "annotation-key-bar", Value: "annotation-value-bar"},
 				},
 			},
 			&v1alpha.PodFilter{
 				Annotations: []*v1alpha.KeyValue{
-					{"annotation-key-foo", "annotation-value-foo"},
-					{"annotation-key-bar", "annotation-value-bar"},
+					{Key: "annotation-key-foo", Value: "annotation-value-foo"},
+					{Key: "annotation-key-bar", Value: "annotation-value-bar"},
 				},
 			},
 			true,
@@ -122,15 +122,15 @@ func TestFilterPod(t *testing.T) {
 		{
 			&v1alpha.Pod{
 				Annotations: []*v1alpha.KeyValue{
-					{"annotation-key-foo", "annotation-value-foo"},
-					{"annotation-key-bar", "annotation-value-bar"},
+					{Key: "annotation-key-foo", Value: "annotation-value-foo"},
+					{Key: "annotation-key-bar", Value: "annotation-value-bar"},
 				},
 			},
 			&v1alpha.PodFilter{
 				Annotations: []*v1alpha.KeyValue{
-					{"annotation-key-foo", "annotation-value-foo"},
-					{"annotation-key-bar", "annotation-value-bar"},
-					{"annotation-key-baz", "annotation-value-baz"},
+					{Key: "annotation-key-foo", Value: "annotation-value-foo"},
+					{Key: "annotation-key-bar", Value: "annotation-value-bar"},
+					{Key: "annotation-key-baz", Value: "annotation-value-baz"},
 				},
 			},
 			false,
@@ -139,14 +139,14 @@ func TestFilterPod(t *testing.T) {
 		{
 			&v1alpha.Pod{
 				Annotations: []*v1alpha.KeyValue{
-					{"annotation-key-foo", "annotation-value-foo"},
-					{"annotation-key-bar", "annotation-value-bar"},
+					{Key: "annotation-key-foo", Value: "annotation-value-foo"},
+					{Key: "annotation-key-bar", Value: "annotation-value-bar"},
 				},
 			},
 			&v1alpha.PodFilter{
 				Annotations: []*v1alpha.KeyValue{
-					{"annotation-key-foo", "annotation-value-foo"},
-					{"annotation-key-bar", "annotation-value-baz"},
+					{Key: "annotation-key-foo", Value: "annotation-value-foo"},
+					{Key: "annotation-key-bar", Value: "annotation-value-baz"},
 				},
 			},
 			false,
@@ -156,12 +156,12 @@ func TestFilterPod(t *testing.T) {
 			&v1alpha.Pod{
 				Apps:        []*v1alpha.App{{Name: "app-foo"}},
 				Networks:    []*v1alpha.Network{{Name: "network-foo"}},
-				Annotations: []*v1alpha.KeyValue{{"annotation-key-foo", "annotation-value-foo"}},
+				Annotations: []*v1alpha.KeyValue{{Key: "annotation-key-foo", Value: "annotation-value-foo"}},
 			},
 			&v1alpha.PodFilter{
 				AppNames:     []string{"app-bar"},
 				NetworkNames: []string{"network-bar"},
-				Annotations:  []*v1alpha.KeyValue{{"annotation-key-foo", "annotation-value-bar"}},
+				Annotations:  []*v1alpha.KeyValue{{Key: "annotation-key-foo", Value: "annotation-value-bar"}},
 			},
 			false,
 		},
@@ -170,12 +170,12 @@ func TestFilterPod(t *testing.T) {
 			&v1alpha.Pod{
 				Apps:        []*v1alpha.App{{Name: "app-foo"}},
 				Networks:    []*v1alpha.Network{{Name: "network-foo"}},
-				Annotations: []*v1alpha.KeyValue{{"annotation-key-foo", "annotation-value-foo"}},
+				Annotations: []*v1alpha.KeyValue{{Key: "annotation-key-foo", Value: "annotation-value-foo"}},
 			},
 			&v1alpha.PodFilter{
 				AppNames:     []string{"app-foo", "app-bar"},
 				NetworkNames: []string{"network-bar"},
-				Annotations:  []*v1alpha.KeyValue{{"annotation-key-bar", "annotation-value-bar"}},
+				Annotations:  []*v1alpha.KeyValue{{Key: "annotation-key-bar", Value: "annotation-value-bar"}},
 			},
 			false,
 		},
@@ -184,12 +184,12 @@ func TestFilterPod(t *testing.T) {
 			&v1alpha.Pod{
 				Apps:        []*v1alpha.App{{Name: "app-foo"}},
 				Networks:    []*v1alpha.Network{{Name: "network-foo"}},
-				Annotations: []*v1alpha.KeyValue{{"annotation-key-foo", "annotation-value-foo"}},
+				Annotations: []*v1alpha.KeyValue{{Key: "annotation-key-foo", Value: "annotation-value-foo"}},
 			},
 			&v1alpha.PodFilter{
 				AppNames:     []string{"app-foo"},
 				NetworkNames: []string{"network-foo"},
-				Annotations:  []*v1alpha.KeyValue{{"annotation-key-foo", "annotation-value-foo"}},
+				Annotations:  []*v1alpha.KeyValue{{Key: "annotation-key-foo", Value: "annotation-value-foo"}},
 			},
 			true,
 		},
@@ -403,14 +403,14 @@ func TestFilterImage(t *testing.T) {
 		{
 			&v1alpha.Image{
 				Annotations: []*v1alpha.KeyValue{
-					{"annotation-key-foo", "annotation-value-foo"},
-					{"annotation-key-bar", "annotation-value-bar"},
+					{Key: "annotation-key-foo", Value: "annotation-value-foo"},
+					{Key: "annotation-key-bar", Value: "annotation-value-bar"},
 				},
 			},
 			&v1alpha.ImageFilter{
 				Annotations: []*v1alpha.KeyValue{
-					{"annotation-key-foo", "annotation-value-foo"},
-					{"annotation-key-bar", "annotation-value-bar"},
+					{Key: "annotation-key-foo", Value: "annotation-value-foo"},
+					{Key: "annotation-key-bar", Value: "annotation-value-bar"},
 				},
 			},
 			true,
@@ -419,15 +419,15 @@ func TestFilterImage(t *testing.T) {
 		{
 			&v1alpha.Image{
 				Annotations: []*v1alpha.KeyValue{
-					{"annotation-key-foo", "annotation-value-foo"},
-					{"annotation-key-bar", "annotation-value-bar"},
+					{Key: "annotation-key-foo", Value: "annotation-value-foo"},
+					{Key: "annotation-key-bar", Value: "annotation-value-bar"},
 				},
 			},
 			&v1alpha.ImageFilter{
 				Annotations: []*v1alpha.KeyValue{
-					{"annotation-key-foo", "annotation-value-foo"},
-					{"annotation-key-bar", "annotation-value-bar"},
-					{"annotation-key-baz", "annotation-value-baz"},
+					{Key: "annotation-key-foo", Value: "annotation-value-foo"},
+					{Key: "annotation-key-bar", Value: "annotation-value-bar"},
+					{Key: "annotation-key-baz", Value: "annotation-value-baz"},
 				},
 			},
 			false,
@@ -436,14 +436,14 @@ func TestFilterImage(t *testing.T) {
 		{
 			&v1alpha.Image{
 				Annotations: []*v1alpha.KeyValue{
-					{"annotation-key-foo", "annotation-value-foo"},
-					{"annotation-key-bar", "annotation-value-bar"},
+					{Key: "annotation-key-foo", Value: "annotation-value-foo"},
+					{Key: "annotation-key-bar", Value: "annotation-value-bar"},
 				},
 			},
 			&v1alpha.ImageFilter{
 				Annotations: []*v1alpha.KeyValue{
-					{"annotation-key-foo", "annotation-value-foo"},
-					{"annotation-key-bar", "annotation-value-baz"},
+					{Key: "annotation-key-foo", Value: "annotation-value-foo"},
+					{Key: "annotation-key-bar", Value: "annotation-value-baz"},
 				},
 			},
 			false,
