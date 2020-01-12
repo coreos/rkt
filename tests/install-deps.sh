@@ -25,7 +25,7 @@ if [ "${CI-}" == true ] ; then
     
       sudo add-apt-repository ppa:gophers/archive
       sudo apt-get update
-      install-package golang-1.11-go
+      install-package golang-1.9-go
 		  install-package libacl1-dev bc libsystemd-dev
     fi
 		# libmount: https://github.com/systemd/systemd/pull/986#issuecomment-138451264
