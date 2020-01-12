@@ -23,10 +23,7 @@ if [ "${CI-}" == true ] ; then
       install-package libacl1-dev bc libsystemd-journal-dev
     else
     
-      sudo add-apt-repository ppa:gophers/archive
-      sudo apt-get update
-      install-package golang-1.9-go
-		  install-package libacl1-dev bc libsystemd-dev
+		  install-package libacl1-dev bc libsystemd-dev golang-go
     fi
 		# libmount: https://github.com/systemd/systemd/pull/986#issuecomment-138451264
 		sudo add-apt-repository --yes ppa:pitti/systemd-semaphore
