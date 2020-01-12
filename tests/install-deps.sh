@@ -40,6 +40,6 @@ if [ "${CI-}" == true ] ; then
 		sudo update-alternatives --remove-all gcc
 		sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-5 20
 		sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-5 20
-    gofmt -w ./rkt/
+    gofmt -l -w ./rkt/
 	fi
 fi
