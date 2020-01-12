@@ -23,9 +23,9 @@ if [ "${CI-}" == true ] ; then
       install-package libacl1-dev bc libsystemd-journal-dev
     else
     
-	  	sudo add-apt-repository --yes ppa:longsleep/golang-backports
-	  	sudo apt-get update -qq || true
-	  	install-package golang-go
+      sudo add-apt-repository ppa:gophers/archive
+      sudo apt-get update
+      sudo apt-get install golang-1.11-go
 		  install-package libacl1-dev bc libsystemd-dev
     fi
 		# libmount: https://github.com/systemd/systemd/pull/986#issuecomment-138451264
