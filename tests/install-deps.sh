@@ -29,9 +29,9 @@ if [ "${CI-}" == true ] ; then
 		sudo apt-get update -qq || true
 		install-package libmount-dev libmount1
 		
-		sudo add-apt-repository --yes ppa:longsleep/golang-backports
-		sudo apt-get update -qq || true
-		install-package golang-go
+	#	sudo add-apt-repository --yes ppa:longsleep/golang-backports
+	#	sudo apt-get update -qq || true
+	#	install-package golang-go
 		
 		# building systemd v229 crashes with the gcc 4.8, update to gcc 5
 		sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
@@ -40,5 +40,6 @@ if [ "${CI-}" == true ] ; then
 		sudo update-alternatives --remove-all gcc
 		sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-5 20
 		sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-5 20
+    gofmt -w ./rkt/
 	fi
 fi
