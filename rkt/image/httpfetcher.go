@@ -160,9 +160,9 @@ func (f *httpFetcher) fetchVerifiedURL(u *url.URL, a *asc, etag string) (readSee
 func (f *httpFetcher) httpOps() *httpOps {
 	return &httpOps{
 		InsecureSkipTLSVerify: f.InsecureFlags.SkipTLSCheck(),
-		S:       f.S,
-		Headers: f.Headers,
-		Debug:   f.Debug,
+		S:                     f.S,
+		Headers:               f.Headers,
+		Debug:                 f.Debug,
 	}
 }
 

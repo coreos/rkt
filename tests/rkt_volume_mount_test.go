@@ -65,7 +65,7 @@ func prepareTmpDirWithRecursiveMountsAndFiles(t *testing.T) []func() {
 
 	if _, err := tmpdir2outerfile.WriteString(outerFileContent); err != nil {
 		executeFuncsReverse(cleanupFuncs)
-		t.Fatalf("Can't write to file %q after mounting: %v", tmpdir2outerfile, err)
+		t.Fatalf("Can't write to file %q after mounting: %v", tmpdir2outerfile.Name(), err)
 	}
 
 	// mount tmpfs for /dir1/subDirRW
@@ -90,7 +90,7 @@ func prepareTmpDirWithRecursiveMountsAndFiles(t *testing.T) []func() {
 
 	if _, err := tmpdir2innerfile.WriteString(innerFileContent); err != nil {
 		executeFuncsReverse(cleanupFuncs)
-		t.Fatalf("Can't write to file %q after mounting: %v", tmpdir2innerfile, err)
+		t.Fatalf("Can't write to file %q after mounting: %v", tmpdir2innerfile.Name(), err)
 	}
 
 	return cleanupFuncs

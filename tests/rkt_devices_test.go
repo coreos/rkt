@@ -45,17 +45,11 @@ func TestDevices(t *testing.T) {
 			expectErr:      false,
 		},
 
-		/* Test the old ptmx device node, before devpts filesystem
-		 * existed. It should be blocked. Containers should use the new
-		 * ptmx from devpts instead. It is created with
-		 * "mknod name c 5 2" according to:
-		 * https://github.com/torvalds/linux/blob/master/Documentation/filesystems/devpts.txt
-		 */
 		{
 			rktArgs:        "--insecure-options=image",
 			rktAppArgs:     "",
-			execArgs:       "--check-mknod=c:5:2:/ptmx",
-			expectedOutput: "mknod /ptmx: fail",
+			execArgs:       "--check-mknod=c:1:1:/mem",
+			expectedOutput: "mknod /mem: fail",
 			expectErr:      true,
 		},
 
@@ -95,13 +89,13 @@ func TestDevices(t *testing.T) {
 
 		/* Test mounting /dev/loop-control. We should be able to create
 		 * other devices with mknod with the paths insecure option.
-		 * Let's try the old ptmx device again.
+		 * Let's try mem again.
 		 */
 		{
 			rktArgs:        "--insecure-options=image,paths --volume loopcontrol,kind=host,source=/dev/loop-control --set-env=FILE=/tmp/loop-control",
 			rktAppArgs:     "--mount volume=loopcontrol,target=/tmp/loop-control",
-			execArgs:       "--check-mknod=c:5:2:/ptmx",
-			expectedOutput: "mknod /ptmx: succeed",
+			execArgs:       "--check-mknod=c:1:1:/mem",
+			expectedOutput: "mknod /mem: succeed",
 			expectErr:      false,
 		},
 	} {

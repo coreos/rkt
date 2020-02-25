@@ -154,7 +154,8 @@ func cleanupV1Cgroups() error {
 		}
 		return errwrap.Wrap(errors.New("error reading subcgroup file"), err)
 	}
-	subcgroup := string(b)
+	// remove "payload" from subcgroup
+	subcgroup := filepath.Dir(string(b))
 
 	// if we're trying to clean up our own cgroup it means we're running in the
 	// same unit file as the rkt pod. We don't have to do anything, systemd
@@ -189,6 +190,7 @@ func cleanupV1Cgroups() error {
 			mode := info.Mode()
 			if mode.IsDir() {
 				cgroupDirs = append(cgroupDirs, path)
+				cgroupDirs = append(cgroupDirs, filepath.Join(path, "payload"))
 			}
 			return nil
 		}

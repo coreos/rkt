@@ -48,13 +48,10 @@ function semaphoreCIConfiguration {
     DOC_CHANGES=$(git diff-tree --no-commit-id --name-only -r HEAD..${BRANCHING_POINT} | grep -cE ${DOC_CHANGE_PATTERN}) || true
 
     # Set up go environment on Semaphore
-    if [ -f /opt/change-go-version.sh ]; then
-        . /opt/change-go-version.sh
-        change-go-version 1.7
-
-	# systemd v229 doesn't build on gcc-4.8, set the compiler to gcc-5
-        export CC=gcc-5
-    fi
+    VERSION=1.12.6
+    wget "https://storage.googleapis.com/golang/go$VERSION.linux-amd64.tar.gz"
+    sudo tar -C /usr/local -xzf "go$VERSION.linux-amd64.tar.gz"
+    echo "export PATH='$PATH':/usr/local/go/bin:$GOPATH/bin" >> ~/.profile && source ~/.profile
 }
 
 function checkFlavorValue {
@@ -135,10 +132,18 @@ function configure {
                 --enable-insecure-go
         ;;
         host)
-        ./configure --with-stage1-flavors=host \
-                --with-default-stage1-flavor=host \
-                --enable-functional-tests=auto --enable-tpm=auto \
-                --enable-insecure-go
+        # We do not run host tests on SemaphoreCI as the systemd version is too old there.
+        if [ "${SEMAPHORE-}" == true ] ; then
+                ./configure --with-stage1-flavors=host \
+                        --with-default-stage1-flavor=host \
+                        --enable-functional-tests=no --enable-tpm=auto \
+                        --enable-insecure-go
+        else
+                ./configure --with-stage1-flavors="${RKT_STAGE1_USR_FROM}" \
+                        --with-stage1-default-flavor="${RKT_STAGE1_USR_FROM}" \
+                        --enable-functional-tests=auto --enable-tpm=auto \
+                        --enable-insecure-go
+        fi
         ;;
         src)
         ./configure --with-stage1-flavors="${RKT_STAGE1_USR_FROM}" \
