@@ -175,6 +175,8 @@ func (f *Fetcher) fetchSingleImage(db *distBundle, a *asc) (string, error) {
 		return f.fetchSingleImageByName(db, a)
 	case *dist.Docker:
 		return f.fetchSingleImageByDockerURL(v)
+	case *dist.DockerDaemon:
+		return f.fetchSingleImageByDockerDaemonURL(v)
 	default:
 		return "", fmt.Errorf("unknown distribution type %T", v)
 	}
@@ -229,6 +231,14 @@ func (f *Fetcher) fetchSingleImageByDockerURL(d *dist.Docker) (string, error) {
 		return h, err
 	}
 	return "", fmt.Errorf("unable to fetch docker image from URL %q: either image was not found in the store or store was disabled and fetching from remote yielded nothing or it was disabled", u.String())
+}
+
+func (f *Fetcher) fetchSingleImageByDockerDaemonURL(d *dist.DockerDaemon) (string, error) {
+	ddf := &dockerDaemonFetcher{
+		Fetcher:   f,
+		ImageName: d.ReferenceURL(),
+	}
+	return ddf.Hash()
 }
 
 func (f *Fetcher) maybeCheckRemoteFromStore(rem *imagestore.Remote) string {

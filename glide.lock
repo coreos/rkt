@@ -1,5 +1,5 @@
-hash: 1a955b0303fbf7d88c8f32a17036a2ecb48c30ce42ce1771a025445126198986
-updated: 2018-04-13T16:23:44.423828285Z
+hash: 0174e25c1fa2fca76d489475c3bc5780688d66037394c01d97eed342aa369405
+updated: 2018-06-14T23:54:27.072847143+05:30
 imports:
 - name: github.com/appc/docker2aci
   version: 1bfc43596cd2fdca46e9ddb33cfe7d56f87644ab
@@ -138,6 +138,39 @@ imports:
   - digest
   - digestset
   - reference
+- name: github.com/docker/docker
+  version: 89658bed64c2a8fe05a978e5b87dbec409d57a0f
+  subpackages:
+  - api
+  - api/types
+  - api/types/blkiodev
+  - api/types/container
+  - api/types/events
+  - api/types/filters
+  - api/types/image
+  - api/types/mount
+  - api/types/network
+  - api/types/registry
+  - api/types/strslice
+  - api/types/swarm
+  - api/types/time
+  - api/types/versions
+  - api/types/volume
+  - client
+  - pkg/ioutils
+  - pkg/longpath
+  - pkg/system
+  - pkg/tlsconfig
+- name: github.com/docker/go-connections
+  version: 7395e3f8aa162843a74ed6d48e79627d9792ac55
+  subpackages:
+  - nat
+  - sockets
+  - tlsconfig
+- name: github.com/docker/go-units
+  version: 47565b4f722fb6ceae66b95f853feed578a4a51c
+- name: github.com/docker/libtrust
+  version: aabc10ec26b754e797f9028f4589c5b7bd90dc20
 - name: github.com/dustin/go-humanize
   version: c20a8bde38c8f5ba06f6600edf473705c96829d1
 - name: github.com/go-ini/ini
@@ -204,6 +237,8 @@ imports:
   version: cfb55aafdaf3ec08f0db22699ab822c50091b1c4
 - name: github.com/kr/pty
   version: f7ee69f31298ecbe5d2b349c711e2547a617d398
+- name: github.com/Microsoft/go-winio
+  version: ab35fc04b6365e8fcb18e6e9e41ea4a02b10b175
 - name: github.com/opencontainers/go-digest
   version: 21dfd564fd89c944783d00d069f33e3e7123c448
 - name: github.com/opencontainers/image-spec
@@ -220,6 +255,8 @@ imports:
   version: e790cca94e6cc75c7064b1332e63811d4aae1a53
 - name: github.com/peterbourgon/diskv
   version: 937c5a91d7fb1477fa6d2bb71410b2ae7a0f2143
+- name: github.com/pkg/errors
+  version: 645ef00459ed84a119197bfb8d8205042c6df63d
 - name: github.com/PuerkitoBio/purell
   version: 0bcb03f4b4d0a9428594752bd2a3b9aa0a9d4bd4
 - name: github.com/PuerkitoBio/urlesc
@@ -240,6 +277,8 @@ imports:
   version: 3c9377fc6748f222729a8270fe2775d149a249ad
 - name: github.com/shurcooL/sanitized_anchor_name
   version: 10ef21a441db47d8b13ebcc5fd2310f636973c77
+- name: github.com/Sirupsen/logrus
+  version: ea8897e79973357ba785ac2533559a6297e83c44
 - name: github.com/spf13/cobra
   version: 4c05eb1145f16d0e6bb4a3e1b6d769f4713cb41f
   subpackages:
@@ -275,6 +314,7 @@ imports:
   version: 6a513affb38dc9788b449d59ffed099b8de18fa0
   subpackages:
   - context
+  - context/ctxhttp
   - html
   - html/atom
   - http2
@@ -282,13 +322,15 @@ imports:
   - idna
   - internal/timeseries
   - lex/httplex
+  - proxy
   - trace
 - name: golang.org/x/sys
   version: b44883b474ffefa37335017174e397412b633a4f
   subpackages:
   - unix
+  - windows
 - name: golang.org/x/text
-  version: 7922cc490dd5a7dbaa7fd5d6196b49db59ac042f
+  version: b19bf474d317b857955b12035d2c5acb57ce8b01
   subpackages:
   - transform
   - unicode/norm

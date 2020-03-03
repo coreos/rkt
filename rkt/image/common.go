@@ -187,6 +187,20 @@ func DistFromImageString(is string) (dist.Distribution, error) {
 			return nil, fmt.Errorf("docker distribution creation error: %v", err)
 		}
 		return dist, nil
+	case "docker-daemon":
+		dockerDaemonStr := is
+		if strings.HasPrefix(dockerDaemonStr, "docker-daemon://") {
+			dockerDaemonStr = strings.TrimPrefix(dockerDaemonStr, "docker-daemon://")
+		} else if strings.HasPrefix(dockerDaemonStr, "docker-daemon:") {
+			dockerDaemonStr = strings.TrimPrefix(dockerDaemonStr, "docker-daemon:")
+		}
+
+		dist, err := dist.NewDockerDaemonFromString(dockerDaemonStr)
+		if err != nil {
+			return nil, fmt.Errorf("docker-daemon distribution creation error: %v", err)
+		}
+		return dist, nil
+
 	case dist.Scheme: // cimd
 		return dist.Parse(is)
 	default:
