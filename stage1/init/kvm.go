@@ -61,12 +61,9 @@ func mountSharedVolumes(p *stage1commontypes.Pod, ra *schema.RuntimeApp) error {
 		return err
 	}
 
-	imageManifest := p.Images[appName.String()]
-	mounts, err := stage1initcommon.GenerateMounts(ra, p.Manifest.Volumes, stage1initcommon.ConvertedFromDocker(imageManifest))
-	if err != nil {
-		return err
-	}
-	for _, m := range mounts {
+	runtimeMounts := stage1initcommon.NewRuntimeMounts(ra, p)
+
+	return runtimeMounts.MountsFunc(func(m stage1initcommon.Mount) error {
 		absRoot, err := filepath.Abs(p.Root) // Absolute path to the pod's rootfs.
 		if err != nil {
 			return errwrap.Wrap(errors.New("could not get pod's root absolute path"), err)
@@ -95,8 +92,9 @@ func mountSharedVolumes(p *stage1commontypes.Pod, ra *schema.RuntimeApp) error {
 		} else if err := doBindMount(cleanedSource, absDestination, m.ReadOnly, m.Volume.Recursive); err != nil {
 			return errwrap.Wrap(fmt.Errorf("could not bind mount path %v (s: %v, d: %v)", m.Mount.Path, source, absDestination), err)
 		}
-	}
-	return nil
+
+		return nil
+	})
 }
 
 func doBindMount(source, destination string, readOnly bool, recursive *bool) error {

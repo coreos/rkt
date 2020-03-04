@@ -24,7 +24,7 @@ import (
 	"github.com/appc/spec/schema/types"
 )
 
-func TestGenerateMounts(t *testing.T) {
+func TestRuntimeMounts(t *testing.T) {
 	tests := []struct {
 		ra         *schema.RuntimeApp
 		vols       []types.Volume
@@ -178,7 +178,13 @@ func TestGenerateMounts(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		result, err := GenerateMounts(tt.ra, tt.vols, tt.fromDocker)
+		runtimeMounts := RuntimeMounts{
+			Application:    tt.ra,
+			Volumes:        tt.vols,
+			DockerImplicit: tt.fromDocker,
+		}
+
+		result, err := runtimeMounts.Mounts()
 		if (err != nil) != tt.hasErr {
 			t.Errorf("test %d expected error status %t, didn't get it", i, tt.hasErr)
 		}

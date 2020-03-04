@@ -127,8 +127,8 @@ func prepareApp(p *stage1commontypes.Pod, ra *schema.RuntimeApp) (*preparedApp, 
 	}
 
 	// Determine mounts
-	cfd := ConvertedFromDocker(p.Images[ra.Name.String()])
-	pa.mounts, err = GenerateMounts(ra, p.Manifest.Volumes, cfd)
+	runtimeMounts := NewRuntimeMounts(ra, p)
+	pa.mounts, err = runtimeMounts.Mounts()
 	if err != nil {
 		return nil, errwrap.Wrap(errors.New("unable to compute mounts"), err)
 	}

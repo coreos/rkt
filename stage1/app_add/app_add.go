@@ -171,23 +171,17 @@ func addMountsStage0(p *stage1types.Pod, ra *schema.RuntimeApp, enterCmd []strin
 		vols[v.Name] = v
 	}
 
-	imageManifest := p.Images[ra.Name.String()]
-
-	mounts, err := stage1init.GenerateMounts(ra, p.Manifest.Volumes, stage1init.ConvertedFromDocker(imageManifest))
-	if err != nil {
-		return errwrap.Wrapf("could not generate mounts", err)
-	}
-
 	absRoot, err := filepath.Abs(p.Root)
 	if err != nil {
 		return errwrap.Wrapf("could not determine pod's absolute path", err)
 	}
 
 	appRootfs := common.AppRootfsPath(absRoot, ra.Name)
+	runtimeMounts := stage1init.NewRuntimeMounts(ra, p)
 
 	// This logic is mostly copied from appToNspawnArgs
 	// TODO(cdc): deduplicate
-	for _, m := range mounts {
+	return runtimeMounts.MountsFunc(func(m stage1init.Mount) error {
 		shPath := filepath.Join(sharedVolPath, m.Volume.Name.String())
 
 		// Evaluate symlinks within the app's rootfs - otherwise absolute
@@ -206,8 +200,9 @@ func addMountsStage0(p *stage1types.Pod, ra *schema.RuntimeApp, enterCmd []strin
 		if err != nil {
 			return errwrap.Wrap(fmt.Errorf("error adding mount volume %v path %v", m.Mount.Volume, m.Mount.Path), err)
 		}
-	}
-	return nil
+
+		return nil
+	})
 }
 
 // addMountStage1 bind-mounts (moves) the given mount from the host in the container.

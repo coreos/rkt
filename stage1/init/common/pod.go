@@ -467,22 +467,14 @@ func appToNspawnArgs(p *stage1commontypes.Pod, ra *schema.RuntimeApp) ([]string,
 		return nil, err
 	}
 
-	vols := make(map[types.ACName]types.Volume)
-	for _, v := range p.Manifest.Volumes {
-		vols[v.Name] = v
-	}
+	runtimeMounts := NewRuntimeMounts(ra, p)
 
-	imageManifest := p.Images[appName.String()]
-	mounts, err := GenerateMounts(ra, p.Manifest.Volumes, ConvertedFromDocker(imageManifest))
-	if err != nil {
-		return nil, errwrap.Wrap(fmt.Errorf("could not generate app %q mounts", appName), err)
-	}
-	for _, m := range mounts {
+	err = runtimeMounts.MountsFunc(func(m Mount) error {
 		shPath := filepath.Join(sharedVolPath, m.Volume.Name.String())
 
 		absRoot, err := filepath.Abs(p.Root) // Absolute path to the pod's rootfs.
 		if err != nil {
-			return nil, errwrap.Wrap(errors.New("could not get pod's root absolute path"), err)
+			return errwrap.Wrap(errors.New("could not get pod's root absolute path"), err)
 		}
 
 		appRootfs := common.AppRootfsPath(absRoot, appName)
@@ -493,12 +485,12 @@ func appToNspawnArgs(p *stage1commontypes.Pod, ra *schema.RuntimeApp) ([]string,
 		// When the above issue is fixed, we can pass the un-evaluated path to --bind instead.
 		mntPath, err := EvaluateSymlinksInsideApp(appRootfs, m.Mount.Path)
 		if err != nil {
-			return nil, errwrap.Wrap(fmt.Errorf("could not evaluate path %v", m.Mount.Path), err)
+			return errwrap.Wrap(fmt.Errorf("could not evaluate path %v", m.Mount.Path), err)
 		}
 		mntAbsPath := filepath.Join(appRootfs, mntPath)
 
 		if err := PrepareMountpoints(shPath, mntAbsPath, &m.Volume, m.DockerImplicit); err != nil {
-			return nil, err
+			return err
 		}
 
 		opt := make([]string, 6)
@@ -527,6 +519,11 @@ func appToNspawnArgs(p *stage1commontypes.Pod, ra *schema.RuntimeApp) ([]string,
 			opt[5] = "norbind"
 		}
 		args = append(args, strings.Join(opt, ""))
+		return nil
+	})
+
+	if err != nil {
+		return nil, errwrap.Wrap(fmt.Errorf("could not generate app %q mounts", appName), err)
 	}
 
 	if !p.InsecureOptions.DisableCapabilities {
