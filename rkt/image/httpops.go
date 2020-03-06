@@ -38,7 +38,7 @@ type httpOps struct {
 }
 
 // DownloadSignature takes an asc instance and tries to get the
-// signature. If the remote server asked to to defer the download,
+// signature. If the remote server asked to defer the download,
 // this function will return true and no error and no file.
 func (o *httpOps) DownloadSignature(a *asc) (readSeekCloser, bool, error) {
 	ensureLogger(o.Debug)

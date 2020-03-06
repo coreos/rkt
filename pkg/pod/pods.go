@@ -183,7 +183,7 @@ func NewPod(dataDir string) (*Pod, error) {
 		return nil, err
 	}
 
-	// At this point we we have:
+	// At this point we have:
 	// /var/lib/rkt/pods/prepare/$uuid << exclusively locked to indicate "preparing"
 
 	return p, nil
