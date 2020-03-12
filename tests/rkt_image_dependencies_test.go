@@ -185,6 +185,11 @@ func generateComplexDependencyTree(t *testing.T, ctx *testutils.RktRunCtx) (map[
 // mechanism. This is to reproduce the scenario in explained in:
 // https://github.com/rkt/rkt/issues/1752#issue-117121841
 func TestImageDependencies(t *testing.T) {
+	// Flake: https://github.com/rkt/rkt/issues/3995
+	if os.Getenv("SEMAPHORE") == "true" {
+		t.Skip("skipped on semaphore")
+	}
+
 	ctx := testutils.NewRktRunCtx()
 	defer ctx.Cleanup()
 

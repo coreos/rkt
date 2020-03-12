@@ -239,6 +239,11 @@ func testFetchUpdate(t *testing.T, args string, image string, imageArgs string, 
 }
 
 func TestFetchNoStoreCacheControl(t *testing.T) {
+	// Flake: https://github.com/rkt/rkt/issues/3995
+	if os.Getenv("SEMAPHORE") == "true" {
+		t.Skip("skipped on semaphore")
+	}
+
 	imageName := "rkt-inspect-fetch-nostore-cachecontrol"
 	imageFileName := fmt.Sprintf("%s.aci", imageName)
 	// no spaces between words, because of an actool limitation
@@ -504,6 +509,11 @@ func testSimpleServerHandler(t *testing.T, imagePath string) http.HandlerFunc {
 }
 
 func TestDeferredSignatureDownload(t *testing.T) {
+	// Flake: https://github.com/rkt/rkt/issues/3995
+	if os.Getenv("SEMAPHORE") == "true" {
+		t.Skip("skipped on semaphore")
+	}
+
 	imageName := "localhost/rkt-inspect-deferred-signature-download"
 	imageFileName := fmt.Sprintf("%s.aci", filepath.Base(imageName))
 	// no spaces between words, because of an actool limitation
@@ -552,6 +562,11 @@ func TestDeferredSignatureDownload(t *testing.T) {
 }
 
 func TestDifferentDiscoveryLabels(t *testing.T) {
+	// Flake: https://github.com/rkt/rkt/issues/3995
+	if os.Getenv("SEMAPHORE") == "true" {
+		t.Skip("skipped on semaphore")
+	}
+
 	const imageName = "localhost/rkt-test-different-discovery-labels-image"
 
 	aci_os, aci_arch := common.GetOSArch()
