@@ -179,7 +179,7 @@ func portRules(fp commonnet.ForwardedPort, podIP net.IP, chainDNAT, chainSNAT st
 			chainSNAT,
 			[]string{
 				"-p", fp.PodPort.Protocol,
-				"-s", "127.0.0.1",
+				"-s", dstIPHost,
 				"-d", podIP.String(),
 				"--dport", dstPortPod,
 				"-j", "MASQUERADE",
@@ -233,7 +233,7 @@ func (e *podEnv) portFwdChain(name string) string {
 func (e *podEnv) portFwdChainRuleSpec(chain string, name string) []string {
 	switch name {
 	case "SNAT":
-		return []string{"-s", "127.0.0.1", "!", "-d", "127.0.0.1", "-j", chain}
+		return []string{"!", "-d", "127.0.0.1", "-j", chain}
 	case "DNAT":
 		return []string{"-m", "addrtype", "--dst-type", "LOCAL", "-j", chain}
 	default:
