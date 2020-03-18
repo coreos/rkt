@@ -62,6 +62,7 @@ func TryExclusiveLock(path string, lockType LockType) (*FileLock, error) {
 	}
 	err = l.TryExclusiveLock()
 	if err != nil {
+		l.Close()
 		return nil, err
 	}
 	return l, err
@@ -79,10 +80,12 @@ func (l *FileLock) ExclusiveLock() error {
 // It will block if an exclusive lock is already held on the file/directory.
 func ExclusiveLock(path string, lockType LockType) (*FileLock, error) {
 	l, err := NewLock(path, lockType)
-	if err == nil {
-		err = l.ExclusiveLock()
-	}
 	if err != nil {
+		return nil, err
+	}
+	err = l.ExclusiveLock()
+	if err != nil {
+		l.Close()
 		return nil, err
 	}
 	return l, nil
@@ -109,6 +112,7 @@ func TrySharedLock(path string, lockType LockType) (*FileLock, error) {
 	}
 	err = l.TrySharedLock()
 	if err != nil {
+		l.Close()
 		return nil, err
 	}
 	return l, nil
@@ -131,6 +135,7 @@ func SharedLock(path string, lockType LockType) (*FileLock, error) {
 	}
 	err = l.SharedLock()
 	if err != nil {
+		l.Close()
 		return nil, err
 	}
 	return l, nil
@@ -157,7 +162,9 @@ func (l *FileLock) Close() error {
 	return syscall.Close(fd)
 }
 
-// NewLock opens a new lock on a file without acquisition
+// NewLock opens a new lock on a file without acquisition. Consumers
+// are responsible for calling close on FileLock after they are done
+// with it.
 func NewLock(path string, lockType LockType) (*FileLock, error) {
 	l := &FileLock{path: path, fd: -1}
 
@@ -179,10 +186,12 @@ func NewLock(path string, lockType LockType) (*FileLock, error) {
 	var stat syscall.Stat_t
 	err = syscall.Fstat(lfd, &stat)
 	if err != nil {
+		l.Close()
 		return nil, err
 	}
 	// Check if the file is a regular file
 	if lockType == RegFile && !(stat.Mode&syscall.S_IFMT == syscall.S_IFREG) {
+		l.Close()
 		return nil, ErrNotRegular
 	}
 
