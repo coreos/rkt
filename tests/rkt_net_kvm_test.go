@@ -29,6 +29,14 @@ func TestNetCustomPtp(t *testing.T) {
 	NewNetCustomPtpTest(false)
 }
 
+func TestNetCustomMacvlan(t *testing.T) {
+	NewNetCustomMacvlanTest().Execute(t)
+}
+
+func TestNetCustomBridge(t *testing.T) {
+	NewNetCustomBridgeTest().Execute(t)
+}
+
 func TestNetDefaultNetNS(t *testing.T) {
 	NewTestNetDefaultNetNS().Execute(t)
 }
@@ -47,4 +55,16 @@ func TestNetPreserveNetName(t *testing.T) {
 
 func TestNetDefaultGW(t *testing.T) {
 	NewNetDefaultGWTest().Execute(t)
+}
+
+func TestNetOverride(t *testing.T) {
+	NewNetOverrideTest().Execute(t)
+}
+
+func TestNetDefaultIPArg(t *testing.T) {
+	NewNetDefaultIPArgTest().Execute(t)
+}
+
+func TestNetIPConflict(t *testing.T) {
+	NewNetIPConflictTest().Execute(t)
 }
