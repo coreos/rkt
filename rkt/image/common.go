@@ -165,13 +165,16 @@ func DistFromImageString(is string) (dist.Distribution, error) {
 			return nil, fmt.Errorf("invalid image string type %q", appImageType)
 		}
 	case "file", "http", "https":
+		extension := filepath.Ext(u.Path)
 		// An ACI archive with any transport type (file, http, s3 etc...) and final aci extension
-		if filepath.Ext(u.Path) == schema.ACIExtension {
-			dist, err := dist.NewACIArchiveFromTransportURL(u)
+		if extension == schema.ACIExtension {
+			dis, err := dist.NewACIArchiveFromTransportURL(u)
 			if err != nil {
 				return nil, fmt.Errorf("archive distribution creation error: %v", err)
+			} else if dist.OCIArchiveExtensions[extension] {
+				dis, err = dist.NewOCILayoutFromTransport(u)
 			}
-			return dist, nil
+			return dis, nil
 		}
 	case "docker":
 		// Accept both docker: and docker:// uri
