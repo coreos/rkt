@@ -47,6 +47,11 @@ function semaphoreCIConfiguration {
     SRC_CHANGES=$(git diff-tree --no-commit-id --name-only -r HEAD..${BRANCHING_POINT} | grep -cEv ${DOC_CHANGE_PATTERN}) || true
     DOC_CHANGES=$(git diff-tree --no-commit-id --name-only -r HEAD..${BRANCHING_POINT} | grep -cE ${DOC_CHANGE_PATTERN}) || true
 
+    # semaphore's ubuntu 14.04 environment doesn't reliably have / as a shared
+    # mount. rkt's "app sandbox" tests require the datadir to be in a shared
+    # mount.
+    sudo mount --make-shared /
+
     # Set up go environment on Semaphore
     if [ -f /opt/change-go-version.sh ]; then
         . /opt/change-go-version.sh

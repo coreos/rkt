@@ -29,10 +29,6 @@ func TestNetCustomPtp(t *testing.T) {
 	NewNetCustomPtpTest(false)
 }
 
-func TestNetDefaultNetNS(t *testing.T) {
-	NewTestNetDefaultNetNS().Execute(t)
-}
-
 func TestNetLongName(t *testing.T) {
 	NewTestNetLongName().Execute(t)
 }

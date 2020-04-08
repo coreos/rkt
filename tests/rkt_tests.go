@@ -62,7 +62,7 @@ func expectCommon(p *gexpect.ExpectSubprocess, searchString string, timeout time
 		err = p.ExpectTimeout(searchString, timeout)
 	}
 	if err != nil {
-		return fmt.Errorf(string(p.Collect()))
+		return fmt.Errorf("error matching output: %v: remainder: %v", err, string(p.Collect()))
 	}
 
 	return nil
