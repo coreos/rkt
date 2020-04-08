@@ -1,0 +1,9 @@
+{
+	"rktKind": "dockerAuth",
+	"rktVersion": "v1",
+	"registries": ["registry-1.docker.io", "quay.io"],
+	"credentials": {
+		"user": "foo",
+		"password": "bar"
+	}
+}

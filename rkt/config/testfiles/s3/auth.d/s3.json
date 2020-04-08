@@ -1,0 +1,11 @@
+{
+  "rktKind": "auth",
+  "rktVersion": "v1",
+  "domains": ["my-s3-bucket.s3.amazonaws.com"],
+  "type": "aws",
+  "credentials": {
+    "accessKeyID": "foo",
+    "secretAccessKey": "bar",
+    "awsRegion": "us-east-1"
+  }
+}

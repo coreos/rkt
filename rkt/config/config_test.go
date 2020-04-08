@@ -321,3 +321,24 @@ func writeBasicConfig(path, domain, user, pass string) error {
 	}
 	return ioutil.WriteFile(path, raw, 0600)
 }
+
+// TestFiles loads the fixtures in 'testfiles' and makes sure each can be
+// parsed as a valid config without panicing.
+func TestFiles(t *testing.T) {
+	dirs, err := ioutil.ReadDir("./testfiles")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range dirs {
+		if !dir.IsDir() {
+			continue
+		}
+
+		t.Run("fixture-"+filepath.Base(dir.Name()), func(t *testing.T) {
+			_, err := GetConfigFrom(filepath.Join("testfiles", dir.Name()))
+			if err != nil {
+				t.Errorf("error getting config: %v", err)
+			}
+		})
+	}
+}

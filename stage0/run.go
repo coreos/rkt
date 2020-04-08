@@ -983,5 +983,11 @@ func prepareOverlay(lower, treeStoreID, cdir, dest, appName, lbl string,
 		return nil, err
 	}
 
-	return &overlay.MountCfg{lower, upper, work, dst, lbl}, nil
+	return &overlay.MountCfg{
+		Lower: lower,
+		Upper: upper,
+		Work:  work,
+		Dest:  dst,
+		Lbl:   lbl,
+	}, nil
 }

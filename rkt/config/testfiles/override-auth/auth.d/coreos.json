@@ -1,0 +1,10 @@
+{
+	"rktKind": "auth",
+	"rktVersion": "v1",
+	"domains": ["coreos.com"],
+	"type": "basic",
+	"credentials": {
+		"user": "foo",
+		"password": "bar"
+	}
+}

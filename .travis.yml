@@ -5,10 +5,8 @@ sudo: required
 dist: trusty
 
 go:
-  - 1.6.x
-  - 1.7.x
-  - 1.8.x
   - 1.9.x
+  - 1.10.x
 
 env:
   - TARGET=amd64 GIMME_ARCH=amd64

@@ -1,0 +1,9 @@
+{
+	"rktKind": "auth",
+	"rktVersion": "v1",
+	"domains": ["tectonic.com"],
+	"type": "oauth",
+	"credentials": {
+		"token": "tectonic-token"
+	}
+}
