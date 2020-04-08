@@ -34,7 +34,6 @@ Name-Email: carly@example.com
 Expire-Date: 0
 Passphrase: rkt
 %pubring rkt.pub
-%secring rkt.sec
 %commit
 %echo done
 ```
@@ -43,6 +42,14 @@ Passphrase: rkt
 
 ```
 $ gpg --batch --gen-key gpg-batch
+```
+
+#### Export the public key
+
+```
+$ gpg --no-default-keyring \
+--keyring ./rkt.pub \
+--export-secret-keys carly@example.com > rkt.sec
 ```
 
 #### List the keys
