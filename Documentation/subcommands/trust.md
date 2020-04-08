@@ -91,6 +91,7 @@ $ find /etc/rkt/trustedkeys/
 | `--prefix` |  `` | A URL prefix | Prefix to limit trust to |
 | `--root` |  `false` | `true` or `false` | Add root key from filesystem without a prefix |
 | `--skip-fingerprint-review` |  `false` | `true` or `false` | Accept key without fingerprint confirmation |
+| `--skip-trusted` | `true` | `true` or `false` | Skip previously downloaded and trusted pubkeys |
 
 ## Global options
 

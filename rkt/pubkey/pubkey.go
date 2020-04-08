@@ -88,7 +88,7 @@ func (m *Manager) GetPubKeyLocations(prefix string) ([]string, error) {
 }
 
 // AddKeys adds the keys listed in pkls at prefix
-func (m *Manager) AddKeys(pkls []string, prefix string, accept AcceptOption) error {
+func (m *Manager) AddKeys(pkls []string, prefix string, accept AcceptOption, skipTrusted bool) error {
 	ensureLogger(m.Debug)
 	if m.Ks == nil {
 		return fmt.Errorf("no keystore available to add keys to")
@@ -108,6 +108,18 @@ func (m *Manager) AddKeys(pkls []string, prefix string, accept AcceptOption) err
 		err = displayKey(prefix, pkl, pk)
 		if err != nil {
 			return errwrap.Wrap(fmt.Errorf("error displaying the key %s", pkl), err)
+		}
+
+		if skipTrusted {
+			trusted, err := m.Ks.TrustedKeyPrefixExists(prefix)
+			if err != nil {
+				return errwrap.Wrap(fmt.Errorf("error in determining if key %s is trusted", pkl), err)
+			}
+
+			if trusted {
+				log.Printf("Already trusted %q for prefix %q.\n", pkl, prefix)
+				continue
+			}
 		}
 
 		if m.TrustKeysFromHTTPS && u.Scheme == "https" {
