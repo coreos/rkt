@@ -19,6 +19,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"testing"
 
 	"github.com/rkt/rkt/tests/testutils"
@@ -50,5 +51,36 @@ func TestFlyNetns(t *testing.T) {
 
 	if nsChanged := ns != result[1]; nsChanged {
 		t.Fatalf("container left host netns")
+	}
+}
+
+func printMountCount(t *testing.T) {
+	out, err := exec.Command("/bin/sh", "-c", "mount | wc -l").Output()
+	if err != nil {
+		t.Fatalf("Error: %s", err)
+	}
+	t.Logf("Mounts: %s\n", out)
+
+}
+
+func TestFlyVolumeVar(t *testing.T) {
+	testImage := patchTestACI("rkt-fly-volume-var.aci", "--exec=/inspect")
+	defer os.Remove(testImage)
+
+	ctx := testutils.NewRktRunCtx()
+	defer ctx.Cleanup()
+
+	printMountCount(t)
+
+	// Use /var if you are trying manually.
+	volumeDir := ctx.DataDir()
+
+	for i := 0; i < 6; i++ {
+		cmd := fmt.Sprintf("%s --insecure-options=image run --volume host-var,kind=host,source=%s --mount volume=host-var,target=/myvolume %s",
+			ctx.Cmd(), volumeDir, testImage)
+		child := spawnOrFail(t, cmd)
+		waitOrFail(t, child, 0)
+
+		printMountCount(t)
 	}
 }
