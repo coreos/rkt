@@ -1,0 +1,55 @@
+name: rkt
+summary:  a CLI for running application containers on Linux.
+description:| rkt is a pod-native container engine for Linux. It is composable, secure, and built on standards. 
+  
+adopt-info: rkt
+
+grade: stable
+confinement: classic
+
+architectures:
+  - build-on: i386
+  - build-on: amd64
+  - build-on: armhf
+  - build-on: arm64
+
+apps:
+  rkt:
+    command: bin/rkt
+    plugs:
+      - home
+      - network
+      - docker
+      - removable-media
+
+parts:
+  rkt:
+  plugin: nil 
+    source: https://github.com/rkt/rkt.git
+    source-type: git
+    override-pull: |
+      git clone https://github.com/rkt/rkt.git src/github.com/rkt/rkt
+       cd src/github.com/rkt/rkt
+      last_committed_tag="$(git describe --tags --abbrev=0)"
+      last_committed_tag_ver="$(echo ${last_committed_tag} | sed 's/v//')"
+      last_released_tag="$(snap info $SNAPCRAFT_PROJECT_NAME | awk '$1 == "beta:" { print $2 }')"
+      # If the latest tag from the upstream project has not been released to
+      # beta, build that tag instead of master.
+      if [ "${last_committed_tag_ver}" != "${last_released_tag}" ]; then
+        git fetch
+        git checkout "${last_committed_tag}"
+      fi
+      snapcraftctl set-version "$(git describe --tags | sed 's/v//')"
+      override-build: |
+      export GOPATH=$PWD
+      cd src/github.com/rkt/rkt
+      env CGO_ENABLED=0 GOOS=linux \
+      go build --ldflags "-s -w \
+        -X 'github.com/rkt/rkt/version.GitCommit=$(git rev-list -1 HEAD)' \
+        -X 'github.com/rkt/rkt/version.Version=$(git describe --tags --abbrev=0)'" \
+        -a -installsuffix cgo -o $SNAPCRAFT_PART_INSTALL/bin/rkt
+    build-snaps:
+      - go
+    build-packages:
+      - git
+      - sed
