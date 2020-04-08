@@ -175,6 +175,8 @@ func (f *Fetcher) fetchSingleImage(db *distBundle, a *asc) (string, error) {
 		return f.fetchSingleImageByName(db, a)
 	case *dist.Docker:
 		return f.fetchSingleImageByDockerURL(v)
+	case *dist.DockerArchive:
+		return f.fetchDockerArchive(v)
 	default:
 		return "", fmt.Errorf("unknown distribution type %T", v)
 	}
@@ -361,4 +363,13 @@ func (f *Fetcher) maybeFetchImageFromRemote(db *distBundle, a *asc) (string, err
 		return nf.Hash(app, a)
 	}
 	return "", nil
+}
+
+func (f *Fetcher) fetchDockerArchive(a *dist.DockerArchive) (string, error) {
+	ff := &dockerArchiveFetcher{
+		InsecureFlags: f.InsecureFlags,
+		S:             f.S,
+		Debug:         f.Debug,
+	}
+	return ff.Hash(a.String())
 }

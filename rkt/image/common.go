@@ -46,6 +46,8 @@ const (
 	PullPolicyNever  = "never"
 	PullPolicyNew    = "new"
 	PullPolicyUpdate = "update"
+
+	dockerTarExtension = ".tar"
 )
 
 // action is a common type for Finder and Fetcher
@@ -143,7 +145,7 @@ func DistFromImageString(is string) (dist.Distribution, error) {
 	switch u.Scheme {
 	case "":
 		// no scheme given, hence it is an appc image name or path
-		appImageType := guessAppcOrPath(is, []string{schema.ACIExtension})
+		appImageType := guessImageOrPath(is, []string{schema.ACIExtension})
 
 		switch appImageType {
 		case imageStringName:
@@ -182,11 +184,32 @@ func DistFromImageString(is string) (dist.Distribution, error) {
 			dockerStr = strings.TrimPrefix(dockerStr, "docker:")
 		}
 
-		dist, err := dist.NewDockerFromString(dockerStr)
-		if err != nil {
-			return nil, fmt.Errorf("docker distribution creation error: %v", err)
+		dockerStrType := guessImageOrPath(dockerStr, []string{dockerTarExtension})
+
+		switch dockerStrType {
+		case imageStringName:
+			dist, err := dist.NewDockerFromString(dockerStr)
+			if err != nil {
+				return nil, fmt.Errorf("docker distribution creation error: %v", err)
+			}
+
+			return dist, nil
+
+		case imageStringPath:
+			absPath, err := filepath.Abs(dockerStr)
+			if err != nil {
+				return nil, errwrap.Wrap(fmt.Errorf("failed to get an absolute path for %q", is), err)
+			}
+			is = "file://" + absPath
+
+			dist, err := dist.NewDockerArchiveFromString(is)
+			if err != nil {
+				return nil, fmt.Errorf("docker distribution creation error: %v", err)
+			}
+
+			return dist, nil
 		}
-		return dist, nil
+
 	case dist.Scheme: // cimd
 		return dist.Parse(is)
 	default:
@@ -202,7 +225,7 @@ func DistFromImageString(is string) (dist.Distribution, error) {
 	return nil, fmt.Errorf("invalid image string %q", is)
 }
 
-func guessAppcOrPath(is string, extensions []string) imageStringType {
+func guessImageOrPath(is string, extensions []string) imageStringType {
 	if filepath.IsAbs(is) {
 		return imageStringPath
 	}

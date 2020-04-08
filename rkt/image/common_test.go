@@ -24,7 +24,7 @@ import (
 	dist "github.com/rkt/rkt/pkg/distribution"
 )
 
-func TestGuessAppcOrPath(t *testing.T) {
+func TestGuessImageOrPath(t *testing.T) {
 	tests := []struct {
 		image        string
 		expectedType imageStringType
@@ -66,7 +66,52 @@ func TestGuessAppcOrPath(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		guessed := guessAppcOrPath(tt.image, []string{".aci"})
+		guessed := guessImageOrPath(tt.image, []string{".aci"})
+		if tt.expectedType != guessed {
+			t.Errorf("expected %q to be guessed as %q, but got %q", tt.image, imageTypeToString(tt.expectedType), imageTypeToString(guessed))
+		}
+	}
+}
+
+func TestGuessDockerOrPath(t *testing.T) {
+	tests := []struct {
+		image        string
+		expectedType imageStringType
+	}{
+		// guess stuff ending with .tar as a path
+		{
+			image:        "some/relative/path/with/tar/extension.tar",
+			expectedType: imageStringPath,
+		},
+		// guess stuff starting with ./ as a path
+		{
+			image:        "./another/relative/path/with/tar/extension.tar",
+			expectedType: imageStringPath,
+		},
+		// guess absolute path ending with .tar as a path
+		{
+			image:        "/home/user/some/path/with/tar/extension.tar",
+			expectedType: imageStringPath,
+		},
+		// guess only docker image name as name
+		{
+			image:        "busybox",
+			expectedType: imageStringName,
+		},
+		// guess docker image name with version as name
+		{
+			image:        "busybox:1.0",
+			expectedType: imageStringName,
+		},
+		// guess docker registry url with image name as name
+		{
+			image:        "myregistry.example.com:4000/busybox",
+			expectedType: imageStringName,
+		},
+	}
+
+	for _, tt := range tests {
+		guessed := guessImageOrPath(tt.image, []string{".tar"})
 		if tt.expectedType != guessed {
 			t.Errorf("expected %q to be guessed as %q, but got %q", tt.image, imageTypeToString(tt.expectedType), imageTypeToString(guessed))
 		}
@@ -175,6 +220,11 @@ func TestDistFromImageString(t *testing.T) {
 	}
 	relPath2 := "some/relative/../path/with/dots/file"
 	absPath2, err := filepath.Abs(relPath2)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	relPath3 := "docker://some/relative/../path/with/dots/busybox.tar"
+	absPath3, err := filepath.Abs("some/relative/../path/with/dots/busybox.tar")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -296,6 +346,17 @@ func TestDistFromImageString(t *testing.T) {
 		{
 			"docker:myregistry.example.com:4000/busybox:1.0",
 			"cimd:docker:v=0:myregistry.example.com:4000/busybox:1.0",
+			nil,
+		},
+		// DockerArchive
+		{
+			"docker:///absolute/path/to/docker.tar",
+			"cimd:docker-archive:v=0:file%3A%2F%2F%2Fabsolute%2Fpath%2Fto%2Fdocker.tar",
+			nil,
+		},
+		{
+			relPath3,
+			"cimd:docker-archive:v=0:" + url.QueryEscape("file://"+absPath3),
 			nil,
 		},
 	}
