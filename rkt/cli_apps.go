@@ -17,6 +17,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -934,4 +935,36 @@ func (au *appStderr) String() string {
 
 func (au *appStderr) Type() string {
 	return "appStderr"
+}
+
+// appExpose is for --expose flags in the form of: --expose=query,protocol=tcp,port=8080,count=1,socketActivated=true
+type appExpose apps.Apps
+
+func (ae *appExpose) Set(s string) error {
+	port, err := types.PortFromString(s)
+	if err != nil {
+		return err
+	}
+	if port.Protocol == "" {
+		port.Protocol = "tcp"
+	}
+	app := (*apps.Apps)(ae).Last()
+	if app == nil {
+		return fmt.Errorf("--expose must follow an application")
+	}
+	app.Ports = append(app.Ports, *port)
+	return nil
+}
+
+func (ae *appExpose) String() string {
+	app := (*apps.Apps)(ae).Last()
+	if app == nil {
+		return ""
+	}
+	bs, _ := json.Marshal(app.Ports)
+	return string(bs)
+}
+
+func (ae *appExpose) Type() string {
+	return "appExpose"
 }

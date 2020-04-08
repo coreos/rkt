@@ -177,6 +177,24 @@ func MergeMounts(mounts []schema.Mount, appMounts []schema.Mount) []schema.Mount
 	return deduplicateMPs(ml)
 }
 
+// MergePorts merges two port lists
+func MergePorts(a, b []types.Port) []types.Port {
+	m := make(map[types.ACName]types.Port)
+	for _, port := range a {
+		m[port.Name] = port
+	}
+	for _, port := range b {
+		m[port.Name] = port
+	}
+	res := make([]types.Port, len(m))
+	i := 0
+	for _, port := range m {
+		res[i] = port
+		i++
+	}
+	return res
+}
+
 // generatePodManifest creates the pod manifest from the command line input.
 // It returns the pod manifest as []byte on success.
 // This is invoked if no pod manifest is specified at the command line.

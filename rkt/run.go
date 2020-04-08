@@ -105,6 +105,7 @@ func addAppFlags(cmd *cobra.Command) {
 	cmd.Flags().Var((*appWorkingDir)(&rktApps), "working-dir", "override the working directory of the preceding image")
 	cmd.Flags().Var((*appReadOnlyRootFS)(&rktApps), "readonly-rootfs", "if set, the app's rootfs will be mounted read-only")
 	cmd.Flags().Var((*appMount)(&rktApps), "mount", "mount point binding a volume to a path within an app")
+	cmd.Flags().Var((*appExpose)(&rktApps), "expose", "expose ports of the application (example: '--expose=http,protocol=tcp,port=8080')")
 	cmd.Flags().Var((*appUser)(&rktApps), "user", "user override for the preceding image (example: '--user=user')")
 	cmd.Flags().Var((*appGroup)(&rktApps), "group", "group override for the preceding image (example: '--group=group')")
 	cmd.Flags().Var((*appSupplementaryGIDs)(&rktApps), "supplementary-gids", "supplementary group IDs override for the preceding image (examples: '--supplementary-gids=1024,2048'")
@@ -339,7 +340,6 @@ func runRun(cmd *cobra.Command, args []string) (exit int) {
 		pcfg.EnvFromFile = flagEnvFromFile.Strings()
 		pcfg.Apps = &rktApps
 	}
-
 	if globalFlags.Debug {
 		stage0.InitDebug()
 	}

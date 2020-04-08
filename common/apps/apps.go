@@ -54,6 +54,7 @@ type App struct {
 	WorkingDir        string                            // working directory override for image
 	ReadOnlyRootFS    bool                              // read-only rootfs override.
 	Mounts            []schema.Mount                    // mounts for this app (superseding any mounts in rktApps.mounts of same MountPoint)
+	Ports             []types.Port                      // ports for this app to be exposed
 	MemoryLimit       *types.ResourceMemory             // memory isolator override
 	CPULimit          *types.ResourceCPU                // cpu isolator override
 	CPUShares         *types.LinuxCPUShares             // cpu-shares isolator override
