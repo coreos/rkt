@@ -122,3 +122,21 @@ gofmt -s -w file.go
 [rkt-hacking]: ../hacking.md
 [rkt-dependencies]: ../dependencies.md
 [rkt-tests-readme]: ../../tests/README.md
+
+# Developing rkt on Mac or Windows
+
+In order to develop rkt in non-Linux based operating systems, you can use the provided vagrant `dev` box configuration. 
+In order to launch the dev box use the following commands:
+
+```sh
+go get github.com/coreos/rkt
+export RKT_PATH=$GOPATH/src/github.com/coreos/rkt
+cd $RKT_PATH
+vagrant up dev
+vagrant rsync-auto # watches the filesystem for source code changes to propagate them to the dev box
+```
+
+After the vagrant box setup is complete, your changes to the rkt repository will be mirrored inside the dev box. 
+Use another shell to connect to the dev box (`vagrant ssh dev`).
+
+**Note:** An e2e build & test of rkt requires 4GB memory.

@@ -43,10 +43,10 @@ First, download the `Vagrantfile` and start a Linux machine with rkt installed b
 ```
 git clone https://github.com/rkt/rkt
 cd rkt
-vagrant up
+vagrant up rkt
 ```
 
-### Vagrant on Linux
+### Vagrant on Linux with libvirt
 
 To use Vagrant on a Linux machine, you may want to use libvirt as a VMM instead of VirtualBox. To do so, install the necessary plugins, convert the box, and start the machine using the `libvirt` provider:
 
@@ -59,13 +59,13 @@ vagrant up --provider=libvirt
 
 ### Accessing the Vagrant VM and running rkt
 
-With a subsequent `vagrant ssh` you will have access to run rkt:
+With a subsequent `vagrant ssh rkt` you will have access to run rkt:
 
 If you are running an outdated version of VirtualBox, it may be that SSH asks for a password. You can find the password for the `ubuntu` user in `~/.vagrant.d/boxes/ubuntu-VAGRANTSLASH-xenial64/[DATE]/virtualbox/Vagrantfile`
 under `config.ssh.password`.
 
 ```
-vagrant ssh
+vagrant ssh rkt
 rkt --help
 ```
 

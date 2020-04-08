@@ -79,3 +79,6 @@ systemd-tmpfiles --create /usr/lib/tmpfiles.d/rkt.conf
 EOF
 
 checkinstall -y --pkgname=rkt --pkgversion="${version}" ./install-pak
+
+usermod -a -G rkt-admin ubuntu
+usermod -a -G rkt ubuntu
