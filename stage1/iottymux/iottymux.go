@@ -77,6 +77,12 @@ type Targets struct {
 	Targets []Endpoint `json:"targets"`
 }
 
+type JSONLog struct {
+	Time    string `json:"time"`
+	Message string `json:"log,omitempty"`
+	Stream  string `json:"stream,omitempty"`
+}
+
 // iottymux is a multi-action binary which can be used for:
 //  * creating and muxing a TTY for an application
 //  * proxying streams for an application (stdin/stdout/stderr) over TCP
@@ -407,6 +413,7 @@ func actionIOMux(statusFile string) error {
 	// TODO(lucab): finalize custom logging modes
 	logMode := os.Getenv("STAGE1_LOGMODE")
 	var logFile *os.File
+	var format func(time string, line []byte, stream string) []byte
 	switch logMode {
 	case "k8s-plain":
 		var err error
@@ -428,6 +435,39 @@ func actionIOMux(statusFile string) error {
 			return err
 		}
 		defer logFile.Close()
+
+		format = func(timestamp string, line []byte, stream string) []byte {
+			return []byte(fmt.Sprintf("%s %s %s", timestamp, stream, line))
+		}
+
+	case "json-file":
+		var err error
+
+		logFileName := os.Getenv("JSON_LOG_FILE")
+		logFullPath := filepath.Clean(filepath.Join("/rkt/json/log", logFileName))
+
+		match, err := filepath.Match("/rkt/json/log/*", logFullPath)
+		if err != nil {
+			return fmt.Errorf("couldn't analyze the full log path %s: %s", logFullPath, err)
+		} else if !match {
+			return fmt.Errorf("log path is not inside /rkt/json/log, refusing path traversal")
+		}
+
+		logFile, err = os.OpenFile(logFullPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
+		if err != nil {
+			return err
+		}
+		defer logFile.Close()
+
+		format = func(timestamp string, line []byte, stream string) []byte {
+			result, err := json.Marshal(JSONLog{Time: timestamp, Stream: stream, Message: string(line)})
+			if err != nil {
+				diag.PrintE("Could not convert log line to JSON: %s", err)
+			}
+			result = append(result, '\n')
+			return result
+		}
+
 	}
 
 	// proxy stdin
@@ -444,7 +484,7 @@ func actionIOMux(statusFile string) error {
 		lines := make(chan []byte)
 		go bufferLine(streams[1].fifo, lines, c)
 		go acceptConn(streams[1].listener, clients, "stdout")
-		go muxOutput("stdout", lines, clients, localTargets)
+		go muxOutput("stdout", lines, clients, localTargets, format)
 		if logFile != nil {
 			localTargets <- logFile
 		}
@@ -457,7 +497,7 @@ func actionIOMux(statusFile string) error {
 		lines := make(chan []byte)
 		go bufferLine(streams[2].fifo, lines, c)
 		go acceptConn(streams[2].listener, clients, "stderr")
-		go muxOutput("stderr", lines, clients, localTargets)
+		go muxOutput("stderr", lines, clients, localTargets, format)
 		if logFile != nil {
 			localTargets <- logFile
 		}
@@ -582,7 +622,7 @@ func bufferInput(conn net.Conn, stdin *os.File) {
 
 // muxOutput receives remote clients and local log targets,
 // multiplexing output lines to them
-func muxOutput(streamLabel string, lines chan []byte, clients <-chan net.Conn, targets <-chan io.WriteCloser) {
+func muxOutput(streamLabel string, lines chan []byte, clients <-chan net.Conn, targets <-chan io.WriteCloser, format func(timestamp string, line []byte, stream string) []byte) {
 	var logs []io.WriteCloser
 	var conns []io.WriteCloser
 
@@ -595,7 +635,7 @@ func muxOutput(streamLabel string, lines chan []byte, clients <-chan net.Conn, t
 	}
 
 	logsWriteAndFilter := func(wc io.WriteCloser, line []byte) bool {
-		out := []byte(fmt.Sprintf("%s %s %s", time.Now().Format(time.RFC3339Nano), streamLabel, line))
+		out := format(time.Now().Format(time.RFC3339Nano), line, streamLabel)
 		return writeAndFilter(wc, out)
 	}
 
